@@ -99,14 +99,14 @@ def main() -> int:
     ap.add_argument("--date", help="YYYY-MM-DD in your timezone (default: today)")
     ap.add_argument("--days-back", type=int, default=1, help="also re-pull this many previous days (catches late fills)")
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--account-name", help="TradeLab account to attribute trades to (default: first)")
+    ap.add_argument("--account-name", help="PrimusLab account to attribute trades to (default: first)")
     args = ap.parse_args()
 
     db = Database.from_env(); db.init()
     tz = db.get_setting("tz", "Europe/London")
     accts = db.accounts()
     if not accts:
-        print("No TradeLab account configured — open the app once and set one up in Settings."); return 2
+        print("No PrimusLab account configured — open the app once and set one up in Settings."); return 2
     acct = next((a for a in accts if a.name == args.account_name), accts[0])
     day = pd.Timestamp(args.date).date() if args.date else pd.Timestamp.now(tz=tz).date()
 
@@ -141,17 +141,6 @@ def main() -> int:
         print(f"API not available ({e}); writing the review from stored trades only.")
 
     review = build_review(db, day, tz, pulled, acct)
-    try:
-        from core import coach
-        ccfg = coach.get_config()
-        if ccfg.get("key"):
-            df_live = db.trades_df(sources=LIVE_SOURCES)
-            if not df_live.empty:
-                res = coach.review(df_live.tail(60), acct, tz, db=db, scope=f"last 60 live trades to {day}", cfg=ccfg)
-                if res.get("review"):
-                    review += "\n\n## Coach\n\n" + res["review"]
-    except Exception as e:  # noqa: BLE001
-        review += f"\n\n_Coach unavailable: {e}_"
     print("\n" + review)
     if not args.dry_run:
         db.set_setting(f"daily_review_{day.isoformat()}", review)

@@ -73,7 +73,7 @@ def _mapping_ui(columns: list[str], key: str, default_source: str = "csv") -> tu
                               help="Backtests are kept apart from live trades in every statistic.")
     base = importers.auto_map(columns) if profile == "(auto-detect)" else {**{t: None for t in TARGETS}, **saved[profile].get("map", saved[profile])}
     with st.expander("Column mapping", expanded=(profile == "(auto-detect)")):
-        st.caption("Left: what TradeLab needs. Right: the column in your file. Leave blank for anything you don't have.")
+        st.caption("Left: what PrimusLab needs. Right: the column in your file. Leave blank for anything you don't have.")
         cols = st.columns(3)
         mapping = {}
         options = ["—"] + list(columns)
@@ -225,12 +225,12 @@ with tabs[3]:
 
 # ---------------------------------------------------------------- json
 with tabs[4]:
-    c.section("JSON", "A list of trade objects, or a TradeLab export")
+    c.section("JSON", "A list of trade objects, or a PrimusLab export")
     up = st.file_uploader("JSON file", type=["json"], key="json_up")
     if up is not None:
         data = json.load(up)
         if isinstance(data, dict) and "trades" in data and "accounts" in data:
-            st.info("This is a TradeLab backup — use the Backup tab to restore it.")
+            st.info("This is a PrimusLab backup — use the Backup tab to restore it.")
         else:
             raw = pd.DataFrame(data if isinstance(data, list) else data.get("trades", []))
             if not raw.empty:
@@ -304,7 +304,7 @@ with tabs[7]:
     b1, b2 = st.columns(2)
     with b1:
         st.download_button("Download backup (.json)", db.export_json().encode(),
-                           f"tradelab_backup_{datetime.now():%Y%m%d}.json", "application/json", type="primary", use_container_width=True)
+                           f"primuslab_backup_{datetime.now():%Y%m%d}.json", "application/json", type="primary", use_container_width=True)
     with b2:
         up = st.file_uploader("Restore from backup", type=["json"], key="restore_up")
         replace = st.checkbox("Replace everything (otherwise merge, skipping duplicates)")

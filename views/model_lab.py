@@ -7,14 +7,14 @@ from ui import components as c
 from ui import state
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Model Lab")
+df_all, df = state.page_setup("Strategy Models")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
 db = state.get_db()
 f = state.filters()
 
-c.page_header("Model Lab", "Your setups as testable models: which ones pay, which rules matter, which are going cold",
+c.page_header("Strategy Models", "Define your strategies, keep their rules together and compare their results.",
               f"{f['scope']} · {f['preset'].lower()}")
 
 setups = db.setups()
@@ -23,7 +23,7 @@ setup_names = [s.name for s in setups]
 # models = defined setups ∪ names seen in the data (so imported strategies show up without setup records)
 all_models = list(dict.fromkeys(setup_names + names_in_data))
 
-tab_score, tab_compare, tab_manage = st.tabs(["Scorecards", "Compare", "Manage models"])
+tab_score, tab_compare, tab_manage = st.tabs(["Scorecards", "Compare", "Manage strategies"])
 
 # ---------------------------------------------------------------- scorecards
 with tab_score:

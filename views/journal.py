@@ -11,7 +11,7 @@ from ui import state
 from ui.log_trade import log_trade_form
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Trades")
+df_all, df = state.page_setup("Trade Journal")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
@@ -24,7 +24,7 @@ MISTAKES = ["chased entry", "moved stop", "oversized", "no setup", "revenge trad
 # ---- header with the Log trade popover -------------------------------------------------
 h1, h2 = st.columns([5, 1.2])
 with h1:
-    c.page_header("Trades", "Every trade in dollars and as a share of the account. Click a row for its detail.",
+    c.page_header("Trade Journal", "Your trading record. Open a trade to review its result, notes and setup.",
                   f"{f['scope']} · {f['preset'].lower()} · {len(df)} in view")
 with h2:
     st.markdown('<div style="height:14px"></div>', unsafe_allow_html=True)
@@ -167,9 +167,6 @@ with tab_week:
                 c.section("Observations", "Only where there are enough trades to mean something")
                 for o in obs[:6]:
                     c.note("• " + o)
-            c.section("Coach on this week", "")
-            from ui.coach_panel import coach_panel
-            coach_panel(w, acct, tz, key=f"week_{wk.isoformat()}", compact=True)
             review_key = f"review_{wk.isoformat()}"
             txt = st.text_area("Your review", value=db.get_setting(review_key, ""), height=140,
                                placeholder="What worked, what didn't, one thing to change next week…")
@@ -233,9 +230,9 @@ with tab_export:
     out["mistake_tags"] = out["mistake_tags"].apply(lambda l: "; ".join(l or []))
     out["tags"] = out["tags"].apply(lambda l: "; ".join(l or []))
     e1, e2 = st.columns(2)
-    e1.download_button("Download CSV", out.to_csv(index=False).encode(), "tradelab_trades.csv", "text/csv", use_container_width=True)
+    e1.download_button("Download CSV", out.to_csv(index=False).encode(), "primuslab_trades.csv", "text/csv", use_container_width=True)
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
         out.to_excel(xw, index=False, sheet_name="Trades")
-    e2.download_button("Download Excel", buf.getvalue(), "tradelab_trades.xlsx",
+    e2.download_button("Download Excel", buf.getvalue(), "primuslab_trades.xlsx",
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)

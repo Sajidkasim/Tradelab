@@ -1,4 +1,4 @@
-"""TradeLab — entry point and navigation.
+"""PrimusLab — entry point and navigation.
 
     streamlit run app.py
 """
@@ -6,22 +6,25 @@ import streamlit as st
 
 from core.registry import load_extensions
 
-st.set_page_config(page_title="TradeLab", page_icon="assets/icon.png", layout="wide", initial_sidebar_state="auto")
-st.logo("assets/wordmark.png", icon_image="assets/icon.png", size="large")
+st.set_page_config(page_title="PrimusLab", page_icon="assets/primuslab-icon.svg", layout="wide", initial_sidebar_state="auto")
+st.logo("assets/primuslab-wordmark.svg", icon_image="assets/primuslab-icon.svg", size="large")
 
 pages = {
-    "": [
-        st.Page("views/overview.py", title="Overview", icon=":material/dashboard:", default=True),
-        st.Page("views/performance.py", title="Performance", icon=":material/monitoring:"),
-        st.Page("views/model_lab.py", title="Model Lab", icon=":material/science:"),
-        st.Page("views/backtest.py", title="Backtest", icon=":material/history:"),
-        st.Page("views/risk.py", title="Risk Manager", icon=":material/shield:"),
-        st.Page("views/journal.py", title="Trades", icon=":material/receipt_long:"),
+    "Daily": [
+        st.Page("views/edge_lab.py", title="Test & Log", icon=":material/tune:", default=True),
+        st.Page("views/overview.py", title="Dashboard", icon=":material/dashboard:"),
+        st.Page("views/journal.py", title="Trade Journal", icon=":material/receipt_long:"),
     ],
-    "Data": [
+    "Research": [
+        st.Page("views/performance.py", title="Analytics", icon=":material/monitoring:"),
+        st.Page("views/model_lab.py", title="Strategy Models", icon=":material/science:"),
+        st.Page("views/backtest.py", title="Strategy Backtester", icon=":material/history:"),
+    ],
+    "Account": [
+        st.Page("views/risk.py", title="Risk", icon=":material/shield:"),
         st.Page("views/import_.py", title="Import", icon=":material/upload:"),
         st.Page("views/settings.py", title="Settings", icon=":material/settings:"),
     ],
 }
-load_extensions("extensions")            # user plug-ins (import sources, coach providers)
+load_extensions("extensions")            # user plug-ins
 st.navigation(pages, position="sidebar").run()

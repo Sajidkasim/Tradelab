@@ -1,6 +1,6 @@
-# Putting TradeLab on the web
+# Putting PrimusLab on the web
 
-About 30 minutes, all free. You end up with a URL like `https://sajid-tradelab.streamlit.app`
+About 30 minutes, all free. You end up with a URL like `https://sajid-primuslab.streamlit.app`
 that works on your phone, plus a database that keeps your journal safe across restarts.
 
 ## 1 · Database (Supabase, free)
@@ -13,15 +13,15 @@ that works on your phone, plus a database that keeps your journal safe across re
    ```
 3. Replace `[YOUR-PASSWORD]` and add `?sslmode=require` on the end. That whole string is your `TRADELAB_DB_URL`.
 
-TradeLab creates its own tables on first run. Nothing else to set up.
+PrimusLab creates its own tables on first run. Nothing else to set up.
 
 ## 2 · Code (GitHub)
 
 1. Create a **private** repository (private repo ⇒ private app; a free Streamlit account allows one private app).
 2. Push this folder to it. `.env` and `secrets.toml` are git-ignored — never commit keys.
    ```bash
-   git init && git add -A && git commit -m "TradeLab"
-   git branch -M main && git remote add origin https://github.com/YOU/tradelab.git && git push -u origin main
+   git init && git add -A && git commit -m "PrimusLab"
+   git branch -M main && git remote add origin https://github.com/YOU/primuslab.git && git push -u origin main
    ```
 
 ## 3 · App (Streamlit Community Cloud, free)
@@ -33,7 +33,6 @@ TradeLab creates its own tables on first run. Nothing else to set up.
    PROJECTX_USERNAME = "your_topstepx_username"
    PROJECTX_API_KEY = "your_projectx_api_key"
    ```
-   Optional, for the AI coach: `ANTHROPIC_API_KEY = "sk-ant-..."` (or `OPENAI_API_KEY`).
    All keys are optional — CSV, Excel, FX Replay and manual entry work without any of them.
 3. Deploy. First build takes a few minutes. You'll get `https://<name>.streamlit.app`.
 4. **Share → "Only specific people can view this app"** and add your email. Keep it private: it's your P&L.

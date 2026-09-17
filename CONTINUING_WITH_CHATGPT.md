@@ -1,4 +1,4 @@
-# Continuing TradeLab with ChatGPT / Codex
+# Continuing PrimusLab with ChatGPT / Codex
 
 You'll want to change things. This file makes that safe: the architecture in one page, the rules
 a change must respect, and prompts you can paste. Use **Codex with GPT-6 Astra** pointed at the
@@ -16,8 +16,8 @@ ui/log_trade.py         the Log trade popover form (a fragment)
 core/registry.py        extension points: import sources, coach providers; extensions/ is auto-loaded
 views/_template_page.py copy this to add a page
 ui/style.py             all CSS (Inter, hero, glass cards, motion); colours from core.charts.PALETTE; theme_mode()
-ui/coach_panel.py       the Coach card (Overview / Performance / Journal)
-core/coach.py           build_brief() (pure), provider calls (Anthropic / OpenAI), cached review()
+ui/coach_panel.py       dormant Coach UI (not used by active pages)
+core/coach.py           dormant Coach engine; retained for compatibility, not called by app or nightly
 .streamlit/config.toml  native [theme.light] / [theme.dark] + Inter font faces served from static/
 core/metrics.py         every statistic (summary_stats, breakdown, equity_curve, streaks, …)
 core/risk.py            sizing, daily limit, trailing drawdown, consistency, Kelly, ruin, Monte Carlo
@@ -29,7 +29,7 @@ core/db.py              SQLAlchemy data layer, SQLite locally / Postgres hosted
 core/charts.py          Plotly helpers, dark + light palette, theme()
 strategies/*.py         backtest strategies: generate_signals(bars, params) + PARAMS + RANGES
 nightly.py              auto-journal script
-tests/                  72 tests — run `python -m pytest -q` after every change
+tests/                  regression suite — run `python -m pytest -q` after every change
 ```
 
 Every page starts with `df_all, df = state.page_setup("Name")` — `df` is already filtered by the
@@ -78,7 +78,7 @@ Rules for working on this repository:
 > Read README.md and CONTINUING_WITH_CHATGPT.md, then `views/overview.py` and `ui/state.py` so you know the patterns. Confirm the nine rules in one line each. Then wait for my request.
 
 **Add a page section**
-> On the Performance page, add a section "Expectancy by month" under the breakdowns: use metrics.add_time_features to derive a `month` column (YYYY-MM), metrics.breakdown(df, "month"), and charts.breakdown_bar with value "expectancy". Follow the existing section pattern. Complete file, tests still green.
+> On the Analytics page, add a section "Expectancy by month" under the breakdowns: use metrics.add_time_features to derive a `month` column (YYYY-MM), metrics.breakdown(df, "month"), and charts.breakdown_bar with value "expectancy". Follow the existing section pattern. Complete file, tests still green.
 
 **Add a strategy for the backtester**
 > Create strategies/vwap_reclaim.py implementing generate_signals(bars, params) -> DataFrame with signal/stop/target: long when close crosses back above session VWAP after having been below it for at least `min_bars_below` bars, stop `stop_atr` ATRs below entry, target `target_r` × risk. Use core.backtest.vwap and core.backtest.atr. Include PARAMS and RANGES. Add a test in tests/ that runs it on 300 synthetic bars and asserts it returns one row per bar with signals in {-1,0,1}.

@@ -9,7 +9,7 @@ from ui import components as c
 from ui import state
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Risk Manager")
+df_all, df = state.page_setup("Risk")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
@@ -17,7 +17,7 @@ db = state.get_db()
 p = pal(mode)
 CFG = {"displayModeBar": False}
 
-c.page_header("Risk Manager", "Position size, prop-firm limits, and what your numbers say about ruin",
+c.page_header("Risk", "Check your account limits and plan the size of your next trade.",
               f"{acct.name} · DLL {c.fmt_money(acct.daily_loss_limit, sign=False)} · MLL {c.fmt_money(acct.max_trailing_drawdown, sign=False)}")
 
 rdf = state.risk_df(df_all)

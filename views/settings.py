@@ -7,15 +7,16 @@ import streamlit as st
 from core.models import Account, Instrument, InstrumentType
 from ui import components as c
 from ui import state
+from ui.edge_lab import playbook_editor
 
 df_all, df = state.page_setup("Settings")
 tz = state.tz()
 db = state.get_db()
 
-c.page_header("Settings", "Accounts, instruments, sessions, timezone and connections",
+c.page_header("Settings", "Accounts, instruments, playbook, sessions, timezone and connections",
               "sqlite (local file)" if db.is_sqlite else "postgres (hosted)")
 
-tabs = st.tabs(["Accounts", "Instruments", "Sessions & timezone", "Connections", "Data"])
+tabs = st.tabs(["Accounts", "Instruments", "Playbook", "Sessions & timezone", "Connections", "Data"])
 
 # ---------------------------------------------------------------- accounts
 with tabs[0]:
@@ -86,15 +87,20 @@ with tabs[1]:
             db.delete_instrument(sym)
         st.success(f"Saved {len(items)} instruments."); st.rerun()
 
-# ---------------------------------------------------------------- sessions & tz
+# ---------------------------------------------------------------- playbook
 with tabs[2]:
+    playbook_editor()
+    st.caption("The same lists are used on Test & Log when you add, review or filter trades. Entry and level timeframes are fixed chart sizes and are chosen per trade.")
+
+# ---------------------------------------------------------------- sessions & tz
+with tabs[3]:
     c.section("Timezone", "All times are stored in UTC and shown in this zone")
     zones = ["Europe/London", "America/New_York", "America/Chicago", "Europe/Berlin", "Asia/Dubai", "Asia/Singapore", "Australia/Sydney", "UTC"]
     cur_tz = db.get_setting("tz", state.DEFAULT_TZ)
     new_tz = st.selectbox("Timezone", zones + ([cur_tz] if cur_tz not in zones else []), index=(zones + ([cur_tz] if cur_tz not in zones else [])).index(cur_tz))
     if new_tz != cur_tz:
         db.set_setting("tz", new_tz); st.session_state["tz"] = new_tz; st.rerun()
-    c.section("Sessions", "Label each trade by the time of day it was entered (in your timezone). Used by the breakdowns and Model Lab.")
+    c.section("Sessions", "Label each trade by the time of day it was entered (in your timezone). Used by Analytics and Strategy Models.")
     sessions = db.get_setting("sessions", state.DEFAULT_SESSIONS)
     sed = st.data_editor(pd.DataFrame(sessions), use_container_width=True, hide_index=True, num_rows="dynamic", key="sess_editor",
                          column_config={"label": st.column_config.TextColumn("Label", required=True),
@@ -122,7 +128,7 @@ with tabs[2]:
         state.bump(); st.success(f"Updated {n} trades.")
 
 # ---------------------------------------------------------------- connections
-with tabs[3]:
+with tabs[4]:
     c.section("TopstepX / ProjectX", "Credentials are read from the environment — never stored in the app or shown here")
     from core.projectx_api import ProjectXClient, ProjectXError
     try:
@@ -146,20 +152,6 @@ PROJECTX_API_KEY = "your_key"
 TRADELAB_DB_URL = "postgresql://..."
 ```
 The key is generated in TopstepX under Settings → API and needs the ProjectX API subscription.""")
-    c.section("AI coach", "Optional. Reads aggregated stats and short trade lines only — never your keys or broker login.")
-    from core import coach
-    ccfg = coach.get_config()
-    if ccfg.get("key"):
-        st.success(f"Coach ready · {ccfg['provider']} · {ccfg['model']}", icon=":material/check:")
-    else:
-        st.info("Not configured. Add ANTHROPIC_API_KEY (or OPENAI_API_KEY) to .env / Streamlit secrets. "
-                "Optional: COACH_PROVIDER=anthropic|openai, COACH_MODEL=<model id>. A review costs well under a cent.",
-                icon=":material/smart_toy:")
-    st.markdown("""```toml
-# Streamlit Cloud → Settings → Secrets  (or your local .env)
-ANTHROPIC_API_KEY = "sk-ant-..."     # or OPENAI_API_KEY = "sk-..."
-COACH_MODEL = "claude-sonnet-5"      # optional; openai default is gpt-5.6-terra
-```""")
     c.section("Appearance", "")
     st.markdown('<div class="tl-note">Light and dark are both built in. Switch with the <b>☰ menu → Settings → Theme</b> '
                 '(top right); "Use system setting" follows your phone or computer.</div>', unsafe_allow_html=True)
@@ -168,7 +160,7 @@ COACH_MODEL = "claude-sonnet-5"      # optional; openai default is gpt-5.6-terra
     st.caption("A hosted app should point TRADELAB_DB_URL at a Postgres database (e.g. Supabase free tier) so your journal survives restarts.")
 
 # ---------------------------------------------------------------- data
-with tabs[4]:
+with tabs[5]:
     c.section("Data", "")
     counts = db.trades_df().groupby("source").size().to_dict() if db.count_trades() else {}
     c.kpi_row([{"label": k, "value": str(v)} for k, v in counts.items()] or [{"label": "trades", "value": "0"}])

@@ -10,3 +10,6 @@ __pycache__/
 data/shoot.db
 data/reviews/
 charts_preview.html
+
+# Screenshots the Claude desktop app saves alongside the project
+Claude outputs/

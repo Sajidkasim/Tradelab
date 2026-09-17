@@ -1,4 +1,4 @@
-# TradeLab — how to run it
+# PrimusLab — how to run it
 
 ## On your computer (2 minutes)
 
@@ -17,8 +17,8 @@ run.bat
 That creates a private Python environment the first time, installs what's needed, runs the tests,
 and opens the app at **http://localhost:8501**. Later runs skip the install and start in seconds.
 
-First visit: press **Load demo data** to explore. Delete it from Settings → Data when you're ready
-for your own trades, then use **Trades → Log trade** or **Import**.
+First visit: open Dashboard and press **Load demo data** to explore. Delete it from Settings → Data when you're ready
+for your own trades, then use **Test & Log → Add Trade** or **Import**.
 
 Your data lives in `data/tradelab.db` on your machine. Back it up from Import → Backup.
 
@@ -33,7 +33,6 @@ on GitHub's servers.
 ```
 PROJECTX_USERNAME=...        # TopstepX live pull (needs the ProjectX API subscription)
 PROJECTX_API_KEY=...
-ANTHROPIC_API_KEY=sk-ant-... # the AI coach (or OPENAI_API_KEY=sk-...)
 TRADELAB_DB_URL=postgresql://...   # hosted database; leave unset to use the local file
 ```
 
@@ -45,6 +44,6 @@ Copy `.env.example` to `.env` and fill in what you have. Everything works withou
 
 ## If something goes wrong
 
-- `python -m pytest -q` should say **72 passed**. If it doesn't, the install is incomplete.
+- `python -m pytest -q` should finish with all tests passing. If any fail, copy the output when asking for help.
 - A red box on a page is a bug: copy its text into ChatGPT with `CONTINUING_WITH_CHATGPT.md` open.
 - Numbers don't match TopstepX after a live pull → Settings → Instruments → check the multiplier.

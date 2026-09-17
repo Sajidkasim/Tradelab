@@ -144,6 +144,10 @@ section[data-testid="stSidebar"] .tl-foot {{ font-size: 11px; color: var(--tl-mu
 section[data-testid="stSidebar"] hr {{ margin: 10px 0; border-color: var(--tl-border); }}
 section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"] {{ border-radius: 10px; transition: background .2s var(--tl-ease); }}
 section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"] span {{ letter-spacing: -0.005em; }}
+section[data-testid="stSidebar"] a[data-testid="stSidebarNavLink"][aria-current="page"] {{
+  box-shadow: inset 3px 0 0 var(--tl-accent); background: var(--tl-hover); }}
+section[data-testid="stSidebar"] [data-testid="stNavSectionHeader"] {{
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .12em; color: var(--tl-muted); }}
 
 /* ---------- widgets: quieter, rounder ---------- */
 div[data-testid="stDataFrame"], div[data-testid="stDataEditor"] {{ border: 1px solid var(--tl-border); border-radius: 14px; overflow: hidden; box-shadow: var(--tl-shadow); }}
@@ -188,6 +192,45 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, div[data-base
   .tl-kpi, .tl-card, .stButton > button {{ transition: none !important; }}
 }}
 
+/* ---------- Test & Log: a quieter research desk ---------- */
+.tl-research-kicker {{ color: var(--tl-accent); font-size: 10px; font-weight: 650; letter-spacing: .18em; margin: 12px 0 16px; }}
+.tl-research-kicker + div .tl-page .title {{ font-size: 42px; letter-spacing: -.045em; }}
+.st-key-edge_sample {{ padding: 18px 22px; border: 1px solid var(--tl-border); border-radius: 16px;
+  background: linear-gradient(105deg, var(--tl-surface), var(--tl-page)); margin-bottom: 18px; }}
+.tl-research-goal {{ display: flex; align-items: center; justify-content: space-between; gap: 16px; }}
+.tl-research-goal > span {{ color: var(--tl-muted); font-size: 10px; font-weight: 600; letter-spacing: .14em; }}
+.tl-research-goal strong {{ color: var(--tl-ink); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }}
+.tl-research-goal small {{ font-size: 12px; color: var(--tl-muted); font-weight: 400; }}
+.st-key-edge_sample .tl-prog-head {{ display: none; }}
+.st-key-edge_sample .tl-prog-track {{ height: 4px; }}
+.st-key-edge_sample .tl-prog-cap {{ font-size: 11px; margin-top: 8px; }}
+.st-key-edge_builder, .st-key-edge_log_panel {{ background: var(--tl-surface); border-radius: 20px; }}
+.st-key-edge_builder {{ padding: 8px; }}
+.st-key-edge_log_panel {{ padding: 12px; }}
+.tl-step {{ display: flex; align-items: flex-start; gap: 12px; margin: 10px 0 12px; }}
+.tl-step > span {{ display: grid; place-items: center; min-width: 30px; height: 30px; border-radius: 9px;
+  border: 1px solid var(--tl-border-strong); color: var(--tl-accent); font-size: 11px; font-weight: 600; }}
+.tl-step b {{ display: block; color: var(--tl-ink); font-size: 16px; font-weight: 600; letter-spacing: -.02em; }}
+.tl-step small {{ display: block; color: var(--tl-muted); font-size: 12px; line-height: 1.5; margin-top: 3px; }}
+.tl-selection-path {{ display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 11px; line-height: 1.7;
+  color: var(--tl-ink2); margin: 4px 0 12px; }}
+.tl-selection-path span {{ background: var(--tl-hover); border: 1px solid var(--tl-border); border-radius: 6px; padding: 3px 8px; }}
+.tl-selection-path i, .tl-separator {{ color: var(--tl-muted); font-style: normal; padding: 0 3px; }}
+.tl-outcomes {{ display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 0 2px; }}
+.tl-outcomes span {{ width: 22px; height: 26px; display: grid; place-items: center; border-radius: 5px;
+  font-size: 10px; font-weight: 600; border: 1px solid var(--tl-border); background: var(--tl-hover); }}
+.tl-outcomes .win {{ color: var(--tl-pos); border-bottom: 2px solid var(--tl-pos); }}
+.tl-outcomes .loss {{ color: var(--tl-neg); border-bottom: 2px solid var(--tl-neg); }}
+.tl-outcomes .scratch {{ color: var(--tl-muted); border-bottom: 2px solid var(--tl-muted); }}
+.st-key-edge_builder .stButton > button {{ border-radius: 10px; }}
+.st-key-edge_log_panel .tl-step {{ margin-top: 20px; }}
+.st-key-edge_lane [role="radiogroup"] {{ gap: 4px; padding: 4px; background: var(--tl-hover); border: 1px solid var(--tl-border); border-radius: 12px; }}
+.st-key-edge_lane [data-testid="stRadioOption"] {{ border-radius: 8px; padding: 9px 18px; }}
+.st-key-edge_lane [data-testid="stRadioOption"]:has(input:checked) {{ background: var(--tl-surface); box-shadow: var(--tl-shadow); }}
+.st-key-edge_lane [data-testid="stRadioOption"]:has(input:checked) p {{ color: var(--tl-accent); font-weight: 600; }}
+.st-key-edge_lane [data-testid="stRadioOption"] > div > div:first-child {{ display: none; }}
+.st-key-edge_lane [data-testid="stRadioOption"]:focus-within {{ outline: 2px solid var(--tl-accent); outline-offset: 2px; }}
+
 /* ---------- small screens ---------- */
 @media (max-width: 640px) {{
   .block-container {{ padding-top: 3.6rem; padding-left: 1rem; padding-right: 1rem; }}
@@ -196,6 +239,8 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, div[data-base
   .tl-hero .facts {{ gap: 18px; }}
   .tl-kpi .value {{ font-size: 24px; }}
   .tl-page .meta {{ text-align: left; }}
+  .tl-research-goal {{ align-items: flex-start; flex-direction: column; gap: 4px; }}
+  .st-key-edge_sample {{ padding: 16px; }}
 }}
 </style>
 """, unsafe_allow_html=True)

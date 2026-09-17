@@ -169,13 +169,15 @@ def apply_filters(df_all: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def page_setup(title: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def page_setup(title: str, sidebar_renderer=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Standard page prologue: CSS, sidebar filters. Returns (all_trades, filtered_trades)."""
     from ui.style import inject_css
+    from ui.components import workspace_guide
     inject_css()
     df_all = trades()
     with st.sidebar:
-        sidebar(df_all)
+        (sidebar_renderer or sidebar)(df_all)
+        workspace_guide()
     return df_all, apply_filters(df_all)
 
 

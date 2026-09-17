@@ -4,17 +4,16 @@ import streamlit as st
 from core import charts, metrics
 from ui import components as c
 from ui import state
-from ui.coach_panel import coach_panel
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Performance")
+df_all, df = state.page_setup("Analytics")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
 f = state.filters()
 CFG = {"displayModeBar": False}
 
-c.page_header("Performance", "Where the edge is, and where it leaks",
+c.page_header("Analytics", "See which strategies, sessions and habits shape your results.",
               f"{f['scope']} · {f['preset'].lower()} · {len(df)} trades")
 
 if df.empty:
@@ -39,7 +38,7 @@ c.kpi_row([
     {"label": "Loss streak", "value": str(s["longest_loss_streak"]), "caption": f"current {s['current_streak']:+d}"},
 ])
 
-tab_ess, tab_break, tab_mist, tab_coach, tab_deep = st.tabs(["Essentials", "Breakdowns", "Mistakes & rules", "Coach", "Deep dive"])
+tab_ess, tab_break, tab_mist, tab_deep = st.tabs(["Essentials", "Breakdowns", "Mistakes & rules", "Deep dive"])
 
 # ---- essentials --------------------------------------------------------------------------
 with tab_ess:
@@ -136,11 +135,6 @@ with tab_mist:
                 c.note(f"Breaking your rules cost you <b>{c.fmt_money(br['net_pnl'])}</b> across {int(br['trades'])} trades."
                        if br["net_pnl"] < 0 else
                        f"Rule-breaking trades made <b>{c.fmt_money(br['net_pnl'])}</b> — with a {c.fmt_pct(br['win_rate'])} win rate that is luck, not edge.")
-
-# ---- coach ---------------------------------------------------------------------------------------
-with tab_coach:
-    c.section("Coach", "A plain-English review of exactly the trades in view — change the filters and ask again")
-    coach_panel(df, acct, tz, key="performance")
 
 # ---- deep dive -----------------------------------------------------------------------------------
 with tab_deep:

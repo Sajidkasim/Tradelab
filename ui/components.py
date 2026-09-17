@@ -120,6 +120,63 @@ def small_sample_badge(n: int, threshold: int = 30) -> str:
     return f"{n} trades — small sample" if n < threshold else ""
 
 
+def research_header(scope: str) -> None:
+    st.markdown('<div class="tl-research-kicker">PRIMUSLAB / TEST &amp; LOG</div>', unsafe_allow_html=True)
+    page_header("Find your edge.", "Log a trade. Explore a setup. Learn from your results.", scope)
+
+
+def workspace_guide() -> None:
+    with st.expander("Quick page guide", icon=":material/help_outline:"):
+        st.markdown("""**Daily**
+
+- **Test & Log** — add trades and explore setup combinations.
+- **Dashboard** — your account and results at a glance.
+- **Trade Journal** — review and edit individual trades.
+
+**Research**
+
+- **Analytics** — compare sessions, habits and results.
+- **Strategy Models** — define strategies and track their rules.
+- **Strategy Backtester** — test rules on historical prices.
+
+**Account**
+
+- **Risk** — position sizing and account limits.
+- **Import** — bring in FX Replay or broker exports.
+- **Settings** — accounts, instruments and preferences.
+""")
+
+
+def sample_progress(n: int, goal: int = 1000) -> None:
+    st.markdown('<div class="tl-research-goal"><span>THE 1,000-TRADE PROJECT</span>'
+                f'<strong>{n:,}<small> / {goal:,} closed trades</small></strong></div>', unsafe_allow_html=True)
+    progress(n / goal * 100, "info", caption="Current account, period and data source · before setup filters")
+
+
+def step_label(number: str, title: str, caption: str = "") -> None:
+    st.markdown(f'<div class="tl-step"><span>{_esc(number)}</span><div><b>{_esc(title)}</b>'
+                f'<small>{_esc(caption)}</small></div></div>', unsafe_allow_html=True)
+
+
+def selection_path(parts: list[str]) -> None:
+    st.markdown('<div class="tl-selection-path">' + '<i> / </i>'.join(
+        f'<span>{_esc(part)}</span>' for part in parts) + '</div>', unsafe_allow_html=True)
+
+
+def outcome_strip(df: pd.DataFrame) -> None:
+    """A recent-results strip; values are already computed by core.metrics."""
+    dots = []
+    for row in df.tail(30).itertuples():
+        value = getattr(row, "net_pnl", None)
+        if value is None or pd.isna(value):
+            continue
+        tone = "win" if value > 0 else ("loss" if value < 0 else "scratch")
+        label = "W" if value > 0 else ("L" if value < 0 else "B")
+        caption = f"{row.symbol} · {fmt_money(value)} · {fmt_r(getattr(row, 'r_multiple', None))}"
+        dots.append(f'<span class="{tone}" title="{_esc(caption)}">{label}</span>')
+    st.markdown('<div class="tl-outcomes">' + ''.join(dots) + '</div>', unsafe_allow_html=True)
+
+
 # --------------------------------------------------------------------------
 # DataFrame presentation
 # --------------------------------------------------------------------------

@@ -6,17 +6,17 @@ from ui import components as c
 from ui import state
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Overview")
+df_all, df = state.page_setup("Dashboard")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
 f = state.filters()
 
-c.page_header("Overview", f"{f['scope']} trades · {f['preset'].lower()}",
+c.page_header("Dashboard", f"Your account at a glance · {f['scope']} trades · {f['preset'].lower()}",
               f"{acct.name} · start {c.fmt_money(acct.starting_balance, sign=False)}")
 
 if df_all.empty:
-    c.empty_state("No trades yet", "Load demo data to explore the app, or import your own from the Data section.")
+    c.empty_state("No trades yet", "Load demo data to explore, or open Import to bring in your own trades.")
     col1, col2, _ = st.columns([1, 1, 3])
     if col1.button("Load demo data", type="primary", use_container_width=True):
         from core.demo import seed_demo_trades
@@ -88,17 +88,11 @@ eq = metrics.equity_curve(df, acct.starting_balance)
 st.plotly_chart(charts.equity_chart(eq, mode, title="", starting_balance=acct.starting_balance), use_container_width=True,
                 config={"displayModeBar": False})
 
-# ---- coach + calendar -----------------------------------------------------------------------
-left, right = st.columns([2, 1])
-with left:
-    c.section("Daily P&L", "One square per trading day")
-    st.plotly_chart(charts.calendar_heatmap(metrics.daily_pnl(df), mode, title=""), use_container_width=True,
-                    config={"displayModeBar": False})
-with right:
-    c.section("Coach", "A plain-English read of the trades in view")
-    from ui.coach_panel import coach_panel
-    coach_panel(df, acct, tz, key="overview", compact=True)
+# ---- calendar -------------------------------------------------------------------------------
+c.section("Daily P&L", "One square per trading day")
+st.plotly_chart(charts.calendar_heatmap(metrics.daily_pnl(df), mode, title=""), use_container_width=True,
+                config={"displayModeBar": False})
 
-c.section("Recent trades", "Last 15 closed trades in this view · full list under Trades")
+c.section("Recent trades", "Last 15 closed trades in this view · full list in Trade Journal")
 recent = c.with_pct(df[df["exit_time"].notna()].sort_values("exit_time", ascending=False).head(15), acct.starting_balance)
 c.show_df(recent[c.TRADE_LIST_COLS], tz, labels=c.TRADE_LIST_LABELS)

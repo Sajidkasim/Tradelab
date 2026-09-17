@@ -53,3 +53,22 @@ def test_backtest_sources_stay_out_of_live_stats():
     s = metrics.summary_stats(db.trades_df(sources=LIVE_SOURCES))
     assert s["trades"] == 2 and s["net_pnl"] == 0.0
     assert set(LIVE_SOURCES).isdisjoint(BACKTEST_SOURCES)
+
+
+def test_pnl_only_import_keeps_r_after_save_and_tag_edit():
+    """Replay exports must retain supplied risk/R through the journal workflow."""
+    db = Database(":memory:"); db.init()
+    raw = pd.DataFrame({"Date": ["2026-08-04"], "Symbol": ["MNQ"],
+                        "Side": ["Buy"], "P&L": [100.0], "R": [2.0]})
+    trades, errors = normalise(raw, auto_map(list(raw.columns)), source=Source.FXREPLAY)
+    assert errors == []
+    db.insert_trades(trades)
+    tid = int(db.trades_df().iloc[0]["id"])
+    saved = db.get_trade(tid)
+    assert saved.initial_risk == pytest.approx(50.0)
+    assert saved.r_multiple == pytest.approx(2.0)
+    db.update_trade(tid, tags=["pnl-only", "SMT", "CISD"])
+    edited = db.get_trade(tid)
+    assert edited.net_pnl == pytest.approx(100.0)
+    assert edited.initial_risk == pytest.approx(50.0)
+    assert edited.r_multiple == pytest.approx(2.0)

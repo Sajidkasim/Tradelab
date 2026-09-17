@@ -14,14 +14,14 @@ from ui import components as c
 from ui import state
 from ui.style import theme_mode
 
-df_all, df = state.page_setup("Backtest")
+df_all, df = state.page_setup("Strategy Backtester")
 mode = theme_mode()
 tz = state.tz()
 acct = state.account()
 db = state.get_db()
 p = pal(mode)
 
-c.page_header("Backtest", "Event-driven, no look-ahead, slippage and commission charged. Only out-of-sample results deserve belief.",
+c.page_header("Strategy Backtester", "Run strategy rules against historical prices, with fees and slippage included.",
               "")
 
 # ---------------------------------------------------------------- data

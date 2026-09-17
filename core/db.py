@@ -157,6 +157,20 @@ def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _compute_stored_trade(t: Trade) -> None:
+    """Keep imported dollar risk when no price stop was supplied.
+
+    Price-based trades continue through the same metric formulas. Imports may
+    supply risk separately (including P&L-only FX Replay rows).
+    """
+    from .metrics import compute_trade_fields
+    supplied_risk = t.initial_risk if t.stop_price is None else None
+    compute_trade_fields(t)
+    if supplied_risk is not None and supplied_risk > 0:
+        t.initial_risk = supplied_risk
+        t.r_multiple = t.net_pnl / supplied_risk if t.net_pnl is not None else None
+
+
 def make_url(target: str) -> str:
     """Path or URL -> SQLAlchemy URL. Supabase-style postgresql:// is routed through psycopg."""
     t = (target or "").strip()
@@ -323,8 +337,7 @@ class Database:
 
     # ---- trades ----------------------------------------------------------
     def _trade_row(self, t: Trade) -> dict:
-        from .metrics import compute_trade_fields
-        compute_trade_fields(t)
+        _compute_stored_trade(t)
         row = t.to_row()
         row["entry_time"] = _utc_naive(t.entry_time); row["exit_time"] = _utc_naive(t.exit_time)
         row["external_id"] = row.get("external_id") or None
@@ -356,6 +369,7 @@ class Database:
     def update_trade(self, trade_id: int, **fields: Any) -> None:
         if not fields:
             return
+        previous = self.get_trade(trade_id) if "stop_price" in fields else None
         for k in ("mistake_tags", "tags"):
             if k in fields and isinstance(fields[k], list):
                 fields[k] = json.dumps(fields[k])
@@ -369,8 +383,9 @@ class Database:
             conn.execute(trades_t.update().where(trades_t.c.id == trade_id).values(**fields))
         t = self.get_trade(trade_id)
         if t is not None:
-            from .metrics import compute_trade_fields
-            compute_trade_fields(t)
+            if previous is not None and previous.stop_price is not None and t.stop_price is None:
+                t.initial_risk = None
+            _compute_stored_trade(t)
             with self.engine.begin() as conn:
                 conn.execute(trades_t.update().where(trades_t.c.id == trade_id).values(
                     gross_pnl=t.gross_pnl, net_pnl=t.net_pnl, initial_risk=t.initial_risk, r_multiple=t.r_multiple))

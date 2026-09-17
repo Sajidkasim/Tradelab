@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="48" viewBox="0 0 250 48" role="img" aria-label="PrimusLab">
+  <rect x="1" y="4" width="40" height="40" rx="12" fill="#3987e5" fill-opacity=".12"/>
+  <path d="M14 34V15h9a6 6 0 0 1 0 12h-9" fill="none" stroke="#3987e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="54" y="33" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="27" font-weight="600" letter-spacing="-1" fill="#909090">Primus<tspan fill="#3987e5">Lab</tspan></text>
+</svg>
