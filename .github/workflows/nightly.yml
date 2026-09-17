@@ -1,0 +1,22 @@
+# Runs the nightly auto-journal on GitHub's servers against your hosted database.
+# Add these repository secrets: PROJECTX_USERNAME, PROJECTX_API_KEY, TRADELAB_DB_URL.
+# Read-only toward the broker (pulls fills, never places orders), which Topstep permits on servers.
+name: nightly-journal
+on:
+  schedule:
+    - cron: "45 21 * * 1-5"      # 21:45 UTC Mon–Fri (after the US close). Adjust to taste.
+  workflow_dispatch: {}
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: python nightly.py
+        env:
+          PROJECTX_USERNAME: ${{ secrets.PROJECTX_USERNAME }}
+          PROJECTX_API_KEY: ${{ secrets.PROJECTX_API_KEY }}
+          TRADELAB_DB_URL: ${{ secrets.TRADELAB_DB_URL }}

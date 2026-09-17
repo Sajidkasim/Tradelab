@@ -1,0 +1,110 @@
+# Continuing TradeLab with ChatGPT / Codex
+
+You'll want to change things. This file makes that safe: the architecture in one page, the rules
+a change must respect, and prompts you can paste. Use **Codex with GPT-6 Astra** pointed at the
+repo folder for anything that touches more than one file; plain chat with **GPT-5.6 Sol** is fine
+for a single page.
+
+## The one-page architecture
+
+```
+app.py                  navigation only (st.navigation with one st.Page per view)
+views/<page>.py         a page = read filters → call core → render with ui.components + core.charts
+ui/state.py             page_setup(), global filters, get_db(), cached trades(), bump() after writes
+ui/components.py        hero, kpi_row, progress, section, page_header, pill, big_number, note, empty_state, show_df, with_pct
+ui/log_trade.py         the Log trade popover form (a fragment)
+core/registry.py        extension points: import sources, coach providers; extensions/ is auto-loaded
+views/_template_page.py copy this to add a page
+ui/style.py             all CSS (Inter, hero, glass cards, motion); colours from core.charts.PALETTE; theme_mode()
+ui/coach_panel.py       the Coach card (Overview / Performance / Journal)
+core/coach.py           build_brief() (pure), provider calls (Anthropic / OpenAI), cached review()
+.streamlit/config.toml  native [theme.light] / [theme.dark] + Inter font faces served from static/
+core/metrics.py         every statistic (summary_stats, breakdown, equity_curve, streaks, …)
+core/risk.py            sizing, daily limit, trailing drawdown, consistency, Kelly, ruin, Monte Carlo
+core/backtest.py        engine, sweep, plateau_check, walk_forward, rule builder, plugin loader
+core/fills_to_trades.py FIFO pairing of fills; reconcile_with_broker
+core/importers.py       auto_map, detect_shape, normalise, fingerprint, read_any
+core/projectx_api.py    read-only TopstepX client (no order endpoints — keep it that way)
+core/db.py              SQLAlchemy data layer, SQLite locally / Postgres hosted
+core/charts.py          Plotly helpers, dark + light palette, theme()
+strategies/*.py         backtest strategies: generate_signals(bars, params) + PARAMS + RANGES
+nightly.py              auto-journal script
+tests/                  72 tests — run `python -m pytest -q` after every change
+```
+
+Every page starts with `df_all, df = state.page_setup("Name")` — `df` is already filtered by the
+sidebar. Reads go through `state.trades()`; after any write call `state.bump()` so caches refresh.
+
+## Adding things — where each kind of change goes
+
+| You want to… | Do this | Restart needed? |
+|---|---|---|
+| Store a new field on trades (e.g. `strike`) | Add a `Column(...)` to `trades_t` in `core/db.py` and a field on `Trade` in `core/models.py`. The database **auto-migrates** on next start (SQLite and Postgres). | yes |
+| Add a new page | Copy `views/_template_page.py`, add one `st.Page(...)` line in `app.py`. | yes |
+| Add a new import source (another broker) | Drop a file in `extensions/` that calls `core.registry.register_import_source(...)` — see `extensions/_example_source.py`. It appears as a tab on Import. No core changes. | yes |
+| Add a statistic | A pure function in `core/metrics.py` + a test in `tests/test_metrics.py`; then show it via `ui.components`. | no |
+| Add a backtest strategy | A file in `strategies/` with `generate_signals`, `PARAMS`, `RANGES`. | no |
+| Add a risk rule | A function in `core/risk.py` + test; surface it on the Risk page's relevant tab. | no |
+| Make an interactive widget feel instant | Wrap it in a function decorated `@st.fragment` (see `ui/log_trade.py`, `views/risk.py`). | no |
+| Add a coach provider | `core.registry.register_coach_provider(name, fn)` from an extension file. | yes |
+| Change colours / spacing / type | `ui/style.py` (CSS) and `.streamlit/config.toml` (theme tokens). Charts: `core/charts.py` PALETTE. | no |
+
+Tables are created and migrated additively; nothing is ever dropped automatically.
+
+## Rules for any change (paste these into the first message)
+
+```
+Rules for working on this repository:
+1. Statistics come from core.metrics, risk numbers from core.risk, charts from core.charts. Never recompute a
+   win rate, P&L, R or drawdown inside a view file.
+2. Do not change formulas or signatures in core/. If you think there is a bug, write a failing test in tests/
+   that proves it, show me, and wait.
+3. The app is read-only toward the broker. Never add order placement, modification or cancellation.
+4. Secrets come from .env / st.secrets only. Never hardcode, log or display an API key.
+5. New UI uses ui.components (hero, kpi_row, section, show_df, pill, empty_state) and st.plotly_chart(fig,
+   use_container_width=True, config={"displayModeBar": False}) with mode from ui.style.theme_mode().
+   Both themes must work: colours only via the CSS variables in ui/style.py (--tl-ink, --tl-surface, …) or
+   core.charts.PALETTE. No new hex colours in views, no st.metric, no emoji in headings.
+6. Live and backtest trades stay separate: use state.SCOPES / LIVE_SOURCES / BACKTEST_SOURCES.
+7. After every write to the database call state.bump().
+8. Run `python -m pytest -q` and paste the output before you tell me you're done. Add a test for any new
+   logic that isn't pure UI.
+9. Give me complete files, never fragments with "..." in them.
+```
+
+## Prompts
+
+**Start a session (Codex)**
+> Read README.md and CONTINUING_WITH_CHATGPT.md, then `views/overview.py` and `ui/state.py` so you know the patterns. Confirm the nine rules in one line each. Then wait for my request.
+
+**Add a page section**
+> On the Performance page, add a section "Expectancy by month" under the breakdowns: use metrics.add_time_features to derive a `month` column (YYYY-MM), metrics.breakdown(df, "month"), and charts.breakdown_bar with value "expectancy". Follow the existing section pattern. Complete file, tests still green.
+
+**Add a strategy for the backtester**
+> Create strategies/vwap_reclaim.py implementing generate_signals(bars, params) -> DataFrame with signal/stop/target: long when close crosses back above session VWAP after having been below it for at least `min_bars_below` bars, stop `stop_atr` ATRs below entry, target `target_r` × risk. Use core.backtest.vwap and core.backtest.atr. Include PARAMS and RANGES. Add a test in tests/ that runs it on 300 synthetic bars and asserts it returns one row per bar with signals in {-1,0,1}.
+
+**Options fields**
+> Add optional fields strike, expiry, option_type (call/put) and legs (JSON) to Trade, the trades table (core/db.py, additive columns only), the Journal editor and the manual entry form. Multiplier for options stays 100. Keep every existing test passing and add one that round-trips an option trade through the database.
+
+**Change what the coach says**
+> Edit `SYSTEM_PROMPT` in core/coach.py to add a fifth heading "### Session plan for tomorrow" (two bullets, based on the best session and model in the brief). Keep it under 260 words. Update tests/test_coach.py if the heading list is asserted anywhere.
+
+**Pin the FX Replay mapping**
+> Here is the header row of my FX Replay export: [paste]. Add an entry to core.importers.SYNONYMS for any column that auto_map misses, and add a test that auto_map on exactly these headers maps symbol, direction, pnl, r_multiple, session and entry_time.
+
+**Something looks wrong**
+> Screenshot attached at 1280px width. [say what's wrong]. Fix it in ui/style.py or the view file; don't touch core/.
+
+**Check it before I deploy**
+> Run `python -m pytest -q`. Then start `streamlit run app.py --server.headless true` and use tools/shoot.py to screenshot each page (views listed in app.py). Report any exception text you see and fix it.
+
+**If it "improves" the core**
+> You changed core/metrics.py. Revert that file to its previous content and make the change in the view instead. The core's answers are hand-verified; rewrites are how silent errors get in.
+
+## What to keep an eye on
+
+- After each live pull, Import → Live API shows **reconciliation** against the broker. It should be zero.
+  If it isn't, an instrument multiplier is wrong (Settings → Instruments), not the maths.
+- Any statistic on fewer than 30 trades carries a **small sample** badge. It's there for a reason.
+- The backtester's **plateau verdict** and **walk-forward OOS** are the anti-fooling-yourself tools. A single
+  green backtest is not evidence.

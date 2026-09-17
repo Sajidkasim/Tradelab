@@ -1,0 +1,78 @@
+[server]
+headless = true
+runOnSave = false
+maxUploadSize = 200
+enableStaticServing = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# "viewer" keeps the ☰ menu with Settings → Light / Dark / System, hides developer items
+toolbarMode = "viewer"
+showErrorDetails = true
+
+# ---------------------------------------------------------------------------
+# Shared type and shape. Inter is served from static/fonts (OFL licence included).
+# ---------------------------------------------------------------------------
+[theme]
+base = "dark"
+font = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+headingFont = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+codeFont = "'SF Mono', 'JetBrains Mono', Menlo, monospace"
+baseFontSize = 15
+baseRadius = "12px"
+buttonRadius = "999px"
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+showWidgetBorder = true
+showSidebarBorder = false
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/InterVariable.woff2"
+weight = "100 900"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "app/static/fonts/InterVariable-Italic.woff2"
+weight = "100 900"
+style = "italic"
+
+# ---------------------------------------------------------------------------
+# Dark — colours mirror core.charts.PALETTE["dark"]
+# ---------------------------------------------------------------------------
+[theme.dark]
+primaryColor = "#3987e5"
+backgroundColor = "#0d0d0d"
+secondaryBackgroundColor = "#1a1a19"
+textColor = "#ffffff"
+borderColor = "#2c2c2a"
+linkColor = "#7fb3f0"
+dataframeBorderColor = "#2c2c2a"
+dataframeHeaderBackgroundColor = "#161615"
+codeBackgroundColor = "#161615"
+
+[theme.dark.sidebar]
+backgroundColor = "#121212"
+secondaryBackgroundColor = "#1a1a19"
+borderColor = "#2c2c2a"
+
+# ---------------------------------------------------------------------------
+# Light — colours mirror core.charts.PALETTE["light"]; page is Apple's #f5f5f7
+# ---------------------------------------------------------------------------
+[theme.light]
+primaryColor = "#2a78d6"
+backgroundColor = "#f5f5f7"
+secondaryBackgroundColor = "#fcfcfb"
+textColor = "#0b0b0b"
+borderColor = "#e1e0d9"
+linkColor = "#1c5cab"
+dataframeBorderColor = "#e1e0d9"
+dataframeHeaderBackgroundColor = "#f0efec"
+codeBackgroundColor = "#f0efec"
+
+[theme.light.sidebar]
+backgroundColor = "#fbfbfd"
+secondaryBackgroundColor = "#f0efec"
+borderColor = "#e1e0d9"

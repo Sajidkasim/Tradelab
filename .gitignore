@@ -1,0 +1,12 @@
+.env
+data/*.db
+data/screenshots/
+data/inbox/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.streamlit/secrets.toml
+data/shoot.db
+data/reviews/
+charts_preview.html
