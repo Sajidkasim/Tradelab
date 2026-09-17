@@ -11,13 +11,12 @@ mode = theme_mode()
 db = state.get_db()
 base = edge.prepare(df)
 scope = state.filters()["scope"]
-base_stats = metrics.summary_stats(base)
 lists = playbook()
 
 
-def with_used(values, column):
+def with_used(frame, values, column):
     """The playbook list first, then any label already on a trade in this sample (so nothing becomes unfilterable)."""
-    used = sorted(set(base[column].dropna()) - set(values) - {edge.UNKNOWN}) if column in base else []
+    used = sorted(set(frame[column].dropna()) - set(values) - {edge.UNKNOWN}) if column in frame else []
     return list(values) + used
 
 
@@ -41,27 +40,14 @@ def load_recipe(recipe):
             st.session_state[f"edge_filter_{name}"] = value
 
 
-active_lane = st.session_state.get("edge_lane", "Explore my edge")
-if active_lane == "Log a trade":
-    c.page_header("One trade at a time.", "Capture the setup. Keep the evidence.", SCOPE_LABELS[scope])
-elif active_lane == "Import & review":
-    c.page_header("Turn trades into evidence.", "Bring in your history, then add what you saw.", SCOPE_LABELS[scope])
-else:
-    c.research_header(SCOPE_LABELS[scope])
-if "edge_flash" in st.session_state:
-    st.success(st.session_state.pop("edge_flash"))
-if active_lane == "Explore my edge":
-    with st.container(key="edge_sample"):
-        c.sample_progress(base_stats["trades"])
-lane = st.radio("Workspace", ["Explore my edge", "Log a trade", "Import & review"],
-                format_func=lambda v: {"Explore my edge": "My Results", "Log a trade": "Add Trade", "Import & review": "Review Imports"}[v],
-                horizontal=True, key="edge_lane", label_visibility="collapsed")
+@st.fragment
+def explore(base, lists, mode):
+    """Question builder + results. A fragment: changing a filter reruns only this block, not the page around it.
 
-if lane == "Log a trade":
-    quick_log()
-elif lane == "Import & review":
-    review_imports(base)
-else:
+    Anything that must change the page outside this block (switching lane, saving a trade) asks for a full
+    rerun explicitly with st.rerun(scope="app").
+    """
+    db = state.get_db()
     builder, results = st.columns([0.92, 1.55], gap="large")
     with builder:
         with st.container(border=True, key="edge_builder"):
@@ -73,12 +59,12 @@ else:
                     st.button("Apply combination", on_click=load_recipe, args=(recipes[recipe_name],), use_container_width=True)
             direction = st.radio("Buy or sell?", ["Both", "long", "short"], horizontal=True,
                                  format_func=lambda v: {"Both": "Both", "long": "Buy", "short": "Sell"}[v], key="edge_filter_direction")
-            strategies = with_used(lists["strategies"], "setup_name")
+            strategies = with_used(base, lists["strategies"], "setup_name")
             remembered_strategy = st.session_state.get("edge_filter_strategy") or "All strategies"
             if remembered_strategy not in ["All strategies"] + strategies:
                 strategies.append(remembered_strategy)
             strategy = st.selectbox("Strategy", ["All strategies"] + strategies, key="edge_filter_strategy") or "All strategies"
-            level = st.selectbox("Key level / PDA", ["Any level"] + with_used(lists["levels"], "edge_level") + [edge.UNKNOWN],
+            level = st.selectbox("Key level / PDA", ["Any level"] + with_used(base, lists["levels"], "edge_level") + [edge.UNKNOWN],
                                  key="edge_filter_level") or "Any level"
             tf_cols = st.columns(2)
             timeframe = tf_cols[0].selectbox("Level timeframe", ["Any timeframe"] + edge.TIMEFRAMES + [edge.UNKNOWN],
@@ -134,14 +120,17 @@ else:
                 c.note("<b>Still collecting evidence.</b> Fewer than 30 matching trades. Keep logging before drawing conclusions.")
             c.section("The path, not just the percentage", "Net P&L and drawdown for this exact combination · chronological order")
             st.plotly_chart(charts.equity_chart(metrics.equity_curve(matched), mode, title=""),
-                            use_container_width=True, config={"displayModeBar": False})
+                            use_container_width=True, config={"displayModeBar": False}, key="edge_equity_chart")
             c.outcome_strip(closed.sort_values("exit_time"))
             st.caption("Last 30 results · W win / L loss / B break-even · hover for the trade result")
         else:
             c.empty_state("No closed trades match yet", "Log this setup, label imported trades, or clear a filter to explore a wider sample.")
             btns = st.columns(2)
-            btns[0].button("Log the first trade", on_click=change_lane, args=("Log a trade",), type="primary", use_container_width=True)
-            btns[1].button("Import & label trades", on_click=change_lane, args=("Import & review",), use_container_width=True)
+            # The lane radio lives outside this fragment, so switching lane needs the whole page to rerun.
+            if btns[0].button("Log the first trade", on_click=change_lane, args=("Log a trade",), type="primary", use_container_width=True):
+                st.rerun(scope="app")
+            if btns[1].button("Import & label trades", on_click=change_lane, args=("Import & review",), use_container_width=True):
+                st.rerun(scope="app")
             c.note("<b>Make the result explainable.</b> The same tags you select here are the ones you record on each trade.")
     if not closed.empty:
         c.section("What makes the difference?", "Compare within your current filters. Change one dimension to investigate the pattern.")
@@ -161,7 +150,7 @@ else:
             left, right = st.columns([1.3, 1])
             with left:
                 st.plotly_chart(charts.breakdown_bar(table, category, values[value], mode, title="", by_sign=value != "Win rate"),
-                                use_container_width=True, config={"displayModeBar": False})
+                                use_container_width=True, config={"displayModeBar": False}, key="edge_breakdown_chart")
             with right:
                 c.show_df(table[[category, "trades", "win_rate", "avg_r", "small_sample"]],
                           labels={category: dimension, "avg_r": "Average R", "small_sample": "Under 30 trades"})
@@ -174,6 +163,30 @@ else:
                       labels={"edge_level": "Key level", "edge_confirmation_set": "Confirmations", "edge_news": "News", "setup_name": "Strategy"})
             st.download_button("Export this sample", closed[cols].to_csv(index=False).encode(),
                                "primuslab_edge_sample.csv", "text/csv")
+
+
+active_lane = st.session_state.get("edge_lane", "Explore my edge")
+if active_lane == "Log a trade":
+    c.page_header("One trade at a time.", "Capture the setup. Keep the evidence.", SCOPE_LABELS[scope])
+elif active_lane == "Import & review":
+    c.page_header("Turn trades into evidence.", "Bring in your history, then add what you saw.", SCOPE_LABELS[scope])
+else:
+    c.research_header(SCOPE_LABELS[scope])
+if "edge_flash" in st.session_state:
+    st.success(st.session_state.pop("edge_flash"))
+if active_lane == "Explore my edge":
+    with st.container(key="edge_sample"):
+        c.sample_progress(len(metrics.closed(base)))   # only the count is needed here; the full statistics are computed per question
+lane = st.radio("Workspace", ["Explore my edge", "Log a trade", "Import & review"],
+                format_func=lambda v: {"Explore my edge": "My Results", "Log a trade": "Add Trade", "Import & review": "Review Imports"}[v],
+                horizontal=True, key="edge_lane", label_visibility="collapsed")
+
+if lane == "Log a trade":
+    quick_log()
+elif lane == "Import & review":
+    review_imports(base)
+else:
+    explore(base, lists, mode)
 
 with st.expander("Edit strategies & key levels", icon=":material/edit_note:"):
     playbook_editor()

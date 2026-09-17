@@ -96,7 +96,14 @@ def playbook_editor():
         st.rerun()
 
 
+@st.fragment
 def quick_log():
+    """The Add Trade form. A fragment, so committing a field re-renders only the form, never the page around it.
+
+    The live checks (entry method, exit-time toggle, the R preview and the save button's enabled state) need a
+    rerun per field, which is why this is a fragment rather than an st.form. Saving calls st.rerun() with the
+    default app scope so the flash message and sample count outside the form refresh.
+    """
     db = state.get_db()
     accts = db.accounts()
     epoch = st.session_state.get("edge_log_epoch", 0)

@@ -150,6 +150,23 @@ def test_removed_level_stays_selectable_on_trades_that_already_use_it(app_db):
     assert any("100.0%" in item.value for item in app.markdown)
 
 
+def test_empty_state_buttons_switch_lane_from_inside_the_fragment(app_db):
+    # The lane radio lives outside the Explore fragment; the buttons inside must still be able to switch it.
+    app = start()
+    assert any("No closed trades match yet" in item.value for item in app.markdown)
+    next(b for b in app.button if b.label == "Log the first trade").click().run()
+    assert not app.exception
+    assert app.session_state["edge_lane"] == "Log a trade"
+    assert app.radio(key="edge_lane").value == "Log a trade"
+    assert app.number_input(key="edge_log_0_pnl") is not None  # the Add Trade form rendered
+    app.session_state["edge_lane"] = "Explore my edge"
+    app.run()
+    next(b for b in app.button if b.label == "Import & label trades").click().run()
+    assert not app.exception
+    assert app.radio(key="edge_lane").value == "Import & review"
+    assert any("Your review queue starts here" in item.value for item in app.markdown)
+
+
 def test_saved_combination_can_be_cleared_and_reapplied(app_db):
     app = start()
     app.checkbox(key="edge_filter_confirm_SMT").check()
