@@ -6,7 +6,7 @@ import streamlit as st
 
 from core.models import Account, Instrument, InstrumentType
 from ui import components as c
-from ui import state
+from ui import state, access
 from ui.edge_lab import playbook_editor
 
 df_all, df = state.page_setup("Settings")
@@ -57,9 +57,9 @@ with tabs[0]:
                 db.upsert_account(Account(name=name.strip(), starting_balance=start, daily_loss_limit=dll, max_trailing_drawdown=mll,
                                           max_contracts=maxc, risk_per_trade_pct=rpt, consistency_target_pct=cons,
                                           max_trades_per_day=mtd, id=cur.id if cur else None))
-                st.success("Saved."); st.rerun()
+                state.bump(); st.success("Saved."); st.rerun()
     if cur and len(accts) > 1 and st.button(f"Delete '{cur.name}'"):
-        db.delete_account(cur.id); st.rerun()
+        db.delete_account(cur.id); state.bump(); st.rerun()
 
 # ---------------------------------------------------------------- instruments
 with tabs[1]:
@@ -85,7 +85,7 @@ with tabs[1]:
         db.upsert_instruments(items)
         for sym in set(inst) - {i.symbol for i in items}:
             db.delete_instrument(sym)
-        st.success(f"Saved {len(items)} instruments."); st.rerun()
+        state.bump(); st.success(f"Saved {len(items)} instruments."); st.rerun()
 
 # ---------------------------------------------------------------- playbook
 with tabs[2]:
@@ -99,7 +99,7 @@ with tabs[3]:
     cur_tz = db.get_setting("tz", state.DEFAULT_TZ)
     new_tz = st.selectbox("Timezone", zones + ([cur_tz] if cur_tz not in zones else []), index=(zones + ([cur_tz] if cur_tz not in zones else [])).index(cur_tz))
     if new_tz != cur_tz:
-        db.set_setting("tz", new_tz); st.session_state["tz"] = new_tz; st.rerun()
+        db.set_setting("tz", new_tz); state.bump(); st.session_state["tz"] = new_tz; st.rerun()
     c.section("Sessions", "Label each trade by the time of day it was entered (in your timezone). Used by Analytics and Strategy Models.")
     sessions = db.get_setting("sessions", state.DEFAULT_SESSIONS)
     sed = st.data_editor(pd.DataFrame(sessions), use_container_width=True, hide_index=True, num_rows="dynamic", key="sess_editor",
@@ -115,7 +115,7 @@ with tabs[3]:
         except ValueError:
             st.error("Times must be HH:MM.")
         else:
-            db.set_setting("sessions", rows); st.success("Saved.")
+            db.set_setting("sessions", rows); state.bump(); st.success("Saved.")
     if s2.button("Re-label every trade's session with these"):
         from core import metrics
         parsed = {r["label"]: (time.fromisoformat(r["start"]), time.fromisoformat(r["end"])) for r in sessions}
@@ -130,33 +130,36 @@ with tabs[3]:
 # ---------------------------------------------------------------- connections
 with tabs[4]:
     c.section("TopstepX / ProjectX", "Credentials are read from the environment — never stored in the app or shown here")
-    from core.projectx_api import ProjectXClient, ProjectXError
-    try:
-        client = ProjectXClient.from_env()
-        chk = client.check()
-        if chk["ok"]:
-            st.success(f"Connected as {chk['user']} · {chk['accounts']} account(s) visible", icon=":material/check:")
-        else:
-            st.error(f"Credentials found but the connection failed: {chk['error']}")
-    except ProjectXError as e:
-        st.info(str(e), icon=":material/key_off:")
-        st.markdown("""**Locally** — create a file named `.env` next to `app.py`:
-```
-PROJECTX_USERNAME=your_topstepx_username
-PROJECTX_API_KEY=your_key
-```
-**On Streamlit Community Cloud** — App → Settings → Secrets:
-```toml
-PROJECTX_USERNAME = "your_topstepx_username"
-PROJECTX_API_KEY = "your_key"
-TRADELAB_DB_URL = "postgresql://..."
-```
-The key is generated in TopstepX under Settings → API and needs the ProjectX API subscription.""")
+    if not access.can_use_broker():
+        st.info("Use your own CSV export to bring in trades or price history.")
+    elif st.button("Check broker connection"):
+        from core.projectx_api import ProjectXClient, ProjectXError
+        try:
+            client = ProjectXClient.from_env()
+            chk = client.check()
+            if chk["ok"]:
+                st.success(f"Connected as {chk['user']} · {chk['accounts']} account(s) visible", icon=":material/check:")
+            else:
+                st.error(f"Credentials found but the connection failed: {chk['error']}")
+        except ProjectXError as e:
+            st.info(str(e), icon=":material/key_off:")
+            st.markdown("""**Locally** — create a file named `.env` next to `app.py`:
+    ```
+    PROJECTX_USERNAME=your_topstepx_username
+    PROJECTX_API_KEY=your_key
+    ```
+    **On Streamlit Community Cloud** — App → Settings → Secrets:
+    ```toml
+    PROJECTX_USERNAME = "your_topstepx_username"
+    PROJECTX_API_KEY = "your_key"
+    TRADELAB_DB_URL = "postgresql://..."
+    ```
+    The key is generated in TopstepX under Settings → API and needs the ProjectX API subscription.""")
     c.section("Appearance", "")
     st.markdown('<div class="tl-note">Light and dark are both built in. Switch with the <b>☰ menu → Settings → Theme</b> '
                 '(top right); "Use system setting" follows your phone or computer.</div>', unsafe_allow_html=True)
     c.section("Database", "")
-    st.code(db.url.split("@")[-1] if "@" in db.url else db.url, language="text")
+    st.caption("Your workspace uses " + ("local storage." if db.is_sqlite else "hosted storage."))
     st.caption("A hosted app should point TRADELAB_DB_URL at a Postgres database (e.g. Supabase free tier) so your journal survives restarts.")
 
 # ---------------------------------------------------------------- data
@@ -164,14 +167,9 @@ with tabs[5]:
     c.section("Data", "")
     counts = db.trades_df().groupby("source").size().to_dict() if db.count_trades() else {}
     c.kpi_row([{"label": k, "value": str(v)} for k, v in counts.items()] or [{"label": "trades", "value": "0"}])
-    d1, d2, d3 = st.columns(3)
-    if d1.button("Load demo data"):
-        from core.demo import seed_demo_trades
-        res = db.insert_trades(seed_demo_trades(200, account_id=state.account().id)); state.bump()
-        state.filters()["scope"] = "Demo"
-        st.success(f"Added {res['inserted']} demo trades."); st.rerun()
+    d2, d3 = st.columns(2)
     if d2.button("Delete demo data"):
         n = db.delete_trades_by_source("demo"); state.bump(); st.success(f"Deleted {n}."); st.rerun()
     if d3.button("Clear caches"):
         state.bump(); st.cache_data.clear(); st.success("Cleared.")
-    st.caption("Backups live under Import → Backup.")
+    st.caption("Backups live under Import → More options → Backup and restore.")

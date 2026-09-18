@@ -16,14 +16,12 @@ c.page_header("Dashboard", f"Your account at a glance · {f['scope']} trades · 
               f"{acct.name} · start {c.fmt_money(acct.starting_balance, sign=False)}")
 
 if df_all.empty:
-    c.empty_state("No trades yet", "Load demo data to explore, or open Import to bring in your own trades.")
-    col1, col2, _ = st.columns([1, 1, 3])
-    if col1.button("Load demo data", type="primary", use_container_width=True):
-        from core.demo import seed_demo_trades
-        state.get_db().insert_trades(seed_demo_trades(200, account_id=acct.id))
-        state.filters()["scope"] = "Demo"
-        state.bump(); st.rerun()
-    if col2.button("Go to Import", use_container_width=True):
+    c.empty_state("Your workspace starts here", "Add a trade or import your FX Replay history.")
+    first, second, _ = st.columns([1, 1, 3])
+    if first.button("Add a trade", type="primary", use_container_width=True):
+        st.session_state["edge_lane"] = "Log a trade"
+        st.switch_page("views/edge_lab.py")
+    if second.button("Import trades", use_container_width=True):
         st.switch_page("views/import_.py")
     st.stop()
 

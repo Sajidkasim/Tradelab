@@ -16,12 +16,13 @@ Easiest: `./run.sh` (Mac/Linux) or `run.bat` (Windows) — see **RUN_ME_FIRST.md
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python -m pytest -q                                     # run the complete test suite
-streamlit run app.py                                    # opens http://localhost:8501
+PRIMUSLAB_LOCAL_ONLY=1 streamlit run app.py               # local use only
 ```
 
-First visit: click **Load demo data** on the Dashboard to explore, then delete it from
-Settings → Data when you import your own. Without `TRADELAB_DB_URL` the app uses a local
-SQLite file at `data/tradelab.db`.
+First visit: open **Test & Log → Add Trade**, or upload your FX Replay CSV on **Import**.
+Without `TRADELAB_DB_URL` the owner uses the existing local `data/tradelab.db`.
+Start locally with `./run.sh` or `run.bat`; local mode is restricted to loopback.
+For the five-person website with Google sign-in, follow **[TEAM_SETUP.md](TEAM_SETUP.md)**.
 
 To pull from TopstepX, copy `.env.example` to `.env` and add your ProjectX username and API key.
 
@@ -44,7 +45,8 @@ Open **Quick page guide** in the sidebar whenever you need a reminder.
 | **Strategy Backtester** | Bars from TopstepX or CSV, strategy files or a no-code rule builder, costs & exits, parameter sweep with an overfitting verdict, walk-forward, Monte Carlo, saved runs |
 | **Risk** | Today vs daily loss limit, trailing drawdown buffer (Topstep-style lock), consistency rule, position sizer, Kelly, risk of ruin, losing-streak odds, what-if simulator, breach log |
 | **Trade Journal** | Log a trade in one line (live P&L, % and R preview), a clean list in $ and % of account — click a row for its detail and edit form — weekly review with auto-observations, daily reviews from the nightly script, bulk edit, CSV/Excel export |
-| **Import** | Manual entry with live P&L, CSV/Excel with a column mapper and saved profiles, FX Replay, clipboard, JSON, TopstepX live pull with FIFO pairing and broker reconciliation, inbox folder, backup/restore |
+| **Import** | One upload → preview → confirm flow for FX Replay, CSV, Excel and JSON; other methods under More options |
+| **Team** | Five invited Google accounts, separate private workspaces, optional shared results and owner-managed invitations |
 | **Settings** | Accounts (any prop firm), instruments, sessions & timezone, connections (broker), appearance, data |
 
 ## Nightly auto-journal
@@ -77,7 +79,7 @@ nightly.py         auto-journal
 
 ### Test & Log workflow
 
-Start in **Test & Log**. Choose **Backtesting** or **Forward / live** in the sidebar; these samples cannot be mixed here.
+Start in **Test & Log**. Choose **Backtesting**, **Forward testing** or **All** in the sidebar. All browses both histories; use **Results sample** to view either testing type without pooling the statistics. Demo trades are excluded from All.
 Use **Add Trade** for either net dollars plus original dollar risk, or entry/stop/exit prices. **Save & log next**
 keeps the setup labels and clears the result. Trading times are entered in New York local time.
 Use **Review Imports** to open the existing FX Replay/CSV importer, then tag each imported trade without retyping results.
@@ -99,3 +101,12 @@ Structured playbook labels are stored in the existing trade tags, so backups and
 
 Read **[CONTINUING_WITH_CHATGPT.md](CONTINUING_WITH_CHATGPT.md)** — the architecture, the rules
 any change must follow, and copy-paste prompts for ChatGPT / Codex.
+
+### FX Replay Analytics exports
+
+Native exports containing `dateStart`, `dateEnd`, `pair`, `side` and `rPnL` are recognised automatically.
+The realised `rPnL` is imported through the existing result-only path; `uPnL`, `amount` and planned
+reward/risk targets are not substituted for realised returns or futures contract sizes. Original
+prices and quantities remain in notes. Choose the export time zone under File details & time zone.
+Open rows and missing close times are reported, and duplicate IDs are skipped. No trades are
+written until Confirm import. This reader was checked against the user's five-row export.

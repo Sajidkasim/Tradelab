@@ -12,4 +12,5 @@ if not exist .venv (
   call .venv\Scripts\activate.bat
 )
 if not exist .env copy .env.example .env >nul
-python -m streamlit run app.py
+set PRIMUSLAB_LOCAL_ONLY=1
+python -m streamlit run app.py --server.address 127.0.0.1

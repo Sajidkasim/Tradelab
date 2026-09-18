@@ -11,7 +11,7 @@ from core.backtest import (BacktestConfig, build_rule_strategy, load_strategies,
 from core.charts import pal, theme
 from core.importers import auto_map
 from ui import components as c
-from ui import state
+from ui import state, access
 from ui.style import theme_mode
 
 df_all, df = state.page_setup("Strategy Backtester")
@@ -39,27 +39,30 @@ with src_tab:
         bars = db.load_bars(pick["symbol"], pick["timeframe"])
         label = f"{pick['symbol']} {pick['timeframe']}"
 with dl_tab:
-    from core.projectx_api import ProjectXClient, ProjectXError, Unit
-    try:
-        client = ProjectXClient.from_env()
-        d1, d2, d3, d4 = st.columns([2, 1, 1, 1])
-        search = d1.text_input("Contract search", value="MES")
-        unit = d2.selectbox("Unit", ["minute", "hour", "day"])
-        n = d3.number_input("Per bar", value=1, min_value=1, step=1)
-        days = d4.number_input("Days back", value=30, min_value=1, step=1)
-        if st.button("Find contracts"):
-            st.session_state["bt_contracts"] = client.contracts(search).to_dict("records")
-        for con in st.session_state.get("bt_contracts", []):
-            if st.button(f"Download {con['name']} · tick {con.get('tickSize')} · {con.get('description', '')}", key=f"dl_{con['id']}"):
-                end = datetime.now(timezone.utc); start = end - timedelta(days=int(days))
-                with st.spinner("Downloading bars…"):
-                    got = client.bars(str(con["id"]), start, end, {"minute": Unit.MINUTE, "hour": Unit.HOUR, "day": Unit.DAY}[unit], int(n))
-                from core.fills_to_trades import root_symbol
-                tf = f"{int(n)}{unit[0]}"
-                db.cache_bars(root_symbol(con["name"]), tf, got)
-                st.success(f"Cached {len(got)} bars as {root_symbol(con['name'])} {tf}."); st.rerun()
-    except ProjectXError as e:
-        st.info(f"{e} — add your ProjectX credentials to download bars, or upload a CSV instead.", icon=":material/key_off:")
+    if not access.can_use_broker():
+        st.info("Use your own CSV export to bring in trades or price history.")
+    else:
+        from core.projectx_api import ProjectXClient, ProjectXError, Unit
+        try:
+            client = ProjectXClient.from_env()
+            d1, d2, d3, d4 = st.columns([2, 1, 1, 1])
+            search = d1.text_input("Contract search", value="MES")
+            unit = d2.selectbox("Unit", ["minute", "hour", "day"])
+            n = d3.number_input("Per bar", value=1, min_value=1, step=1)
+            days = d4.number_input("Days back", value=30, min_value=1, step=1)
+            if st.button("Find contracts"):
+                st.session_state["bt_contracts"] = client.contracts(search).to_dict("records")
+            for con in st.session_state.get("bt_contracts", []):
+                if st.button(f"Download {con['name']} · tick {con.get('tickSize')} · {con.get('description', '')}", key=f"dl_{con['id']}"):
+                    end = datetime.now(timezone.utc); start = end - timedelta(days=int(days))
+                    with st.spinner("Downloading bars…"):
+                        got = client.bars(str(con["id"]), start, end, {"minute": Unit.MINUTE, "hour": Unit.HOUR, "day": Unit.DAY}[unit], int(n))
+                    from core.fills_to_trades import root_symbol
+                    tf = f"{int(n)}{unit[0]}"
+                    db.cache_bars(root_symbol(con["name"]), tf, got)
+                    st.success(f"Cached {len(got)} bars as {root_symbol(con['name'])} {tf}."); st.rerun()
+        except ProjectXError as e:
+            st.info(f"{e} — add your ProjectX credentials to download bars, or upload a CSV instead.", icon=":material/key_off:")
 with up_tab:
     up = st.file_uploader("OHLCV CSV (time, open, high, low, close, volume)", type=["csv"], key="bars_up")
     u1, u2 = st.columns(2)

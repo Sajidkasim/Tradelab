@@ -132,6 +132,7 @@ def workspace_guide() -> None:
 - **Test & Log** — add trades and explore setup combinations.
 - **Dashboard** — your account and results at a glance.
 - **Trade Journal** — review and edit individual trades.
+- **Team** — choose what to share and explore teammates’ results.
 
 **Research**
 
@@ -253,7 +254,7 @@ def scope_hint(df_all: pd.DataFrame) -> None:
         return
     present = set(df_all["source"].unique())
     f = state.filters()
-    others = [name for name, srcs in state.SCOPES.items() if name not in ("All", f["scope"]) and present & set(srcs)]
+    others = [name for name, srcs in state.SCOPES.items() if name not in ("All", "Demo", f["scope"]) and present & set(srcs)]
     if not others:
         return
     cols = st.columns(len(others) + 2)

@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Optional
 
+import hashlib
+
 import pandas as pd
 import streamlit as st
 
@@ -12,18 +14,14 @@ from core.models import Account, BACKTEST_SOURCES, DEMO_SOURCES, LIVE_SOURCES
 
 DEFAULT_TZ = "Europe/London"
 SCOPES = {"Live": LIVE_SOURCES, "Backtests": BACKTEST_SOURCES, "Demo": DEMO_SOURCES,
-          "All": LIVE_SOURCES + BACKTEST_SOURCES + DEMO_SOURCES}
+          "All": LIVE_SOURCES + BACKTEST_SOURCES}
+SOURCE_LABELS = {"Backtests": "Backtesting", "Live": "Forward testing", "All": "All"}
 PRESETS = ["All time", "Today", "This week", "Last 7 days", "Last 30 days", "Last 90 days", "Year to date", "Custom"]
 
 
-@st.cache_resource(show_spinner=False)
 def get_db() -> Database:
-    db = Database.from_env()
-    db.init()
-    if not db.accounts():
-        db.upsert_account(Account(name="My account", starting_balance=50_000, daily_loss_limit=1_000,
-                                  max_trailing_drawdown=2_000, max_contracts=5, risk_per_trade_pct=0.5))
-    return db
+    from ui.access import current_database
+    return current_database()
 
 
 def version() -> int:
@@ -36,12 +34,14 @@ def bump() -> None:
 
 
 @st.cache_data(show_spinner=False)
-def load_trades(_version: int) -> pd.DataFrame:
-    return get_db().trades_df()
+def load_trades(workspace_key: str, data_version: int, _db) -> pd.DataFrame:
+    return _db.trades_df()
 
 
 def trades() -> pd.DataFrame:
-    return load_trades(version())
+    db = get_db()
+    key = hashlib.sha256(f"{db.url}|{getattr(db, 'schema', '')}".encode()).hexdigest()
+    return load_trades(key, version(), db)
 
 
 def tz() -> str:
@@ -58,7 +58,7 @@ def account() -> Account:
 
 
 def _default_filters() -> dict:
-    return {"scope": "Live", "preset": "All time", "start": None, "end": None, "account_id": None,
+    return {"scope": "Backtests", "preset": "All time", "start": None, "end": None, "account_id": None,
             "symbols": [], "setups": [], "direction": "Both", "sessions": [], "tags": []}
 
 
@@ -69,7 +69,7 @@ def filters() -> dict:
         df = trades()
         if not df.empty:
             present = set(df["source"].unique())
-            for name in ("Live", "Demo", "Backtests"):
+            for name in ("Backtests", "Live"):
                 if present & set(SCOPES[name]):
                     f["scope"] = name
                     break
@@ -99,8 +99,11 @@ def sidebar(df_all: pd.DataFrame) -> None:
     db = get_db()
     st.caption("Filters apply to every page")
 
-    f["scope"] = st.radio("Data", list(SCOPES), index=list(SCOPES).index(f["scope"]), horizontal=True,
-                          help="Live = real trades. Backtests = FX Replay and engine results. Never mixed.")
+    if f["scope"] not in SOURCE_LABELS:
+        f["scope"] = "All"
+
+    f["scope"] = st.radio("Data source", list(SOURCE_LABELS), index=list(SOURCE_LABELS).index(f["scope"]),
+                          format_func=SOURCE_LABELS.get, help="All shows both histories. Results stay separated by testing type.")
     scoped = df_all[df_all["source"].isin(SCOPES[f["scope"]])] if not df_all.empty else df_all
 
     f["preset"] = st.selectbox("Period", PRESETS, index=PRESETS.index(f["preset"]))
@@ -173,12 +176,21 @@ def page_setup(title: str, sidebar_renderer=None) -> tuple[pd.DataFrame, pd.Data
     """Standard page prologue: CSS, sidebar filters. Returns (all_trades, filtered_trades)."""
     from ui.style import inject_css
     from ui.components import workspace_guide
+    from ui import access
+    access.require_login()
     inject_css()
     df_all = trades()
     with st.sidebar:
+        access.sidebar()
         (sidebar_renderer or sidebar)(df_all)
         workspace_guide()
-    return df_all, apply_filters(df_all)
+    filtered = apply_filters(df_all)
+    needs_results = title not in {"Import", "Settings", "Trade Journal", "Team", "Risk"}
+    if title == "Test & Log" and st.session_state.get("edge_lane", "Explore my edge") != "Explore my edge":
+        needs_results = False
+    if needs_results and filters()["scope"] == "All":
+        filtered = statistics_sample(filtered)
+    return df_all, filtered
 
 
 def local_today() -> date:
@@ -223,3 +235,13 @@ def sessions_parsed() -> dict:
         except (KeyError, ValueError):
             continue
     return out
+
+
+def statistics_sample(df):
+    """All is a browsing scope, never a pooled statistical sample."""
+    if filters()["scope"] != "All":
+        return df
+    scope = st.radio("Results sample", ["Backtests", "Live"], format_func=SOURCE_LABELS.get,
+                     horizontal=True, key="results_source")
+    st.caption("Browsing all trades. These results show only the selected testing type.")
+    return df[df["source"].isin(SCOPES[scope])].copy() if not df.empty else df

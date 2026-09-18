@@ -7,7 +7,7 @@ import streamlit as st
 
 from core import metrics
 from ui import components as c
-from ui import state
+from ui import state, access
 from ui.log_trade import log_trade_form
 from ui.style import theme_mode
 
@@ -37,7 +37,8 @@ if df.empty:
     st.stop()
 
 # ---- summary strip ---------------------------------------------------------------------------
-s = metrics.summary_stats(df, acct.starting_balance)
+result_sample = state.statistics_sample(df)
+s = metrics.summary_stats(result_sample, acct.starting_balance)
 c.kpi_row([
     {"label": "Net P&L", "value": c.fmt_money(s["net_pnl"]), "tone": c.tone_for(s["net_pnl"]),
      "caption": f"{c.fmt_pct(s['return_pct'], 2) if s['return_pct'] is not None else '—'} of the account"},
@@ -51,7 +52,7 @@ c.section("All trades", "Newest first · sort by clicking a column header")
 closed_first = df.sort_values("entry_time", ascending=False)
 lst = c.with_pct(closed_first, acct.starting_balance)
 lst["exit_time"] = lst["exit_time"].where(lst["exit_time"].notna(), lst["entry_time"])
-view = lst[["id"] + c.TRADE_LIST_COLS].copy()
+view = lst[["id", "source"] + c.TRADE_LIST_COLS].copy()
 view["exit_time"] = c.to_local(view["exit_time"], tz).dt.tz_localize(None)
 view["setup_name"] = view["setup_name"].replace("", "—")
 cfg = c.column_config(view.drop(columns=["id"]), tz, c.TRADE_LIST_LABELS)
@@ -89,9 +90,9 @@ else:
                 ("Fees", c.fmt_money(t.fees, sign=False)),
                 ("Reference", t.external_id or "—"),
             ], cols=1)
-            shots = Path("data/screenshots"); shots.mkdir(parents=True, exist_ok=True)
-            if t.screenshot_path and Path(t.screenshot_path).exists():
-                st.image(t.screenshot_path, use_container_width=True)
+            shots = access.screenshot_directory(); shots.mkdir(parents=True, exist_ok=True)
+            if access.safe_screenshot(t.screenshot_path):
+                st.image(str(access.safe_screenshot(t.screenshot_path)), use_container_width=True)
             up = st.file_uploader("Attach a chart screenshot", type=["png", "jpg", "jpeg"], key=f"shot_{t.id}", label_visibility="collapsed")
             if up is not None:
                 dest = shots / f"trade_{t.id}_{up.name}"
@@ -131,7 +132,10 @@ else:
 tab_week, tab_daily, tab_bulk, tab_export = st.tabs(["Weekly review", "Daily reviews", "Bulk edit", "Export"])
 
 with tab_week:
-    src = df_all[df_all["source"].isin(state.SCOPES[f["scope"]])] if not df_all.empty else df_all
+    review_scope = st.session_state.get("results_source", "Backtests") if f["scope"] == "All" else f["scope"]
+    src = df_all[df_all["source"].isin(state.SCOPES[review_scope])] if not df_all.empty else df_all
+    if f.get("account_id") is not None and not src.empty:
+        src = src[src["account_id"] == f["account_id"]]
     if src.empty:
         c.empty_state("No trades to review", "")
     else:
@@ -171,7 +175,7 @@ with tab_week:
             txt = st.text_area("Your review", value=db.get_setting(review_key, ""), height=140,
                                placeholder="What worked, what didn't, one thing to change next week…")
             if st.button("Save review"):
-                db.set_setting(review_key, txt); st.toast("Saved", icon="✅")
+                db.set_setting(review_key, txt); state.bump(); st.toast("Saved", icon="✅")
 
 with tab_daily:
     reviews = db.settings_with_prefix("daily_review_")

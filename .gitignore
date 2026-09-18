@@ -1,5 +1,6 @@
 .env
 data/*.db
+data/members/
 data/screenshots/
 data/inbox/
 __pycache__/

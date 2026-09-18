@@ -5,15 +5,18 @@
 import streamlit as st
 
 from core.registry import load_extensions
+from ui import access
 
 st.set_page_config(page_title="PrimusLab", page_icon="assets/primuslab-icon.svg", layout="wide", initial_sidebar_state="auto")
 st.logo("assets/primuslab-wordmark.svg", icon_image="assets/primuslab-icon.svg", size="large")
+access.require_login()
 
 pages = {
     "Daily": [
         st.Page("views/edge_lab.py", title="Test & Log", icon=":material/tune:", default=True),
         st.Page("views/overview.py", title="Dashboard", icon=":material/dashboard:"),
         st.Page("views/journal.py", title="Trade Journal", icon=":material/receipt_long:"),
+        st.Page("views/team.py", title="Team", icon=":material/group:"),
     ],
     "Research": [
         st.Page("views/performance.py", title="Analytics", icon=":material/monitoring:"),

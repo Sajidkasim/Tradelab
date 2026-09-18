@@ -10,9 +10,9 @@ import streamlit as st
 
 from core import edge
 from core.models import Source
-from ui import components as c, state
+from ui import components as c, state, access
 
-SCOPE_LABELS = {"Backtests": "Backtesting", "Live": "Forward / live", "Demo": "Demo samples"}
+SCOPE_LABELS = state.SOURCE_LABELS
 
 
 def research_sidebar(df_all):
@@ -23,7 +23,7 @@ def research_sidebar(df_all):
     st.caption("YOUR RESEARCH SAMPLE")
     f["scope"] = st.radio("Data source", scopes, index=scopes.index(f["scope"]),
                            format_func=SCOPE_LABELS.get, key="edge_scope")
-    st.caption("Backtests and forward trades are always separate here.")
+    st.caption("All shows both histories. Results stay separated by testing type.")
     accts = state.get_db().accounts()
     names = {a.id: a.name for a in accts}
     opts = [None] + list(names)
@@ -200,7 +200,7 @@ def quick_log():
                 st.warning("This exact trade is already saved. Change its entry time if this is a different trade.")
                 return
             if screenshot is not None:
-                folder = Path("data/screenshots")
+                folder = access.screenshot_directory()
                 folder.mkdir(parents=True, exist_ok=True)
                 path = folder / f"edge_{uuid4().hex}{Path(screenshot.name).suffix.lower()}"
                 path.write_bytes(screenshot.getbuffer())
@@ -238,8 +238,8 @@ def review_imports(df):
     c.kpi_row([{"label": "Net result", "value": c.fmt_money(trade.net_pnl)},
                {"label": "Realised R", "value": c.fmt_r(trade.r_multiple)},
                {"label": "Source", "value": trade.source.value}])
-    if trade.screenshot_path and Path(trade.screenshot_path).is_file():
-        st.image(trade.screenshot_path, use_container_width=True)
+    if access.safe_screenshot(trade.screenshot_path):
+        st.image(str(access.safe_screenshot(trade.screenshot_path)), use_container_width=True)
     with st.form(f"edge_review_{tid}"):
         strategy = st.text_input("Strategy name", value=trade.setup_name, placeholder="e.g. Turtle Soup")
         labels = label_fields(f"review_{tid}", edge.read_labels(trade.tags))

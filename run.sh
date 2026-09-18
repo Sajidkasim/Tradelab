@@ -13,4 +13,5 @@ else
   . .venv/bin/activate
 fi
 [ -f .env ] || cp .env.example .env
-exec python -m streamlit run app.py
+export PRIMUSLAB_LOCAL_ONLY=1
+exec python -m streamlit run app.py --server.address 127.0.0.1

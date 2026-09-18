@@ -59,10 +59,10 @@ def test_quick_save_clears_result_retains_labels_and_refreshes_stats(app_db):
     assert any("100.0%" in item.value for item in app.markdown)
 
 
-def test_review_queue_empty_and_scope_never_offers_all(app_db):
+def test_review_queue_empty_and_scope_offers_all_without_demo(app_db):
     app = start("Import & review")
     assert not app.exception
-    assert app.radio(key="edge_scope").options == ["Backtesting", "Forward / live", "Demo samples"]
+    assert app.radio(key="edge_scope").options == ["Backtesting", "Forward testing", "All"]
     assert any("Your review queue starts here" in item.value for item in app.markdown)
 
 
