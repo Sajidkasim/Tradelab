@@ -10,7 +10,8 @@ futures and options — built for a Topstep trader, works for any account.
 
 ## Run it locally
 
-Easiest: `./run.sh` (Mac/Linux) or `run.bat` (Windows) — see **RUN_ME_FIRST.md**. By hand:
+Easiest on Mac: double-click **Open PrimusLab.command**. Or use `./run.sh` (Mac/Linux)
+or `run.bat` (Windows) — see **RUN_ME_FIRST.md**. By hand:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate

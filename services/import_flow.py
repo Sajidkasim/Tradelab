@@ -74,6 +74,9 @@ def fx_analytics(frame: pd.DataFrame, instruments, account_id, timezone="UTC"):
     errors = []
     trades = []
     for index, (_, row) in enumerate(raw.iterrows(), start=1):
+        if pd.isna(row.get("pair")):
+            errors.append({"row": index, "error": "Missing market symbol."})
+            continue
         if bad.iloc[index - 1]:
             errors.append({"row": index, "error": "Position is not closed; export it after closing."})
             continue

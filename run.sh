@@ -14,4 +14,4 @@ else
 fi
 [ -f .env ] || cp .env.example .env
 export PRIMUSLAB_LOCAL_ONLY=1
-exec python -m streamlit run app.py --server.address 127.0.0.1
+exec python -m streamlit run app.py --server.address 127.0.0.1 "$@"

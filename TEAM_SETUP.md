@@ -6,7 +6,8 @@ strategy names, not notes, screenshots, account details or editable trade forms.
 
 ## Use the local app
 
-Run `./run.sh` (Mac) or `run.bat` (Windows). Local mode requires the explicit
+On Mac, double-click `Open PrimusLab.command` to open the local workspace on port 8502.
+Alternatively run `./run.sh` (Mac/Linux) or `run.bat` (Windows). Local mode requires the explicit
 `PRIMUSLAB_LOCAL_ONLY=1` flag and a server bound to `127.0.0.1`. It is for your own
 computer, not for hosting behind a public proxy. The default website path requires
 Google login and fails closed if login has not been configured.
