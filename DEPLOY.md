@@ -5,6 +5,7 @@ PrimusLab's public website path requires Google sign-in and an owner email. The 
 ## Before deploying
 
 1. Choose a host that can run `streamlit run app.py` over HTTPS and a persistent PostgreSQL database. The database role must be allowed to create the `primus_<member-id>` schemas used for private teammate workspaces.
+   If using Supabase, turn off its Data API under **Integrations → Data API** before storing private trades. PrimusLab connects directly to PostgreSQL and never needs those public REST endpoints.
 2. Configure the host's Streamlit secrets with `TRADELAB_DB_URL`, `PRIMUSLAB_OWNER_EMAIL`, and the `[auth]` values shown in TEAM_SETUP.md. Store secrets in the host's secrets interface, never in Git.
 3. Register the website's exact `/oauth2callback` URL with the Google OAuth client. Add the owner and four teammates as Google test users if the Google app remains in testing mode.
 4. Start the hosted app with `streamlit run app.py`. The local launchers set the loopback address themselves. Do not set `PRIMUSLAB_LOCAL_ONLY` on a public host.
