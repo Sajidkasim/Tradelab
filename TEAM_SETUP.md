@@ -56,8 +56,9 @@ streamlit run app.py
 
 Use HTTPS on the website. The local launchers bind to `127.0.0.1`, while the checked-in
 Streamlit configuration leaves the hosted address to the provider. If deploying to
-Streamlit Community Cloud, configure the secrets before opening access. The current
-work has not published a site or created a Google OAuth client.
+Streamlit Community Cloud, configure the secrets before opening access. The app is at
+`https://primuslab.streamlit.app/`, but still needs its Google OAuth client, hosted
+secrets and database connection before team access works.
 
 ## Data and permissions
 

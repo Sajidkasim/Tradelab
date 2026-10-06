@@ -40,3 +40,17 @@ def test_replace_rejects_non_backup_before_deleting_existing_data(tmp_path):
         db.import_json("{}", replace=True)
 
     assert db.get_setting("edge_playbook") == {"strategies": ["Keep me"]}
+
+
+def test_merge_skips_existing_instruments_and_keeps_importing(tmp_path):
+    original = Database(tmp_path / "original.db")
+    original.init()
+    original.set_setting("edge_playbook", {"strategies": ["Imported"]})
+    backup = original.export_json()
+
+    target = Database(tmp_path / "target.db")
+    target.init()  # Default instruments already exist in this journal.
+    counts = target.import_json(backup)
+
+    assert counts["instruments"] == 0
+    assert target.get_setting("edge_playbook") == {"strategies": ["Imported"]}

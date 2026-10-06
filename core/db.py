@@ -558,12 +558,28 @@ class Database:
                     if "id" in r and not replace:
                         r.pop("id")
                     try:
-                        conn.execute(table.insert().values(**r))
+                        if replace:
+                            conn.execute(table.insert().values(**r))
+                        else:
+                            # A savepoint keeps PostgreSQL usable after a duplicate row.
+                            with conn.begin_nested():
+                                conn.execute(table.insert().values(**r))
                         inserted += 1
                     except sa.exc.IntegrityError as exc:
                         if replace:
                             raise ValueError(f"The backup contains an invalid {name} row; no data was changed.") from exc
                 counts[name] = inserted
+            if replace and not self.is_sqlite:
+                # Imported IDs bypass PostgreSQL's serial generators. Advance each
+                # generator before the next trade, setup, or account is created.
+                schema = conn.get_execution_options().get("schema_translate_map", {}).get(None)
+                for table in tables.values():
+                    if "id" not in table.c:
+                        continue
+                    maximum = conn.scalar(select(func.max(table.c.id)))
+                    qualified = f"{schema}.{table.name}" if schema else table.name
+                    conn.execute(sa.text("SELECT setval(pg_get_serial_sequence(:table_name, 'id'), :value, :used)"),
+                                 {"table_name": qualified, "value": maximum or 1, "used": bool(maximum)})
         return counts
 
     def backup(self, dest: str | Path) -> None:
