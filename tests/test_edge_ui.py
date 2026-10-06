@@ -203,8 +203,9 @@ def test_trades_editor_all_queue_save_next_and_bulk_preserve_results(app_db):
     assert app.selectbox(key='edge_review_trade').value != first
     assert app_db.get_trade(first).r_multiple == 2
     ids = app_db.trades_df()['id'].tolist()
-    app.multiselect(key='review_bulk_ids').set_value(ids)
-    app.selectbox(key='review_bulk_strategy').set_value('AMD').run()
+    app.multiselect(key='review_bulk_ids').set_value(ids).run()
+    app.selectbox(key='review_bulk_strategy').select('AMD').run()
+    assert app.selectbox(key='review_bulk_strategy').value == 'AMD'
     app.button(key='review_bulk_apply').click().run()
     assert not app.exception
     assert app_db.trades_df()['setup_name'].tolist() == ['AMD','AMD']
@@ -219,8 +220,8 @@ def test_bulk_strategy_refreshes_open_trade_editor(app_db):
     app_db.insert_trades([trade])
     app = start('Import & review')
     tid = app.selectbox(key='edge_review_trade').value
-    app.multiselect(key='review_bulk_ids').set_value([tid])
-    app.selectbox(key='review_bulk_strategy').set_value('AMD').run()
+    app.multiselect(key='review_bulk_ids').set_value([tid]).run()
+    app.selectbox(key='review_bulk_strategy').select('AMD').run()
     app.button(key='review_bulk_apply').click().run()
     assert not app.exception
     assert app.selectbox(key=f'review_{tid}_strategy').value == 'AMD'
