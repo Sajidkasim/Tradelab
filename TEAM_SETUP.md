@@ -51,12 +51,13 @@ Install `requirements.txt`, which includes Authlib. For hosting, **do not use ru
 unset `PRIMUSLAB_LOCAL_ONLY` and start with:
 
 ```bash
-streamlit run app.py --server.address 0.0.0.0
+streamlit run app.py
 ```
 
-Use HTTPS on the website. If deploying to Streamlit Community Cloud, override the
-repository's loopback `server.address` for the host and configure these secrets before
-opening access. The current work has not published a site or created a Google OAuth client.
+Use HTTPS on the website. The local launchers bind to `127.0.0.1`, while the checked-in
+Streamlit configuration leaves the hosted address to the provider. If deploying to
+Streamlit Community Cloud, configure the secrets before opening access. The current
+work has not published a site or created a Google OAuth client.
 
 ## Data and permissions
 

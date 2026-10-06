@@ -24,8 +24,11 @@ def app_db(monkeypatch):
 def start(lane="Explore my edge"):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"), default_timeout=20)
     app.session_state["filters"] = {**state._default_filters(), "scope": "Backtests"}
-    app.session_state["edge_lane"] = lane
     app.run()
+    if lane != "Explore my edge":
+        app.session_state["trade_action"] = "add" if lane == "Log a trade" else "review"
+        app.session_state["edge_pending"] = lane == "Import & review"
+        app.switch_page("views/journal.py").run()
     assert not app.exception
     return app
 
@@ -53,8 +56,7 @@ def test_quick_save_clears_result_retains_labels_and_refreshes_stats(app_db):
     assert app.number_input(key="edge_log_1_pnl").value is None
     assert app.checkbox(key="edge_log_1_confirm_SMT").value is True
     assert app.session_state["data_version"] == 1
-    app.session_state["edge_lane"] = "Explore my edge"
-    app.run()
+    app.switch_page("views/edge_lab.py").run()
     assert not app.exception
     assert any("100.0%" in item.value for item in app.markdown)
 
@@ -62,7 +64,7 @@ def test_quick_save_clears_result_retains_labels_and_refreshes_stats(app_db):
 def test_review_queue_empty_and_scope_offers_all_without_demo(app_db):
     app = start("Import & review")
     assert not app.exception
-    assert app.radio(key="edge_scope").options == ["Backtesting", "Forward testing", "All"]
+    assert next(r for r in app.radio if r.label == "Data source").options == ["Backtesting", "Forward testing", "All"]
     assert any("Your review queue starts here" in item.value for item in app.markdown)
 
 
@@ -92,7 +94,8 @@ def test_import_review_saves_labels_and_advances_without_losing_r(app_db):
     tid = app.selectbox(key="edge_review_trade").value
     app.checkbox(key=f"review_{tid}_confirm_SMT").check()
     app.selectbox(key=f"review_{tid}_news").select("Major news")
-    next(b for b in app.button if b.label == "Save labels & next").click().run()
+    app.checkbox(key=f"review_{tid}_confirmed").check()
+    next(b for b in app.button if b.label == "Save & next").click().run()
     assert not app.exception
     saved = app_db.get_trade(tid)
     assert saved.r_multiple == 2
@@ -113,8 +116,7 @@ def test_entry_timeframe_is_saved_and_filtered_separately_from_level_timeframe(a
     assert labels["timeframe"] == "4H"
     assert labels["entry_timeframe"] == "1m"
     assert app.selectbox(key="edge_log_1_entry_timeframe").value == "1m"  # remembered for the next trade
-    app.session_state["edge_lane"] = "Explore my edge"
-    app.run()
+    app.switch_page("views/edge_lab.py").run()
     app.selectbox(key="edge_filter_entry_timeframe").select("5m").run()
     assert not app.exception
     assert any("No closed trades match yet" in item.value for item in app.markdown)
@@ -129,8 +131,7 @@ def test_edited_playbook_lists_drive_the_log_and_filter_options(app_db):
     assert app.selectbox(key="edge_log_0_strategy").options == ["Silver Bullet"]
     assert app.selectbox(key="edge_log_0_strategy").value == "Silver Bullet"
     assert app.selectbox(key="edge_log_0_level").options == [edge.UNKNOWN, "Asia high / low"]
-    app.session_state["edge_lane"] = "Explore my edge"
-    app.run()
+    app.switch_page("views/edge_lab.py").run()
     assert not app.exception
     assert app.selectbox(key="edge_filter_strategy").options == ["All strategies", "Silver Bullet"]
     assert app.selectbox(key="edge_filter_level").options == ["Any level", "Asia high / low", edge.UNKNOWN]
@@ -150,20 +151,23 @@ def test_removed_level_stays_selectable_on_trades_that_already_use_it(app_db):
     assert any("100.0%" in item.value for item in app.markdown)
 
 
-def test_empty_state_buttons_switch_lane_from_inside_the_fragment(app_db):
-    # The lane radio lives outside the Explore fragment; the buttons inside must still be able to switch it.
+def test_trades_owns_entry_and_import_with_clear_return_path(app_db):
     app = start()
-    assert any("No closed trades match yet" in item.value for item in app.markdown)
-    next(b for b in app.button if b.label == "Log the first trade").click().run()
+    assert not app.sidebar.radio
+    assert not app.sidebar.selectbox
+    assert not app.sidebar.multiselect
+    assert not app.number_input
+    assert app.radio(key="edge_scope").options == ["Backtesting", "Forward testing", "All"]
+    app.switch_page("views/journal.py").run()
+    next(b for b in app.button if b.label == "Add trade").click().run()
     assert not app.exception
-    assert app.session_state["edge_lane"] == "Log a trade"
-    assert app.radio(key="edge_lane").value == "Log a trade"
-    assert app.number_input(key="edge_log_0_pnl") is not None  # the Add Trade form rendered
-    app.session_state["edge_lane"] = "Explore my edge"
-    app.run()
-    next(b for b in app.button if b.label == "Import & label trades").click().run()
+    assert app.number_input(key="edge_log_0_pnl") is not None
+    next(b for b in app.button if b.label == "Back to trades").click().run()
+    next(b for b in app.button if b.label == "Import FX Replay").click().run()
     assert not app.exception
-    assert app.radio(key="edge_lane").value == "Import & review"
+    assert len(app.get("file_uploader")) > 0
+    next(b for b in app.button if b.label == "Back to trades").click().run()
+    assert not app.exception
     assert any("Your review queue starts here" in item.value for item in app.markdown)
 
 
@@ -179,3 +183,57 @@ def test_saved_combination_can_be_cleared_and_reapplied(app_db):
     assert not app.exception
     assert app.checkbox(key="edge_filter_confirm_SMT").value
     assert app.selectbox(key="edge_filter_level").value == "FVG"
+
+
+def test_trades_editor_all_queue_save_next_and_bulk_preserve_results(app_db):
+    for day in [1, 2]:
+        trade = edge.build_trade(symbol='MNQ', direction='long', source=Source.BACKTEST,
+                                 account_id=app_db.accounts()[0].id, strategy='Turtle Soup',
+                                 entry_time=f'2026-09-0{day}T13:35:00Z', exit_time=f'2026-09-0{day}T13:40:00Z',
+                                 instruments=app_db.instruments(), tags=[], net_pnl=100, risk_amount=50)
+        app_db.insert_trades([trade])
+    app = start()
+    app.switch_page('views/journal.py').run()
+    assert not app.exception
+    first = app.selectbox(key='edge_review_trade').value
+    app.selectbox(key=f'review_{first}_entry_timeframe').set_value('1m')
+    app.checkbox(key=f'review_{first}_confirmed').check()
+    next(b for b in app.button if b.label == 'Save & next').click().run()
+    assert not app.exception
+    assert app.selectbox(key='edge_review_trade').value != first
+    assert app_db.get_trade(first).r_multiple == 2
+    ids = app_db.trades_df()['id'].tolist()
+    app.multiselect(key='review_bulk_ids').set_value(ids)
+    app.selectbox(key='review_bulk_strategy').set_value('AMD').run()
+    app.button(key='review_bulk_apply').click().run()
+    assert not app.exception
+    assert app_db.trades_df()['setup_name'].tolist() == ['AMD','AMD']
+    assert app_db.trades_df()['r_multiple'].tolist() == [2,2]
+
+
+def test_bulk_strategy_refreshes_open_trade_editor(app_db):
+    trade = edge.build_trade(symbol='MNQ', direction='long', source=Source.BACKTEST,
+                            account_id=app_db.accounts()[0].id, strategy='Turtle Soup',
+                            entry_time='2026-09-01T13:35:00Z', exit_time='2026-09-01T13:40:00Z',
+                            instruments=app_db.instruments(), tags=[], net_pnl=100, risk_amount=50)
+    app_db.insert_trades([trade])
+    app = start('Import & review')
+    tid = app.selectbox(key='edge_review_trade').value
+    app.multiselect(key='review_bulk_ids').set_value([tid])
+    app.selectbox(key='review_bulk_strategy').set_value('AMD').run()
+    app.button(key='review_bulk_apply').click().run()
+    assert not app.exception
+    assert app.selectbox(key=f'review_{tid}_strategy').value == 'AMD'
+
+
+def test_custom_imported_confirmation_survives_review(app_db):
+    trade = edge.build_trade(symbol='MNQ', direction='long', source=Source.BACKTEST,
+                            account_id=app_db.accounts()[0].id, strategy='Turtle Soup',
+                            entry_time='2026-09-01T13:35:00Z', exit_time='2026-09-01T13:40:00Z',
+                            instruments=app_db.instruments(), tags=['edge:confirmation:My custom signal'], net_pnl=100, risk_amount=50)
+    app_db.insert_trades([trade])
+    app = start('Import & review')
+    tid = app.selectbox(key='edge_review_trade').value
+    next(b for b in app.button if b.label == 'Save changes').click().run()
+    assert not app.exception
+    assert 'My custom signal' in edge.read_labels(app_db.get_trade(tid).tags)['confirmations']

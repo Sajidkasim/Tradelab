@@ -1,69 +1,31 @@
-# Putting PrimusLab on the web
+# Put PrimusLab on the web
 
-About 30 minutes, all free. You end up with a URL like `https://sajid-primuslab.streamlit.app`
-that works on your phone, plus a database that keeps your journal safe across restarts.
+PrimusLab's public website path requires Google sign-in and an owner email. The site shows a setup gate until authentication is configured. Use [TEAM_SETUP.md](TEAM_SETUP.md) for the Google OAuth client, exact callback URL, owner and teammate invitations, and workspace permissions.
 
-## 1 · Database (Supabase, free)
+## Before deploying
 
-1. Sign up at supabase.com → **New project**. Pick a region near you (London/Frankfurt). Save the database password.
-2. Project → **Connect** (top bar) → **Connection string** → choose **Session pooler** (not "Direct" — direct connections
-   are IPv6-only and Streamlit Cloud can't reach them) → copy the URI. It looks like:
-   ```
-   postgresql://postgres.abcdefgh:[YOUR-PASSWORD]@aws-0-eu-west-2.pooler.supabase.com:5432/postgres
-   ```
-3. Replace `[YOUR-PASSWORD]` and add `?sslmode=require` on the end. That whole string is your `TRADELAB_DB_URL`.
+1. Choose a host that can run `streamlit run app.py` over HTTPS and a persistent PostgreSQL database. The database role must be allowed to create the `primus_<member-id>` schemas used for private teammate workspaces.
+2. Configure the host's Streamlit secrets with `TRADELAB_DB_URL`, `PRIMUSLAB_OWNER_EMAIL`, and the `[auth]` values shown in TEAM_SETUP.md. Store secrets in the host's secrets interface, never in Git.
+3. Register the website's exact `/oauth2callback` URL with the Google OAuth client. Add the owner and four teammates as Google test users if the Google app remains in testing mode.
+4. Start the hosted app with `streamlit run app.py`. The local launchers set the loopback address themselves. Do not set `PRIMUSLAB_LOCAL_ONLY` on a public host.
+5. Keep the site private while you verify owner login, invited and uninvited Google accounts, separate workspaces, revocation, CSV import, and backups against the actual hosted database.
 
-PrimusLab creates its own tables on first run. Nothing else to set up.
+The local owner journal remains in `data/tradelab.db`. A new PostgreSQL database starts empty; this project does not automatically move existing local trades into it. Export or back up local data before any planned migration, then verify restored trade counts and results on the hosted site.
 
-## 2 · Code (GitHub)
+## Data that needs persistent storage
 
-1. Create a **private** repository (private repo ⇒ private app; a free Streamlit account allows one private app).
-2. Push this folder to it. `.env` and `secrets.toml` are git-ignored — never commit keys.
-   ```bash
-   git init && git add -A && git commit -m "PrimusLab"
-   git branch -M main && git remote add origin https://github.com/YOU/primuslab.git && git push -u origin main
-   ```
+Trades, notes, tags, settings, invitations and sharing choices live in PostgreSQL. Each member can download their journal backup in **Settings → Data**. Keep dated copies on your own computer or another service, because a backup button cannot be used during a website outage. The in-app JSON backup omits the team invitation table and chart image files.
 
-## 3 · App (Streamlit Community Cloud, free)
+Chart screenshots are stored on the server filesystem under `data/screenshots/`. Streamlit Community Cloud does not provide persistent local file storage, so screenshots uploaded there can disappear after a restart. Until separate persistent storage is connected, keep the original image files yourself. For a complete team backup, export PostgreSQL (including `primus_members` and member schemas) and the screenshot directory separately. Supabase's free plan does not include automatic database backups; arrange regular off-site database exports.
 
-1. share.streamlit.io → sign in with GitHub → **Create app** → pick the repo, branch `main`, file `app.py`.
-2. **Advanced settings → Secrets** — paste:
-   ```toml
-   TRADELAB_DB_URL = "postgresql://postgres.abcdefgh:PASSWORD@aws-0-eu-west-2.pooler.supabase.com:5432/postgres?sslmode=require"
-   PROJECTX_USERNAME = "your_topstepx_username"
-   PROJECTX_API_KEY = "your_projectx_api_key"
-   ```
-   All keys are optional — CSV, Excel, FX Replay and manual entry work without any of them.
-3. Deploy. First build takes a few minutes. You'll get `https://<name>.streamlit.app`.
-4. **Share → "Only specific people can view this app"** and add your email. Keep it private: it's your P&L.
+Optional read-only broker credentials are separate from the trading journal and never enable order placement. The nightly job, if enabled, writes only to the owner's workspace.
 
-To update the app later, just push to `main`; it redeploys automatically.
+## Launch check
 
-## 4 · Nightly auto-journal (GitHub Action, free)
+Run the tests with the project's virtual environment:
 
-Repo → **Settings → Secrets and variables → Actions** → add the same three secrets
-(`TRADELAB_DB_URL`, `PROJECTX_USERNAME`, `PROJECTX_API_KEY`). The workflow in
-`.github/workflows/nightly.yml` then runs every weekday at 21:45 UTC: pulls the day's fills,
-reconciles them, writes the review you'll see under Journal → Daily reviews. Run it on demand from
-the **Actions** tab. Topstep allows read-only data pulls on servers; this never places orders.
-
-## 5 · Putting it on your own website
-
-Community Cloud doesn't support custom domains, but you can embed the app:
-
-```html
-<iframe src="https://<name>.streamlit.app/?embed=true" style="width:100%;height:100vh;border:0"></iframe>
+```bash
+.venv/bin/python -m pytest -q
 ```
 
-A private app still asks viewers to sign in inside the frame. If you want it on your own domain
-without the sign-in step, that's the paid-host route (Render / Railway / Fly, a few dollars a month) —
-same code, set the same three environment variables.
-
-## Things to know
-
-- **Uploads on a free host don't persist.** Screenshots you attach in the Journal live on the server's
-  disk and vanish on restart; keep originals. Trades, notes, tags and settings are in Postgres and are safe.
-- **Backups:** Import → Backup downloads everything as one JSON. Do it occasionally regardless.
-- **The app sleeps** after a few days without visitors on the free tier and wakes on the next visit (30–60 s).
-- **Local and hosted at once:** the app reads `TRADELAB_DB_URL` from `.env` locally too, so you can point your
-  laptop at the same Supabase database and see identical data in both places.
+Then follow the live account and storage checks in [TEAM_SETUP.md](TEAM_SETUP.md). Local SQLite tests cannot prove that the hosted Google redirect, PostgreSQL permissions, network access or persistent screenshots work; those must be checked on the actual host before inviting the team.

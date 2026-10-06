@@ -20,27 +20,24 @@ def research_sidebar(df_all):
     scopes = list(SCOPE_LABELS)
     if f["scope"] not in scopes:
         f["scope"] = "Backtests"
-    st.caption("YOUR RESEARCH SAMPLE")
     f["scope"] = st.radio("Data source", scopes, index=scopes.index(f["scope"]),
-                           format_func=SCOPE_LABELS.get, key="edge_scope")
-    st.caption("All shows both histories. Results stay separated by testing type.")
-    accts = state.get_db().accounts()
-    names = {a.id: a.name for a in accts}
-    opts = [None] + list(names)
-    f["account_id"] = st.selectbox("Account", opts,
-                                    index=opts.index(f["account_id"]) if f["account_id"] in opts else 0,
-                                    format_func=lambda v: names.get(v, "All accounts"), key="edge_account")
-    f["preset"] = st.selectbox("Research period", state.PRESETS, index=state.PRESETS.index(f["preset"]), key="edge_period") or "All time"
-    if f["preset"] == "Custom":
-        f["start"] = st.date_input("From", value=f["start"] or state.local_today(), key="edge_start")
-        f["end"] = st.date_input("To", value=f["end"] or state.local_today(), key="edge_end")
-    else:
-        f["start"], f["end"] = state._preset_range(f["preset"], state.local_today())
-    # This page exposes these controls in its main canvas, never as hidden filters.
+                           format_func=SCOPE_LABELS.get, key="edge_scope", horizontal=True)
+    active = f["account_id"] is not None or f["preset"] != "All time"
+    with st.expander("Account & period · active" if active else "Account & period"):
+        accts = state.get_db().accounts()
+        names = {a.id: a.name for a in accts}
+        opts = [None] + list(names)
+        f["account_id"] = st.selectbox("Account", opts,
+            index=opts.index(f["account_id"]) if f["account_id"] in opts else 0,
+            format_func=lambda v: names.get(v, "All accounts"), key="edge_account")
+        f["preset"] = st.selectbox("Research period", state.PRESETS,
+            index=state.PRESETS.index(f["preset"]), key="edge_period") or "All time"
+        if f["preset"] == "Custom":
+            f["start"] = st.date_input("From", value=f["start"] or state.local_today(), key="edge_start")
+            f["end"] = st.date_input("To", value=f["end"] or state.local_today(), key="edge_end")
+        else:
+            f["start"], f["end"] = state._preset_range(f["preset"], state.local_today())
     f.update(symbols=[], setups=[], direction="Both", sessions=[], tags=[])
-    st.divider()
-    c.note("<b>Your starting point</b><br>Buy or sell → key level → confirmation → result.")
-    st.caption("New York windows use New York local time, including daylight saving.")
 
 
 def playbook():
@@ -63,11 +60,13 @@ def label_fields(key, defaults=None, lists=None):
     entry_timeframe = pick(cols[2], "Entry timeframe", edge.TIMEFRAMES, "entry_timeframe", help="The chart the entry was taken on.")
     st.caption("Entry confirmations · check everything you actually saw")
     boxes = st.columns(4)
-    confirmations = [value for i, value in enumerate(edge.CONFIRMATIONS)
+    confirmation_options = list(dict.fromkeys(edge.CONFIRMATIONS + defaults.get("confirmations", [])))
+    confirmations = [value for i, value in enumerate(confirmation_options)
                      if boxes[i % 4].checkbox(value, value=value in defaults.get("confirmations", []), key=f"{key}_confirm_{value}")]
-    cols = st.columns(2)
-    condition = pick(cols[0], "Market condition", edge.CONDITIONS, "condition")
-    news = pick(cols[1], "News that day", edge.NEWS, "news")
+    with st.expander("News & market condition"):
+        cols = st.columns(2)
+        condition = pick(cols[0], "Market condition", edge.CONDITIONS, "condition")
+        news = pick(cols[1], "News that day", edge.NEWS, "news")
     return dict(level=level, timeframe=timeframe, entry_timeframe=entry_timeframe,
                 confirmations=confirmations, condition=condition, news=news)
 
@@ -218,34 +217,5 @@ def quick_log():
 
 
 def review_imports(df):
-    c.section("Import first. Add the context.", "Keep the prices and results from your platform. Tag the evidence you saw on the chart.")
-    st.page_link("views/import_.py", label="Import FX Replay, CSV or Excel", icon=":material/upload_file:")
-    st.caption("The Import page previews and maps your columns before saving. Return here to tag your trades.")
-    if df.empty:
-        c.empty_state("Your review queue starts here", "Import your first replay export, or use Add Trade.")
-        return
-    only_pending = st.toggle("Only trades awaiting labels", value=True, key="edge_pending")
-    queue = df[~df["edge_reviewed"].astype(bool)] if only_pending else df
-    queue = queue.sort_values("entry_time", ascending=False)
-    if queue.empty:
-        c.empty_state("You're up to date", "Every trade in this sample has been reviewed. Turn off the switch to edit labels.")
-        return
-    st.caption(f"{len(queue):,} trades in this queue")
-    records = {int(row.id): row for row in queue.itertuples()}
-    tid = st.selectbox("Trade to review", list(records), key="edge_review_trade",
-                       format_func=lambda v: f"{records[v].entry_time:%d %b %Y %H:%M} UTC · {records[v].symbol} · {records[v].direction} · {c.fmt_money(records[v].net_pnl)} · #{v}")
-    trade = state.get_db().get_trade(tid)
-    c.kpi_row([{"label": "Net result", "value": c.fmt_money(trade.net_pnl)},
-               {"label": "Realised R", "value": c.fmt_r(trade.r_multiple)},
-               {"label": "Source", "value": trade.source.value}])
-    if access.safe_screenshot(trade.screenshot_path):
-        st.image(str(access.safe_screenshot(trade.screenshot_path)), use_container_width=True)
-    with st.form(f"edge_review_{tid}"):
-        strategy = st.text_input("Strategy name", value=trade.setup_name, placeholder="e.g. Turtle Soup")
-        labels = label_fields(f"review_{tid}", edge.read_labels(trade.tags))
-        notes = st.text_area("Trade notes", value=trade.notes)
-        if st.form_submit_button("Save labels & next", type="primary", use_container_width=True):
-            state.get_db().update_trade(tid, setup_name=strategy.strip(), tags=edge.write_labels(trade.tags, **labels), notes=notes)
-            state.bump()
-            st.session_state["edge_flash"] = "Labels saved. Your edge statistics are updated."
-            st.rerun()
+    from ui.trade_review import review_queue
+    review_queue(df)

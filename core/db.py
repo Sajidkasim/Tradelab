@@ -540,6 +540,10 @@ class Database:
         tables = {"accounts": accounts_t, "instruments": instruments_t, "setups": setups_t, "trades": trades_t,
                   "settings": settings_t, "import_mappings": mappings_t, "backtest_runs": backtests_t,
                   "rule_breaches": breaches_t}
+        if (not isinstance(data, dict) or not set(tables).issubset(data)
+                or any(not isinstance(data[name], list) or any(not isinstance(row, dict) for row in data[name])
+                       for name in tables)):
+            raise ValueError("This file is not a complete PrimusLab backup; no data was changed.")
         dt_cols = {"entry_time", "exit_time", "created_at", "updated_at", "t"}
         with self.engine.begin() as conn:
             for name, table in tables.items():
@@ -556,8 +560,9 @@ class Database:
                     try:
                         conn.execute(table.insert().values(**r))
                         inserted += 1
-                    except sa.exc.IntegrityError:
-                        pass
+                    except sa.exc.IntegrityError as exc:
+                        if replace:
+                            raise ValueError(f"The backup contains an invalid {name} row; no data was changed.") from exc
                 counts[name] = inserted
         return counts
 

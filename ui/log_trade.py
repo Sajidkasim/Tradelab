@@ -29,7 +29,7 @@ def log_trade_form(key: str = "log") -> None:
     stop = r1[5].number_input("Stop", value=0.0, step=ins.tick_size, format="%.2f", key=f"{key}_stop")
     r2 = st.columns([1.2, 1, 1, 1, 1])
     setups = [s.name for s in db.setups()]
-    model = r2[0].selectbox("Model", ["—"] + setups, key=f"{key}_model")
+    model = r2[0].selectbox("Strategy", ["—"] + setups, key=f"{key}_model")
     rules = r2[1].selectbox("Rules", ["not recorded", "followed", "broke"], key=f"{key}_rules")
     now_local = pd.Timestamp.now(tz=tz)
     when_d = r2[2].date_input("Date", value=now_local.date(), key=f"{key}_date")

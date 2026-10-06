@@ -11,6 +11,7 @@ from core.models import Direction, InstrumentType, Source, Trade
 from ui import components as c
 from ui import state, access
 from services import import_flow
+from ui.import_labels import map_export_labels
 import hashlib
 
 df_all, df = state.page_setup("Import")
@@ -18,7 +19,11 @@ tz = state.tz()
 acct = state.account()
 db = state.get_db()
 
-c.page_header("Import", "Upload your file. Check your trades. Confirm when ready.",
+if st.button("Back to trades", icon=":material/arrow_back:"):
+    st.session_state["trade_action"] = "review"
+    st.switch_page("views/journal.py")
+
+c.page_header("Import FX Replay", "Upload your file. Check your trades. Confirm when ready.",
               f"{db.count_trades()} trades stored")
 
 TARGETS = ["symbol", "direction", "qty", "entry_time", "exit_time", "entry_price", "exit_price", "stop_price",
@@ -31,6 +36,7 @@ SOURCE_LABELS = {"csv": "Live trades (CSV / broker export)", "excel": "Live trad
 
 def _preview_and_confirm(trades: list[Trade], errors: list[dict], key: str, extra: pd.DataFrame | None = None) -> None:
     """Shared confirm screen: status per row, errors, then one button that writes."""
+    trades = map_export_labels(trades, key)
     existing = db.existing_external_ids()
     pv = importers.preview(trades, existing)
     counts = import_flow.preview_counts(pv, errors)
@@ -131,10 +137,11 @@ def _run_mapped_import(raw: pd.DataFrame, key: str, default_source: str = "csv")
 
 if "import_flash" in st.session_state:
     st.success(st.session_state["import_flash"])
-    if st.button("Add strategy details", type="primary"):
-        st.session_state["edge_lane"] = "Import & review"
-        state.filters()["scope"] = "All"
-        st.switch_page("views/edge_lab.py")
+    if st.button("Review & tag trades", type="primary"):
+        state.filters().update(scope="All", account_id=None, preset="All time", start=None, end=None, symbols=[], setups=[], direction="Both", sessions=[], tags=[])
+        st.session_state["edge_pending"] = True
+        st.session_state["trade_action"] = "review"
+        st.switch_page("views/journal.py")
 
 c.step_label("01", "Upload your trades", "FX Replay, CSV, Excel or JSON — one place for your files.")
 accounts = db.accounts()
@@ -182,8 +189,8 @@ with st.expander("More options"):
     method = st.selectbox("Import method", methods, key="other_import_method")
     if method == "Add a trade manually":
         if st.button("Open Add Trade"):
-            st.session_state["edge_lane"] = "Log a trade"
-            st.switch_page("views/edge_lab.py")
+            st.session_state["trade_action"] = "add"
+            st.switch_page("views/journal.py")
     if method == "Paste rows":
         c.section("Paste rows", "Copy cells from a spreadsheet (with the header row) and paste")
         txt = st.text_area("Paste here", height=160, key="clip_txt", placeholder="Date\tSymbol\tDirection\tEntry Price\tExit Price\n...")
@@ -255,17 +262,24 @@ with st.expander("More options"):
                 db.set_setting("inbox_done", sorted(done | {pick.name})); state.bump(); st.rerun()
 
     if method == "Backup and restore":
-        c.section("Backup and restore", "A full JSON export of everything except cached bars. Do this often if you're on a free host.")
+        c.section("Backup and restore", "Your journal data in one JSON file. Save regular copies outside the website.")
+        st.caption("This file includes your trades, labels, notes and settings. Chart images and team invitations need separate backups.")
         b1, b2 = st.columns(2)
         with b1:
             st.download_button("Download backup (.json)", db.export_json().encode(),
                                f"primuslab_backup_{datetime.now():%Y%m%d}.json", "application/json", type="primary", use_container_width=True)
         with b2:
             up = st.file_uploader("Restore from backup", type=["json"], key="restore_up")
-            replace = st.checkbox("Replace everything (otherwise merge, skipping duplicates)")
+            replace = st.checkbox("Replace this workspace with the backup",
+                                  help="Use this for a clean recovery. Merging can duplicate manually added trades that have no external ID.")
             if up is not None and st.button("Restore", type="secondary"):
-                counts = db.import_json(up.read().decode(), replace=replace); state.bump()
-                st.success(f"Restored: {counts}"); st.rerun()
+                try:
+                    counts = db.import_json(up.read().decode("utf-8"), replace=replace)
+                except (ValueError, UnicodeError) as exc:
+                    st.error(f"Restore failed: {exc}")
+                else:
+                    state.bump()
+                    st.success(f"Restored: {counts}"); st.rerun()
     if method in IMPORT_SOURCES:
         src = IMPORT_SOURCES[method]
         upload = st.file_uploader(f"{method} file", type=src.file_types, key=f"ext_{method}")

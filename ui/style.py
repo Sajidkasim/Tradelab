@@ -19,6 +19,9 @@ def theme_mode() -> str:
     forced = st.session_state.get("theme_mode")
     if forced in ("dark", "light"):
         return forced
+    browser = st.session_state.get("browser_theme")
+    if browser in ("dark", "light"):
+        return browser
     try:
         t = st.context.theme.type
         if t in ("dark", "light"):
@@ -44,7 +47,7 @@ def inject_css() -> None:
     glass = "rgba(26,26,25,0.72)" if dark else "rgba(255,255,255,0.72)"
     shadow = "0 1px 2px rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.28)" if dark else "0 1px 2px rgba(11,11,11,0.04), 0 12px 32px rgba(11,11,11,0.06)"
     shadow_hover = "0 2px 4px rgba(0,0,0,0.4), 0 20px 48px rgba(0,0,0,0.38)" if dark else "0 2px 4px rgba(11,11,11,0.05), 0 20px 48px rgba(11,11,11,0.10)"
-    page = "#0d0d0d" if dark else "#f5f5f7"
+    page = "#0d0d0d" if dark else "#f6f8fb"
     pos, neg = ("#4fd14f", "#ff7b7b") if dark else ("#0a7d0a", "#c62828")
     st.markdown(f"""
 <style>
@@ -57,6 +60,9 @@ def inject_css() -> None:
   --tl-serious: {p['serious']}; --tl-bad: {p['critical']}; --tl-pos: {pos}; --tl-neg: {neg};
   --tl-ease: cubic-bezier(.2,.7,.2,1);
 }}
+
+/* Theme bridge is invisible and contains no user data. */
+.st-key-primus_theme_sync {{ display: none; }}
 
 /* ---------- type ---------- */
 html, body, .stApp, [class*="css"] {{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }}
@@ -230,6 +236,25 @@ div[data-baseweb="select"] > div, div[data-baseweb="input"] > div, div[data-base
 .st-key-edge_lane [data-testid="stRadioOption"]:has(input:checked) p {{ color: var(--tl-accent); font-weight: 600; }}
 .st-key-edge_lane [data-testid="stRadioOption"] > div > div:first-child {{ display: none; }}
 .st-key-edge_lane [data-testid="stRadioOption"]:focus-within {{ outline: 2px solid var(--tl-accent); outline-offset: 2px; }}
+
+/* ---------- crisp light surfaces ---------- */
+{"" if dark else '''
+:root { --tl-surface: #ffffff; --tl-glass: #ffffff; --tl-ink: #172435;
+  --tl-ink2: #42536a; --tl-muted: #56667c; --tl-border: #e0e6ee;
+  --tl-border-strong: #c5d0de; --tl-hover: #edf3fb;
+  --tl-shadow: 0 1px 3px rgba(23,36,53,.035); --tl-shadow-hover: 0 2px 8px rgba(23,36,53,.06); }
+.stApp { background: var(--tl-page); color: var(--tl-ink); }
+section[data-testid="stSidebar"] { background: var(--tl-surface); }
+.tl-hero, .tl-kpi, .tl-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.tl-hero::before { display: none; }
+.tl-hero { border-radius: 16px; }
+.tl-kpi:hover, .tl-card:hover { transform: none; }
+button[kind="primary"] { box-shadow: none; }
+div[data-testid="stPlotlyChart"] { box-shadow: none; background: var(--tl-surface); }
+.st-key-edge_sample { background: var(--tl-surface); }
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] { border-radius: 9px; }
+section[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"][aria-current="page"] { background: var(--tl-hover); }
+'''}
 
 /* ---------- small screens ---------- */
 @media (max-width: 640px) {{

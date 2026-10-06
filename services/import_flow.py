@@ -38,6 +38,9 @@ def fx_analytics(frame: pd.DataFrame, instruments, account_id, timezone="UTC"):
     Never infer realised R from maxRiskReward or idealTP (planned targets).
     """
     raw = frame.copy()
+    if "tags" in raw:
+        from services.trade_labels import export_tags
+        raw["tags"] = raw["tags"].map(lambda value: json.dumps(export_tags(value)))
     mapping = {"symbol": "pair", "direction": "side", "entry_time": "dateStart",
                "exit_time": "dateEnd", "pnl": "rPnL", "external_id": "id",
                "tags": "tags", "notes": "import_notes"}

@@ -30,7 +30,7 @@ with tab_score:
     if not all_models:
         c.empty_state("No models yet", "Add one under 'Manage models', or import trades that carry a setup/strategy name.")
     else:
-        pick = st.selectbox("Model", all_models)
+        pick = st.selectbox("Strategy", all_models)
         sdef = next((s for s in setups if s.name == pick), None)
         sub = df[df["setup_name"] == pick] if not df.empty else df
         s = metrics.summary_stats(sub, acct.starting_balance)

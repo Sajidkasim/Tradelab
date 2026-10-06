@@ -1,5 +1,5 @@
 import json
-from datetime import time
+from datetime import datetime, time
 
 import pandas as pd
 import streamlit as st
@@ -90,7 +90,7 @@ with tabs[1]:
 # ---------------------------------------------------------------- playbook
 with tabs[2]:
     playbook_editor()
-    st.caption("The same lists are used on Test & Log when you add, review or filter trades. Entry and level timeframes are fixed chart sizes and are chosen per trade.")
+    st.caption("The same lists are used in Results and Trades when you add, review or filter trades. Entry and level timeframes are fixed chart sizes and are chosen per trade.")
 
 # ---------------------------------------------------------------- sessions & tz
 with tabs[3]:
@@ -172,4 +172,11 @@ with tabs[5]:
         n = db.delete_trades_by_source("demo"); state.bump(); st.success(f"Deleted {n}."); st.rerun()
     if d3.button("Clear caches"):
         state.bump(); st.cache_data.clear(); st.success("Cleared.")
-    st.caption("Backups live under Import → More options → Backup and restore.")
+    c.section("Your backup", "Download your trades, strategies, labels, notes and settings.")
+    st.download_button("Download my data (.json)", db.export_json().encode("utf-8"),
+                       f"primuslab_backup_{datetime.now():%Y%m%d_%H%M}.json", "application/json",
+                       type="primary", key="settings_backup")
+    st.caption("Save this file somewhere outside the website. It contains only your workspace; chart image files and team invitations are separate.")
+    if st.button("Restore a backup"):
+        st.session_state["other_import_method"] = "Backup and restore"
+        st.switch_page("views/import_.py")

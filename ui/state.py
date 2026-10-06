@@ -97,7 +97,7 @@ def sidebar(df_all: pd.DataFrame) -> None:
     """Render the global filter controls. Call once per page, inside `with st.sidebar:`."""
     f = filters()
     db = get_db()
-    st.caption("Filters apply to every page")
+
 
     if f["scope"] not in SOURCE_LABELS:
         f["scope"] = "All"
@@ -124,7 +124,7 @@ def sidebar(df_all: pd.DataFrame) -> None:
     syms = sorted(scoped["symbol"].dropna().unique()) if not scoped.empty else []
     f["symbols"] = st.multiselect("Symbols", syms, default=[s for s in f["symbols"] if s in syms])
     setups = sorted(s for s in scoped["setup_name"].dropna().unique() if s) if not scoped.empty else []
-    f["setups"] = st.multiselect("Models / setups", setups, default=[s for s in f["setups"] if s in setups])
+    f["setups"] = st.multiselect("Strategies", setups, default=[s for s in f["setups"] if s in setups])
     f["direction"] = st.radio("Direction", ["Both", "Long", "Short"], index=["Both", "Long", "Short"].index(f["direction"]),
                               horizontal=True)
     sessions = sorted(s for s in scoped["session"].dropna().unique() if s) if not scoped.empty else []
@@ -175,19 +175,24 @@ def apply_filters(df_all: pd.DataFrame) -> pd.DataFrame:
 def page_setup(title: str, sidebar_renderer=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Standard page prologue: CSS, sidebar filters. Returns (all_trades, filtered_trades)."""
     from ui.style import inject_css
-    from ui.components import workspace_guide
     from ui import access
     access.require_login()
     inject_css()
     df_all = trades()
     with st.sidebar:
         access.sidebar()
-        (sidebar_renderer or sidebar)(df_all)
-        workspace_guide()
+    if sidebar_renderer:
+        sidebar_renderer(df_all)
+    elif title not in {"Import", "Settings", "Team"}:
+        f = filters()
+        active = (f["preset"] != "All time" or f["account_id"] is not None
+                  or any(f.get(k) for k in ("symbols", "setups", "sessions", "tags"))
+                  or f["direction"] != "Both")
+        label = "Filters · active" if active else "Filters"
+        with st.expander(label):
+            sidebar(df_all)
     filtered = apply_filters(df_all)
     needs_results = title not in {"Import", "Settings", "Trade Journal", "Team", "Risk"}
-    if title == "Test & Log" and st.session_state.get("edge_lane", "Explore my edge") != "Explore my edge":
-        needs_results = False
     if needs_results and filters()["scope"] == "All":
         filtered = statistics_sample(filtered)
     return df_all, filtered

@@ -46,8 +46,8 @@ def test_all_scope_browses_both_but_never_pools_the_results(db):
     assert not app.exception
     assert not any("100.0%" in item.value for item in app.markdown)
     assert any("0.0%" in item.value for item in app.markdown)
-    app.session_state["edge_lane"] = "Import & review"
-    app.run()
+    app.switch_page("views/journal.py").run()
+    next(r for r in app.radio if r.label == "Data source").set_value("All").run()
     assert not app.exception
     assert len(app.selectbox(key="edge_review_trade").options) == 2
 

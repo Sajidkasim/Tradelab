@@ -48,7 +48,7 @@ def with_pct(df: pd.DataFrame, starting_balance: float) -> pd.DataFrame:
 
 TRADE_LIST_COLS = ["exit_time", "symbol", "direction", "qty", "net_pnl", "pct", "r_multiple", "setup_name", "session", "rules_followed"]
 TRADE_LIST_LABELS = {"exit_time": "Closed", "symbol": "Symbol", "direction": "Side", "qty": "Qty", "net_pnl": "P&L",
-                     "pct": "P&L %", "r_multiple": "R", "setup_name": "Model", "session": "Session", "rules_followed": "Rules",
+                     "pct": "P&L %", "r_multiple": "R", "setup_name": "Strategy", "session": "Session", "rules_followed": "Rules",
                      "entry_time": "Opened"}
 
 
@@ -121,7 +121,7 @@ def small_sample_badge(n: int, threshold: int = 30) -> str:
 
 
 def research_header(scope: str) -> None:
-    st.markdown('<div class="tl-research-kicker">PRIMUSLAB / TEST &amp; LOG</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tl-research-kicker">PRIMUSLAB / MY RESULTS</div>', unsafe_allow_html=True)
     page_header("Find your edge.", "Log a trade. Explore a setup. Learn from your results.", scope)
 
 
@@ -129,21 +129,17 @@ def workspace_guide() -> None:
     with st.expander("Quick page guide", icon=":material/help_outline:"):
         st.markdown("""**Daily**
 
-- **Test & Log** — add trades and explore setup combinations.
-- **Dashboard** — your account and results at a glance.
-- **Trade Journal** — review and edit individual trades.
+- **Results** — see performance and explore strategy combinations.
+- **Trades** — add, import, amend or tag your trades.
 - **Team** — choose what to share and explore teammates’ results.
 
-**Research**
+**More tools**
 
 - **Analytics** — compare sessions, habits and results.
 - **Strategy Models** — define strategies and track their rules.
 - **Strategy Backtester** — test rules on historical prices.
 
-**Account**
-
 - **Risk** — position sizing and account limits.
-- **Import** — bring in FX Replay or broker exports.
 - **Settings** — accounts, instruments and preferences.
 """)
 
