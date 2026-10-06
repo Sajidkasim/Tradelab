@@ -69,7 +69,11 @@ def editor(tid, remaining):
     with st.expander('Chart screenshot'):
         if access.safe_screenshot(trade.screenshot_path):
             st.image(str(access.safe_screenshot(trade.screenshot_path)), use_container_width=True)
-        upload = st.file_uploader('Attach a chart', type=['png', 'jpg', 'jpeg'], key=f'{key}_screenshot')
+        upload = None
+        if access.can_store_screenshots():
+            upload = st.file_uploader('Attach a chart', type=['png', 'jpg', 'jpeg'], key=f'{key}_screenshot')
+        else:
+            st.caption('Chart uploads will be available after persistent image storage is connected. Keep your original screenshots.')
         if upload is not None and st.button('Save screenshot', key=f'{key}_save_screenshot'):
             from pathlib import Path
             from uuid import uuid4

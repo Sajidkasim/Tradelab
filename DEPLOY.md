@@ -18,6 +18,8 @@ Trades, notes, tags, settings, invitations and sharing choices live in PostgreSQ
 
 Chart screenshots are stored on the server filesystem under `data/screenshots/`. Streamlit Community Cloud does not provide persistent local file storage, so screenshots uploaded there can disappear after a restart. Until separate persistent storage is connected, keep the original image files yourself. For a complete team backup, export PostgreSQL (including `primus_members` and member schemas) and the screenshot directory separately. Supabase's free plan does not include automatic database backups; arrange regular off-site database exports.
 
+The website keeps chart uploads disabled by default on hosts without durable screenshot storage. If you move to a host with a persistent `data/screenshots/` volume and back up that directory, set `PRIMUSLAB_SCREENSHOTS_PERSISTENT=1` in the host's secrets to enable uploads.
+
 Optional read-only broker credentials are separate from the trading journal and never enable order placement. The nightly job, if enabled, writes only to the owner's workspace.
 
 ## Launch check

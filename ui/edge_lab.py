@@ -174,7 +174,11 @@ def quick_log():
                 payload["target_price"] = row[1].number_input("Planned target (optional)", min_value=0.0, value=0.0,
                                                              step=instruments[sym].tick_size, key=f"{key}_target")
             notes = st.text_area("One useful observation", key=f"{key}_notes", placeholder="What made this trade worth taking?")
-            screenshot = st.file_uploader("Chart screenshot", type=["png", "jpg", "jpeg"], key=f"{key}_shot")
+            screenshot = None
+            if access.can_store_screenshots():
+                screenshot = st.file_uploader("Chart screenshot", type=["png", "jpg", "jpeg"], key=f"{key}_shot")
+            else:
+                st.caption("Chart uploads will be available after persistent image storage is connected. Keep your original screenshots.")
         ready = payload.get("net_pnl") is not None if entry_mode == "Quick result" else all(payload.get(k) for k in ("entry_price", "stop_price", "exit_price"))
         trade = None
         if ready:

@@ -106,6 +106,11 @@ def can_use_broker():
     return current_identity().owner
 
 
+def can_store_screenshots():
+    """Hosted image uploads require durable storage outside Community Cloud's local disk."""
+    return is_local() or setting("PRIMUSLAB_SCREENSHOTS_PERSISTENT") == "1"
+
+
 def sidebar():
     identity = current_identity()
     st.caption("MY WORKSPACE" if is_local() else identity.name)
