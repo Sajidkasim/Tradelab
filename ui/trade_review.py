@@ -8,7 +8,7 @@ from ui import access, components as c, state
 def strategy_options():
     from ui.edge_lab import playbook
     db = state.get_db()
-    return sorted(set(playbook()['strategies'] + [s.name for s in db.setups()] +
+    return sorted(set(playbook()['strategies'] + [s.name for s in state.setups()] +
                       [s for s in state.trades().get('setup_name', []) if s]))
 
 
@@ -57,7 +57,7 @@ def editor(tid, remaining):
 
     with st.expander('Original tags from your export'):
         st.write(', '.join(t for t in trade.tags if not t.startswith('edge:')) or 'No export tags')
-        mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
+        mappings = state.setting(trade_labels.MAPPING_KEY, {})
         if mappings and st.button('Apply saved tag mappings', key=f'{key}_map'):
             fields, issues = trade_labels.mapped_fields(trade.tags, mappings, trade.setup_name)
             db.update_trade(tid, **fields); state.bump()

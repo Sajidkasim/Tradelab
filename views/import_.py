@@ -144,7 +144,7 @@ if "import_flash" in st.session_state:
         st.switch_page("views/journal.py")
 
 c.step_label("01", "Upload your trades", "FX Replay, CSV, Excel or JSON — one place for your files.")
-accounts = db.accounts()
+accounts = state.accounts()
 account_id = st.selectbox("Save into account", [a.id for a in accounts],
                           index=[a.id for a in accounts].index(acct.id),
                           format_func=lambda v: next(a.name for a in accounts if a.id == v))
@@ -250,7 +250,7 @@ with st.expander("More options"):
         c.section("Inbox folder", "Drop CSVs into data/inbox on the machine running the app; they appear here")
         inbox = Path("data/inbox"); inbox.mkdir(parents=True, exist_ok=True)
         files = sorted(inbox.glob("*.csv")) + sorted(inbox.glob("*.xlsx"))
-        done = set(db.get_setting("inbox_done", []))
+        done = set(state.setting("inbox_done", []))
         pending = [f for f in files if f.name not in done]
         if not pending:
             c.empty_state("Inbox is empty", f"{len(done)} file(s) already imported.")

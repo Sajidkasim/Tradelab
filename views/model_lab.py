@@ -17,7 +17,7 @@ f = state.filters()
 c.page_header("Strategy Models", "Define your strategies, keep their rules together and compare their results.",
               f"{f['scope']} · {f['preset'].lower()}")
 
-setups = db.setups()
+setups = state.setups()
 names_in_data = sorted(s for s in df["setup_name"].dropna().unique() if s) if not df.empty else []
 setup_names = [s.name for s in setups]
 # models = defined setups ∪ names seen in the data (so imported strategies show up without setup records)

@@ -52,7 +52,7 @@ def explore(base, lists, mode):
         strategy = st.selectbox("Strategy", ["All strategies"] + strategies, key="edge_filter_strategy") or "All strategies"
         with st.container(border=True):
             st.markdown("**Explore a setup**")
-            recipes = db.get_setting("edge_recipes", {})
+            recipes = state.setting("edge_recipes", {})
             if recipes:
                 with st.expander("Saved combinations"):
                     recipe_name = st.selectbox("Combination", list(recipes), key="edge_saved_recipe")

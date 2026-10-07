@@ -113,11 +113,12 @@ class Team:
             if row is None or row["subject"] not in (None, subject):
                 raise PermissionError("This Google account has not been invited to PrimusLab.")
             name = str(claims.get("name") or row["name"])[:120] if row["key"] == "owner" else row["name"]
-            result = conn.execute(members.update().where(members.c.key == row["key"],
-                                  sa.or_(members.c.subject.is_(None), members.c.subject == subject))
-                                  .values(subject=subject, name=name))
-            if result.rowcount != 1:
-                raise PermissionError("This invitation belongs to another Google account.")
+            if row["subject"] != subject or row["name"] != name:
+                result = conn.execute(members.update().where(members.c.key == row["key"],
+                                      sa.or_(members.c.subject.is_(None), members.c.subject == subject))
+                                      .values(subject=subject, name=name))
+                if result.rowcount != 1:
+                    raise PermissionError("This invitation belongs to another Google account.")
         return Identity(row["key"], name, row["slot"] == 0)
 
     def invite(self, actor, email, name):

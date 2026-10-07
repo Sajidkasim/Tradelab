@@ -24,7 +24,7 @@ def research_sidebar(df_all):
                            format_func=SCOPE_LABELS.get, key="edge_scope", horizontal=True)
     active = f["account_id"] is not None or f["preset"] != "All time"
     with st.expander("Account & period · active" if active else "Account & period"):
-        accts = state.get_db().accounts()
+        accts = state.accounts()
         names = {a.id: a.name for a in accts}
         opts = [None] + list(names)
         f["account_id"] = st.selectbox("Account", opts,
@@ -42,7 +42,7 @@ def research_sidebar(df_all):
 
 def playbook():
     """The user's editable strategy and key-level lists (defaults until they change them)."""
-    return edge.playbook(state.get_db().get_setting(edge.PLAYBOOK_KEY))
+    return edge.playbook(state.setting(edge.PLAYBOOK_KEY))
 
 
 def label_fields(key, defaults=None, lists=None):
@@ -104,7 +104,7 @@ def quick_log():
     default app scope so the flash message and sample count outside the form refresh.
     """
     db = state.get_db()
-    accts = db.accounts()
+    accts = state.accounts()
     epoch = st.session_state.get("edge_log_epoch", 0)
     key = f"edge_log_{epoch}"
     remembered = st.session_state.get("edge_last_entry", {})
@@ -120,7 +120,7 @@ def quick_log():
                                       index=[a.id for a in accts].index(remembered.get("account_id")) if remembered.get("account_id") in [a.id for a in accts] else [a.id for a in accts].index(state.account().id),
                                       format_func=lambda v: next(a.name for a in accts if a.id == v), key=f"{key}_account")
         lists = playbook()
-        strategies = sorted(set(lists["strategies"] + [s.name for s in db.setups()] +
+        strategies = sorted(set(lists["strategies"] + [s.name for s in state.setups()] +
                                 [s for s in state.trades().get("setup_name", []) if s] +
                                 [remembered.get("strategy") or ""]) - {""})
         preferred = remembered.get("strategy") or (lists["strategies"][0] if lists["strategies"] else None)

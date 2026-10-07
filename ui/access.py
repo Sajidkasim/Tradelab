@@ -56,12 +56,36 @@ def directory():
     return _team(owner_email())
 
 
+def begin_run():
+    """Discard request-local reads on every app rerun; never cache access across runs."""
+    st.session_state['_primus_run_reads'] = {}
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
+    ctx = get_script_run_ctx(suppress_warning=True)
+    st.session_state['_primus_run_marker'] = ctx.cursors if ctx else None
+
+
+def run_reads():
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
+    ctx = get_script_run_ctx(suppress_warning=True)
+    # Streamlit replaces this dictionary for every full or fragment run. Keep the object
+    # itself, rather than its id, so object-id reuse cannot preserve stale access.
+    marker = ctx.cursors if ctx else None
+    if st.session_state.get('_primus_run_marker') is not marker:
+        begin_run()
+    return st.session_state.setdefault('_primus_run_reads', {})
+
+
 def current_identity():
     if is_local():
         return Identity("owner", "My workspace", True)
     if not auth_configured() or not st.user.is_logged_in:
         raise PermissionError("Sign in to open your workspace.")
-    return directory().join(dict(st.user))
+    claims = dict(st.user)
+    key = ('identity', claims.get('sub'), claims.get('email'))
+    reads = run_reads()
+    if key not in reads:
+        reads[key] = directory().join(claims)
+    return reads[key]
 
 
 def require_login():
@@ -98,8 +122,13 @@ def current_database():
     identity = current_identity()
     if is_local():
         return root_database()
-    directory().member(identity.key)  # check revocation before every data access
-    return _member_database(owner_email(), identity.key)
+    # join() checks active membership on each app rerun, including fragment reruns.
+    reads = run_reads()
+    key = ('database', identity.key)
+    if key not in reads:
+        directory().member(identity.key)
+        reads[key] = _member_database(owner_email(), identity.key)
+    return reads[key]
 
 
 def can_use_broker():

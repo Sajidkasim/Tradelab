@@ -31,6 +31,8 @@ def version() -> int:
 def bump() -> None:
     st.session_state["data_version"] = version() + 1
     load_trades.clear()
+    from ui.access import run_reads
+    run_reads().clear()
 
 
 @st.cache_data(show_spinner=False)
@@ -44,12 +46,35 @@ def trades() -> pd.DataFrame:
     return load_trades(key, version(), db)
 
 
+def _run_read(kind, loader, *args):
+    """Reuse small database reads only within this run and this workspace."""
+    from ui.access import run_reads
+    db = get_db()
+    key = (kind, id(db), repr(args))
+    reads = run_reads()
+    if key not in reads:
+        reads[key] = loader(db, *args)
+    return reads[key]
+
+
+def accounts():
+    return _run_read('accounts', lambda db: db.accounts())
+
+
+def setups():
+    return _run_read('setups', lambda db: db.setups())
+
+
+def setting(name, default=None):
+    return _run_read('setting', lambda db, name, default: db.get_setting(name, default), name, default)
+
+
 def tz() -> str:
-    return st.session_state.get("tz") or get_db().get_setting("tz", DEFAULT_TZ)
+    return st.session_state.get("tz") or setting("tz", DEFAULT_TZ)
 
 
 def account() -> Account:
-    accts = get_db().accounts()
+    accts = accounts()
     wanted = st.session_state.get("filters", {}).get("account_id")
     for a in accts:
         if a.id == wanted:
@@ -115,7 +140,7 @@ def sidebar(df_all: pd.DataFrame) -> None:
     else:
         f["start"], f["end"] = _preset_range(f["preset"], local_today)
 
-    accts = db.accounts()
+    accts = accounts()
     names = {a.id: a.name for a in accts}
     opts = [None] + list(names)
     f["account_id"] = st.selectbox("Account", opts, index=opts.index(f["account_id"]) if f["account_id"] in opts else 0,
@@ -232,7 +257,7 @@ DEFAULT_SESSIONS = [{"label": "London", "start": "08:00", "end": "13:00"}, {"lab
 def sessions_parsed() -> dict:
     """{label: (start_time, end_time)} from settings, else the defaults."""
     from datetime import time as _time
-    rows = get_db().get_setting("sessions", DEFAULT_SESSIONS)
+    rows = setting("sessions", DEFAULT_SESSIONS)
     out = {}
     for r in rows:
         try:

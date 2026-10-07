@@ -21,7 +21,7 @@ tabs = st.tabs(["Accounts", "Instruments", "Playbook", "Sessions & timezone", "C
 # ---------------------------------------------------------------- accounts
 with tabs[0]:
     c.section("Accounts", "Every limit on the Risk pages comes from here. Works for any prop firm or a personal account.")
-    accts = db.accounts()
+    accts = state.accounts()
     if accts:
         c.show_df(pd.DataFrame([{"id": a.id, "name": a.name, "starting_balance": a.starting_balance,
                                  "daily_loss_limit": a.daily_loss_limit, "max_trailing_drawdown": a.max_trailing_drawdown,
@@ -96,12 +96,12 @@ with tabs[2]:
 with tabs[3]:
     c.section("Timezone", "All times are stored in UTC and shown in this zone")
     zones = ["Europe/London", "America/New_York", "America/Chicago", "Europe/Berlin", "Asia/Dubai", "Asia/Singapore", "Australia/Sydney", "UTC"]
-    cur_tz = db.get_setting("tz", state.DEFAULT_TZ)
+    cur_tz = state.setting("tz", state.DEFAULT_TZ)
     new_tz = st.selectbox("Timezone", zones + ([cur_tz] if cur_tz not in zones else []), index=(zones + ([cur_tz] if cur_tz not in zones else [])).index(cur_tz))
     if new_tz != cur_tz:
         db.set_setting("tz", new_tz); state.bump(); st.session_state["tz"] = new_tz; st.rerun()
     c.section("Sessions", "Label each trade by the time of day it was entered (in your timezone). Used by Analytics and Strategy Models.")
-    sessions = db.get_setting("sessions", state.DEFAULT_SESSIONS)
+    sessions = state.setting("sessions", state.DEFAULT_SESSIONS)
     sed = st.data_editor(pd.DataFrame(sessions), use_container_width=True, hide_index=True, num_rows="dynamic", key="sess_editor",
                          column_config={"label": st.column_config.TextColumn("Label", required=True),
                                         "start": st.column_config.TextColumn("Start (HH:MM)", required=True),

@@ -11,6 +11,7 @@ st.set_page_config(page_title="PrimusLab", page_icon="assets/primuslab-icon.svg"
 st.logo("assets/primuslab-wordmark.svg", icon_image="assets/primuslab-icon.svg", size="large")
 from ui.theme_bridge import sync_theme
 sync_theme()
+access.begin_run()
 access.require_login()
 
 pages = {

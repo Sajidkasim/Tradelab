@@ -28,7 +28,7 @@ def log_trade_form(key: str = "log") -> None:
     exit_ = r1[4].number_input("Exit", value=0.0, step=ins.tick_size, format="%.2f", key=f"{key}_exit", help="Leave 0 for an open trade")
     stop = r1[5].number_input("Stop", value=0.0, step=ins.tick_size, format="%.2f", key=f"{key}_stop")
     r2 = st.columns([1.2, 1, 1, 1, 1])
-    setups = [s.name for s in db.setups()]
+    setups = [s.name for s in state.setups()]
     model = r2[0].selectbox("Strategy", ["—"] + setups, key=f"{key}_model")
     rules = r2[1].selectbox("Rules", ["not recorded", "followed", "broke"], key=f"{key}_rules")
     now_local = pd.Timestamp.now(tz=tz)

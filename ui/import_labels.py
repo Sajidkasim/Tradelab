@@ -7,7 +7,7 @@ from ui import state
 
 def map_export_labels(trades, key):
     db = state.get_db()
-    mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
+    mappings = state.setting(trade_labels.MAPPING_KEY, {})
     tags = sorted({tag for trade in trades for tag in trade.tags
                    if not tag.startswith('edge:') and tag not in ('pnl-only', 'pnl-mismatch')})
     if not tags:
