@@ -3,6 +3,9 @@
 A trading journal, performance dashboard, model lab, backtester and risk manager for
 futures and options — built for a Topstep trader, works for any account.
 
+The new React website runs alongside this Streamlit version. See
+**[WEB_REBUILD.md](WEB_REBUILD.md)** for the local preview, tests and hosted transition.
+
 - **Read-only toward your broker.** It imports fills and bars; it never places, modifies or cancels an order.
 - **Backtests never mix with live trades.** FX Replay and engine results live in their own scope.
 - **Every statistic comes from one tested core** (`core/`) — the backtester and the live pages use the same maths.

@@ -1,0 +1,437 @@
+import React, { useEffect, useState } from "react";
+import { SlidersHorizontal, RotateCcw, ArrowUpRight } from "lucide-react";
+import { api } from "./api";
+import {
+  Button,
+  Heading,
+  Select,
+  Segments,
+  Checkboxes,
+  Stat,
+  Chart,
+  Empty,
+  Notice,
+  Field,
+} from "./components";
+import { percent, rvalue, money, number, unknown } from "./format";
+
+const initial = {
+  scope: "Backtesting",
+  sample: "Backtesting",
+  strategy: "All strategies",
+  direction: "Both",
+  level: "Any level",
+  timeframe: "Any timeframe",
+  entry_timeframe: "Any timeframe",
+  confirmations: [],
+  news: "Any news status",
+  condition: "Any condition",
+  window: "New York",
+  symbol: "All markets",
+  account_id: null,
+  start: null,
+  end: null,
+};
+const dimensions = [
+  { value: "setup_name", label: "Strategy" },
+  { value: "edge_level", label: "Key level" },
+  { value: "edge_confirmation_set", label: "Confirmations" },
+  { value: "direction", label: "Buy / sell" },
+  { value: "edge_window", label: "Session" },
+  { value: "edge_news", label: "News" },
+  { value: "edge_entry_timeframe", label: "Entry timeframe" },
+  { value: "edge_timeframe", label: "Level timeframe" },
+];
+
+export default function Results({ meta, trades, revision, mode, onTrades }) {
+  const [filters, setFilters] = useState(initial),
+    [explore, setExplore] = useState(false),
+    [detail, setDetail] = useState(false),
+    [comparison, setComparison] = useState("setup_name");
+  const [data, setData] = useState(null),
+    [busy, setBusy] = useState(true),
+    [error, setError] = useState("");
+  const change = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+  useEffect(() => {
+    const controller = new AbortController();
+    setBusy(true);
+    setError("");
+    const timer = setTimeout(
+      () =>
+        api("/results", {
+          method: "POST",
+          body: { ...filters, mode, detail, comparison },
+          signal: controller.signal,
+        })
+          .then((result) => {
+            if (!controller.signal.aborted) setData(result);
+          })
+          .catch((e) => {
+            if (e.name !== "AbortError" && !controller.signal.aborted) {
+              setError(e.message);
+              setData(null);
+            }
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setBusy(false);
+          }),
+      120,
+    );
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [filters, mode, revision, detail, comparison]);
+  const values = (base, field) => [
+    ...new Set([
+      ...base,
+      ...trades.map((t) => t.labels?.[field]).filter(Boolean),
+    ]),
+  ];
+  const s = data?.stats;
+  return (
+    <>
+      <Heading
+        eyebrow="YOUR EDGE, IN FOCUS"
+        title="Results"
+        action={
+          <Button onClick={onTrades}>
+            Go to trades <ArrowUpRight size={16} />
+          </Button>
+        }
+      >
+        A clear view of what works. One sample at a time.
+      </Heading>
+      <div className="toolbar">
+        <Segments
+          values={["Backtesting", "Forward testing", "All"]}
+          value={filters.scope}
+          onChange={(v) => change("scope", v)}
+          label="Data source"
+        />
+        <Select
+          label="Strategy"
+          values={["All strategies", ...meta.strategies, "Unclassified"]}
+          value={filters.strategy}
+          onChange={(e) => change("strategy", e.target.value)}
+        />
+        <Button
+          className={explore ? "active" : ""}
+          onClick={() => setExplore(!explore)}
+          aria-expanded={explore}
+        >
+          <SlidersHorizontal size={16} /> Explore a setup
+        </Button>
+      </div>
+      {filters.scope === "All" && (
+        <div className="sample-choice">
+          <span>Results sample</span>
+          <Segments
+            values={["Backtesting", "Forward testing"]}
+            value={filters.sample}
+            onChange={(v) => change("sample", v)}
+            label="Results sample"
+          />
+          <small>
+            Both histories are available. Their statistics stay separate.
+          </small>
+        </div>
+      )}
+      <div className={`results-grid ${explore ? "exploring" : ""}`}>
+        {explore && (
+          <aside className="explorer card">
+            <div className="section-title">
+              <h2>Explore a setup</h2>
+              <button
+                className="icon-button"
+                aria-label="Reset setup filters"
+                onClick={() =>
+                  setFilters({
+                    ...initial,
+                    scope: filters.scope,
+                    sample: filters.sample,
+                    strategy: filters.strategy,
+                  })
+                }
+              >
+                <RotateCcw size={16} />
+              </button>
+            </div>
+            <div className="field">
+              <span>Buy or sell?</span>
+              <Segments
+                values={[
+                  { value: "Both", label: "Both" },
+                  { value: "long", label: "Buy" },
+                  { value: "short", label: "Sell" },
+                ]}
+                value={filters.direction}
+                onChange={(v) => change("direction", v)}
+              />
+            </div>
+            <Select
+              label="Key level / PDA"
+              values={values(
+                ["Any level", ...meta.playbook.levels, unknown],
+                "level",
+              )}
+              value={filters.level}
+              onChange={(e) => change("level", e.target.value)}
+            />
+            <div className="form-grid two">
+              <Select
+                label="Level timeframe"
+                values={values(
+                  ["Any timeframe", ...meta.timeframes, unknown],
+                  "timeframe",
+                )}
+                value={filters.timeframe}
+                onChange={(e) => change("timeframe", e.target.value)}
+              />
+              <Select
+                label="Entry timeframe"
+                values={values(
+                  ["Any timeframe", ...meta.timeframes, unknown],
+                  "entry_timeframe",
+                )}
+                value={filters.entry_timeframe}
+                onChange={(e) => change("entry_timeframe", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <span>Confirmations</span>
+              <Checkboxes
+                values={[
+                  ...new Set([
+                    ...meta.confirmations,
+                    ...trades.flatMap((t) => t.labels?.confirmations || []),
+                  ]),
+                ]}
+                selected={filters.confirmations}
+                onChange={(v) => change("confirmations", v)}
+              />
+              <small>Every selected confirmation must be present.</small>
+            </div>
+            <details className="disclosure">
+              <summary>Session, news & market</summary>
+              <div>
+                <Select
+                  label="Session window"
+                  values={[
+                    "New York",
+                    "All sessions",
+                    ...meta.windows,
+                    "Other",
+                  ]}
+                  value={filters.window}
+                  onChange={(e) => change("window", e.target.value)}
+                />
+                <small>
+                  New York: 08:30–16:00 ET, adjusted for daylight saving.
+                </small>
+                <Select
+                  label="News"
+                  values={values(
+                    ["Any news status", ...meta.news, unknown],
+                    "news",
+                  )}
+                  value={filters.news}
+                  onChange={(e) => change("news", e.target.value)}
+                />
+                <Select
+                  label="Market condition"
+                  values={values(
+                    ["Any condition", ...meta.conditions, unknown],
+                    "condition",
+                  )}
+                  value={filters.condition}
+                  onChange={(e) => change("condition", e.target.value)}
+                />
+                <Select
+                  label="Market"
+                  values={[
+                    "All markets",
+                    ...new Set(trades.map((t) => t.symbol)),
+                  ]}
+                  value={filters.symbol}
+                  onChange={(e) => change("symbol", e.target.value)}
+                />
+              </div>
+            </details>
+            <details className="disclosure">
+              <summary>Account & period</summary>
+              <div>
+                <Select
+                  label="Account"
+                  values={[
+                    { value: "", label: "All accounts" },
+                    ...meta.accounts.map((a) => ({
+                      value: a.id,
+                      label: a.name,
+                    })),
+                  ]}
+                  value={filters.account_id || ""}
+                  onChange={(e) =>
+                    change(
+                      "account_id",
+                      e.target.value ? Number(e.target.value) : null,
+                    )
+                  }
+                />
+                <Field label="From · New York">
+                  <input
+                    type="date"
+                    value={filters.start || ""}
+                    onChange={(e) => change("start", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="To · New York">
+                  <input
+                    type="date"
+                    value={filters.end || ""}
+                    onChange={(e) => change("end", e.target.value || null)}
+                  />
+                </Field>
+              </div>
+            </details>
+          </aside>
+        )}
+        <section className="results-content" aria-busy={busy}>
+          {error && <Notice error>{error}</Notice>}
+          <div className="results-caption">
+            <span className="dot" />
+            {data?.sample || filters.sample}{" "}
+            <span className="separator">/</span> {filters.strategy}{" "}
+            {filters.confirmations.length > 0 && (
+              <span>/ {filters.confirmations.join(" + ")}</span>
+            )}
+            <span className="update-state" role="status">
+              {busy ? "Updating…" : "Up to date"}
+            </span>
+          </div>
+          <div className={`stats card ${busy ? "updating" : ""}`}>
+            <Stat
+              label="Win rate"
+              value={s ? percent(s.win_rate) : "—"}
+              caption={
+                s?.small_sample
+                  ? "Small sample · fewer than 30 trades"
+                  : "Break-even trades excluded"
+              }
+            />
+            <Stat
+              label="Average R"
+              value={s ? rvalue(s.avg_r) : "—"}
+              caption={
+                s
+                  ? `R recorded on ${data.r_count} of ${s.trades} trades`
+                  : "Realised return on risk"
+              }
+            />
+            <Stat
+              label="Trade count"
+              value={s ? number(s.trades) : "—"}
+              caption="Matching closed trades"
+            />
+          </div>
+          <div className="card chart-card">
+            <div className="section-title">
+              <div>
+                <h2>How your sample develops</h2>
+                <p>Equity & drawdown · realised dollars · New York time</p>
+              </div>
+              <span className="badge">New York focus</span>
+            </div>
+            {data?.chart ? (
+              <Chart figure={data.chart} />
+            ) : (
+              <Empty
+                title={
+                  busy && !data
+                    ? "Loading your results"
+                    : "Your next trade starts the story"
+                }
+                action={
+                  !busy && (
+                    <Button onClick={onTrades} variant="primary">
+                      Add or import trades <ArrowUpRight size={16} />
+                    </Button>
+                  )
+                }
+              >
+                {busy && !data
+                  ? "Opening your private sample…"
+                  : "Add your trades, then explore which setups deserve your attention."}
+              </Empty>
+            )}
+          </div>
+          <Button
+            className="detail-button"
+            onClick={() => setDetail(!detail)}
+            aria-expanded={detail}
+          >
+            {detail ? "Hide detail" : "More detail"} <ArrowUpRight size={14} />
+          </Button>
+          {detail && s && (
+            <div className="card more-detail">
+              <div className="stats compact">
+                <Stat label="Net result" value={money(s.net_pnl)} />
+                <Stat label="Profit factor" value={number(s.profit_factor)} />
+                <Stat label="Maximum drawdown" value={money(s.max_drawdown)} />
+              </div>
+              <p>
+                {s.wins} wins · {s.losses} losses · {s.scratches} break-even.
+                95% win-rate interval: {percent(s.win_rate_ci[0])}–
+                {percent(s.win_rate_ci[1])}.
+              </p>
+              <div className="goal">
+                <span>{data.collection_count} / 1,000 trades collected</span>
+                <progress value={data.collection_count} max="1000" />
+                <small>A collection goal, not a guarantee of an edge.</small>
+              </div>
+              <Select
+                label="Compare by"
+                values={dimensions}
+                value={comparison}
+                onChange={(e) => setComparison(e.target.value)}
+              />
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Group</th>
+                      <th>Trades</th>
+                      <th>Win rate</th>
+                      <th>Average R</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.breakdown || []).map((row, i) => (
+                      <tr key={i}>
+                        <td>
+                          {row[comparison]}
+                          {row.small_sample && (
+                            <small className="table-caption">
+                              Small sample
+                            </small>
+                          )}
+                        </td>
+                        <td>{row.trades}</td>
+                        <td>{percent(row.win_rate)}</td>
+                        <td>{rvalue(row.avg_r)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted">
+                Historical associations need a separate forward sample before
+                you rely on them.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}

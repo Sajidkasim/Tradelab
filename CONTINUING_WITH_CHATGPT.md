@@ -5,6 +5,21 @@ a change must respect, and prompts you can paste. Use **Codex with GPT-6 Astra**
 repo folder for anything that touches more than one file; plain chat with **GPT-5.6 Sol** is fine
 for a single page.
 
+## React rebuild alongside Streamlit
+
+The authorised browser rebuild is in `frontend/` and `webapp/`; see
+[WEB_REBUILD.md](WEB_REBUILD.md). Keep the current Streamlit app available during
+the transition. The same financial and privacy rules apply: React never computes
+statistics, and the HTTP service calls the existing `core.metrics`, `core.edge`,
+`core.charts` and database code without formula or signature changes.
+
+For this interface, `frontend/src/components.jsx` replaces Streamlit's shared UI
+components. `tools/web_theme.py` exports the existing PALETTE into CSS tokens for
+both themes. `Workspaces.bump(key)` is the HTTP equivalent of `state.bump()` and
+must run after writes. Access is checked for every private API request. Test new
+logic with pytest, browser helper tests with Vitest, and the main user flows with
+Playwright. Tests use a disposable database and never populate the hosted journal.
+
 ## The one-page architecture
 
 ```

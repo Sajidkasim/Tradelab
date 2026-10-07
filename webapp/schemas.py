@@ -1,0 +1,83 @@
+"""Only explicit journal fields can be submitted; identity comes from the session."""
+from datetime import datetime, date
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
+from core import edge
+
+
+class StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+
+class Labels(StrictModel):
+    level: str = Field(default=edge.UNKNOWN, max_length=120)
+    timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
+    entry_timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
+    condition: str = Field(default=edge.UNKNOWN, max_length=120)
+    news: str = Field(default=edge.UNKNOWN, max_length=120)
+    confirmations: list[str] = Field(default_factory=list, max_length=30)
+
+
+class Filters(StrictModel):
+    scope: Literal["Backtesting", "Forward testing", "All"] = "Backtesting"
+    sample: Literal["Backtesting", "Forward testing"] = "Backtesting"
+    account_id: int | None = None
+    start: date | None = None
+    end: date | None = None
+    strategy: str = "All strategies"
+    direction: Literal["Both", "long", "short"] = "Both"
+    level: str = "Any level"
+    timeframe: str = "Any timeframe"
+    entry_timeframe: str = "Any timeframe"
+    confirmations: list[str] = Field(default_factory=list, max_length=30)
+    news: str = "Any news status"
+    condition: str = "Any condition"
+    window: str = "New York"
+    symbol: str = "All markets"
+    mode: Literal["light", "dark"] = "light"
+    comparison: Literal["setup_name", "edge_level", "edge_confirmation_set", "direction", "edge_window", "edge_news", "edge_entry_timeframe", "edge_timeframe"] = "setup_name"
+    detail: bool = False
+
+
+class Review(StrictModel):
+    strategy: str = Field(max_length=120)
+    labels: Labels
+    notes: str = Field(default="", max_length=20000)
+    confirmed: bool = False
+
+
+class NewTrade(Review):
+    symbol: str = Field(max_length=30)
+    direction: Literal["long", "short"]
+    account_id: int
+    source: Literal["backtest", "manual"]
+    entry_time: datetime
+    exit_time: datetime
+    net_pnl: float | None = None
+    risk_amount: float | None = Field(default=None, gt=0)
+    entry_price: float | None = Field(default=None, gt=0)
+    exit_price: float | None = Field(default=None, gt=0)
+    stop_price: float | None = Field(default=None, gt=0)
+    target_price: float | None = Field(default=None, gt=0)
+    qty: float = Field(default=1, gt=0)
+    fees: float = Field(default=0, ge=0)
+    rules_followed: bool | None = None
+
+
+class Playbook(StrictModel):
+    strategies: list[str] = Field(max_length=200)
+    levels: list[str] = Field(max_length=200)
+
+
+class Invite(StrictModel):
+    email: str = Field(max_length=254)
+    name: str = Field(max_length=120)
+
+
+class Switch(StrictModel):
+    enabled: bool
+
+
+class BulkStrategy(StrictModel):
+    ids: list[int] = Field(min_length=1, max_length=2000)
+    strategy: str = Field(min_length=1, max_length=120)

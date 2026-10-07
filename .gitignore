@@ -12,6 +12,11 @@ __pycache__/
 data/shoot.db
 data/reviews/
 charts_preview.html
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+data/web-test*.db
 
 # Screenshots the Claude desktop app saves alongside the project
 Claude outputs/
