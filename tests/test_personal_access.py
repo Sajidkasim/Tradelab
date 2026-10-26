@@ -188,3 +188,21 @@ def test_user_password_helper_preserves_existing_configuration_on_cancel(tmp_pat
     monkeypatch.setattr('builtins.input', lambda prompt: 'cancel')
     setup.main()
     assert path.read_text() == 'previous configuration'
+
+
+@pytest.mark.parametrize('first_pair, message', [
+    (('too short', 'too short'), 'between 16 and 128'),
+    ((PASSWORD, 'different confirmation'), 'do not match'),
+])
+def test_password_helper_allows_correction_without_closing(tmp_path, monkeypatch, capsys, first_pair, message):
+    from tools import set_personal_password as setup
+    from dotenv import dotenv_values
+    answers = iter((*first_pair, PASSWORD, PASSWORD))
+    monkeypatch.setattr(setup, 'ROOT', tmp_path)
+    monkeypatch.setattr(setup.getpass, 'getpass', lambda prompt: next(answers))
+    setup.main()
+    values = dotenv_values(tmp_path / 'data/private/personal-login.env')
+    assert PasswordGate(values['PRIMUSLAB_PASSWORD_HASH']).check(PASSWORD)
+    output = capsys.readouterr().out
+    assert message in output and 'PASSWORD SAVED.' in output
+    assert PASSWORD not in output and 'too short' not in output

@@ -13,11 +13,18 @@ from webapp.personal_access import hash_password
 def main():
     print('Set the one password for your personal PrimusLab journal.')
     print('Use 16–128 characters. Nothing appears while you type.')
-    password = getpass.getpass('New password: ')
-    confirm = getpass.getpass('Type it again: ')
-    if password != confirm:
-        raise ValueError('The passwords do not match. Run the helper again.')
-    encoded = hash_password(password)
+    while True:
+        password = getpass.getpass('New password: ')
+        confirm = getpass.getpass('Type it again: ')
+        if password != confirm:
+            print('The passwords do not match. Please try again below.')
+            continue
+        try:
+            encoded = hash_password(password)
+        except ValueError as exc:
+            print(f'{exc} Please try again below.')
+            continue
+        break
     directory = ROOT / 'data' / 'private'
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / 'personal-login.env'
@@ -32,6 +39,7 @@ def main():
         output.write(f"PRIMUSLAB_PASSWORD_HASH='{encoded}'\n")
         output.write(f"PRIMUSLAB_SESSION_SECRET='{token_urlsafe(48)}'\n")
     print(f'Login configuration saved privately to: {path}')
+    print('PASSWORD SAVED. You can return to the chat and say "password set".')
     print('Keep this file private. Import it in the host Environment settings when deploying.')
     print('Your password itself was not saved. Changing the host values signs out existing sessions.')
 
@@ -39,6 +47,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (ValueError, EOFError, KeyboardInterrupt) as exc:
+    except (ValueError, OSError, EOFError, KeyboardInterrupt) as exc:
         print(str(exc) or 'Setup cancelled.')
         sys.exit(1)
