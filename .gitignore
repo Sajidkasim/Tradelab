@@ -3,6 +3,7 @@ data/*.db
 data/members/
 data/screenshots/
 data/backups/
+data/private/
 data/inbox/
 __pycache__/
 *.pyc

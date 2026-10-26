@@ -34,7 +34,7 @@ export async function api(path, options = {}) {
     );
   });
   if (!response.ok) {
-    if (response.status === 401)
+    if (response.status === 401 && path !== "/unlock")
       window.dispatchEvent(new Event("primus:logout"));
     throw new ApiError(
       data.detail || "That request could not be completed. Please retry.",

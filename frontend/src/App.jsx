@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Sun, Moon, ArrowUpRight, Download, LogOut } from "lucide-react";
+import { Sun, Moon, Calculator, Download, LogOut } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { Button, Notice, Menu } from "./components";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
-import Team from "./Team";
+import Unlock from "./Unlock";
+import Tools from "./Tools";
 import Backup from "./Backup";
 import icon from "../../assets/primuslab-icon.svg";
 
 const pages = [
   { id: "results", name: "Results" },
   { id: "trades", name: "Trades" },
-  { id: "team", name: "Team" },
 ];
 export default function App() {
   const [session, setSession] = useState(null),
@@ -56,6 +56,12 @@ export default function App() {
       setMeta(null);
       setTrades([]);
       setCsrf("");
+      api("/session")
+        .then((identity) => {
+          setCsrf(identity.csrf);
+          setSession(identity);
+        })
+        .catch((error) => setError(error.message));
     };
     window.addEventListener("primus:logout", clear);
     return () => window.removeEventListener("primus:logout", clear);
@@ -106,28 +112,7 @@ export default function App() {
       </div>
     );
   if (!session.authenticated)
-    return (
-      <main className="login">
-        <div className="login-brand">
-          <img src={icon} alt="" />
-          <strong>PrimusLab</strong>
-        </div>
-        <div className="card login-card">
-          <h1>Welcome to PrimusLab</h1>
-          <p>Sign in to open your trading journal.</p>
-          {location.search.includes("login=denied") && (
-            <Notice error>
-              Sign-in could not be completed. Use your invited Google account or
-              ask the workspace owner for access.
-            </Notice>
-          )}
-          <a className="button primary" href="/auth/google">
-            Continue with Google <ArrowUpRight size={18} />
-          </a>
-          <small>Only the owner and invited teammates can enter.</small>
-        </div>
-      </main>
-    );
+    return <Unlock ready={Boolean(session.csrf)} onUnlocked={boot} />;
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -161,7 +146,7 @@ export default function App() {
             </a>
           ))}
         </nav>
-        <Menu label="Workspace" className="workspace-menu">
+        <Menu label="My journal" className="workspace-menu">
           <div className="menu-account">
             <strong>{session.name}</strong>
             <small>
@@ -177,16 +162,12 @@ export default function App() {
             {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
           </button>
-          <a
-            href="https://primuslab.streamlit.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ArrowUpRight size={16} /> Advanced tools
-          </a>
-          {!session.local && (
+          <button onClick={() => navigate("tools")}>
+            <Calculator size={16} /> Advanced tools
+          </button>
+          {session.can_lock && (
             <button onClick={logout}>
-              <LogOut size={16} /> Sign out
+              <LogOut size={16} /> Lock journal
             </button>
           )}
         </Menu>
@@ -220,8 +201,10 @@ export default function App() {
               toast={toast}
             />
           )}
-          {page === "team" && <Team session={session} toast={toast} />}
-          {!["results", "", "overview", "trades", "import", "team"].includes(
+          {page === "tools" && (
+            <Tools meta={meta} onResults={() => navigate("results")} />
+          )}
+          {!["results", "", "overview", "trades", "import", "tools"].includes(
             page,
           ) && (
             <div className="card empty">

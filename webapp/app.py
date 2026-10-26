@@ -7,27 +7,24 @@ from pathlib import Path
 from secrets import token_urlsafe
 from urllib.parse import urlsplit
 
-from authlib.integrations.starlette_client import OAuth
-from authlib.integrations.base_client.errors import OAuthError
 from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, RedirectResponse, FileResponse, Response
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.exc import SQLAlchemyError
-from httpx import HTTPError
-from joserfc.errors import JoseError
 
 from core import edge
 from core.models import Source
 from services import trade_labels
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, Invite, Switch, BulkStrategy
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups
+from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 
 
 def create_app(config: Settings | None = None):
@@ -37,23 +34,20 @@ def create_app(config: Settings | None = None):
     @asynccontextmanager
     async def lifespan(app):
         app.state.workspaces = await run_in_threadpool(Workspaces, config)
+        if config.password_required:
+            app.state.personal_sessions = await run_in_threadpool(PersonalSessions, app.state.workspaces.root, auth_version(config.password_hash, config.secret))
         yield
         app.state.workspaces.close()
 
     app = FastAPI(title="PrimusLab", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.config = config
     signer = URLSafeTimedSerializer(config.secret, salt="primus-import-preview")
-    oauth = OAuth()
-    if not config.local:
-        oauth.register("google", client_id=config.google_id, client_secret=config.google_secret,
-                       server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-                       client_kwargs={"scope": "openid email profile", "prompt": "select_account"})
-    app.state.oauth = oauth
+    app.state.password_gate = PasswordGate(config.password_hash) if config.password_required else None
     allowed_hosts = [urlsplit(config.public_url).hostname]
     if config.local:
         allowed_hosts = ["127.0.0.1", "localhost", "[::1]"]
     app.add_middleware(SessionMiddleware, secret_key=config.secret, session_cookie="primus_session",
-                       max_age=12 * 3600, same_site="lax", https_only=not config.local)
+                       max_age=SESSION_SECONDS, same_site="lax", https_only=not config.local)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @app.middleware("http")
@@ -65,6 +59,13 @@ def create_app(config: Settings | None = None):
                 loopback = False
             if not loopback:
                 return JSONResponse({"detail": "Local preview is available only on this computer."}, status_code=403)
+        if request.url.path == '/api/unlock':
+            try:
+                oversized = int(request.headers.get('Content-Length', '0')) > 8192
+            except ValueError:
+                oversized = True
+            if oversized:
+                return JSONResponse({'detail': 'Password request is too large.'}, status_code=413)
         response = await call_next(request)
         if not request.url.path.startswith("/assets/"):
             response.headers["Cache-Control"] = "no-store"
@@ -91,25 +92,20 @@ def create_app(config: Settings | None = None):
         # SQLAlchemy exception text can include the database URL and submitted records.
         return JSONResponse({"detail": "The database is unavailable. Your unsaved changes are still on this page. Please retry."}, status_code=503)
 
+    def check_write(request):
+        token = request.headers.get("X-Primus-CSRF", "")
+        if not token or not hmac.compare_digest(token, request.session.get("csrf", "")):
+            raise HTTPException(403, "Refresh the page before saving.")
+        if request.headers.get("Origin") != config.public_url.rstrip("/"):
+            raise HTTPException(403, "Saving requires the PrimusLab website.")
+
     def workspace(request: Request):
-        store = request.app.state.workspaces
-        if config.local:
-            member = store.team.member("owner")
-        else:
-            key, subject = request.session.get("key"), request.session.get("subject")
-            if not key or not subject:
-                raise HTTPException(401, "Sign in to open your workspace.")
-            member = store.team.member(key)
-            if not hmac.compare_digest(member.get("subject") or "", subject):
-                raise HTTPException(401, "Please sign in again.")
+        if config.password_required and not request.app.state.personal_sessions.valid(request.session.get('personal_token')):
+            raise HTTPException(401, 'Unlock your journal to continue.')
         if request.method not in ("GET", "HEAD", "OPTIONS"):
-            token = request.headers.get("X-Primus-CSRF", "")
-            if not token or not hmac.compare_digest(token, request.session.get("csrf", "")):
-                raise HTTPException(403, "Refresh the page before saving.")
-            origin = request.headers.get("Origin")
-            if origin != config.public_url.rstrip("/"):
-                raise HTTPException(403, "Saving requires the PrimusLab website.")
-        return member
+            check_write(request)
+        # A single owner; neither request bodies nor cookies can select a trader.
+        return {'key': 'owner', 'name': 'My journal', 'slot': 0}
 
     # Expose dependency to tests, never an impersonation route.
     app.state.workspace_dependency = workspace
@@ -123,48 +119,58 @@ def create_app(config: Settings | None = None):
 
     @app.get("/api/session")
     def session(request: Request):
+        request.session.setdefault('csrf', token_urlsafe(32))
         try:
             member = workspace(request)
         except (PermissionError, HTTPException):
-            return {"authenticated": False, "local": config.local}
-        request.session.setdefault("csrf", token_urlsafe(32))
-        return {"authenticated": True, "name": member["name"] if not config.local else "My workspace",
-                "owner": member["slot"] == 0, "shared": member["shared"], "local": config.local,
-                "csrf": request.session["csrf"]}
+            return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf']}
+        return {'authenticated': True, 'name': 'My journal', 'owner': True, 'local': config.local, 'can_lock': config.password_required,
+                'csrf': request.session['csrf']}
 
-    @app.get("/auth/google")
-    async def google_login(request: Request):
-        if config.local:
-            return RedirectResponse("/")
-        return await app.state.oauth.google.authorize_redirect(request, config.public_url.rstrip("/") + "/auth/callback")
-
-    @app.get("/auth/callback")
-    async def google_callback(request: Request):
-        if config.local:
-            raise HTTPException(404)
-        try:
-            # Authlib validates OIDC signature, issuer, audience, expiry, state and nonce.
-            token = await app.state.oauth.google.authorize_access_token(request)
-            claims = token.get("userinfo")
-            if not claims:
-                raise PermissionError("Google did not return a verified identity.")
-            identity = await run_in_threadpool(app.state.workspaces.team.join, claims)
-            member = await run_in_threadpool(app.state.workspaces.team.member, identity.key)
-        except (OAuthError, PermissionError, JoseError, HTTPError):
+    @app.post('/api/unlock')
+    async def unlock(payload: Unlock, request: Request):
+        check_write(request)
+        if config.password_required:
+            try:
+                accepted = await run_in_threadpool(app.state.password_gate.check, payload.password.get_secret_value())
+            except Throttled as exc:
+                raise HTTPException(429, 'Too many attempts. Please wait a minute and try again.', headers={'Retry-After': str(exc.retry_after)}) from None
+            if not accepted:
+                raise HTTPException(401, 'That password did not unlock your journal.')
+            token = await run_in_threadpool(app.state.personal_sessions.issue)
             request.session.clear()
-            return RedirectResponse("/?login=denied")
-        request.session.clear()
-        request.session.update(key=identity.key, subject=member["subject"], csrf=token_urlsafe(32))
-        return RedirectResponse("/")
+            request.session['personal_token'] = token
+            app.state.workspaces.bump('owner')
+        request.session['csrf'] = token_urlsafe(32)
+        return {'ok': True, 'csrf': request.session['csrf']}
 
     @app.post("/api/logout")
     def logout(request: Request, member=Depends(workspace)):
+        if config.password_required:
+            app.state.personal_sessions.revoke(request.session.get('personal_token'))
+            app.state.workspaces.bump('owner')
         request.session.clear()
         return {"ok": True}
 
     @app.get("/api/metadata")
     def metadata(request: Request, member=Depends(workspace)):
         return app.state.workspaces.metadata(member["key"])
+
+    @app.post('/api/tools/position-size')
+    def position_size(payload: PositionSize, request: Request, member=Depends(workspace)):
+        from core import risk
+        from .workspaces import clean
+        database = db(request, member)
+        account = next((item for item in database.accounts() if item.id == payload.account_id), None)
+        instrument = database.instruments().get(payload.symbol)
+        if account is None or instrument is None:
+            raise ValueError('Choose an account and market from your journal.')
+        if payload.entry == payload.stop:
+            raise ValueError('Entry and stop must be different prices.')
+        return clean(risk.position_size(payload.entry, payload.stop, instrument.multiplier, instrument.tick_size,
+                                       account.starting_balance, risk_dollars=payload.risk_dollars,
+                                       max_contracts=account.max_contracts,
+                                       commission_per_contract=instrument.commission_per_contract))
 
     @app.get("/api/trades")
     def trades(request: Request, member=Depends(workspace)):
@@ -300,41 +306,12 @@ def create_app(config: Settings | None = None):
                 return result
         return await run_in_threadpool(operation)
 
-    @app.get("/api/team")
-    def roster(request: Request, member=Depends(workspace)):
-        return app.state.workspaces.team.roster(member["key"])
-
-    @app.post("/api/team")
-    def invite(payload: Invite, request: Request, member=Depends(workspace)):
-        key = app.state.workspaces.team.invite(member["key"], payload.email, payload.name)
-        app.state.workspaces.bump(member["key"])
-        return {"key": key}
-
-    @app.patch("/api/team/{key}/active")
-    def active(key: str, payload: Switch, request: Request, member=Depends(workspace)):
-        app.state.workspaces.team.set_active(member["key"], key, payload.enabled)
-        app.state.workspaces.bump(member["key"])
-        return {"ok": True}
-
-    @app.put("/api/sharing")
-    def sharing(payload: Switch, request: Request, member=Depends(workspace)):
-        app.state.workspaces.team.set_sharing(member["key"], payload.enabled)
-        app.state.workspaces.bump(member["key"])
-        return {"ok": True}
-
-    @app.get("/api/team/{key}/results")
-    def shared_results(key: str, request: Request, member=Depends(workspace)):
-        from core import metrics
-        frame = app.state.workspaces.team.shared_results(member["key"], key)
-        from .workspaces import clean
-        return {name: clean(metrics.summary_stats(frame[frame["source"].isin(sources)])) for name, sources in SCOPES.items() if name != "All"}
-
     if (config.assets / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=config.assets / "assets"), name="assets")
 
     @app.get("/{path:path}")
     def frontend(path: str):
-        if path.startswith(("api/", "auth/")):
+        if path.startswith(("api/", "auth/")) or path == "team":
             raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():

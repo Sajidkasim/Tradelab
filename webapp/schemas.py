@@ -1,7 +1,7 @@
 """Only explicit journal fields can be submitted; identity comes from the session."""
 from datetime import datetime, date
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from core import edge
 
 
@@ -69,15 +69,18 @@ class Playbook(StrictModel):
     levels: list[str] = Field(max_length=200)
 
 
-class Invite(StrictModel):
-    email: str = Field(max_length=254)
-    name: str = Field(max_length=120)
-
-
-class Switch(StrictModel):
-    enabled: bool
+class Unlock(StrictModel):
+    password: SecretStr = Field(min_length=1, max_length=1024)
 
 
 class BulkStrategy(StrictModel):
     ids: list[int] = Field(min_length=1, max_length=2000)
     strategy: str = Field(min_length=1, max_length=120)
+
+
+class PositionSize(StrictModel):
+    symbol: str = Field(max_length=30)
+    account_id: int
+    entry: float = Field(gt=0)
+    stop: float = Field(gt=0)
+    risk_dollars: float = Field(gt=0)

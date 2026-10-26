@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
 
 from core import metrics
-from services.team import verified_google
 from webapp.config import Settings
 from webapp.app import create_app
 from webapp.workspaces import Workspaces
@@ -169,74 +168,6 @@ def test_csrf_origin_payload_identity_and_invalid_upload_are_rejected(local):
     assert client.post('/api/results', json={'start': '2026-07-01', 'end': '2026-07-02'}).status_code == 200
 
 
-def cookie(config, key, subject):
-    raw = base64.b64encode(json.dumps({"key": key, "subject": subject, "csrf": "test-csrf"}).encode())
-    return TimestampSigner(config.secret).sign(raw).decode()
-
-
-def claims(email, subject):
-    return {"iss": "https://accounts.google.com", "email": email, "email_verified": True, "sub": subject, "name": "Tester"}
-
-
-@pytest.fixture
-def hosted(tmp_path, monkeypatch):
-    # Real hosted auth middleware, isolated SQLite data layer. No live DB or Google requests.
-    config = Settings("postgresql://invalid.example/test", "owner@example.com", "hosted-test-secret-with-40-characters-long", "https://primus.example", google_id="test.apps.googleusercontent.com", google_secret="test")
-    monkeypatch.setattr("webapp.app.Workspaces", lambda cfg: Workspaces(replace(cfg, database=str(tmp_path / "hosted.db"))))
-    app = create_app(config)
-    with TestClient(app, base_url=config.public_url) as client:
-        yield client, app, config
-
-
-def login(client, app, config, email, subject):
-    actor = app.state.workspaces.team.join(claims(email, subject))
-    _, bound = verified_google(claims(email, subject))
-    client.cookies.set('primus_session', cookie(config, actor.key, bound))
-    client.headers.update({"X-Primus-CSRF": "test-csrf", "Origin": config.public_url})
-    return actor
-
-
-def test_hosted_authentication_invitation_isolation_revocation_and_private_sharing(hosted):
-    client, app, config = hosted
-    assert client.get('/api/trades').status_code == 401
-    assert client.get('/api/session').json()['authenticated'] is False
-    with pytest.raises(PermissionError):
-        app.state.workspaces.team.join(claims('stranger@example.com', 'stranger'))
-    owner = login(client, app, config, 'owner@example.com', 'owner-sub')
-    assert client.post('/api/trades', json=trade_payload()).status_code == 200
-    response = client.post('/api/team', json={"email": "member@example.com", "name": "Member"})
-    key = response.json()['key']
-    member = login(client, app, config, 'member@example.com', 'member-sub')
-    assert member.key == key
-    assert client.get('/api/trades').json() == []
-    assert client.patch('/api/trades/1', json={"strategy": "wrong", "labels": {}}).status_code == 404
-    assert client.post('/api/team', json={"email": "bad@example.com", "name": "Bad"}).status_code == 403
-    assert client.get('/api/team/owner/results').status_code == 403
-    assert client.post('/api/trades', json=trade_payload(pnl=-50)).status_code == 200
-    assert client.put('/api/sharing', json={"enabled": True}).status_code == 200
-    assert 'email' not in client.get('/api/team').json()[0]
-    member_cookie = cookie(config, key, verified_google(claims('member@example.com', 'member-sub'))[1])
-    login(client, app, config, 'owner@example.com', 'owner-sub')
-    assert client.get('/api/trades').json()[0]['net_pnl'] == 100
-    shared = client.get(f'/api/team/{key}/results').json()
-    assert shared['Backtesting']['net_pnl'] == -50 and 'notes' not in json.dumps(shared)
-    assert client.patch(f'/api/team/{key}/active', json={"enabled": False}).status_code == 200
-    client.cookies.set('primus_session', member_cookie)
-    assert client.get('/api/trades').status_code == 403
-    assert client.get('/api/export/backup').status_code == 403
-
-
-def test_signed_session_subject_and_host_cannot_be_forged(hosted):
-    client, app, config = hosted
-    login(client, app, config, 'owner@example.com', 'owner-sub')
-    assert client.get('/api/session').json()['authenticated'] is True
-    client.cookies.set('primus_session', cookie(config, 'owner', 'wrong-subject'))
-    assert client.get('/api/trades').status_code == 401
-    client.cookies.set('primus_session', 'forged')
-    assert client.get('/api/export/backup').status_code == 401
-    assert client.get('/health', headers={'Host': 'evil.example'}).status_code == 400
-
-
 def test_local_preview_fails_closed_off_loopback(local):
     _, app = local
     with TestClient(app, base_url="http://127.0.0.1:8100", client=("192.0.2.1", 1)) as remote:
@@ -246,7 +177,7 @@ def test_local_preview_fails_closed_off_loopback(local):
 def test_production_configuration_cannot_use_local_storage_or_missing_auth(tmp_path):
     with pytest.raises(ValueError, match="PostgreSQL"):
         Settings(str(tmp_path / 'data.db'), 'owner@example.com', 'a' * 40, 'https://primus.example').validate()
-    with pytest.raises(ValueError, match="sign-in"):
+    with pytest.raises(ValueError, match="personal password"):
         Settings('postgresql://invalid.example/test', 'owner@example.com', 'a' * 40, 'https://primus.example').validate()
 
 
@@ -259,20 +190,3 @@ def test_playbook_and_bulk_strategy_preserve_results_and_invalidate_reads(local)
     assert client.post('/api/trades/strategy', json={"ids": [row['id']], "strategy": "New strategy"}).status_code == 200
     saved = client.get('/api/trades').json()[0]
     assert saved['setup_name'] == 'New strategy' and saved['net_pnl'] == 100 and saved['notes'] == row['notes'] and saved['labels'] == row['labels']
-
-
-def test_oauth_callback_only_binds_verified_invited_identity(hosted):
-    client, app, config = hosted
-    class Google:
-        async def authorize_access_token(self, request):
-            return {"userinfo": claims('owner@example.com', 'owner-sub')}
-    app.state.oauth._clients['google'] = Google()
-    result = client.get('/auth/callback', follow_redirects=False)
-    assert result.status_code == 307
-    assert client.get('/api/session').json()['authenticated'] is True
-    class Uninvited:
-        async def authorize_access_token(self, request):
-            return {"userinfo": claims('unknown@example.com', 'unknown')}
-    app.state.oauth._clients['google'] = Uninvited()
-    assert client.get('/auth/callback', follow_redirects=False).headers['location'] == '/?login=denied'
-    assert client.get('/api/session').json()['authenticated'] is False

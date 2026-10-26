@@ -18,4 +18,4 @@ COPY --from=frontend /build/frontend/dist frontend/dist/
 RUN useradd --create-home --uid 10001 primus
 USER primus
 EXPOSE 8000
-CMD ["sh", "-c", "exec uvicorn webapp.app:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --no-access-log"]
+CMD ["sh", "-c", "exec uvicorn webapp.app:create_app --factory --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --no-access-log"]

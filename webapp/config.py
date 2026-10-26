@@ -1,5 +1,5 @@
 """Fail-closed configuration, separate from the existing Streamlit deployment."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 from secrets import token_urlsafe
@@ -10,14 +10,19 @@ from dotenv import load_dotenv
 
 @dataclass(frozen=True)
 class Settings:
-    database: str
+    database: str = field(repr=False)
     owner_email: str
-    secret: str
+    secret: str = field(repr=False)
     public_url: str
     local: bool = False
-    google_id: str = ""
-    google_secret: str = ""
+    password_hash: str = field(default="", repr=False)
     assets: Path = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+
+    @property
+    def password_required(self):
+        # Local preview can exercise the same gate with an isolated test password.
+        # Public hosting always requires a configured password.
+        return not self.local or bool(self.password_hash)
 
     def validate(self):
         url = urlsplit(self.public_url)
@@ -33,14 +38,13 @@ class Settings:
                 raise ValueError("Hosted PrimusLab requires its HTTPS public URL.")
             if not self.database.startswith(("postgresql://", "postgres://", "postgresql+psycopg://")):
                 raise ValueError("Hosted PrimusLab requires persistent PostgreSQL storage.")
-            if not self.google_id or not self.google_secret or len(self.secret) < 32:
-                raise ValueError("Configure Google sign-in and a session secret of at least 32 characters.")
-            if any('REPLACE_' in value or 'YOUR_' in value for value in (self.database, self.secret, self.google_id, self.google_secret)):
+            if not self.password_hash or len(self.secret) < 32:
+                raise ValueError("Configure a personal password hash and a session secret of at least 32 characters.")
+            if any('REPLACE_' in value or 'YOUR_' in value for value in (self.database, self.secret, self.password_hash)):
                 raise ValueError('Replace the setup placeholders in the host secret settings.')
-            if not self.google_id.endswith('.apps.googleusercontent.com'):
-                raise ValueError('Use the Google OAuth web client ID from Google Cloud.')
-        if not self.owner_email:
-            raise ValueError("Configure PRIMUSLAB_OWNER_EMAIL.")
+        if self.password_required:
+            from .personal_access import validate_hash
+            validate_hash(self.password_hash)
 
 
 def from_env():
@@ -52,6 +56,6 @@ def from_env():
         owner_email="local@primuslab.invalid" if local else os.getenv("PRIMUSLAB_OWNER_EMAIL", ""),
         secret=token_urlsafe(48) if local else os.getenv("PRIMUSLAB_SESSION_SECRET", ""),
         public_url=os.getenv("PRIMUSLAB_PUBLIC_URL", "http://127.0.0.1:8100" if local else ""),
-        local=local, google_id=os.getenv("GOOGLE_CLIENT_ID", ""), google_secret=os.getenv("GOOGLE_CLIENT_SECRET", ""))
+        local=local, password_hash=os.getenv("PRIMUSLAB_PASSWORD_HASH", ""))
     settings.validate()
     return settings

@@ -11,4 +11,9 @@ if [[ ! -f frontend/dist/index.html ]]; then
 fi
 export PRIMUSLAB_WEB_LOCAL_ONLY=1
 export PRIMUSLAB_PUBLIC_URL=http://127.0.0.1:8100
+if [[ -f data/private/personal-login.env ]]; then
+  set -a
+  source data/private/personal-login.env
+  set +a
+fi
 exec .venv/bin/python -m uvicorn webapp.app:create_app --factory --host 127.0.0.1 --port 8100 --no-proxy-headers

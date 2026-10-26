@@ -3,7 +3,8 @@
 A trading journal, performance dashboard, model lab, backtester and risk manager for
 futures and options — built for a Topstep trader, works for any account.
 
-The new React website runs alongside this Streamlit version. See
+The new personal React website uses one password and has Results and Trades.
+It runs alongside this older Streamlit version. See
 **[WEB_REBUILD.md](WEB_REBUILD.md)** for the local preview, tests and hosted transition.
 
 - **Read-only toward your broker.** It imports fills and bars; it never places, modifies or cancels an order.

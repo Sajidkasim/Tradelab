@@ -9,18 +9,15 @@ services:
     dockerContext: .
     region: frankfurt
     plan: 0.5c-512mb
+    numInstances: 1
     healthCheckPath: /health
     autoDeployTrigger: "off"
     envVars:
       - key: PRIMUSLAB_PUBLIC_URL
         sync: false
-      - key: PRIMUSLAB_OWNER_EMAIL
-        sync: false
       - key: TRADELAB_DB_URL
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
+      - key: PRIMUSLAB_PASSWORD_HASH
         sync: false
       - key: PRIMUSLAB_SESSION_SECRET
         generateValue: true

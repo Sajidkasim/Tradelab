@@ -210,7 +210,7 @@ test("backup download, playbook, themes and mobile layout", async ({
     .fill("Browser setup\nReplay setup\nMy next model");
   await dialog.getByRole("button", { name: "Save lists" }).click();
   await expect(dialog).not.toBeVisible();
-  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Backup & restore" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download full JSON backup" }).click();
@@ -219,14 +219,14 @@ test("backup download, playbook, themes and mobile layout", async ({
     .getByRole("dialog")
     .getByRole("button", { name: "Close", exact: true })
     .click();
-  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
     path: "test-results/primuslab-trades-dark.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(page.locator(".js-plotly-plot")).toBeVisible();
@@ -258,38 +258,30 @@ test("backup download, playbook, themes and mobile layout", async ({
   });
 });
 
-test("team invitations and summaries are distinct from private trade journals", async ({
+test("personal tools use the existing risk calculations without a team login", async ({
   page,
 }) => {
   await open(page);
-  await page.getByRole("link", { name: "Team", exact: true }).click();
-  await page.getByRole("button", { name: "Invite teammate" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Their name").fill("Test teammate");
-  await dialog
-    .getByLabel("Their Google email")
-    .fill("browser-teammate@example.com");
-  await dialog.getByRole("button", { name: "Allow this teammate" }).click();
   await expect(
-    page.getByRole("heading", { name: "Test teammate", exact: true }),
-  ).toBeVisible();
-  const shared = page.waitForResponse(
-    (r) => r.url().endsWith("/api/sharing") && r.status() === 200,
-  );
-  await page.getByLabel("Share my summary results").check();
-  await shared;
-  await expect(
-    page.getByRole("heading", { name: "Your summary is shared" }),
-  ).toBeVisible();
-  await page.getByRole("link", { name: "Results", exact: true }).click();
-  await page.getByRole("link", { name: "Team", exact: true }).click();
-  await expect(page.getByLabel("Share my summary results")).toBeChecked();
-  await page.getByRole("button", { name: "Pause access" }).click();
+    page.getByRole("link", { name: "Team", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Confirm pause" })
+    .getByRole("button", { name: "Advanced tools", exact: true })
     .click();
-  await expect(page.getByText("Access paused", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Tools", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Entry price", { exact: true }).fill("18000");
+  await page.getByLabel("Original stop", { exact: true }).fill("17995");
+  await page.getByRole("button", { name: "Calculate size" }).click();
+  await expect(
+    page.locator(".stat").filter({ hasText: "Contracts" }),
+  ).toContainText("2");
+  await page.getByRole("button", { name: "Open Results" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Results", exact: true }),
+  ).toBeVisible();
 });
 
 test("compact navigation and workspace tools remain accessible on mobile", async ({
@@ -300,18 +292,18 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await expect(page.locator(".sidebar")).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
-  ).toHaveCount(3);
-  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  ).toHaveCount(2);
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Workspace", exact: true })
+    .getByRole("button", { name: "My journal", exact: true })
     .press("Escape");
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).not.toBeVisible();
-  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("heading", { name: "Results", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),

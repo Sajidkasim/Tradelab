@@ -12,7 +12,6 @@ import pandas as pd
 from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
-from services.team import Team
 from services import trade_labels
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
@@ -61,17 +60,17 @@ class Workspaces:
         self.root.init()
         if not self.root.accounts():
             self.root.upsert_account(Account("My account", 50000, 1000, 2000))
-        self.team = Team(self.root, config.owner_email)
         self.databases = {"owner": self.root}
         self.frames = {}
         self.lock = RLock()
 
     def database(self, key):
-        # Membership is checked by the request dependency, never cached here.
+        # This app can open only the owner's original tables. Existing teammate
+        # schemas are preserved but cannot be selected by any request or cookie.
+        if key != 'owner':
+            raise PermissionError('This is a personal journal.')
         with self.lock:
-            if key not in self.databases:
-                self.databases[key] = self.team.database(key)
-            return self.databases[key]
+            return self.root
 
     def trades(self, key):
         with self.lock:

@@ -20,6 +20,13 @@ must run after writes. Access is checked for every private API request. Test new
 logic with pytest, browser helper tests with Vitest, and the main user flows with
 Playwright. Tests use a disposable database and never populate the hosted journal.
 
+The React API is now single-owner and uses a personal password, not Google or
+team membership. webapp.personal_access handles Argon2id password verification,
+a bounded login throttle and revocable sessions stored separately from trades.
+Do not reintroduce team selectors or mix their schemas into the owner journal.
+Password entry/setup is performed by the human user; do not print credentials.
+See GO_LIVE.md for the current four hosting settings and local setup helper.
+
 ## The one-page architecture
 
 ```

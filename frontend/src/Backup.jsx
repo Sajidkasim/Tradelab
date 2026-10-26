@@ -38,8 +38,8 @@ export default function Backup({ onClose, refresh, toast, count }) {
           <Download size={16} /> Download trades as CSV
         </a>
         <small className="muted">
-          JSON includes trades, labels, notes, accounts and settings. Team
-          invitations and screenshot image files need separate backups.
+          JSON includes trades, labels, notes, accounts and settings. Screenshot
+          image files need separate backups. Your login is stored separately.
         </small>
         <details className="disclosure">
           <summary>Restore an empty journal</summary>
