@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { SlidersHorizontal, RotateCcw, ArrowUpRight } from "lucide-react";
 import { api } from "./api";
+import { fetchResultSamples } from "./resultSamples";
 import {
   Button,
   Heading,
@@ -17,7 +18,6 @@ import { percent, rvalue, money, number, unknown } from "./format";
 
 const initial = {
   scope: "Backtesting",
-  sample: "Backtesting",
   strategy: "All strategies",
   direction: "Both",
   level: "Any level",
@@ -58,11 +58,12 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
     setError("");
     const timer = setTimeout(
       () =>
-        api("/results", {
-          method: "POST",
-          body: { ...filters, mode, detail, comparison },
-          signal: controller.signal,
-        })
+        fetchResultSamples(
+          api,
+          filters,
+          { mode, detail, comparison },
+          controller.signal,
+        )
           .then((result) => {
             if (!controller.signal.aborted) setData(result);
           })
@@ -88,20 +89,13 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
       ...trades.map((t) => t.labels?.[field]).filter(Boolean),
     ]),
   ];
-  const s = data?.stats;
+  const samples =
+    filters.scope === "All"
+      ? ["Backtesting", "Forward testing"]
+      : [filters.scope];
   return (
     <>
-      <Heading
-        eyebrow="YOUR EDGE, IN FOCUS"
-        title="Results"
-        action={
-          <Button onClick={onTrades}>
-            Go to trades <ArrowUpRight size={16} />
-          </Button>
-        }
-      >
-        A clear view of what works. One sample at a time.
-      </Heading>
+      <Heading title="Results" />
       <div className="toolbar">
         <Segments
           values={["Backtesting", "Forward testing", "All"]}
@@ -123,20 +117,6 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
           <SlidersHorizontal size={16} /> Explore a setup
         </Button>
       </div>
-      {filters.scope === "All" && (
-        <div className="sample-choice">
-          <span>Results sample</span>
-          <Segments
-            values={["Backtesting", "Forward testing"]}
-            value={filters.sample}
-            onChange={(v) => change("sample", v)}
-            label="Results sample"
-          />
-          <small>
-            Both histories are available. Their statistics stay separate.
-          </small>
-        </div>
-      )}
       <div className={`results-grid ${explore ? "exploring" : ""}`}>
         {explore && (
           <aside className="explorer card">
@@ -149,7 +129,6 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
                   setFilters({
                     ...initial,
                     scope: filters.scope,
-                    sample: filters.sample,
                     strategy: filters.strategy,
                   })
                 }
@@ -184,6 +163,10 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
                 values={values(
                   ["Any timeframe", ...meta.timeframes, unknown],
                   "timeframe",
+                ).map((option) =>
+                  option === "Any timeframe"
+                    ? { value: option, label: "Any" }
+                    : option,
                 )}
                 value={filters.timeframe}
                 onChange={(e) => change("timeframe", e.target.value)}
@@ -193,6 +176,10 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
                 values={values(
                   ["Any timeframe", ...meta.timeframes, unknown],
                   "entry_timeframe",
+                ).map((option) =>
+                  option === "Any timeframe"
+                    ? { value: option, label: "Any" }
+                    : option,
                 )}
                 value={filters.entry_timeframe}
                 onChange={(e) => change("entry_timeframe", e.target.value)}
@@ -298,72 +285,22 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
         )}
         <section className="results-content" aria-busy={busy}>
           {error && <Notice error>{error}</Notice>}
-          <div className="results-caption">
-            <span className="dot" />
-            {data?.sample || filters.sample}{" "}
-            <span className="separator">/</span> {filters.strategy}{" "}
-            {filters.confirmations.length > 0 && (
-              <span>/ {filters.confirmations.join(" + ")}</span>
-            )}
-            <span className="update-state" role="status">
-              {busy ? "Updating…" : "Up to date"}
-            </span>
-          </div>
-          <div className={`stats card ${busy ? "updating" : ""}`}>
-            <Stat
-              label="Win rate"
-              value={s ? percent(s.win_rate) : "—"}
-              caption={
-                s?.small_sample
-                  ? "Small sample · fewer than 30 trades"
-                  : "Break-even trades excluded"
-              }
-            />
-            <Stat
-              label="Average R"
-              value={s ? rvalue(s.avg_r) : "—"}
-              caption={
-                s
-                  ? `R recorded on ${data.r_count} of ${s.trades} trades`
-                  : "Realised return on risk"
-              }
-            />
-            <Stat
-              label="Trade count"
-              value={s ? number(s.trades) : "—"}
-              caption="Matching closed trades"
-            />
-          </div>
-          <div className="card chart-card">
-            <div className="section-title">
-              <div>
-                <h2>How your sample develops</h2>
-                <p>Equity & drawdown · realised dollars · New York time</p>
-              </div>
-              <span className="badge">New York focus</span>
-            </div>
-            {data?.chart ? (
-              <Chart figure={data.chart} />
-            ) : (
-              <Empty
-                title={
-                  busy && !data
-                    ? "Loading your results"
-                    : "Your next trade starts the story"
-                }
-                action={
-                  !busy && (
-                    <Button onClick={onTrades} variant="primary">
-                      Add or import trades <ArrowUpRight size={16} />
-                    </Button>
-                  )
-                }
-              >
-                {busy && !data
-                  ? "Opening your private sample…"
-                  : "Add your trades, then explore which setups deserve your attention."}
-              </Empty>
-            )}
+          <div
+            className={samples.length === 2 ? "sample-pair" : "sample-single"}
+          >
+            {samples.map((sample) => (
+              <ResultSample
+                key={sample}
+                sample={sample}
+                data={data?.find((result) => result.sample === sample)}
+                filters={filters}
+                busy={busy}
+                detail={detail}
+                comparison={comparison}
+                paired={samples.length === 2}
+                onTrades={onTrades}
+              />
+            ))}
           </div>
           <Button
             className="detail-button"
@@ -372,66 +309,151 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
           >
             {detail ? "Hide detail" : "More detail"} <ArrowUpRight size={14} />
           </Button>
-          {detail && s && (
-            <div className="card more-detail">
-              <div className="stats compact">
-                <Stat label="Net result" value={money(s.net_pnl)} />
-                <Stat label="Profit factor" value={number(s.profit_factor)} />
-                <Stat label="Maximum drawdown" value={money(s.max_drawdown)} />
-              </div>
-              <p>
-                {s.wins} wins · {s.losses} losses · {s.scratches} break-even.
-                95% win-rate interval: {percent(s.win_rate_ci[0])}–
-                {percent(s.win_rate_ci[1])}.
-              </p>
-              <div className="goal">
-                <span>{data.collection_count} / 1,000 trades collected</span>
-                <progress value={data.collection_count} max="1000" />
-                <small>A collection goal, not a guarantee of an edge.</small>
-              </div>
-              <Select
-                label="Compare by"
-                values={dimensions}
-                value={comparison}
-                onChange={(e) => setComparison(e.target.value)}
-              />
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Group</th>
-                      <th>Trades</th>
-                      <th>Win rate</th>
-                      <th>Average R</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(data.breakdown || []).map((row, i) => (
-                      <tr key={i}>
-                        <td>
-                          {row[comparison]}
-                          {row.small_sample && (
-                            <small className="table-caption">
-                              Small sample
-                            </small>
-                          )}
-                        </td>
-                        <td>{row.trades}</td>
-                        <td>{percent(row.win_rate)}</td>
-                        <td>{rvalue(row.avg_r)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="muted">
-                Historical associations need a separate forward sample before
-                you rely on them.
-              </p>
-            </div>
+          {detail && (
+            <Select
+              label="Compare by"
+              values={dimensions}
+              value={comparison}
+              onChange={(e) => setComparison(e.target.value)}
+            />
           )}
         </section>
       </div>
     </>
+  );
+}
+
+function ResultSample({
+  sample,
+  data,
+  filters,
+  busy,
+  detail,
+  comparison,
+  paired,
+  onTrades,
+}) {
+  const s = data?.stats;
+  return (
+    <section className="result-sample" aria-label={`${sample} results`}>
+      {paired && <h2 className="sample-title">{sample}</h2>}
+      <div className="results-caption">
+        {!paired && (
+          <>
+            <span className="dot" />
+            {sample}
+            <span className="separator">/</span>
+          </>
+        )}
+        {filters.strategy}{" "}
+        {filters.confirmations.length > 0 && (
+          <span>/ {filters.confirmations.join(" + ")}</span>
+        )}
+        <span className="update-state" role="status">
+          {busy ? "Updating…" : "Up to date"}
+        </span>
+      </div>
+      <div className={`stats card ${busy ? "updating" : ""}`}>
+        <Stat
+          label="Win rate"
+          value={s ? percent(s.win_rate) : "—"}
+          caption={
+            s?.small_sample
+              ? "Small sample · fewer than 30 trades"
+              : "Break-even trades excluded"
+          }
+        />
+        <Stat
+          label="Average R"
+          value={s ? rvalue(s.avg_r) : "—"}
+          caption={
+            s
+              ? `R recorded on ${data.r_count} of ${s.trades} trades`
+              : "Realised return on risk"
+          }
+        />
+        <Stat
+          label="Trade count"
+          value={s ? number(s.trades) : "—"}
+          caption="Matching closed trades"
+        />
+      </div>
+      <div className="card chart-card">
+        <div className="section-title">
+          <div>
+            <h2>Equity</h2>
+            <p>USD · New York time</p>
+          </div>
+        </div>
+        {data?.chart ? (
+          <Chart figure={data.chart} height={paired ? 290 : 380} />
+        ) : (
+          <Empty
+            title={busy && !data ? "Loading your results" : "No trades yet"}
+            action={
+              !busy && (
+                <Button onClick={onTrades} variant="primary">
+                  Add or import trades <ArrowUpRight size={16} />
+                </Button>
+              )
+            }
+          >
+            {busy && !data
+              ? "Opening your private sample…"
+              : "Add or import trades to see your results."}
+          </Empty>
+        )}
+      </div>
+      {detail && s && (
+        <div className="card more-detail">
+          <div className="stats compact">
+            <Stat label="Net result" value={money(s.net_pnl)} />
+            <Stat label="Profit factor" value={number(s.profit_factor)} />
+            <Stat label="Maximum drawdown" value={money(s.max_drawdown)} />
+          </div>
+          <p>
+            {s.wins} wins · {s.losses} losses · {s.scratches} break-even. 95%
+            win-rate interval: {percent(s.win_rate_ci[0])}–
+            {percent(s.win_rate_ci[1])}.
+          </p>
+          <div className="goal">
+            <span>{data.collection_count} / 1,000 trades collected</span>
+            <progress value={data.collection_count} max="1000" />
+            <small>A collection goal, not a guarantee of an edge.</small>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Trades</th>
+                  <th>Win rate</th>
+                  <th>Average R</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.breakdown || []).map((row, i) => (
+                  <tr key={i}>
+                    <td>
+                      {row[comparison]}
+                      {row.small_sample && (
+                        <small className="table-caption">Small sample</small>
+                      )}
+                    </td>
+                    <td>{row.trades}</td>
+                    <td>{percent(row.win_rate)}</td>
+                    <td>{rvalue(row.avg_r)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="muted">
+            Historical associations need a separate forward sample before you
+            rely on them.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

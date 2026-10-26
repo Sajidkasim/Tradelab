@@ -1,17 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Activity,
-  BookOpen,
-  Users,
-  Sun,
-  Moon,
-  ArrowUpRight,
-  Download,
-  LogOut,
-  ChevronDown,
-} from "lucide-react";
+import { Sun, Moon, ArrowUpRight, Download, LogOut } from "lucide-react";
 import { api, setCsrf } from "./api";
-import { Button, Notice } from "./components";
+import { Button, Notice, Menu } from "./components";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
@@ -20,9 +10,9 @@ import Backup from "./Backup";
 import icon from "../../assets/primuslab-icon.svg";
 
 const pages = [
-  { id: "results", name: "Results", icon: Activity },
-  { id: "trades", name: "Trades", icon: BookOpen },
-  { id: "team", name: "Team", icon: Users },
+  { id: "results", name: "Results" },
+  { id: "trades", name: "Trades" },
+  { id: "team", name: "Team" },
 ];
 export default function App() {
   const [session, setSession] = useState(null),
@@ -123,12 +113,8 @@ export default function App() {
           <strong>PrimusLab</strong>
         </div>
         <div className="card login-card">
-          <span className="eyebrow">LESS NOISE. MORE EVIDENCE.</span>
-          <h1>Find your edge.</h1>
-          <p>
-            A private home for your trading research. Log the setup, review the
-            outcome, see what works.
-          </p>
+          <h1>Welcome to PrimusLab</h1>
+          <p>Sign in to open your trading journal.</p>
           {location.search.includes("login=denied") && (
             <Notice error>
               Sign-in could not be completed. Use your invited Google account or
@@ -144,34 +130,19 @@ export default function App() {
     );
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <header className="site-header">
         <a
           href="/"
           className="brand"
-          onClick={(e) => {
-            e.preventDefault();
+          onClick={(event) => {
+            event.preventDefault();
             navigate("results");
           }}
         >
           <img src={icon} alt="" />
           <span>PrimusLab</span>
         </a>
-        <div className="workspace">
-          <span className="avatar">
-            {session.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .slice(0, 2)
-              .toUpperCase()}
-          </span>
-          <div>
-            <strong>{session.name}</strong>
-            <small>Private workspace</small>
-          </div>
-        </div>
-        <span className="nav-caption">WORKSPACE</span>
-        <nav aria-label="Main navigation">
+        <nav className="main-nav" aria-label="Main navigation">
           {pages.map((item) => (
             <a
               key={item.id}
@@ -181,68 +152,46 @@ export default function App() {
                   ? "page"
                   : undefined
               }
-              onClick={(e) => {
-                e.preventDefault();
+              onClick={(event) => {
+                event.preventDefault();
                 navigate(item.id);
               }}
             >
-              <item.icon size={18} />
               {item.name}
-              {item.id === "trades" &&
-                trades.filter((t) => t.needs_tagging).length > 0 && (
-                  <span className="nav-count">
-                    {trades.filter((t) => t.needs_tagging).length}
-                  </span>
-                )}
             </a>
           ))}
         </nav>
-        <div className="sidebar-bottom">
+        <Menu label="Workspace" className="workspace-menu">
+          <div className="menu-account">
+            <strong>{session.name}</strong>
+            <small>
+              {session.local
+                ? "Local preview · separate journal"
+                : "Private workspace"}
+            </small>
+          </div>
           <button onClick={() => setBackup(true)}>
-            <Download size={17} /> Backup & restore
+            <Download size={16} /> Backup & restore
           </button>
-          <details className="more-tools">
-            <summary>
-              More tools <ChevronDown size={14} />
-            </summary>
-            <p>
-              Advanced risk, backtesting and broker tools remain available in
-              the current PrimusLab site while this interface is prepared for
-              launch.
-            </p>
-            <a
-              href="https://primuslab.streamlit.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open current site <ArrowUpRight size={14} />
-            </a>
-          </details>
           <button onClick={() => setMode(mode === "light" ? "dark" : "light")}>
-            {mode === "light" ? <Moon size={17} /> : <Sun size={17} />}
+            {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
           </button>
+          <a
+            href="https://primuslab.streamlit.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ArrowUpRight size={16} /> Advanced tools
+          </a>
           {!session.local && (
             <button onClick={logout}>
-              <LogOut size={17} /> Sign out
+              <LogOut size={16} /> Sign out
             </button>
           )}
-          <small>PrimusLab · Your trading research</small>
-        </div>
-      </aside>
+        </Menu>
+      </header>
       <div className="main-shell">
-        <div className="topbar">
-          <span>
-            Workspace <span>/</span>{" "}
-            {page === "import"
-              ? "Trades / Import"
-              : pages.find((p) => p.id === page)?.name || "Results"}
-          </span>
-          <span className="topbar-status">
-            <span className="dot" />
-            {session.local ? "Local preview" : "Private & connected"}
-          </span>
-        </div>
         <main className="content">
           {error && <Notice error>{error}</Notice>}
           <div hidden={!["results", "", "overview"].includes(page)}>
@@ -281,10 +230,6 @@ export default function App() {
             </div>
           )}
         </main>
-        <footer className="page-footer">
-          Evidence over instinct.
-          <span>All times shown in New York unless stated.</span>
-        </footer>
       </div>
       {message && (
         <div className="toast" role="status">

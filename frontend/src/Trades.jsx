@@ -16,7 +16,7 @@ import {
   Modal,
   Notice,
   Field,
-  Select,
+  Menu,
 } from "./components";
 import TradeForm from "./TradeForm";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
@@ -83,7 +83,6 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
   return (
     <>
       <Heading
-        eyebrow="BUILD YOUR SAMPLE"
         title="Trades"
         action={
           <div className="actions">
@@ -95,9 +94,7 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
             </Button>
           </div>
         }
-      >
-        Your trades, your evidence. Log quickly, review with care.
-      </Heading>
+      />
       <div className="toolbar">
         <Segments
           values={["Backtesting", "Forward testing", "All"]}
@@ -137,15 +134,23 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
             <h2>{pending ? "Your review queue" : "Trade journal"}</h2>
             <p>{queue.length} trades · times shown in New York</p>
           </div>
-          <Button
-            onClick={() => {
-              setBulk(!bulk);
-              setSelected([]);
-            }}
-            disabled={!queue.length}
-          >
-            {bulk ? "Finish selecting" : "Tag several"}
-          </Button>
+          <Menu label="Manage trades">
+            <button onClick={() => setBook(true)}>
+              <Settings2 size={15} /> Edit strategies & levels
+            </button>
+            <button
+              disabled={!queue.length}
+              onClick={() => {
+                setBulk(!bulk);
+                setSelected([]);
+              }}
+            >
+              {bulk ? "Finish selecting" : "Tag several"}
+            </button>
+            <a href="/api/export/csv">
+              <Download size={15} /> Download CSV
+            </a>
+          </Menu>
         </div>
         {queue.length ? (
           <>
@@ -156,7 +161,6 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
                     {bulk && <th>Select</th>}
                     <th>Trade</th>
                     <th>Strategy</th>
-                    <th>Key level</th>
                     <th>Net result</th>
                     <th>Realised R</th>
                     <th>Status</th>
@@ -199,11 +203,6 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
                         {t.setup_name || (
                           <span className="muted">Unclassified</span>
                         )}
-                      </td>
-                      <td>
-                        {t.labels?.level === "Not recorded"
-                          ? "—"
-                          : t.labels?.level}
                       </td>
                       <td
                         className={
@@ -266,17 +265,12 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
                 ? "Your review queue is clear"
                 : trades.length
                   ? "No trades match these filters"
-                  : "Make room for your first trade"
-            }
-            action={
-              <Button variant="primary" onClick={onImport}>
-                Import FX Replay <Upload size={16} />
-              </Button>
+                  : "No trades yet"
             }
           >
             {pending
               ? "Switch off Needs tagging to amend an existing trade."
-              : "Import a replay export, or add a trade manually. All your setup labels stay with your data."}
+              : "Use Add trade or Import FX Replay above to get started."}
           </Empty>
         )}
         {bulk && (
@@ -305,17 +299,6 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
             {error && <Notice error>{error}</Notice>}
           </div>
         )}
-      </div>
-      <div className="quiet-actions">
-        <Button onClick={() => setBook(true)}>
-          <Settings2 size={15} /> Edit strategies & levels
-        </Button>
-        <a className="button" href="/api/export/csv">
-          <Download size={15} /> Download CSV
-        </a>
-        <a className="button" href="/api/export/backup">
-          <Download size={15} /> Download full backup
-        </a>
       </div>
       {opened !== null && (opened === "new" || trade) && (
         <Modal

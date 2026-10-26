@@ -1,0 +1,26 @@
+# Optional deployment recipe. Saving this file does not create or buy a service.
+# Review the selected compute plan's price in Render before creating the service.
+services:
+  - type: web
+    name: primuslab-web
+    runtime: docker
+    branch: codex/react-rebuild
+    dockerfilePath: ./Dockerfile.web
+    dockerContext: .
+    region: frankfurt
+    plan: 0.5c-512mb
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PRIMUSLAB_PUBLIC_URL
+        sync: false
+      - key: PRIMUSLAB_OWNER_EMAIL
+        sync: false
+      - key: TRADELAB_DB_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PRIMUSLAB_SESSION_SECRET
+        generateValue: true

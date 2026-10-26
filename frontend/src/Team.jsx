@@ -101,7 +101,6 @@ export default function Team({ session, toast }) {
   return (
     <>
       <Heading
-        eyebrow="INDIVIDUAL WORK. SHARED LEARNING."
         title="Team"
         action={
           session.owner && (

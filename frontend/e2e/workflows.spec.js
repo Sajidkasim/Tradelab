@@ -55,6 +55,19 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
   await expect(
     dialog.getByLabel("Net result ($)", { exact: true }),
   ).toHaveValue("");
+  await dialog.getByLabel("Save to", { exact: true }).selectOption("manual");
+  await dialog
+    .getByLabel("Entry time · New York", { exact: true })
+    .fill("2026-07-01T10:30");
+  await dialog.getByLabel("Net result ($)", { exact: true }).fill("-50");
+  await dialog.getByLabel("Original risk ($)", { exact: true }).fill("50");
+  await dialog
+    .getByLabel("I have checked the confirmations for this trade")
+    .check();
+  await dialog.getByRole("button", { name: "Save & log next" }).click();
+  await expect(
+    dialog.getByLabel("Net result ($)", { exact: true }),
+  ).toHaveValue("");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(
@@ -71,13 +84,36 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
     .getByRole("group", { name: "Data source", exact: true })
     .getByRole("button", { name: "All", exact: true })
     .click();
-  await page
-    .getByRole("group", { name: "Results sample", exact: true })
-    .getByRole("button", { name: "Forward testing" })
-    .click();
   await expect(
-    page.locator(".stat").filter({ hasText: "Trade count" }).first(),
-  ).toContainText("0");
+    page.getByRole("group", { name: "Results sample", exact: true }),
+  ).toHaveCount(0);
+  const backtesting = page.getByRole("region", {
+    name: "Backtesting results",
+    exact: true,
+  });
+  const forward = page.getByRole("region", {
+    name: "Forward testing results",
+    exact: true,
+  });
+  await expect(
+    backtesting.locator(".stat").filter({ hasText: "Win rate" }),
+  ).toContainText("100.0%");
+  await expect(
+    forward.locator(".stat").filter({ hasText: "Win rate" }),
+  ).toContainText("0.0%");
+  await expect(
+    backtesting.locator(".stat").filter({ hasText: "Trade count" }),
+  ).toContainText("1");
+  await expect(
+    forward.locator(".stat").filter({ hasText: "Trade count" }),
+  ).toContainText("1");
+  await expect(page.locator(".js-plotly-plot")).toHaveCount(2);
+  await expect(backtesting.locator(".scatterlayer .point")).toHaveCount(2);
+  await expect(forward.locator(".scatterlayer .point")).toHaveCount(2);
+  await page.screenshot({
+    path: "test-results/primuslab-all-results.png",
+    fullPage: true,
+  });
   expect(await page.evaluate(() => window.primusTestMarker)).toBe(identity);
   expect(failures).toEqual([]);
 });
@@ -90,13 +126,11 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   await page
     .getByRole("button", { name: "Import FX Replay", exact: true })
     .click();
-  await page
-    .getByLabel("Choose a trade export")
-    .setInputFiles({
-      name: "replay.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "replay.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
   await page.getByRole("button", { name: "Preview trades" }).click();
   await expect(
     page.getByRole("heading", { name: "Check the preview" }),
@@ -149,13 +183,11 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .getByRole("button", { name: "Import FX Replay", exact: true })
     .first()
     .click();
-  await page
-    .getByLabel("Choose a trade export")
-    .setInputFiles({
-      name: "replay.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(csv),
-    });
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "replay.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
   await page.getByRole("button", { name: "Preview trades" }).click();
   await expect(page.locator(".preview-card .stat").nth(1)).toContainText("2");
   await expect(
@@ -168,6 +200,9 @@ test("backup download, playbook, themes and mobile layout", async ({
 }) => {
   await open(page);
   await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Manage trades", exact: true })
+    .click();
   await page.getByRole("button", { name: "Edit strategies & levels" }).click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -175,6 +210,7 @@ test("backup download, playbook, themes and mobile layout", async ({
     .fill("Browser setup\nReplay setup\nMy next model");
   await dialog.getByRole("button", { name: "Save lists" }).click();
   await expect(dialog).not.toBeVisible();
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
   await page.getByRole("button", { name: "Backup & restore" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download full JSON backup" }).click();
@@ -183,12 +219,14 @@ test("backup download, playbook, themes and mobile layout", async ({
     .getByRole("dialog")
     .getByRole("button", { name: "Close", exact: true })
     .click();
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
     path: "test-results/primuslab-trades-dark.png",
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(page.locator(".js-plotly-plot")).toBeVisible();
@@ -252,4 +290,62 @@ test("team invitations and summaries are distinct from private trade journals", 
     .getByRole("button", { name: "Confirm pause" })
     .click();
   await expect(page.getByText("Access paused", { exact: true })).toBeVisible();
+});
+
+test("compact navigation and workspace tools remain accessible on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(page.locator(".sidebar")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
+  ).toHaveCount(3);
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Backup & restore" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Workspace", exact: true })
+    .press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Backup & restore" }),
+  ).not.toBeVisible();
+  await page.getByRole("button", { name: "Workspace", exact: true }).click();
+  await page.getByRole("heading", { name: "Results", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Backup & restore" }),
+  ).not.toBeVisible();
+  await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Add trade", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Import FX Replay", exact: true })
+    .click();
+  await expect(page.getByLabel("These trades are…")).not.toBeVisible();
+  await page
+    .getByText("File options & column mapping", { exact: true })
+    .click();
+  await expect(page.getByLabel("These trades are…")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.getByRole("link", { name: "Results", exact: true }).click();
+  await expect(page.locator(".results-content")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await expect(page.locator(".js-plotly-plot")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/primuslab-simple-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({
+    path: "test-results/primuslab-simple-results.png",
+    fullPage: true,
+  });
 });

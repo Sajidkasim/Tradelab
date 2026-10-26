@@ -136,39 +136,12 @@ export default function Import({ meta, refresh, onBack, toast }) {
       <Button className="back-button" onClick={onBack}>
         <ArrowLeft size={16} /> Back to trades
       </Button>
-      <Heading eyebrow="FROM REPLAY TO RESEARCH" title="Import your trades">
-        One file. One preview. Your setup labels stay with every trade.
-      </Heading>
-      <div className="import-steps">
-        <span className={preview || done ? "complete" : "current"}>
-          01 Upload
-        </span>
-        <span className={preview ? "current" : done ? "complete" : ""}>
-          02 Preview
-        </span>
-        <span className={done ? "complete" : ""}>03 Confirm</span>
-      </div>
+      <Heading title="Import trades" />
       <div className="card import-card">
-        <div className="form-grid two">
-          <Select
-            label="Save into account"
-            values={meta.accounts.map((a) => ({ value: a.id, label: a.name }))}
-            value={account}
-            onChange={(e) => {
-              invalidate();
-              setAccount(Number(e.target.value));
-            }}
-          />
-          <Select
-            label="These trades are…"
-            values={sourceOptions}
-            value={source}
-            onChange={(e) => {
-              invalidate();
-              setSource(e.target.value);
-            }}
-          />
-        </div>
+        <p className="import-context">
+          {meta.accounts.find((item) => item.id === account)?.name} ·{" "}
+          {sourceOptions.find((item) => item.value === source)?.label}
+        </p>
         <button
           className={`dropzone ${file ? "has-file" : ""}`}
           onClick={() => ref.current.click()}
@@ -196,12 +169,35 @@ export default function Import({ meta, refresh, onBack, toast }) {
           onChange={(e) => choose(e.target.files[0])}
         />
         <p className="muted">
-          FX Replay: export your closed trade history from Analytics. Nothing is
-          saved until you confirm.
+          Export from FX Replay Analytics. Preview your trades before saving.
         </p>
         <details className="disclosure">
           <summary>File options & column mapping</summary>
           <div className="stack">
+            <div className="form-grid two">
+              <Select
+                label="Save into account"
+                values={meta.accounts.map((a) => ({
+                  value: a.id,
+                  label: a.name,
+                }))}
+                value={account}
+                onChange={(e) => {
+                  invalidate();
+                  setAccount(Number(e.target.value));
+                }}
+              />
+              <Select
+                label="These trades are…"
+                values={sourceOptions}
+                value={source}
+                onChange={(e) => {
+                  invalidate();
+                  setSource(e.target.value);
+                }}
+              />
+            </div>
+
             <Select
               label="Export time zone"
               values={["UTC", "America/New_York", "Europe/London"]}

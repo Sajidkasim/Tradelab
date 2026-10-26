@@ -29,7 +29,7 @@ loopback origin when running that development server so CSRF checks remain stric
 - Setup filters alongside the equity/drawdown graph. Statistics, equity and
   comparison groups call `core.metrics` and `core.charts` unchanged.
 - All data source for browsing; results still require one backtesting or forward
-  sample. Demo data is excluded from the API.
+  sample per result section. All shows both sections separately. Demo data is excluded from the API.
 - Quick dollar-result entries or full entry/stop/exit, New York timestamps,
   editable strategy and PDA lists, confirmations, notes, Save & next and bulk tags.
 - FX Replay Analytics and generic trade/fill file upload, explicit time zone,
@@ -45,6 +45,9 @@ Screenshot image upload is not enabled until durable image storage is connected.
 Existing screenshot paths are kept in backups; image files need a separate backup.
 
 ## Hosting the new app
+
+Start with [GO_LIVE.md](GO_LIVE.md) for the launch checklist and an optional
+Render deployment recipe. No hosting subscription has been created by these files.
 
 Streamlit Community Cloud cannot run this React/API server. Use an always-on
 container or Python web host, preferably near the existing Supabase database.

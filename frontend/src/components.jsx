@@ -124,12 +124,45 @@ export function Heading({ eyebrow, title, children, action }) {
   return (
     <header className="page-heading">
       <div>
-        <span className="eyebrow">{eyebrow}</span>
+        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
-        <p>{children}</p>
+        {children && <p>{children}</p>}
       </div>
       {action}
     </header>
+  );
+}
+
+export function Menu({ label, children, className = "" }) {
+  const ref = useRef();
+  useEffect(() => {
+    const closeOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target))
+        ref.current.open = false;
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, []);
+  return (
+    <details
+      ref={ref}
+      className={`action-menu ${className}`}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary").focus();
+        }
+      }}
+      onClick={(event) => {
+        if (event.target.closest("button, a")) event.currentTarget.open = false;
+      }}
+    >
+      <summary role="button">
+        {label}
+        <ChevronDown size={14} />
+      </summary>
+      <div className="menu-panel">{children}</div>
+    </details>
   );
 }
 export function Stat({ label, value, caption, tone }) {
@@ -182,7 +215,7 @@ export function Modal({ title, children, onClose }) {
   );
 }
 
-export function Chart({ figure }) {
+export function Chart({ figure, height = 380 }) {
   const ref = useRef();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -192,15 +225,44 @@ export function Chart({ figure }) {
     import("plotly.js-basic-dist-min")
       .then((module) => {
         plotly = module.default;
+        // A line has no visible segment with one observation. Show its existing
+        // point and one readable date tick without changing any financial values.
+        const singleDate =
+          figure.data[0]?.x?.length === 1 ? figure.data[0].x[0] : null;
+        const displayData = figure.data.map((trace) =>
+          trace.type === "scatter" && trace.x?.length === 1
+            ? {
+                ...trace,
+                mode: "markers",
+                marker: { ...trace.marker, size: 6, color: trace.line?.color },
+              }
+            : trace,
+        );
+        const dateAxes = singleDate
+          ? Object.fromEntries(
+              Object.entries(figure.layout)
+                .filter(([name]) => /^xaxis\d*$/.test(name))
+                .map(([name, axis]) => [
+                  name,
+                  {
+                    ...axis,
+                    tickvals: [singleDate],
+                    tickformat: "%d %b<br>%H:%M",
+                    tickangle: 0,
+                  },
+                ]),
+            )
+          : {};
         if (alive && ref.current)
           plotly
             .react(
               ref.current,
-              figure.data,
+              displayData,
               {
                 ...figure.layout,
+                ...dateAxes,
                 autosize: true,
-                height: 380,
+                height,
                 margin: { l: 55, r: 20, t: 28, b: 40 },
               },
               { responsive: true, displayModeBar: false },
@@ -220,7 +282,7 @@ export function Chart({ figure }) {
       observer.disconnect();
       if (plotly && ref.current) plotly.purge(ref.current);
     };
-  }, [figure]);
+  }, [figure, height]);
   return (
     <>
       {error && <Notice error>{error}</Notice>}

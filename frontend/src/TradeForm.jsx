@@ -148,14 +148,8 @@ export default function TradeForm({
         </div>
       )}
       <div className="form-step">
-        <span>01</span>
         <div>
-          <h3>{trade ? "The strategy" : "The idea"}</h3>
-          <p>
-            {trade
-              ? "Give this trade a place in your research."
-              : "Keep backtesting separate from your forward sample."}
-          </p>
+          <h3>Setup</h3>
         </div>
         {previous && (
           <Button onClick={reuse} type="button" className="reuse">
@@ -211,10 +205,8 @@ export default function TradeForm({
         </div>
       )}
       <div className="form-step">
-        <span>02</span>
         <div>
           <h3>Level & confirmations</h3>
-          <p>What made this setup worth taking?</p>
         </div>
       </div>
       <Labels value={labels} onChange={setLabels} meta={meta} />
@@ -232,10 +224,8 @@ export default function TradeForm({
       {!trade && (
         <>
           <div className="form-step">
-            <span>03</span>
             <div>
-              <h3>The result</h3>
-              <p>Record what happened, including losses and break-even.</p>
+              <h3>Result</h3>
             </div>
           </div>
           <div className="form-grid two">

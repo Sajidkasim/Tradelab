@@ -82,7 +82,9 @@ nightly.py         auto-journal
 ### Results and Trades workflow
 
 Start in **Results**. Choose **Backtesting**, **Forward testing** or **All**, then a strategy.
-With All, choose a **Results sample** so backtesting and forward statistics stay separate.
+In the React rebuild, **All** shows backtesting and forward results in separate
+labelled sections with their own graphs. The original Streamlit version still
+asks for a **Results sample**. Statistics stay separate in both versions.
 **Explore a setup** shows controls alongside the live graph: direction, level, timeframes and
 confirmations, with session and news under their own expandable section.
 All selected confirmations must be present (SMT + CISD means both). New York includes
