@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Plus,
+  Trash2,
   Upload,
   Search,
   ArrowUpRight,
@@ -11,7 +12,6 @@ import { api } from "./api";
 import {
   Button,
   Heading,
-  Segments,
   Empty,
   Modal,
   Notice,
@@ -21,15 +21,22 @@ import {
 import TradeForm from "./TradeForm";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
 
-export default function Trades({ meta, trades, refresh, onImport, toast }) {
-  const [scope, setScope] = useState("All"),
-    [pending, setPending] = useState(false),
+export default function Trades({
+  meta,
+  trades,
+  refresh,
+  onImport,
+  toast,
+  scope,
+}) {
+  const [pending, setPending] = useState(false),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
     [previous, setPrevious] = useState(null),
     [book, setBook] = useState(false),
     [bulk, setBulk] = useState(false);
+  const [deleting, setDeleting] = useState(null);
   const [selected, setSelected] = useState([]),
     [strategy, setStrategy] = useState(""),
     [busy, setBusy] = useState(false),
@@ -46,6 +53,35 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
       ),
     [trades, scope, pending, search],
   );
+  const currentPage = Math.min(
+    page,
+    Math.max(0, Math.ceil(queue.length / 30) - 1),
+  );
+  useEffect(() => {
+    setPage(0);
+    setSelected([]);
+  }, [scope]);
+  async function removeTrade() {
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/trades/${deleting.id}`, { method: "DELETE" });
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+      return;
+    }
+    setSelected((ids) => ids.filter((id) => id !== deleting.id));
+    setDeleting(null);
+    try {
+      await refresh();
+      toast("Trade deleted. Your results are updated.");
+    } catch {
+      toast("Trade deleted. Reload the page to refresh your results.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const pendingCount = trades.filter((t) => t.needs_tagging).length;
   const trade =
     typeof opened === "number" ? trades.find((t) => t.id === opened) : null;
@@ -84,6 +120,7 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
     <>
       <Heading
         title="Trades"
+        level={2}
         action={
           <div className="actions">
             <Button onClick={onImport}>
@@ -96,15 +133,6 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
         }
       />
       <div className="toolbar">
-        <Segments
-          values={["Backtesting", "Forward testing", "All"]}
-          value={scope}
-          onChange={(v) => {
-            setScope(v);
-            setPage(0);
-          }}
-          label="Trade data source"
-        />
         <Button
           className={pending ? "active" : ""}
           aria-pressed={pending}
@@ -132,7 +160,10 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
         <div className="section-title">
           <div>
             <h2>{pending ? "Your review queue" : "Trade journal"}</h2>
-            <p>{queue.length} trades · times shown in New York</p>
+            <p>
+              {queue.length} trades · {scope === "All" ? "All sources" : scope}{" "}
+              · New York time
+            </p>
           </div>
           <Menu label="Manage trades">
             <button onClick={() => setBook(true)}>
@@ -165,93 +196,111 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
                     <th>Realised R</th>
                     <th>Status</th>
                     <th>
-                      <span className="sr-only">Open</span>
+                      <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {queue.slice(page * 30, page * 30 + 30).map((t) => (
-                    <tr key={t.id} onClick={() => !bulk && setOpened(t.id)}>
-                      {bulk && (
-                        <td>
-                          <input
-                            type="checkbox"
-                            aria-label={`Select trade ${t.id}`}
-                            checked={selected.includes(t.id)}
-                            onChange={(e) =>
-                              setSelected(
-                                e.target.checked
-                                  ? [...selected, t.id]
-                                  : selected.filter((id) => id !== t.id),
-                              )
-                            }
-                          />
-                        </td>
-                      )}
-                      <td>
-                        <strong>
-                          {t.symbol}{" "}
-                          <span className="side-label">
-                            {t.direction === "long" ? "Buy" : "Sell"}
-                          </span>
-                        </strong>
-                        <small className="table-caption">
-                          {tradeDate(t.entry_time)} · {sourceNames[t.source]}
-                        </small>
-                      </td>
-                      <td>
-                        {t.setup_name || (
-                          <span className="muted">Unclassified</span>
+                  {queue
+                    .slice(currentPage * 30, currentPage * 30 + 30)
+                    .map((t) => (
+                      <tr key={t.id} onClick={() => !bulk && setOpened(t.id)}>
+                        {bulk && (
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={`Select trade ${t.id}`}
+                              checked={selected.includes(t.id)}
+                              onChange={(e) =>
+                                setSelected(
+                                  e.target.checked
+                                    ? [...selected, t.id]
+                                    : selected.filter((id) => id !== t.id),
+                                )
+                              }
+                            />
+                          </td>
                         )}
-                      </td>
-                      <td
-                        className={
-                          t.net_pnl > 0
-                            ? "positive"
-                            : t.net_pnl < 0
-                              ? "negative"
-                              : ""
-                        }
-                      >
-                        {money(t.net_pnl)}
-                      </td>
-                      <td>{rvalue(t.r_multiple)}</td>
-                      <td>
-                        <span
-                          className={`badge ${t.needs_tagging ? "pending" : ""}`}
+                        <td>
+                          <strong>
+                            {t.symbol}{" "}
+                            <span className="side-label">
+                              {t.direction === "long" ? "Buy" : "Sell"}
+                            </span>
+                          </strong>
+                          <small className="table-caption">
+                            {tradeDate(t.entry_time)} · {sourceNames[t.source]}
+                          </small>
+                        </td>
+                        <td>
+                          {t.setup_name || (
+                            <span className="muted">Unclassified</span>
+                          )}
+                        </td>
+                        <td
+                          className={
+                            t.net_pnl > 0
+                              ? "positive"
+                              : t.net_pnl < 0
+                                ? "negative"
+                                : ""
+                          }
                         >
-                          {t.needs_tagging ? "Needs tagging" : "Reviewed"}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          aria-label={`Edit trade ${t.id}`}
-                          className="icon-button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpened(t.id);
-                          }}
-                        >
-                          <ArrowUpRight size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          {money(t.net_pnl)}
+                        </td>
+                        <td>{rvalue(t.r_multiple)}</td>
+                        <td>
+                          <span
+                            className={`badge ${t.needs_tagging ? "pending" : ""}`}
+                          >
+                            {t.needs_tagging ? "Needs tagging" : "Reviewed"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            aria-label={`Edit trade ${t.id}`}
+                            className="icon-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpened(t.id);
+                            }}
+                          >
+                            <ArrowUpRight size={16} />
+                          </button>
+                          <button
+                            aria-label={`Delete trade ${t.id}`}
+                            title="Delete trade"
+                            className="icon-button delete-trade"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setError("");
+                              setDeleting(t);
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
             <div className="table-footer">
               <span>
-                {Math.min(page * 30 + 1, queue.length)}–
-                {Math.min((page + 1) * 30, queue.length)} of {queue.length}
+                {Math.min(currentPage * 30 + 1, queue.length)}–
+                {Math.min((currentPage + 1) * 30, queue.length)} of{" "}
+                {queue.length}
               </span>
               <div>
-                <Button disabled={!page} onClick={() => setPage(page - 1)}>
+                <Button
+                  disabled={!currentPage}
+                  onClick={() => setPage(currentPage - 1)}
+                >
                   Previous
                 </Button>
                 <Button
-                  disabled={(page + 1) * 30 >= queue.length}
-                  onClick={() => setPage(page + 1)}
+                  disabled={(currentPage + 1) * 30 >= queue.length}
+                  onClick={() => setPage(currentPage + 1)}
                 >
                   Next
                 </Button>
@@ -315,6 +364,39 @@ export default function Trades({ meta, trades, refresh, onImport, toast }) {
             onClose={() => setOpened(null)}
             remaining={queue.length}
           />
+        </Modal>
+      )}
+      {deleting && (
+        <Modal
+          title="Delete this trade?"
+          onClose={() => {
+            if (!busy) setDeleting(null);
+          }}
+        >
+          <div className="stack">
+            <div className="trade-result">
+              <strong>
+                {deleting.symbol} ·{" "}
+                {deleting.direction === "long" ? "Buy" : "Sell"}
+              </strong>
+              <span>{tradeDate(deleting.entry_time)}</span>
+              <span>{money(deleting.net_pnl)}</span>
+              <span>{sourceNames[deleting.source]}</span>
+            </div>
+            <p>
+              This removes this trade and its notes from your journal and
+              results. This cannot be undone.
+            </p>
+            {error && <Notice error>{error}</Notice>}
+            <div className="actions">
+              <Button disabled={busy} onClick={() => setDeleting(null)}>
+                Keep trade
+              </Button>
+              <Button variant="danger" busy={busy} onClick={removeTrade}>
+                Delete trade
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
       {book && (

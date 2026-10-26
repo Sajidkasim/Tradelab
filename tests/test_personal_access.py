@@ -206,3 +206,8 @@ def test_password_helper_allows_correction_without_closing(tmp_path, monkeypatch
     output = capsys.readouterr().out
     assert message in output and 'PASSWORD SAVED.' in output
     assert PASSWORD not in output and 'too short' not in output
+
+
+def test_delete_is_private_when_journal_is_locked(personal):
+    client, app, _ = personal
+    assert client.delete('/api/trades/1').status_code == 401

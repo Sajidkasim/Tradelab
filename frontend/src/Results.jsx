@@ -4,7 +4,6 @@ import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import {
   Button,
-  Heading,
   Select,
   Segments,
   Checkboxes,
@@ -17,7 +16,7 @@ import {
 import { percent, rvalue, money, number, unknown } from "./format";
 
 const initial = {
-  scope: "Backtesting",
+  scope: "All",
   strategy: "All strategies",
   direction: "Both",
   level: "Any level",
@@ -43,14 +42,26 @@ const dimensions = [
   { value: "edge_timeframe", label: "Level timeframe" },
 ];
 
-export default function Results({ meta, trades, revision, mode, onTrades }) {
-  const [filters, setFilters] = useState(initial),
+export default function Results({
+  meta,
+  trades,
+  revision,
+  mode,
+  onTrades,
+  scope,
+  setScope,
+}) {
+  const [setupFilters, setFilters] = useState(initial),
     [explore, setExplore] = useState(false),
     [detail, setDetail] = useState(false),
     [comparison, setComparison] = useState("setup_name");
   const [data, setData] = useState(null),
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
+  const filters = React.useMemo(
+    () => ({ ...setupFilters, scope }),
+    [setupFilters, scope],
+  );
   const change = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
   useEffect(() => {
     const controller = new AbortController();
@@ -95,33 +106,27 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
       : [filters.scope];
   return (
     <>
-      <Heading title="Results" />
+      <h2 className="section-heading">Results</h2>
       <div className="toolbar">
         <Segments
-          values={["Backtesting", "Forward testing", "All"]}
+          values={["All", "Backtesting", "Forward testing"]}
           value={filters.scope}
-          onChange={(v) => change("scope", v)}
+          onChange={setScope}
           label="Data source"
-        />
-        <Select
-          label="Strategy"
-          values={["All strategies", ...meta.strategies, "Unclassified"]}
-          value={filters.strategy}
-          onChange={(e) => change("strategy", e.target.value)}
         />
         <Button
           className={explore ? "active" : ""}
           onClick={() => setExplore(!explore)}
           aria-expanded={explore}
         >
-          <SlidersHorizontal size={16} /> Explore a setup
+          <SlidersHorizontal size={16} /> Explore a strategy
         </Button>
       </div>
       <div className={`results-grid ${explore ? "exploring" : ""}`}>
         {explore && (
           <aside className="explorer card">
             <div className="section-title">
-              <h2>Explore a setup</h2>
+              <h2>Explore a strategy</h2>
               <button
                 className="icon-button"
                 aria-label="Reset setup filters"
@@ -129,13 +134,18 @@ export default function Results({ meta, trades, revision, mode, onTrades }) {
                   setFilters({
                     ...initial,
                     scope: filters.scope,
-                    strategy: filters.strategy,
                   })
                 }
               >
                 <RotateCcw size={16} />
               </button>
             </div>
+            <Select
+              label="Strategy"
+              values={["All strategies", ...meta.strategies, "Unclassified"]}
+              value={filters.strategy}
+              onChange={(e) => change("strategy", e.target.value)}
+            />
             <div className="field">
               <span>Buy or sell?</span>
               <Segments
@@ -345,38 +355,13 @@ function ResultSample({
             <span className="separator">/</span>
           </>
         )}
-        {filters.strategy}{" "}
+        {filters.strategy} · {filters.window}{" "}
         {filters.confirmations.length > 0 && (
           <span>/ {filters.confirmations.join(" + ")}</span>
         )}
         <span className="update-state" role="status">
           {busy ? "Updating…" : "Up to date"}
         </span>
-      </div>
-      <div className={`stats card ${busy ? "updating" : ""}`}>
-        <Stat
-          label="Win rate"
-          value={s ? percent(s.win_rate) : "—"}
-          caption={
-            s?.small_sample
-              ? "Small sample · fewer than 30 trades"
-              : "Break-even trades excluded"
-          }
-        />
-        <Stat
-          label="Average R"
-          value={s ? rvalue(s.avg_r) : "—"}
-          caption={
-            s
-              ? `R recorded on ${data.r_count} of ${s.trades} trades`
-              : "Realised return on risk"
-          }
-        />
-        <Stat
-          label="Trade count"
-          value={s ? number(s.trades) : "—"}
-          caption="Matching closed trades"
-        />
       </div>
       <div className="card chart-card">
         <div className="section-title">
@@ -403,6 +388,31 @@ function ResultSample({
               : "Add or import trades to see your results."}
           </Empty>
         )}
+      </div>
+      <div className={`stats card ${busy ? "updating" : ""}`}>
+        <Stat
+          label="Win rate"
+          value={s ? percent(s.win_rate) : "—"}
+          caption={
+            s?.small_sample
+              ? "Small sample · fewer than 30 trades"
+              : "Break-even trades excluded"
+          }
+        />
+        <Stat
+          label="Average R"
+          value={s ? rvalue(s.avg_r) : "—"}
+          caption={
+            s
+              ? `R recorded on ${data.r_count} of ${s.trades} trades`
+              : "Realised return on risk"
+          }
+        />
+        <Stat
+          label="Trade count"
+          value={s ? number(s.trades) : "—"}
+          caption="Matching closed trades"
+        />
       </div>
       {detail && s && (
         <div className="card more-detail">

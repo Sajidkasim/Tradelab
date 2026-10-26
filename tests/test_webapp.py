@@ -190,3 +190,39 @@ def test_playbook_and_bulk_strategy_preserve_results_and_invalidate_reads(local)
     assert client.post('/api/trades/strategy', json={"ids": [row['id']], "strategy": "New strategy"}).status_code == 200
     saved = client.get('/api/trades').json()[0]
     assert saved['setup_name'] == 'New strategy' and saved['net_pnl'] == 100 and saved['notes'] == row['notes'] and saved['labels'] == row['labels']
+
+
+def test_delete_manual_and_imported_trades_refreshes_results_and_exports(local):
+    client, app = local
+    client.post('/api/trades', json=trade_payload('manual'))
+    preview = upload(client, fx_file()).json()
+    upload(client, fx_file(), 'confirm', preview['preview_token'])
+    before = client.get('/api/trades').json()
+    assert len(before) == 3
+    # Prime both result scopes and the trade cache before each deletion.
+    for source, scope in [('manual', 'Forward testing'), ('fxreplay', 'Backtesting')]:
+        previous = client.post('/api/results', json={'scope': scope}).json()['stats']['trades']
+        target = next(t for t in client.get('/api/trades').json() if t['source'] == source)
+        response = client.delete(f'/api/trades/{target["id"]}')
+        assert response.status_code == 200
+        assert response.json() == {'deleted': target['id']}
+        after = client.get('/api/trades').json()
+        assert target['id'] not in [t['id'] for t in after]
+        assert client.post('/api/results', json={'scope': scope}).json()['stats']['trades'] == previous - 1
+        assert database_trade_ids(client) == {t['id'] for t in after}
+        assert client.delete(f'/api/trades/{target["id"]}').status_code == 404
+    survivor = client.get('/api/trades').json()[0]
+    assert survivor == next(t for t in before if t['id'] == survivor['id'])
+
+
+def database_trade_ids(client):
+    return {t['id'] for t in client.get('/api/export/backup').json()['trades']}
+
+
+def test_delete_requires_csrf_and_same_origin(local):
+    client, app = local
+    client.post('/api/trades', json=trade_payload())
+    target = client.get('/api/trades').json()[0]['id']
+    for headers in [{'X-Primus-CSRF': ''}, {'Origin': 'https://untrusted.example'}]:
+        assert client.delete(f'/api/trades/{target}', headers=headers).status_code == 403
+        assert app.state.workspaces.root.get_trade(target) is not None

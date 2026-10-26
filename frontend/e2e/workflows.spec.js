@@ -24,7 +24,7 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
     window.primusTestMarker = "same-document";
     return window.primusTestMarker;
   });
-  await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Browser setup");
@@ -73,13 +73,13 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
   await expect(
     page.locator(".stat").filter({ hasText: "Win rate" }).first(),
   ).toContainText("100.0%");
-  await expect(page.locator(".js-plotly-plot")).toBeVisible();
-  await page.getByRole("button", { name: "Explore a setup" }).click();
+  await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
+  await page.getByRole("button", { name: "Explore a strategy" }).click();
   await expect(
-    page.getByRole("heading", { name: "Explore a setup" }),
+    page.getByRole("heading", { name: "Explore a strategy" }),
   ).toBeVisible();
   await page.locator(".explorer").getByLabel("SMT", { exact: true }).check();
-  await expect(page.locator(".js-plotly-plot")).toBeVisible();
+  await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await page
     .getByRole("group", { name: "Data source", exact: true })
     .getByRole("button", { name: "All", exact: true })
@@ -122,7 +122,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   page,
 }) => {
   await open(page);
-  await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page
     .getByRole("button", { name: "Import FX Replay", exact: true })
     .click();
@@ -199,7 +199,7 @@ test("backup download, playbook, themes and mobile layout", async ({
   page,
 }) => {
   await open(page);
-  await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page
     .getByRole("button", { name: "Manage trades", exact: true })
     .click();
@@ -229,12 +229,12 @@ test("backup download, playbook, themes and mobile layout", async ({
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.getByRole("link", { name: "Results", exact: true }).click();
-  await expect(page.locator(".js-plotly-plot")).toBeVisible();
+  await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await page.screenshot({
     path: "test-results/primuslab-results-light.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Explore a setup" }).click();
+  await page.getByRole("button", { name: "Explore a strategy" }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
@@ -292,7 +292,7 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await expect(page.locator(".sidebar")).toHaveCount(0);
   await expect(
     page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
@@ -304,11 +304,11 @@ test("compact navigation and workspace tools remain accessible on mobile", async
     page.getByRole("button", { name: "Backup & restore" }),
   ).not.toBeVisible();
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await page.getByRole("heading", { name: "Results", exact: true }).click();
+  await page.locator(".chart").first().click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).not.toBeVisible();
-  await page.getByRole("link", { name: "Trades", exact: true }).click();
+  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Add trade", exact: true }),
   ).toBeVisible();
@@ -325,12 +325,12 @@ test("compact navigation and workspace tools remain accessible on mobile", async
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     )
     .toBe(true);
-  await page.getByRole("link", { name: "Results", exact: true }).click();
+  await page.getByRole("link", { name: "Journal", exact: true }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
   );
-  await expect(page.locator(".js-plotly-plot")).toBeVisible();
+  await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await page.screenshot({
     path: "test-results/primuslab-simple-mobile.png",
     fullPage: true,
@@ -340,4 +340,119 @@ test("compact navigation and workspace tools remain accessible on mobile", async
     path: "test-results/primuslab-simple-results.png",
     fullPage: true,
   });
+});
+
+test("one journal keeps exploration beside results and trades below, with All first", async ({
+  page,
+}) => {
+  await open(page);
+  await expect(
+    page.getByRole("heading", { name: "Trades", exact: true }),
+  ).toBeVisible();
+  const sources = page.getByRole("group", { name: "Data source", exact: true });
+  await expect(sources.getByRole("button").first()).toHaveText("All");
+  await expect(sources.getByRole("button").first()).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(
+    page.getByRole("combobox", { name: "Strategy", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Explore a strategy", exact: true })
+    .click();
+  await page
+    .locator(".explorer")
+    .getByLabel("Strategy", { exact: true })
+    .selectOption("Browser setup");
+  await expect(page.locator(".js-plotly-plot")).toHaveCount(2);
+  await expect(page.locator(".results-content")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await sources
+    .getByRole("button", { name: "Forward testing", exact: true })
+    .click();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(1);
+  await sources.getByRole("button", { name: "All", exact: true }).click();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(4);
+  await page
+    .locator(".explorer")
+    .getByRole("button", { name: "Reset setup filters" })
+    .click();
+  await expect(
+    page.locator(".explorer").getByLabel("Strategy", { exact: true }),
+  ).toHaveValue("All strategies");
+  await expect(page.locator(".results-content")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await page.screenshot({
+    path: "test-results/primuslab-one-page.png",
+    fullPage: true,
+  });
+  await page.goto("/trades");
+  await expect(
+    page.getByRole("heading", { name: "Results", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Trades", exact: true }),
+  ).toBeVisible();
+});
+
+test("delete manual and imported trades with cancellation, errors and refreshed results", async ({
+  page,
+}) => {
+  await open(page);
+  const row = page
+    .locator(".trade-table tbody tr")
+    .filter({ hasText: "FX Replay" })
+    .first();
+  const button = row.getByRole("button", { name: /Delete trade/ });
+  await button.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("This cannot be undone");
+  await dialog.getByRole("button", { name: "Keep trade" }).click();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(4);
+  await button.click();
+  await page.route("**/api/trades/*", async (route) => {
+    if (route.request().method() === "DELETE")
+      await route.fulfill({
+        status: 503,
+        json: { detail: "Please retry deletion." },
+      });
+    else await route.continue();
+  });
+  await dialog
+    .getByRole("button", { name: "Delete trade", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Please retry deletion",
+  );
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(4);
+  await page.unroute("**/api/trades/*");
+  await dialog
+    .getByRole("button", { name: "Delete trade", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(3);
+  const manual = page
+    .locator(".trade-table tbody tr")
+    .filter({ hasText: "Forward" });
+  await manual.getByRole("button", { name: /Delete trade/ }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete trade", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
+  const forward = page.getByRole("region", {
+    name: "Forward testing results",
+    exact: true,
+  });
+  await expect(
+    forward.locator(".stat").filter({ hasText: "Trade count" }),
+  ).toContainText("0");
+  await page.reload();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
 });

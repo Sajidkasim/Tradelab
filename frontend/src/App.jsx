@@ -10,23 +10,23 @@ import Tools from "./Tools";
 import Backup from "./Backup";
 import icon from "../../assets/primuslab-icon.svg";
 
-const pages = [
-  { id: "results", name: "Results" },
-  { id: "trades", name: "Trades" },
-];
+const journalPages = ["results", "", "overview", "trades", "journal"];
+const pageFromLocation = () =>
+  location.pathname.split("/")[1] ||
+  (location.hash === "#trades" ? "trades" : "results");
+
 export default function App() {
   const [session, setSession] = useState(null),
     [meta, setMeta] = useState(null),
     [trades, setTrades] = useState([]),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
-  const [page, setPage] = useState(
-      location.pathname.split("/")[1] || "results",
-    ),
+  const [page, setPage] = useState(pageFromLocation),
     [mode, setMode] = useState(
       () => localStorage.getItem("primus-theme") || "light",
     );
-  const [backup, setBackup] = useState(false),
+  const [scope, setScope] = useState("All"),
+    [backup, setBackup] = useState(false),
     [message, setMessage] = useState("");
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
@@ -76,14 +76,27 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [message]);
   useEffect(() => {
-    const pop = () => setPage(location.pathname.split("/")[1] || "results");
+    const pop = () => setPage(pageFromLocation());
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
   }, []);
+  const journalReady = Boolean(meta);
+  useEffect(() => {
+    if (page === "trades") document.getElementById("trades")?.scrollIntoView();
+  }, [page, journalReady]);
   function navigate(next) {
     setPage(next);
-    history.pushState({}, "", next === "results" ? "/" : `/${next}`);
-    window.scrollTo({ top: 0 });
+    const section = next === "trades" ? "trades" : "results";
+    history.pushState(
+      {},
+      "",
+      journalPages.includes(next) ? `/#${section}` : `/${next}`,
+    );
+    requestAnimationFrame(() => {
+      if (journalPages.includes(next))
+        document.getElementById(section)?.scrollIntoView();
+      else window.scrollTo({ top: 0 });
+    });
   }
   async function logout() {
     try {
@@ -128,23 +141,16 @@ export default function App() {
           <span>PrimusLab</span>
         </a>
         <nav className="main-nav" aria-label="Main navigation">
-          {pages.map((item) => (
-            <a
-              key={item.id}
-              href={item.id === "results" ? "/" : `/${item.id}`}
-              aria-current={
-                page === item.id || (page === "import" && item.id === "trades")
-                  ? "page"
-                  : undefined
-              }
-              onClick={(event) => {
-                event.preventDefault();
-                navigate(item.id);
-              }}
-            >
-              {item.name}
-            </a>
-          ))}
+          <a
+            href="/"
+            aria-current={journalPages.includes(page) ? "page" : undefined}
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("results");
+            }}
+          >
+            Journal
+          </a>
         </nav>
         <Menu label="My journal" className="workspace-menu">
           <div className="menu-account">
@@ -175,23 +181,51 @@ export default function App() {
       <div className="main-shell">
         <main className="content">
           {error && <Notice error>{error}</Notice>}
-          <div hidden={!["results", "", "overview"].includes(page)}>
-            <Results
-              meta={meta}
-              trades={trades}
-              revision={revision}
-              mode={mode}
-              onTrades={() => navigate("trades")}
-            />
-          </div>
-          <div hidden={page !== "trades"}>
-            <Trades
-              meta={meta}
-              trades={trades}
-              refresh={refresh}
-              onImport={() => navigate("import")}
-              toast={toast}
-            />
+          <div hidden={!journalPages.includes(page)} className="journal-page">
+            <div className="journal-intro">
+              <h1>Trading journal</h1>
+              <nav aria-label="Journal sections">
+                <a
+                  href="#results"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate("results");
+                  }}
+                >
+                  Results
+                </a>
+                <a
+                  href="#trades"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate("trades");
+                  }}
+                >
+                  Trades ↓
+                </a>
+              </nav>
+            </div>
+            <section id="results" aria-label="Results">
+              <Results
+                meta={meta}
+                trades={trades}
+                revision={revision}
+                mode={mode}
+                scope={scope}
+                setScope={setScope}
+                onTrades={() => navigate("trades")}
+              />
+            </section>
+            <section id="trades" aria-label="Trades">
+              <Trades
+                meta={meta}
+                trades={trades}
+                refresh={refresh}
+                scope={scope}
+                onImport={() => navigate("import")}
+                toast={toast}
+              />
+            </section>
           </div>
           {page === "import" && (
             <Import
@@ -204,9 +238,7 @@ export default function App() {
           {page === "tools" && (
             <Tools meta={meta} onResults={() => navigate("results")} />
           )}
-          {!["results", "", "overview", "trades", "import", "tools"].includes(
-            page,
-          ) && (
+          {![...journalPages, "import", "tools"].includes(page) && (
             <div className="card empty">
               <h1>Page not found</h1>
               <Button onClick={() => navigate("results")}>Open Results</Button>

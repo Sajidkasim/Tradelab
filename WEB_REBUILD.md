@@ -27,11 +27,17 @@ without a password. Hosted deployments always require a password and HTTPS.
 and chart values come from core.metrics/core.charts; position sizes from core.risk.
 Workspaces.bump('owner') invalidates reads after writes.
 
-Results and Trades are the primary navigation. All requests two independent
-result samples; neither the frontend nor API merges live and backtesting stats.
+Results and Trades share one Journal page. All is the default and the first
+data-source option; it requests two independent result samples; neither the frontend nor API merges live and backtesting stats.
+Explore a strategy opens beside the graphs; the standalone strategy dropdown
+is now inside this panel. Summary numbers follow each graph, and Trades sits
+below Results with the same data-source selection. Exploration filters affect
+Results; search and Needs tagging filter the trade list. A bin button on each
+trade asks for confirmation before deletion and refreshes both sections.
+
 Editable strategies/PDA labels, confirmations, timeframes, news, quick entries,
 price-based entries, FX Replay/file imports, mapping, duplicate checks, notes,
-bulk strategy tags, JSON backups and empty-journal restore remain available.
+bulk strategy tags, confirmed individual trade deletion, JSON backups and empty-journal restore remain available.
 
 There are no Google login or team/sharing endpoints in this API. The owner uses
 the original root trading tables. The legacy team data is preserved but cannot

@@ -20,7 +20,7 @@ test("one password unlocks the personal journal and Lock journal revokes access"
   ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Results", exact: true }),

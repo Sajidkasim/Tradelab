@@ -657,6 +657,7 @@ progress {
   color: var(--tl-muted);
 }
 .table-wrap {
+  position: relative;
   overflow-x: auto;
   width: 100%;
 }
@@ -1513,4 +1514,76 @@ td strong {
 .tool-card > p {
   font-size: 12px;
   margin: 10px 0 22px;
+}
+
+/* One journal: research above, entries below; section links never replace it. */
+.journal-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 30px;
+}
+.journal-intro h1 {
+  font-size: 30px;
+}
+.journal-intro nav {
+  display: flex;
+  gap: 20px;
+  color: var(--tl-muted);
+  font-size: 12px;
+}
+.journal-intro a:hover {
+  color: var(--tl-accent);
+}
+.journal-page > section {
+  scroll-margin-top: 95px;
+}
+.section-heading {
+  margin-bottom: 18px;
+  font-size: 18px;
+}
+#trades {
+  margin-top: 40px;
+  padding-top: 30px;
+  border-top: 1px solid var(--tl-border);
+}
+#trades .page-heading h2 {
+  font-size: 22px;
+}
+.result-sample > .stats {
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+.delete-trade:hover {
+  color: var(--tl-negative);
+}
+.button.danger {
+  background: var(--tl-negative);
+  color: var(--tl-surface);
+  border-color: var(--tl-negative);
+}
+@media (max-width: 700px) {
+  .journal-intro {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .journal-page > section {
+    scroll-margin-top: 132px;
+  }
+  #trades {
+    margin-top: 28px;
+    padding-top: 24px;
+  }
+}
+@media (max-width: 700px) {
+  .trade-table th:last-child, .trade-table td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--tl-surface);
+    padding: 8px;
+    box-shadow: -1px 0 var(--tl-border);
+  }
+  .trade-table td:last-child .icon-button { width: 40px; height: 44px; }
 }

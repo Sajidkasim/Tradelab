@@ -215,6 +215,16 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump(member["key"])
             return serialise_trade(database.get_trade(trade_id))
 
+    @app.delete("/api/trades/{trade_id}")
+    def delete_trade(trade_id: int, request: Request, member=Depends(workspace)):
+        database = db(request, member)
+        with app.state.workspaces.lock:
+            if database.get_trade(trade_id) is None:
+                raise HTTPException(404, "This trade is no longer available.")
+            database.delete_trade(trade_id)
+            app.state.workspaces.bump(member["key"])
+        return {"deleted": trade_id}
+
     @app.post("/api/trades/strategy")
     def bulk_strategy(payload: BulkStrategy, request: Request, member=Depends(workspace)):
         with app.state.workspaces.lock:

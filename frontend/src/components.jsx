@@ -120,12 +120,13 @@ export function Empty({ title, children, action }) {
     </div>
   );
 }
-export function Heading({ eyebrow, title, children, action }) {
+export function Heading({ eyebrow, title, children, action, level = 1 }) {
+  const Title = level === 2 ? "h2" : "h1";
   return (
     <header className="page-heading">
       <div>
         {eyebrow && <span className="eyebrow">{eyebrow}</span>}
-        <h1>{title}</h1>
+        <Title>{title}</Title>
         {children && <p>{children}</p>}
       </div>
       {action}
@@ -261,7 +262,8 @@ export function Chart({ figure, height = 380 }) {
               {
                 ...figure.layout,
                 ...dateAxes,
-                autosize: true,
+                autosize: false,
+                width: Math.max(1, ref.current.clientWidth),
                 height,
                 margin: { l: 55, r: 20, t: 28, b: 40 },
               },
@@ -274,7 +276,9 @@ export function Chart({ figure, height = 380 }) {
       .catch(() => setError("Chart could not be loaded. Refresh to retry."));
     const observer = new ResizeObserver(() => {
       if (plotly && alive && ref.current?.data)
-        plotly.Plots.resize(ref.current);
+        plotly.relayout(ref.current, {
+          width: Math.max(1, ref.current.clientWidth),
+        });
     });
     if (ref.current) observer.observe(ref.current);
     return () => {
