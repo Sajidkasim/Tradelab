@@ -57,10 +57,19 @@ including UTC, fixed UTC−4, New York or London. Remember my import settings st
 account, source, clock, day-first dates and label-update preference after a
 confirmed import; it does not store credentials.
 
-Recognise strategy tags offers suggestions that only take effect after saving.
-It is available before upload and includes the owner's confirmed FX Replay
-groups; see [FX_REPLAY_TAGS.md](FX_REPLAY_TAGS.md). Saved custom mappings take
-priority. Ambiguous bare 15M is left unassigned; Level TF: 15M and Entry TF: 15M
+Import settings opens File preferences and Tag meanings. File preferences save
+without an upload and contain optional column matching and existing-trade label
+updates. The normal import page stays focused on upload and preview. Only tags
+absent from the saved guide appear in the new-tag review prompt.
+
+Tag meanings is a searchable, compact guide with one editor at a time. Add a tag
+supports future models and categories; Another CSV name preserves the original
+name as an alias. Keep original tag only is remembered without classifying it.
+New mapped strategy, confirmation and timeframe names populate the available
+lists. Suggestions take effect only after saving a meaning, which refreshes an
+open preview automatically. Existing trades are not rewritten by preferences.
+See [FX_REPLAY_TAGS.md](FX_REPLAY_TAGS.md). Ambiguous bare 15M is left unassigned;
+Level TF: 15M and Entry TF: 15M
 keep the two roles separate. FVG explicitly mapped as a key level is preserved
 in an audit tag without being counted as an entry confirmation.
 One export label can map to multiple fields. The owner's CONTINUATION, HTF LEVEL

@@ -2169,3 +2169,33 @@ td strong {
 .tag-map-group .tag-map { grid-template-columns: 1fr 1fr auto; align-items: end; }
 .tag-map-group > .button { width: fit-content; }
 .preview-card .stats { grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); }
+
+/* Import: routine upload first, editable preferences and tag guide on demand. */
+.import-settings { display: flex; flex-direction: column; gap: 24px; padding-top: 20px; }
+.import-settings h3 { font-size: 16px; margin-bottom: 7px; }
+.import-settings p, .import-settings small { line-height: 1.6; }
+.import-settings p { font-size: 12px; color: var(--tl-muted); }
+.import-settings > .segments { width: 100%; }
+.import-settings > .segments > button { flex: 1; }
+.import-update-option { display: flex; flex-direction: column; gap: 9px; border-top: 1px solid var(--tl-border); padding-top: 18px; }
+.import-update-option small { color: var(--tl-muted); padding-left: 22px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 12px; }
+.tag-guide-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.tag-guide-heading > .button { flex-shrink: 0; }
+.tag-guide-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-guide-tabs .selected { background: var(--lab-tint); border-color: var(--tl-accent); }
+.tag-meaning-list { display: flex; flex-direction: column; gap: 0; }
+.tag-meaning-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--tl-border); }
+.tag-meaning-row > div { flex: 1; min-width: 170px; display: flex; flex-direction: column; gap: 5px; overflow-wrap: anywhere; }
+.tag-meaning-row strong { font-size: 12px; }
+.tag-meaning-row small { font-size: 11px; color: var(--tl-muted); }
+.tag-meaning-row .button { padding: 8px 10px; font-size: 11px; }
+.tag-meaning-row .tag-alias-button { border: 0; color: var(--tl-muted); }
+.tag-meaning-editor .back-button { margin-bottom: 0; }
+.tag-meaning-rule { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--tl-border); border-radius: 12px; }
+.settings-empty { padding: 20px 0; }
+.settings-footnote { padding-top: 14px; border-top: 1px solid var(--tl-border); }
+.import-attention { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding: 22px 26px; margin-top: 20px; max-width: 830px; }
+.import-attention h3 { font-size: 14px; margin-bottom: 7px; }
+.import-attention p { font-size: 12px; color: var(--tl-muted); line-height: 1.6; }
+@media (max-width: 600px) { .tag-guide-heading { flex-wrap: wrap; } .tag-meaning-row > div { flex-basis: calc(100% - 80px); } .tag-meaning-row .tag-alias-button { margin-left: auto; } .tag-meaning-rule { padding: 14px; } }

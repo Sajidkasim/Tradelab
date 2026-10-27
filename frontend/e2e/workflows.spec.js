@@ -14,6 +14,25 @@ async function open(page) {
   ).toBeVisible();
 }
 
+async function importSettings(page, section = "File preferences") {
+  await page
+    .getByRole("button", { name: "Import settings", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Import settings",
+    exact: true,
+  });
+  await dialog.getByRole("button", { name: section, exact: true }).click();
+  return dialog;
+}
+async function saveSuggestedTag(page, tag) {
+  await page
+    .getByRole("button", { name: `Review ${tag}`, exact: true })
+    .click();
+  await page.getByRole("button", { name: "Save meaning", exact: true }).click();
+  await expect(page.locator(".tag-meaning-editor")).toHaveCount(0);
+}
+
 test("manual entry, setup exploration and combined or separate source results", async ({
   page,
 }) => {
@@ -321,15 +340,16 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   ).toBeVisible();
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByLabel("These trades are…")).not.toBeVisible();
-  await page
-    .getByText("File options & column mapping", { exact: true })
-    .click();
+  const importDialog = await importSettings(page);
   await expect(page.getByLabel("These trades are…")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     )
     .toBe(true);
+  await importDialog
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
   await page.getByRole("link", { name: "Strategy Lab", exact: true }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
@@ -482,24 +502,15 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await choose(tagged);
-  await page.getByText("Recognise strategy tags", { exact: true }).click();
-  await expect(
-    page
-      .locator(".tag-map-group")
-      .filter({ hasText: "HTF LEVEL 1HR FVG" })
-      .getByRole("combobox"),
-  ).toHaveCount(2);
-  await expect(
-    page
-      .locator(".tag-map-group")
-      .filter({ hasText: "CISD FVG" })
-      .getByRole("combobox"),
-  ).toHaveCount(2);
   await page
-    .getByRole("button", { name: "Save mappings & preview again" })
+    .getByRole("button", { name: "Review new tags", exact: true })
     .click();
+  for (const tag of ["CONTINUATION", "HTF LEVEL 1HR FVG", "CISD FVG \\"]) {
+    await saveSuggestedTag(page, tag);
+  }
   await page
-    .getByRole("button", { name: "Preview trades", exact: true })
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close", exact: true })
     .click();
   await expect(page.locator(".preview-card tbody")).toContainText(
     "Continuation",
@@ -518,9 +529,13 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
   await page
     .getByRole("button", { name: "Import another file", exact: true })
     .click();
-  await page
+  const updateDialog = await importSettings(page);
+  await updateDialog
     .getByLabel("Update labels on existing trades", { exact: true })
     .check();
+  await updateDialog
+    .getByRole("button", { name: "Save preferences", exact: true })
+    .click();
   await choose(
     tagged
       .replace(",125,sell", ",9999,sell")
@@ -683,32 +698,37 @@ test("FX Replay tag guide saves before upload and separates levels from confirma
 }) => {
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page.getByText("Recognise strategy tags", { exact: true }).click();
-  await expect(
-    page.getByLabel("Field 1 for DISPLACEMENT AT KEY LEVEL", { exact: true }),
-  ).toHaveValue("strategy");
-  await expect(
-    page.getByLabel("Value 1 for REVERSAL AT KEY LEVEL", { exact: true }),
-  ).toHaveValue("Reversal at key level");
-  await expect(page.getByLabel("Field 1 for FVG", { exact: true })).toHaveValue(
-    "level",
-  );
-  await page
-    .getByRole("button", { name: "Save tag meanings", exact: true })
-    .click();
-  await expect(
-    page.getByText("Tag meanings saved for future imports.", { exact: true }),
-  ).toBeVisible();
+  const tagDialog = await importSettings(page, "Tag meanings");
+  await tagDialog.getByText(/^Suggested meanings/).click();
+  for (const tag of [
+    "DISPLACEMENT AT KEY LEVEL",
+    "REVERSAL AT KEY LEVEL",
+    "FVG",
+    "1HR",
+    "1M",
+    "CISD",
+    "SMT",
+  ]) {
+    await saveSuggestedTag(page, tag);
+  }
+  await tagDialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Import trades", exact: true }),
   ).toBeVisible();
-  await page.getByText("Recognise strategy tags", { exact: true }).click();
+  const reopened = await importSettings(page, "Tag meanings");
   await expect(
-    page
-      .locator(".tag-map-group")
-      .filter({ hasText: "DISPLACEMENT AT KEY LEVEL" }),
-  ).toContainText("Remembered");
+    reopened.getByRole("button", {
+      name: "Edit DISPLACEMENT AT KEY LEVEL",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    reopened
+      .locator(".tag-meaning-row")
+      .filter({ hasText: "REVERSAL AT KEY LEVEL" }),
+  ).toContainText("Strategy: Reversal at key level");
+  await reopened.getByRole("button", { name: "Close", exact: true }).click();
   const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags
 new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,closed,"DISPLACEMENT AT KEY LEVEL,FVG,1HR,1M,CISD,SMT,15M"
 `;
@@ -739,4 +759,174 @@ new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,c
   await expect(
     page.getByText("new-guide-preview", { exact: true }),
   ).toHaveCount(0);
+});
+
+test("new strategies, renamed CSV tags and keep-only choices work on later imports", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  let dialog = await importSettings(page, "Tag meanings");
+  await dialog.getByRole("button", { name: "Add a tag", exact: true }).click();
+  await dialog
+    .getByLabel("Tag in your CSV", { exact: true })
+    .fill("BREAKOUT MODEL");
+  await dialog
+    .getByLabel("Name in PrimusLab", { exact: true })
+    .fill("Breakout and retest");
+  await dialog
+    .getByRole("button", { name: "Save meaning", exact: true })
+    .click();
+  await expect(
+    dialog.locator(".tag-meaning-row").filter({ hasText: "BREAKOUT MODEL" }),
+  ).toContainText("Strategy: Breakout and retest");
+  await dialog
+    .getByRole("button", {
+      name: "Add another CSV name for BREAKOUT MODEL",
+      exact: true,
+    })
+    .click();
+  await dialog
+    .getByLabel("Tag in your CSV", { exact: true })
+    .fill("BREAKOUT MODEL V2");
+  await dialog
+    .getByRole("button", { name: "Save meaning", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: "Edit BREAKOUT MODEL", exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Edit BREAKOUT MODEL V2", exact: true }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nfuture-tag-guide,2026-07-03 13:31:00,2026-07-03 13:45:00,CME_MINI:NQ1,125,buy,closed,"BREAKOUT MODEL V2,JOURNAL A"\n`;
+  async function previewFile() {
+    await page
+      .getByLabel("Choose a trade export")
+      .setInputFiles({
+        name: "future.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(content),
+      });
+    await page
+      .getByRole("button", { name: "Preview trades", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Check the preview", exact: true }),
+    ).toBeVisible();
+  }
+  await previewFile();
+  await expect(
+    page.getByRole("heading", { name: "1 new tag to review", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Review new tags", exact: true })
+    .click();
+  dialog = page.getByRole("dialog", { name: "Import settings", exact: true });
+  await dialog
+    .getByRole("button", { name: "Review JOURNAL A", exact: true })
+    .click();
+  await dialog.getByLabel("Keep original tag only", { exact: true }).check();
+  await dialog
+    .getByRole("button", { name: "Save meaning", exact: true })
+    .click();
+  await expect(dialog.locator(".tag-meaning-editor")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Review new tags", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".preview-card tbody")).toContainText(
+    "Breakout and retest",
+  );
+  await page
+    .getByRole("button", { name: "Import 1 trades", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "1 trades added", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await previewFile();
+  await expect(
+    page.getByRole("button", { name: "Review new tags", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .locator(".preview-card .stat")
+      .filter({ hasText: "Duplicates skipped" }),
+  ).toContainText("1");
+  await expect(page.locator(".preview-card tbody")).toContainText(
+    "Breakout and retest",
+  );
+});
+
+test("import preferences save before upload and settings fit mobile in both themes", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(page.getByLabel("These trades are…")).toHaveCount(0);
+  await expect(page.getByText("Your tag guide", { exact: true })).toHaveCount(
+    0,
+  );
+  let dialog = await importSettings(page);
+  await dialog
+    .getByLabel("Export time zone", { exact: true })
+    .selectOption("Etc/GMT+4");
+  await dialog
+    .getByLabel("Day-first dates (31/12/2026)", { exact: true })
+    .check();
+  await dialog
+    .getByLabel("Update labels on existing trades", { exact: true })
+    .uncheck();
+  await dialog
+    .getByRole("button", { name: "Save preferences", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  dialog = await importSettings(page);
+  await expect(
+    dialog.getByLabel("Export time zone", { exact: true }),
+  ).toHaveValue("Etc/GMT+4");
+  await expect(
+    dialog.getByLabel("Day-first dates (31/12/2026)", { exact: true }),
+  ).toBeChecked();
+  await expect(
+    dialog.getByLabel("Update labels on existing trades", { exact: true }),
+  ).not.toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await dialog
+    .getByRole("button", { name: "Tag meanings", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("heading", { name: "Your tag guide", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/primuslab-import-settings-mobile.png",
+  });
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "Dark mode", exact: true }).click();
+  dialog = await importSettings(page, "Tag meanings");
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "test-results/primuslab-import-settings-dark-mobile.png",
+  });
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "Light mode", exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: "test-results/primuslab-simple-import.png" });
 });

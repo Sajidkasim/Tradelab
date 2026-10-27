@@ -219,3 +219,13 @@ def test_release_writes_stay_private(personal):
     assert client.request('DELETE','/api/trades',json={'confirmation_count':1,'preview_token':'x'}).status_code==401
     from webapp.lab_settings import DEFAULTS
     assert client.put('/api/lab-settings',json=DEFAULTS).status_code==401
+
+
+def test_import_preferences_and_meanings_require_the_unlocked_owner(personal):
+    client, _, _ = personal
+    prefs = {'account_id': 1, 'source': 'fxreplay', 'timezone': 'UTC'}
+    assert client.put('/api/import-preferences', json=prefs).status_code == 401
+    assert client.put('/api/tag-mappings', json={'SMT': {'ignore': True}}).status_code == 401
+    assert unlock(client).status_code == 200
+    assert client.put('/api/import-preferences', json=prefs).status_code == 200
+    assert client.put('/api/tag-mappings', json={'SMT': {'ignore': True}}).status_code == 200

@@ -188,6 +188,7 @@ export function Disclosure({ title, children, open = false }) {
 }
 export function Modal({ title, children, onClose }) {
   const ref = useRef();
+  const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     dialog.showModal();
@@ -197,6 +198,7 @@ export function Modal({ title, children, onClose }) {
     <dialog
       ref={ref}
       className="modal"
+      aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
         onClose();
@@ -206,7 +208,7 @@ export function Modal({ title, children, onClose }) {
       }}
     >
       <div className="modal-header">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button aria-label="Close" className="icon-button" onClick={onClose}>
           <X size={20} />
         </button>

@@ -104,3 +104,16 @@ def test_fvg_level_does_not_become_a_false_entry_confirmation():
     # No approved mapping means legacy confirmation behaviour stays unchanged.
     before, _ = trade_labels.mapped_fields(raw, {})
     assert edge.read_labels(before['tags'])['confirmations'] == ['CISD', 'FVG', 'SMT']
+
+
+def test_explicit_keep_only_tags_preserve_originals_without_false_confirmations():
+    mappings = {'CISD': {'ignore': True}, 'Private note': {'ignore': True}}
+    assert trade_labels.validate_mappings(mappings) == mappings
+    fields, issues = trade_labels.mapped_fields(['CISD', 'Private note', 'SMT'], mappings)
+    assert not issues
+    assert edge.read_labels(fields['tags'])['confirmations'] == ['SMT']
+    assert 'fx-original:CISD' in fields['tags'] and 'Private note' in fields['tags']
+    assert trade_labels.mapped_values(mappings, 'confirmation') == []
+    for invalid in ({'': {'ignore': True}}, {'TAG': {'ignore': False}}, {'TAG': {'ignore': True, 'field': 'strategy', 'value': 'Bad'}}):
+        with pytest.raises(ValueError):
+            trade_labels.validate_mappings(invalid)

@@ -21,7 +21,7 @@ from core import edge
 from core.models import Source
 from services import trade_labels
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -282,6 +282,17 @@ def create_app(config: Settings | None = None):
         await run_in_threadpool(db(request, member).set_setting, trade_labels.MAPPING_KEY, payload)
         app.state.workspaces.bump(member["key"])
         return {"ok": True}
+
+    @app.put('/api/import-preferences')
+    def save_import_preferences(payload: ImportPreferences, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            if payload.account_id not in {account.id for account in database.accounts()}:
+                raise ValueError('Choose an account in your journal.')
+            values = payload.model_dump()
+            database.set_setting(import_updates.PROFILE_KEY, values)
+            app.state.workspaces.bump(member['key'])
+        return values
 
     @app.post("/api/import/{action}")
     async def import_file(action: str, request: Request, file: UploadFile = File(...), account_id: int = Form(...),

@@ -95,15 +95,17 @@ class Workspaces:
         frame = self.trades(key)
         book = edge.playbook(db.get_setting(edge.PLAYBOOK_KEY))
         lab = lab_settings.read(db)
+        mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
         used = sorted(set(frame["setup_name"].dropna()) - {""}) if not frame.empty else []
         return clean({"accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
-                      "playbook": book, "strategies": list(dict.fromkeys(book["strategies"] + [s.name for s in db.setups()] + used)),
-                      "timeframes": edge.TIMEFRAMES, "confirmations": edge.CONFIRMATIONS,
+                      "playbook": book, "strategies": list(dict.fromkeys(book["strategies"] + [s.name for s in db.setups()] + used + trade_labels.mapped_values(mappings, 'strategy'))),
+                      "timeframes": list(dict.fromkeys(edge.TIMEFRAMES + trade_labels.mapped_values(mappings, 'timeframe') + trade_labels.mapped_values(mappings, 'entry_timeframe'))),
+                      "confirmations": list(dict.fromkeys(edge.CONFIRMATIONS + trade_labels.mapped_values(mappings, 'confirmation'))),
                       "news": lab["news"], "conditions": lab["conditions"],
                       "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
-                      "tag_mappings": db.get_setting(trade_labels.MAPPING_KEY, {}),
+                      "tag_mappings": mappings,
                       "tag_suggestions": trade_labels.fx_tag_guide()})
 
     def results(self, key, filters):

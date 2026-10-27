@@ -36,6 +36,13 @@ Keep original source labels and use core.metrics/core.charts on the selected raw
 trades; never average per-source statistics in React. The owner has now authorised full tests and publishing the completed design.
 See WEB_REBUILD.md for the implemented import, session and deletion safeguards.
 
+The React importer keeps configuration in Import settings (File preferences /
+Tag meanings). New strategies and renamed tags are user-editable guide entries,
+not a fixed pair of models. Aliases preserve earlier names. Explicit keep-only
+entries retain tags without classification. Preferences affect future imports;
+existing labels only change through the explicit previewed re-import option.
+All financial fields and core signatures remain untouched by these settings.
+
 ## The one-page architecture
 
 ```

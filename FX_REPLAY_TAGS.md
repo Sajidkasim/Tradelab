@@ -1,10 +1,32 @@
 # Sajid's FX Replay tag guide
 
 Confirmed from the owner's tag-group screenshot and full strategy names on
-27 October 2026. Import → Recognise strategy tags offers this guide before a
-file is uploaded. Save tag meanings remembers it in the private workspace;
-saved custom meanings override suggestions. Saving the guide does not import
-trades or relabel existing records.
+27 October 2026. Import → Import settings → Tag meanings holds the editable
+guide. Suggested meanings are reviewed one tag at a time before saving; existing
+saved meanings are retained. Saving a meaning does not import trades or relabel
+existing records. The normal upload page shows only tags not yet in the guide.
+
+## Adding strategies and changing tag names
+
+Choose Add a tag, copy the exact CSV tag, choose its category, and give it a
+clear name in PrimusLab. Strategy, level, confirmation, level timeframe, entry
+timeframe, news and market-condition meanings are supported. New strategy,
+confirmation and timeframe values become available in the editor/filter lists
+without a code change. A combined tag can still have several explicit meanings.
+
+Another CSV name adds an alias without removing the old name. Point both names
+to the same PrimusLab name to keep future results grouped consistently. Edit
+changes a future import meaning; Forget this meaning removes that preference
+without rewriting trades. Keep original tag only is a remembered choice that
+retains the raw tag without classifying it, including legacy confirmation names.
+
+Saved and New in this file lists are searchable. Saving a meaning automatically
+refreshes an open CSV preview; changes still require Confirm import to save any
+trades. File preferences (account, source, export clock, date format and the
+optional label-update mode) save without needing an uploaded file. Column
+matching stays under File preferences → Match columns manually.
+
+## Confirmed starting guide
 
 | FX Replay tag | PrimusLab field | Meaning |
 | --- | --- | --- |

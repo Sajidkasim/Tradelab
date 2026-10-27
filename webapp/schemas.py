@@ -103,3 +103,11 @@ class LabSettings(StrictModel):
 class DeleteAllTrades(StrictModel):
     confirmation_count: int = Field(gt=0, strict=True)
     preview_token: str = Field(min_length=1, max_length=2048)
+
+
+class ImportPreferences(StrictModel):
+    account_id: int
+    source: Literal['fxreplay', 'backtest', 'csv', 'excel']
+    timezone: Literal['UTC', 'Etc/GMT+4', 'America/New_York', 'Europe/London']
+    dayfirst: bool = False
+    update_labels: bool = False

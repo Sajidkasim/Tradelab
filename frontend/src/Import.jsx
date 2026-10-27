@@ -5,90 +5,49 @@ import {
   ArrowRight,
   FileCheck,
   Check,
+  Settings2,
 } from "lucide-react";
 import { api } from "./api";
-import {
-  Button,
-  Heading,
-  Field,
-  Select,
-  Notice,
-  Stat,
-  Modal,
-} from "./components";
+import { Button, Heading, Notice, Stat, Modal } from "./components";
 import { money, rvalue, tradeDate } from "./format";
+import ImportSettings from "./ImportSettings";
+import { sourceOptions } from "./importOptions";
+import { pendingTags } from "./importTags";
 
-const targets = [
-  "symbol",
-  "direction",
-  "qty",
-  "entry_time",
-  "exit_time",
-  "entry_price",
-  "exit_price",
-  "stop_price",
-  "target_price",
-  "fees",
-  "pnl",
-  "risk_amount",
-  "r_multiple",
-  "setup_name",
-  "tags",
-  "notes",
-  "external_id",
-  "price",
-  "timestamp",
-];
-const sourceOptions = [
-  { value: "fxreplay", label: "FX Replay · Backtesting" },
-  { value: "backtest", label: "Other backtesting" },
-  { value: "csv", label: "Live trading · CSV" },
-  { value: "excel", label: "Live trading · Excel" },
-];
 export default function Import({ meta, refresh, onBack, toast }) {
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
     [detected, setDetected] = useState(null),
     [done, setDone] = useState(null);
-  const [account, setAccount] = useState(
-      meta.accounts.some((a) => a.id === meta.import_profile?.account_id)
-        ? meta.import_profile.account_id
-        : meta.accounts[0]?.id,
-    ),
-    [source, setSource] = useState(meta.import_profile?.source || "fxreplay"),
-    [timezone, setTimezone] = useState(meta.import_profile?.timezone || "UTC"),
-    [dayfirst, setDayfirst] = useState(meta.import_profile?.dayfirst || false),
-    [mapping, setMapping] = useState({});
-  const [busy, setBusy] = useState(false),
+  const [profile, setProfile] = useState({
+    account_id: meta.accounts.some(
+      (a) => a.id === meta.import_profile?.account_id,
+    )
+      ? meta.import_profile.account_id
+      : meta.accounts[0]?.id,
+    source: meta.import_profile?.source || "fxreplay",
+    timezone: meta.import_profile?.timezone || "UTC",
+    dayfirst: meta.import_profile?.dayfirst || false,
+    update_labels: meta.import_profile?.update_labels || false,
+  });
+  const {
+    account_id: account,
+    source,
+    timezone,
+    update_labels: updateLabels,
+  } = profile;
+  const [mapping, setMapping] = useState({}),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false),
-    [tagMap, setTagMap] = useState({
-      ...meta.tag_suggestions,
-      ...meta.tag_mappings,
-    });
-  const [updateLabels, setUpdateLabels] = useState(
-    meta.import_profile?.update_labels || false,
-  );
-  const [rememberProfile, setRememberProfile] = useState(true);
+    [settings, setSettings] = useState(null);
   const ref = useRef();
-  function editRule(tag, index, key, value) {
-    const rules = tagMap[tag]?.rules || [
-      tagMap[tag] || { field: "", value: "" },
-    ];
-    setTagMap({
-      ...tagMap,
-      [tag]: {
-        rules: rules.map((rule, i) =>
-          i === index ? { ...rule, [key]: value } : rule,
-        ),
-      },
-    });
-  }
-
+  const unrecognised = pendingTags(preview?.tags, meta.tag_mappings);
   function invalidate() {
     setPreview(null);
     setDone(null);
     setError("");
+    setConfirm(false);
   }
   function choose(next) {
     invalidate();
@@ -104,27 +63,32 @@ export default function Import({ meta, refresh, onBack, toast }) {
     f.append("account_id", account);
     f.append("source", source);
     f.append("timezone", timezone);
-    f.append("dayfirst", dayfirst);
+    f.append("dayfirst", profile.dayfirst);
     f.append("mapping", JSON.stringify(mapping));
     f.append("update_labels", updateLabels);
-    f.append("remember_profile", rememberProfile);
+    f.append("remember_profile", true);
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
+  }
+  async function previewFile() {
+    const result = await api("/import/preview", {
+      method: "POST",
+      body: form(),
+    });
+    setPreview(result);
+    setDetected(result);
   }
   async function upload(action) {
     if (!file) return;
     setBusy(true);
     setError("");
     try {
-      const result = await api(`/import/${action}`, {
-        method: "POST",
-        body: form(),
-      });
-      if (action === "preview") {
-        setPreview(result);
-        setDetected(result);
-        setTagMap((previous) => ({ ...result.suggestions, ...previous }));
-      } else {
+      if (action === "preview") await previewFile();
+      else {
+        const result = await api("/import/confirm", {
+          method: "POST",
+          body: form(),
+        });
         setDone(result);
         setPreview(null);
         setConfirm(false);
@@ -140,32 +104,37 @@ export default function Import({ meta, refresh, onBack, toast }) {
       setBusy(false);
     }
   }
-  async function saveMappings() {
+  async function saveFiles(next, columns) {
     setBusy(true);
-    setError("");
     try {
-      const saved = Object.fromEntries(
-        Object.entries(tagMap)
-          .map(([tag, entry]) => [
-            tag,
-            {
-              rules: (entry.rules || [entry]).filter(
-                (rule) => rule.field && rule.value?.trim(),
-              ),
-            },
-          ])
-          .filter(([, entry]) => entry.rules.length),
-      );
-      await api("/tag-mappings", { method: "PUT", body: saved });
-      await refresh();
-      toast(
-        file
-          ? "Tag meanings saved. Preview again to apply them."
-          : "Tag meanings saved for future imports.",
-      );
+      const saved = await api("/import-preferences", {
+        method: "PUT",
+        body: next,
+      });
+      setProfile(saved);
+      setMapping(columns);
       invalidate();
-    } catch (e) {
-      setError(e.message);
+      await refresh();
+      setSettings(null);
+      toast("Import preferences saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveMeanings(next) {
+    setBusy(true);
+    try {
+      await api("/tag-mappings", { method: "PUT", body: next });
+      await refresh();
+      invalidate();
+      if (file) {
+        try {
+          await previewFile();
+        } catch (e) {
+          setError(e.message);
+        }
+      }
+      toast("Tag meaning saved for future imports.");
     } finally {
       setBusy(false);
     }
@@ -175,11 +144,19 @@ export default function Import({ meta, refresh, onBack, toast }) {
       <Button className="back-button" onClick={onBack}>
         <ArrowLeft size={16} /> Back to trades
       </Button>
-      <Heading title="Import trades" />
+      <Heading
+        title="Import trades"
+        action={
+          <Button onClick={() => setSettings({ section: "files" })}>
+            <Settings2 size={15} /> Import settings
+          </Button>
+        }
+      />
       <div className="card import-card">
         <p className="import-context">
           {meta.accounts.find((item) => item.id === account)?.name} ·{" "}
-          {sourceOptions.find((item) => item.value === source)?.label}
+          {sourceOptions.find((item) => item.value === source)?.label} ·{" "}
+          {timezone === "Etc/GMT+4" ? "UTC−4" : timezone}
         </p>
         <button
           className={`dropzone ${file ? "has-file" : ""}`}
@@ -208,127 +185,15 @@ export default function Import({ meta, refresh, onBack, toast }) {
           onChange={(e) => choose(e.target.files[0])}
         />
         <p className="muted">
-          Upload a CSV, Excel or JSON trade export. FX Replay exports are
-          recognised automatically. Preview everything before saving.
+          Saved tag meanings are applied automatically. Preview your trades
+          before saving.
         </p>
-        <details className="disclosure">
-          <summary>File options & column mapping</summary>
-          <div className="stack">
-            <div className="form-grid two">
-              <Select
-                label="Save into account"
-                values={meta.accounts.map((a) => ({
-                  value: a.id,
-                  label: a.name,
-                }))}
-                value={account}
-                onChange={(e) => {
-                  invalidate();
-                  setAccount(Number(e.target.value));
-                }}
-              />
-              <Select
-                label="These trades are…"
-                values={sourceOptions}
-                value={source}
-                onChange={(e) => {
-                  invalidate();
-                  setSource(e.target.value);
-                }}
-              />
-            </div>
-
-            <Select
-              label="Export time zone"
-              values={[
-                { value: "UTC", label: "UTC" },
-                { value: "Etc/GMT+4", label: "Fixed UTC−4" },
-                {
-                  value: "America/New_York",
-                  label: "New York clock (seasonal)",
-                },
-                { value: "Europe/London", label: "London clock (seasonal)" },
-              ]}
-              value={timezone}
-              onChange={(e) => {
-                invalidate();
-                setTimezone(e.target.value);
-              }}
-            />
-            <label className="review-check">
-              <input
-                type="checkbox"
-                checked={dayfirst}
-                onChange={(e) => {
-                  invalidate();
-                  setDayfirst(e.target.checked);
-                }}
-              />
-              Day-first dates (31/12/2026)
-            </label>
-            {detected && !detected.native && (
-              <div className="form-grid two">
-                {targets.map((t) => (
-                  <Select
-                    key={t}
-                    label={t.replaceAll("_", " ")}
-                    values={[
-                      { value: "", label: "Not in file" },
-                      ...detected.columns,
-                    ]}
-                    value={
-                      t in mapping
-                        ? mapping[t] || ""
-                        : detected.mapping[t] || ""
-                    }
-                    onChange={(e) => {
-                      setMapping({
-                        ...detected.mapping,
-                        ...mapping,
-                        [t]: e.target.value || null,
-                      });
-                      invalidate();
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-            {!detected && (
-              <small>
-                Preview once to see the detected columns. Native FX Replay
-                exports are recognised automatically.
-              </small>
-            )}
-          </div>
-        </details>
-        <div className="import-preferences">
-          <label className="review-check">
-            <input
-              type="checkbox"
-              checked={updateLabels}
-              onChange={(e) => {
-                setUpdateLabels(e.target.checked);
-                invalidate();
-              }}
-            />
-            Update labels on existing trades
-          </label>
-          <small>
-            Only provided labels are updated. Saved results and notes are
-            preserved; blank fields never clear your work.
-          </small>
-          <label className="review-check">
-            <input
-              type="checkbox"
-              checked={rememberProfile}
-              onChange={(e) => {
-                setRememberProfile(e.target.checked);
-                invalidate();
-              }}
-            />
-            Remember my import settings
-          </label>
-        </div>
+        {updateLabels && (
+          <Notice>
+            Label updates are on. Existing trades may receive the changes shown
+            in your preview. You can change this in Import settings.
+          </Notice>
+        )}
         {error && <Notice error>{error}</Notice>}
         {!preview && !done && (
           <Button
@@ -341,109 +206,39 @@ export default function Import({ meta, refresh, onBack, toast }) {
           </Button>
         )}
       </div>
-      <div className="card">
-        {Object.keys(tagMap).length > 0 && (
-          <details className="disclosure">
-            <summary>Recognise strategy tags</summary>
-            <div className="stack">
-              <p>
-                Your FX Replay tag guide. Save once to remember these meanings
-                for future imports. Existing saved meanings take priority;
-                confirmations still need review.
-              </p>
-              <p className="muted">
-                A plain 15M tag cannot identify which timeframe group it came
-                from. In FX Replay, name those tags{" "}
-                <strong>Level TF: 15M</strong> and{" "}
-                <strong>Entry TF: 15M</strong>. Use these prefixes for any
-                timeframe you use in both groups.
-              </p>
-              {Object.keys(tagMap).map((tag) => (
-                <div className="tag-map-group" key={tag}>
-                  <strong>{tag}</strong>
-                  <small>
-                    {meta.tag_mappings?.[tag]
-                      ? "Remembered"
-                      : "Suggested · save to remember"}
-                  </small>
-                  {(
-                    tagMap[tag]?.rules || [
-                      tagMap[tag] || { field: "", value: "" },
-                    ]
-                  ).map((rule, index) => (
-                    <div className="tag-map" key={index}>
-                      <Select
-                        label={`Field ${index + 1} for ${tag}`}
-                        values={[
-                          { value: "", label: "Keep original tag only" },
-                          { value: "strategy", label: "Strategy" },
-                          { value: "level", label: "Key level / PDA" },
-                          { value: "timeframe", label: "Level timeframe" },
-                          {
-                            value: "entry_timeframe",
-                            label: "Entry timeframe",
-                          },
-                          { value: "confirmation", label: "Confirmation" },
-                          { value: "news", label: "News" },
-                          { value: "condition", label: "Market condition" },
-                        ]}
-                        value={rule.field || ""}
-                        onChange={(e) =>
-                          editRule(tag, index, "field", e.target.value)
-                        }
-                      />
-                      <Field label={`Value ${index + 1} for ${tag}`}>
-                        <input
-                          value={rule.value || ""}
-                          onChange={(e) =>
-                            editRule(tag, index, "value", e.target.value)
-                          }
-                        />
-                      </Field>
-                      <Button
-                        onClick={() => {
-                          const rules = tagMap[tag]?.rules || [
-                            tagMap[tag] || {},
-                          ];
-                          setTagMap({
-                            ...tagMap,
-                            [tag]: {
-                              rules: rules.filter((_, i) => i !== index),
-                            },
-                          });
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    disabled={(tagMap[tag]?.rules?.length || 0) >= 8}
-                    onClick={() => {
-                      const rules =
-                        tagMap[tag]?.rules ||
-                        (tagMap[tag] ? [tagMap[tag]] : []);
-                      setTagMap({
-                        ...tagMap,
-                        [tag]: {
-                          rules: [...rules, { field: "", value: "" }],
-                        },
-                      });
-                    }}
-                  >
-                    Add another meaning
-                  </Button>
-                </div>
-              ))}
-              <Button busy={busy} onClick={saveMappings}>
-                {detected
-                  ? "Save mappings & preview again"
-                  : "Save tag meanings"}
-              </Button>
-            </div>
-          </details>
-        )}
-      </div>
+      {preview && unrecognised.length > 0 && (
+        <div className="card import-attention">
+          <div>
+            <h3>
+              {unrecognised.length}{" "}
+              {unrecognised.length === 1 ? "new tag" : "new tags"} to review
+            </h3>
+            <p>
+              Tell PrimusLab what they mean once, or keep them as original tags
+              only.
+            </p>
+          </div>
+          <Button
+            onClick={() => setSettings({ section: "tags", review: true })}
+          >
+            Review new tags <ArrowRight size={14} />
+          </Button>
+        </div>
+      )}
+      {settings && (
+        <ImportSettings
+          meta={meta}
+          profile={profile}
+          mapping={mapping}
+          detected={detected}
+          section={settings.section}
+          review={settings.review}
+          onSaveFiles={saveFiles}
+          onSaveMeanings={saveMeanings}
+          busy={busy}
+          onClose={() => setSettings(null)}
+        />
+      )}
       {done && (
         <div className="card import-success">
           <FileCheck size={36} />

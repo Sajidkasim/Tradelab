@@ -426,3 +426,46 @@ def test_label_update_preserves_all_financial_fields_and_rolls_back_new_rows(loc
     with pytest.raises(ValueError,match='changed'):
         import_updates.apply(database,parsed,changes)
     assert 'new-row' not in database.existing_external_ids()
+
+
+def test_import_preferences_save_without_upload_and_validate_account_and_options(local):
+    client, _ = local
+    preferences = {'account_id': 1, 'source': 'fxreplay', 'timezone': 'Etc/GMT+4', 'dayfirst': True, 'update_labels': False}
+    assert client.put('/api/import-preferences', json=preferences).json() == preferences
+    assert client.get('/api/metadata').json()['import_profile'] == preferences
+    assert client.get('/api/trades').json() == []
+    assert client.put('/api/import-preferences', json={**preferences, 'account_id': 9999}).status_code == 422
+    assert client.put('/api/import-preferences', json={**preferences, 'timezone': 'invalid'}).status_code == 422
+    assert client.put('/api/import-preferences', json={**preferences, 'password': 'invalid'}).status_code == 422
+    assert client.put('/api/import-preferences', json=preferences, headers={'X-Primus-CSRF': 'wrong'}).status_code == 403
+    assert client.get('/api/metadata').json()['import_profile'] == preferences
+
+
+def test_future_strategy_aliases_and_keep_only_tags_survive_import_and_backup(local):
+    client, _ = local
+    mappings = {
+        'NEW MODEL': {'field': 'strategy', 'value': 'Breakout and retest'},
+        'RENAMED MODEL': {'field': 'strategy', 'value': 'Breakout and retest'},
+        'CISD': {'ignore': True},
+        'MONTHLY': {'field': 'timeframe', 'value': 'Monthly'},
+        'CUSTOM CHECK': {'field': 'confirmation', 'value': 'My custom confirmation'},
+    }
+    assert client.put('/api/tag-mappings', json=mappings).status_code == 200
+    meta = client.get('/api/metadata').json()
+    assert 'Breakout and retest' in meta['strategies']
+    assert 'Monthly' in meta['timeframes']
+    assert 'My custom confirmation' in meta['confirmations']
+    assert client.get('/api/trades').json() == []
+    content = labelled_fx(tags='RENAMED MODEL,CISD,MONTHLY,CUSTOM CHECK')
+    preview = upload(client, content).json()
+    assert preview['rows'][0]['setup_name'] == 'Breakout and retest'
+    assert preview['rows'][0]['labels']['confirmations'] == ['My custom confirmation']
+    assert upload(client, content, 'confirm', preview['preview_token']).status_code == 200
+    before = client.get('/api/trades').json()
+    mappings['NEW MODEL']['value'] = 'Different future meaning'
+    assert client.put('/api/tag-mappings', json=mappings).status_code == 200
+    assert client.get('/api/trades').json() == before
+    backup = client.get('/api/export/backup').json()
+    assert 'Breakout and retest' in json.dumps(backup)
+    assert 'Different future meaning' in json.dumps(backup)
+    assert before[0]['net_pnl'] == 125 and before[0]['r_multiple'] is None

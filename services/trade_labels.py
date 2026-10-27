@@ -91,13 +91,27 @@ def suggested_mapping(tag):
 
 
 def mapping_rules(entry):
+    if isinstance(entry, dict) and entry.get('ignore') is True:
+        return []
     return entry.get('rules', [entry]) if isinstance(entry, dict) else []
+
+
+def mapped_values(mappings, field):
+    return list(dict.fromkeys(rule['value'] for entry in mappings.values()
+                             for rule in mapping_rules(entry)
+                             if rule.get('field') == field and rule.get('value')))
 
 
 def validate_mappings(payload):
     if not isinstance(payload, dict) or len(payload) > 200:
         raise ValueError('Choose up to 200 tag mappings.')
     for tag, entry in payload.items():
+        if not isinstance(tag, str) or not tag.strip() or len(tag) > 200 or not isinstance(entry, dict):
+            raise ValueError('Each CSV tag needs a name of up to 200 characters.')
+        if 'ignore' in entry:
+            if entry != {'ignore': True}:
+                raise ValueError('Keep original tag only cannot include field rules.')
+            continue
         rules = mapping_rules(entry)
         if not isinstance(tag, str) or len(tag) > 200 or not isinstance(rules, list) or not 1 <= len(rules) <= 8:
             raise ValueError('Each tag needs between 1 and 8 field rules.')
@@ -115,9 +129,9 @@ def mapped_fields(tags, mappings, strategy=''):
     # that original wording in an audit tag which core does not interpret.
     non_confirmation = {
         tag for tag in raw_tags
-        if mapping_rules(mappings.get(tag, {}))
-        and any(rule.get('field') in FIELDS for rule in mapping_rules(mappings.get(tag, {})))
-        and not any(rule.get('field') == 'confirmation' for rule in mapping_rules(mappings.get(tag, {})))
+        if (mappings.get(tag, {}).get('ignore') is True or (
+            any(rule.get('field') in FIELDS for rule in mapping_rules(mappings.get(tag, {})))
+            and not any(rule.get('field') == 'confirmation' for rule in mapping_rules(mappings.get(tag, {})))))
         and tag.casefold() in {value.casefold() for value in edge.CONFIRMATIONS}
     }
     retained = [ORIGINAL_TAG_PREFIX + tag if tag in non_confirmation else tag for tag in raw_tags]
