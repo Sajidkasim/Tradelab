@@ -43,6 +43,11 @@ entries retain tags without classification. Preferences affect future imports;
 existing labels only change through the explicit previewed re-import option.
 All financial fields and core signatures remain untouched by these settings.
 
+Explore a strategy also filters by entry weekday using the configured laboratory
+session timezone (fixed UTC−4 by default). CSV Day meanings keep the original tag;
+an import preview flags disagreement with the entry date. Day tags never replace
+timestamps or determine the weekday filter. Existing untagged trades work too.
+
 For the owner's explicitly confirmed full-target/stop tests, services.fixed_rr
 adapts tagged backtests into separate model observations and calls the existing
 core summary. Never save those model observations as recorded R or original risk.

@@ -12,7 +12,7 @@ import pandas as pd
 from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
-from services import trade_labels, fixed_rr
+from services import trade_labels, fixed_rr, weekdays
 from . import lab_settings, import_updates
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
@@ -104,6 +104,7 @@ class Workspaces:
                       "timeframes": list(dict.fromkeys(edge.TIMEFRAMES + trade_labels.mapped_values(mappings, 'timeframe') + trade_labels.mapped_values(mappings, 'entry_timeframe'))),
                       "confirmations": list(dict.fromkeys(edge.CONFIRMATIONS + trade_labels.mapped_values(mappings, 'confirmation'))),
                       "news": lab["news"], "conditions": lab["conditions"],
+                      "weekdays": list(weekdays.DAYS[:5]),
                       "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
                       "tag_mappings": mappings,
@@ -131,6 +132,10 @@ class Workspaces:
             settings = lab_settings.read(self.database(key))
             base["edge_window"] = [lab_settings.session_of(stamp, settings) for stamp in base["entry_time"]]
         matched = edge.select(base, **query)
+        if filters.weekday != 'All days':
+            zone = lab_settings.read(self.database(key))['timezone']
+            days = matched['entry_time'].map(lambda stamp: weekdays.entry_day(stamp, zone))
+            matched = matched.loc[days == filters.weekday]
         if filters.target_rr != 'Any RR':
             target = fixed_rr.ratio(filters.target_rr)[0]
             matched = matched[matched['tags'].map(lambda tags: fixed_rr.read(tags)['target_rr'] == target)]

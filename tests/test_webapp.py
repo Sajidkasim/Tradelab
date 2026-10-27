@@ -33,6 +33,56 @@ def trade_payload(source="backtest", clock="09:30", strategy="Turtle Soup", pnl=
             "net_pnl": pnl, "risk_amount": 50, "notes": "Private observation"}
 
 
+def test_weekday_filter_works_for_untagged_trades_empty_results_and_timezone_changes(local):
+    from webapp import lab_settings
+    client, app = local
+    for day, pnl in [('2013-01-25', 100), ('2013-01-28', -50)]:
+        body = {**trade_payload(pnl=pnl), 'entry_time': f'{day}T04:30:00Z', 'exit_time': f'{day}T06:30:00Z'}
+        assert client.post('/api/trades', json=body).status_code == 200
+    before = client.get('/api/trades').json()
+    filters = {'scope': 'All', 'combined': True, 'window': 'All sessions'}
+    def result(day):
+        response = client.post('/api/results', json={**filters, 'weekday': day})
+        assert response.status_code == 200, response.text
+        return response.json()
+    friday = result('Friday')
+    assert friday['stats']['trades'] == 1 and friday['stats']['win_rate'] == 1
+    assert friday['chart']['data'] and friday['collection_count'] == 2
+    assert result('Monday')['stats']['avg_r'] == -1
+    assert result('Tuesday')['chart'] is None
+    assert result('All days')['stats']['trades'] == 2
+    assert client.post('/api/results', json={'weekday': 'Funday'}).status_code == 422
+    database = app.state.workspaces.database('owner')
+    database.set_setting(lab_settings.KEY, {**lab_settings.DEFAULTS, 'timezone': 'America/New_York'})
+    app.state.workspaces.bump('owner')
+    assert result('Friday')['stats']['trades'] == 0
+    assert result('Thursday')['stats']['trades'] == 1
+    assert client.get('/api/trades').json() == before
+
+
+def test_csv_weekday_mismatch_preview_roundtrip_and_reimport_preserve_financials(local):
+    client, app = local
+    guide = {'MONDAY': {'field': 'weekday', 'value': 'Monday'}, 'FRIDAY': {'field': 'weekday', 'value': 'Friday'}}
+    assert client.put('/api/tag-mappings', json=guide).status_code == 200
+    content = labelled_fx(tags='MONDAY')  # 25 January 2013 is Friday.
+    preview = upload(client, content).json()
+    assert any('Day tag Monday disagrees' in issue and 'Friday' in issue for issue in preview['issues'])
+    assert client.get('/api/trades').json() == []
+    assert upload(client, content, 'confirm', preview['preview_token']).json()['inserted'] == 1
+    before = client.get('/api/trades').json()[0]
+    assert 'MONDAY' in before['tags']
+    assert client.post('/api/results', json={'window': 'All sessions', 'weekday': 'Monday'}).json()['stats']['trades'] == 0
+    assert client.post('/api/results', json={'window': 'All sessions', 'weekday': 'Friday'}).json()['stats']['trades'] == 1
+    updated = labelled_fx(tags='FRIDAY', pnl=999)
+    preview = upload(client, updated, update_labels='true').json()
+    assert not any('Day tag' in issue for issue in preview['issues'])
+    assert upload(client, updated, 'confirm', preview['preview_token'], update_labels='true').json()['updated'] == 1
+    after = client.get('/api/trades').json()[0]
+    for key in ('entry_time', 'exit_time', 'net_pnl', 'r_multiple', 'initial_risk'):
+        assert after[key] == before[key]
+    assert 'FRIDAY' in after['tags']
+
+
 def test_manual_trade_roundtrip_core_equivalence_scope_and_update(local):
     client, app = local
     for body in (trade_payload(), trade_payload("manual", "10:30", pnl=-50)):

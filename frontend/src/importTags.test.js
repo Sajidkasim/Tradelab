@@ -6,6 +6,18 @@ import {
   meaningText,
 } from "./importTags";
 
+it("weekday meanings use a real day and are described plainly", () => {
+  expect(cleanMeaning([{ field: "weekday", value: "Friday" }], false)).toEqual({
+    rules: [{ field: "weekday", value: "Friday" }],
+  });
+  expect(meaningText({ field: "weekday", value: "Monday" })).toBe(
+    "Day: Monday",
+  );
+  expect(() =>
+    cleanMeaning([{ field: "weekday", value: "Funday" }], false),
+  ).toThrow();
+});
+
 it("only unfamiliar tags need attention; deliberately kept tags are remembered", () => {
   const saved = {
     SMT: { field: "confirmation", value: "SMT" },

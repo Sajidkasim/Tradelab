@@ -31,6 +31,7 @@ class Filters(StrictModel):
     timeframe: str = "Any timeframe"
     entry_timeframe: str = "Any timeframe"
     target_rr: str = "Any RR"
+    weekday: Literal["All days", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] = "All days"
     confirmations: list[str] = Field(default_factory=list, max_length=30)
     news: str = "Any news status"
     condition: str = "Any condition"

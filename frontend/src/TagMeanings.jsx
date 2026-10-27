@@ -8,6 +8,7 @@ import {
   pendingTags,
   cleanMeaning,
   addTagMeaning,
+  weekdays,
 } from "./importTags";
 
 export default function TagMeanings({
@@ -144,20 +145,15 @@ export default function TagMeanings({
                   })
                 }
               />
-              <Field
-                label={
-                  index ? `Name in PrimusLab ${index + 1}` : "Name in PrimusLab"
-                }
-                hint="Use the same name for tags you want grouped together in Results."
-              >
-                <input
-                  required
-                  value={rule.value}
-                  maxLength={120}
-                  placeholder={
-                    tagFields.find((field) => field.value === rule.field)
-                      ?.example || "Choose a short, clear name"
+              {rule.field === "weekday" ? (
+                <Select
+                  label={
+                    index
+                      ? `Name in PrimusLab ${index + 1}`
+                      : "Name in PrimusLab"
                   }
+                  values={[{ value: "", label: "Choose a day" }, ...weekdays]}
+                  value={rule.value}
                   onChange={(e) =>
                     setEditor({
                       ...editor,
@@ -167,7 +163,40 @@ export default function TagMeanings({
                     })
                   }
                 />
-              </Field>
+              ) : (
+                <Field
+                  label={
+                    index
+                      ? `Name in PrimusLab ${index + 1}`
+                      : "Name in PrimusLab"
+                  }
+                  hint="Use the same name for tags you want grouped together in Results."
+                >
+                  <input
+                    required
+                    value={rule.value}
+                    maxLength={120}
+                    placeholder={
+                      tagFields.find((field) => field.value === rule.field)
+                        ?.example || "Choose a short, clear name"
+                    }
+                    onChange={(e) =>
+                      setEditor({
+                        ...editor,
+                        rules: editor.rules.map((r, i) =>
+                          i === index ? { ...r, value: e.target.value } : r,
+                        ),
+                      })
+                    }
+                  />
+                </Field>
+              )}
+              {rule.field === "weekday" && (
+                <small className="muted">
+                  Entry date in your session timezone determines the day filter.
+                  A conflicting CSV day tag is flagged during preview.
+                </small>
+              )}
               {rule.field === "target_rr" && (
                 <div className="stack">
                   <label className="review-check">

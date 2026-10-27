@@ -1,13 +1,14 @@
 """Non-financial trade organisation and explicit export-label mappings."""
 import json
 import re
+import pandas as pd
 from core import edge
-from . import fixed_rr
+from . import fixed_rr, weekdays
 
 MAPPING_KEY = 'fx_tag_mappings'
 FIELDS = {'strategy': 'Strategy', 'level': 'Key level / PDA', 'timeframe': 'Level timeframe',
           'entry_timeframe': 'Entry timeframe', 'confirmation': 'Confirmation',
-          'condition': 'Market condition', 'news': 'News', 'target_rr': 'Target RR'}
+          'condition': 'Market condition', 'news': 'News', 'target_rr': 'Target RR', 'weekday': 'Day'}
 ORIGINAL_TAG_PREFIX = 'fx-original:'
 # Owner's FX Replay groups, confirmed 27 October 2026. 15M occurs in both
 # timeframe groups, so it deliberately has no unqualified suggestion.
@@ -27,6 +28,7 @@ FX_TAG_GUIDE = {
     '1M': ('entry_timeframe', '1m'),
     '15S': ('entry_timeframe', '15s'),
     '5M': ('entry_timeframe', '5m'),
+    **{day.upper(): ('weekday', day) for day in weekdays.DAYS[:5]},
 }
 
 
@@ -61,6 +63,8 @@ def export_tags(value):
 
 def suggested_mapping(tag):
     normal = tag.strip().rstrip('\\').strip().upper()
+    if normal in {day.upper() for day in weekdays.DAYS}:
+        return {'field': 'weekday', 'value': weekdays.canonical(normal)}
     match = re.fullmatch(r'(?:RR\s*:?\s*)?(1\s*:\s*\d+(?:\.\d+)?)', normal)
     if match:
         try:
@@ -81,12 +85,18 @@ def suggested_mapping(tag):
                 'key level': 'level', 'confluence': 'confirmation',
                 'level tf': 'timeframe', 'key level timeframe': 'timeframe',
                 'key level time frame': 'timeframe', 'entry tf': 'entry_timeframe',
-                'entry timeframe': 'entry_timeframe', 'entry time frame': 'entry_timeframe'}
+                'entry timeframe': 'entry_timeframe', 'entry time frame': 'entry_timeframe',
+                'day': 'weekday', 'weekday': 'weekday'}
     if ':' in tag:
         prefix, value = tag.split(':', 1)
         if prefix.strip().casefold() in prefixes and value.strip():
             field = prefixes[prefix.strip().casefold()]
             value = value.strip()
+            if field == 'weekday':
+                try:
+                    value = weekdays.canonical(value)
+                except ValueError:
+                    return {'field': '', 'value': ''}
             if field in ('timeframe', 'entry_timeframe'):
                 value = {'MONTHLY': 'Monthly', 'WEEKLY': 'Weekly', 'DAILY': 'Daily',
                          '4HR': '4H', '1HR': '1H', '15M': '15m', '5M': '5m',
@@ -129,6 +139,8 @@ def validate_mappings(payload):
                 fixed_rr.ratio(rule['value'])
                 if 'full_exit' in rule and type(rule['full_exit']) is not bool:
                     raise ValueError('Confirm full target or full stop with a checkbox.')
+            if rule['field'] == 'weekday':
+                weekdays.canonical(rule['value'])
     return payload
 
 
@@ -158,7 +170,12 @@ def mapped_fields(tags, mappings, strategy=''):
     target = None
     full_exit = False
     for field, values in candidates.items():
-        if field == 'target_rr':
+        if field == 'weekday':
+            # Keep the original tag for audit. The timestamp owns the filter's
+            # day; an exported day label must never rewrite it or core labels.
+            if len({weekdays.canonical(value) for value in values}) > 1:
+                issues.append('Conflicting day tags; entry date determines the day.')
+        elif field == 'target_rr':
             normalized = {fixed_rr.ratio(value)[0] for value in values}
             if len(normalized) != 1:
                 issues.append('Conflicting target RR tags; the fixed-RR model is not applied.')
@@ -192,6 +209,21 @@ def mapped_fields(tags, mappings, strategy=''):
     if not reviewed:
         result = [t for t in result if t != 'edge:reviewed']
     return {'setup_name': strategy, 'tags': result}, issues
+
+
+def weekday_warnings(tags, mappings, stamp, timezone):
+    actual = weekdays.entry_day(stamp, timezone)
+    days = {weekdays.canonical(rule['value']) for tag in export_tags(tags)
+            for rule in mapping_rules(mappings.get(original_tag(tag), {}))
+            if rule.get('field') == 'weekday'}
+    if days and days != {actual}:
+        clock = 'UTC−4' if timezone == 'Etc/GMT+4' else 'New York time'
+        stamp = pd.Timestamp(stamp)
+        stamp = stamp.tz_localize('UTC') if stamp.tzinfo is None else stamp
+        return [f'Day tag {", ".join(sorted(days))} disagrees with entry date '
+                f'{stamp.tz_convert(timezone).isoformat()} ({actual} in {clock}). '
+                'Entry date determines the day filter; the original tag is kept.']
+    return []
 
 
 def needs_tagging(frame):

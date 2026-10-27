@@ -23,6 +23,7 @@ const initial = {
   timeframe: "Any timeframe",
   entry_timeframe: "Any timeframe",
   target_rr: "Any RR",
+  weekday: "All days",
   confirmations: [],
   news: "Any news status",
   condition: "Any condition",
@@ -234,6 +235,19 @@ export default function Results({
             value={filters.target_rr}
             onChange={(e) => change("target_rr", e.target.value)}
           />
+          <Select
+            label="Day"
+            values={["All days", ...(meta.weekdays || [])]}
+            value={filters.weekday}
+            onChange={(e) => change("weekday", e.target.value)}
+          />
+          <small className="muted">
+            Entry date ·{" "}
+            {meta.lab_settings.timezone === "Etc/GMT+4"
+              ? "fixed UTC−4"
+              : "New York time"}
+            . No day tag needed.
+          </small>
           <div className="field">
             <span>Confirmations</span>
             <Checkboxes
@@ -411,6 +425,7 @@ function ResultSample({
         </span>
         <span className="separator">/</span>
         {filters.strategy} · {filters.window}{" "}
+        {filters.weekday !== "All days" && <span>/ {filters.weekday}</span>}
         {filters.confirmations.length > 0 && (
           <span>/ {filters.confirmations.join(" + ")}</span>
         )}

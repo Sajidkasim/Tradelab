@@ -10,6 +10,7 @@ from core.models import Source
 from core.fills_to_trades import pair_fills, root_symbol
 from services import import_flow, trade_labels, fixed_rr
 from .workspaces import records
+from . import lab_settings
 from core import edge
 
 MAX_UPLOAD = 5 * 1024 * 1024
@@ -96,10 +97,12 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
             original_notes[trade.external_id] = trade.notes
     mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
     issues = []
+    lab_timezone = lab_settings.read(db)['timezone']
     for trade in trades:
         fields, warnings = trade_labels.mapped_fields(trade.tags, mappings, trade.setup_name)
         trade.tags, trade.setup_name = fields["tags"], fields["setup_name"]
         issues.extend(warnings)
+        issues.extend(trade_labels.weekday_warnings(trade.tags, mappings, trade.entry_time, lab_timezone))
     source_tags = sorted({trade_labels.original_tag(tag) for trade in trades for tag in trade.tags
                           if not tag.startswith("edge:") and not fixed_rr.is_internal(tag) and tag != "pnl-only"})
     if any(tag.strip().upper() == '15M' and tag not in mappings for tag in source_tags):

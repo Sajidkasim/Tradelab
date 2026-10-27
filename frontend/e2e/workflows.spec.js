@@ -953,13 +953,11 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   const modelCsv = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nrr-win,2026-07-04 13:30,2026-07-04 13:40,NQ,300,buy,closed,1:3\nrr-loss,2026-07-05 13:30,2026-07-05 13:40,NQ,-100,buy,closed,1:3\n`;
   async function importCsv(content, count) {
-    await page
-      .getByLabel("Choose a trade export")
-      .setInputFiles({
-        name: "rr.csv",
-        mimeType: "text/csv",
-        buffer: Buffer.from(content),
-      });
+    await page.getByLabel("Choose a trade export").setInputFiles({
+      name: "rr.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(content),
+    });
     await page
       .getByRole("button", { name: "Preview trades", exact: true })
       .click();
@@ -1018,4 +1016,105 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
     .locator(".explorer")
     .getByLabel("Target RR", { exact: true })
     .selectOption("Any RR");
+});
+
+test("weekday exploration updates results and CSV day meanings flag mismatches", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await page
+    .getByLabel("Choose a trade export")
+    .setInputFiles({
+      name: "weekday.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(
+        "id,dateStart,dateEnd,pair,rPnL,side,status,strategy\nweekday-monday,2026-07-06T13:30:00Z,2026-07-06T13:40:00Z,NQ,125,buy,closed,Weekday check\n",
+      ),
+    });
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Import 1 trades", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "1 trades added", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Review & tag trades", exact: true })
+    .click();
+  const explorer = page.locator(".explorer");
+  const day = explorer.getByLabel("Day", { exact: true });
+  await expect(day.locator("option")).toHaveText([
+    "All days",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+  ]);
+  await explorer
+    .getByLabel("Strategy", { exact: true })
+    .selectOption("Weekday check");
+  await day.selectOption("Monday");
+  await expect(page.locator(".results-content")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await expect(
+    page.locator(".stat").filter({ hasText: "Trades analysed" }).first(),
+  ).toContainText("1");
+  await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
+  await page.screenshot({
+    path: "test-results/primuslab-weekday-results.png",
+    fullPage: true,
+  });
+  await day.selectOption("Tuesday");
+  await expect(
+    page.getByRole("heading", { name: "No trades yet", exact: true }).first(),
+  ).toBeVisible();
+  await explorer
+    .getByRole("button", { name: "Reset setup filters", exact: true })
+    .click();
+  await expect(day).toHaveValue("All days");
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const dialog = await importSettings(page, "Tag meanings");
+  await dialog.getByRole("button", { name: "Add a tag", exact: true }).click();
+  await dialog.getByLabel("Tag in your CSV", { exact: true }).fill("FRIDAY");
+  await dialog
+    .getByLabel("Use this tag as", { exact: true })
+    .selectOption("weekday");
+  await dialog
+    .getByLabel("Name in PrimusLab", { exact: true })
+    .selectOption("Friday");
+  await expect(
+    dialog.getByText(
+      "Entry date in your session timezone determines the day filter.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Save meaning", exact: true })
+    .click();
+  await expect(dialog.locator(".tag-meaning-editor")).toHaveCount(0);
+  await expect(dialog).toContainText("Day: Friday");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "day.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "id,dateStart,dateEnd,pair,rPnL,side,status,tags\nday-preview,2026-07-06 13:30,2026-07-06 13:40,NQ,100,buy,closed,FRIDAY\n",
+    ),
+  });
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(
+    page.getByText(/Day tag Friday disagrees with entry date/),
+  ).toBeVisible();
 });

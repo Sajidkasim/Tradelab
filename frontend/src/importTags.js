@@ -1,3 +1,12 @@
+export const weekdays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 export const tagFields = [
   { value: "strategy", label: "Strategy", example: "e.g. Breakout and retest" },
   { value: "level", label: "Key level", example: "e.g. Previous day high" },
@@ -5,6 +14,7 @@ export const tagFields = [
   { value: "timeframe", label: "Level timeframe", example: "e.g. 1H" },
   { value: "entry_timeframe", label: "Entry timeframe", example: "e.g. 1m" },
   { value: "target_rr", label: "Target RR", example: "e.g. 1:3" },
+  { value: "weekday", label: "Day", example: "e.g. Monday" },
   { value: "news", label: "News", example: "e.g. Major news" },
   { value: "condition", label: "Market condition", example: "e.g. Trending" },
 ];
@@ -36,6 +46,7 @@ export function cleanMeaning(rules, keepOnly) {
       (rule) =>
         !tagFields.some((field) => field.value === rule.field) ||
         !rule.value?.trim() ||
+        (rule.field === "weekday" && !weekdays.includes(rule.value.trim())) ||
         rule.value.trim().length > 120,
     )
   ) {
