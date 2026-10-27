@@ -113,3 +113,4 @@ class ImportPreferences(StrictModel):
     timezone: Literal['UTC', 'Etc/GMT+4', 'America/New_York', 'Europe/London']
     dayfirst: bool = False
     update_labels: bool = False
+    include_breakeven: bool = True

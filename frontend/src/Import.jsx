@@ -8,7 +8,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { api } from "./api";
-import { Button, Heading, Notice, Stat, Modal } from "./components";
+import { Button, Heading, Notice, Stat, Modal, Select } from "./components";
 import { money, rvalue, tradeDate } from "./format";
 import ImportSettings from "./ImportSettings";
 import { sourceOptions } from "./importOptions";
@@ -29,6 +29,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
     timezone: meta.import_profile?.timezone || "UTC",
     dayfirst: meta.import_profile?.dayfirst || false,
     update_labels: meta.import_profile?.update_labels || false,
+    include_breakeven: meta.import_profile?.include_breakeven ?? true,
   });
   const {
     account_id: account,
@@ -66,6 +67,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
     f.append("dayfirst", profile.dayfirst);
     f.append("mapping", JSON.stringify(mapping));
     f.append("update_labels", updateLabels);
+    f.append("include_breakeven", profile.include_breakeven);
     f.append("remember_profile", true);
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
@@ -94,7 +96,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
         setConfirm(false);
         await refresh();
         toast(
-          `${result.inserted} trades added. ${result.updated || 0} label updates. ${result.skipped} duplicates skipped.`,
+          `${result.inserted} trades added. ${result.updated || 0} label updates. ${result.skipped} duplicates skipped.${result.excluded_breakeven ? ` ${result.excluded_breakeven} break-even trades excluded.` : ""}`,
         );
       }
     } catch (e) {
@@ -188,6 +190,28 @@ export default function Import({ meta, refresh, onBack, toast }) {
           Saved tag meanings are applied automatically. Preview your trades
           before saving.
         </p>
+        <Select
+          label="Include break-even trades?"
+          values={[
+            { value: "yes", label: "Yes — include them" },
+            { value: "no", label: "No — leave them out" },
+          ]}
+          value={profile.include_breakeven ? "yes" : "no"}
+          disabled={busy}
+          onChange={(e) => {
+            const include = e.target.value === "yes";
+            setProfile((current) => ({
+              ...current,
+              include_breakeven: include,
+            }));
+            invalidate();
+          }}
+        />
+        <small className="muted">
+          Break-even means exactly $0 realised net P&amp;L, after recorded fees.
+          Only incoming trades are affected; existing journal entries stay
+          saved.
+        </small>
         {updateLabels && (
           <Notice>
             Label updates are on. Existing trades may receive the changes shown
@@ -250,6 +274,9 @@ export default function Import({ meta, refresh, onBack, toast }) {
             {done.skipped} duplicates skipped. Give your trades a strategy and
             review their confirmations next.
           </p>
+          {done.excluded_breakeven > 0 && (
+            <p>{done.excluded_breakeven} break-even trades excluded.</p>
+          )}
           <Button variant="primary" onClick={onBack}>
             Review & tag trades <ArrowRight size={16} />
           </Button>
@@ -287,6 +314,18 @@ export default function Import({ meta, refresh, onBack, toast }) {
               <Stat label="Label updates" value={preview.counts.updates || 0} />
             )}
           </div>
+          {preview.excluded_breakeven > 0 && (
+            <Notice>
+              {preview.excluded_breakeven} break-even trades excluded. They will
+              not be added or updated.
+            </Notice>
+          )}
+          {!preview.total_rows && preview.excluded_breakeven > 0 && (
+            <p>
+              Nothing to import after excluding break-even trades. Choose Yes
+              above to include them.
+            </p>
+          )}
           <div className="import-coverage">
             <strong>What came through</strong>
             <p>
@@ -423,6 +462,9 @@ export default function Import({ meta, refresh, onBack, toast }) {
               Add {preview.counts.new} trades to{" "}
               {meta.accounts.find((a) => a.id === account)?.name}? Duplicates
               and invalid rows will be skipped.{" "}
+              {preview.excluded_breakeven > 0
+                ? `${preview.excluded_breakeven} break-even trades will also be excluded. `
+                : ""}
               {preview.counts.updates
                 ? `${preview.counts.updates} existing trades will receive the previewed label updates. Their financial results remain unchanged.`
                 : ""}

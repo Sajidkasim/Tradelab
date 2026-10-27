@@ -122,6 +122,71 @@ def fx_file():
                          "tags": ['["model: Turtle Soup", "SMT"]'] * 3}).to_csv(index=False).encode()
 
 
+@pytest.mark.parametrize('native', [True, False])
+def test_break_even_choice_preview_confirmation_duplicates_and_remembering(local, native):
+    client, _ = local
+    rows = []
+    for index, pnl in enumerate([0, -0.0, -.01, .01, 125]):
+        if native:
+            row = {'id': f'be-{index}', 'dateStart': '2026-07-01 13:30', 'dateEnd': '2026-07-01 13:40',
+                   'pair': 'NQ', 'side': 'buy', 'rPnL': pnl, 'status': 'closed'}
+        else:
+            row = {'id': f'be-{index}', 'entry_time': '2026-07-01 13:30', 'exit_time': '2026-07-01 13:40',
+                   'symbol': 'NQ', 'direction': 'buy', 'pnl': pnl}
+        rows.append(row)
+    content = pd.DataFrame(rows).to_csv(index=False).encode()
+    options = {'include_breakeven': 'false', 'remember_profile': 'true'}
+    no = upload(client, content, **options).json()
+    assert no['excluded_breakeven'] == 2 and no['counts']['new'] == 3
+    assert no['coverage']['total'] == 3 and {row['net_pnl'] for row in no['rows']} == {-.01, .01, 125}
+    assert client.get('/api/trades').json() == []
+    assert upload(client, content, 'confirm', no['preview_token'], include_breakeven='true', remember_profile='true').status_code == 409
+    result = upload(client, content, 'confirm', no['preview_token'], **options).json()
+    assert result == {'inserted': 3, 'skipped': 0, 'excluded_breakeven': 2}
+    assert client.get('/api/metadata').json()['import_profile']['include_breakeven'] is False
+    repeat = upload(client, content, **options).json()
+    assert repeat['counts'] == {'new': 0, 'duplicates': 3, 'errors': 0}
+    assert repeat['excluded_breakeven'] == 2
+    yes = upload(client, content).json()  # Legacy clients still include zero-result trades.
+    assert yes['excluded_breakeven'] == 0 and yes['counts']['new'] == 2
+    assert upload(client, content, 'confirm', yes['preview_token'], include_breakeven='false').status_code == 409
+    assert upload(client, content, 'confirm', yes['preview_token']).json() == {'inserted': 2, 'skipped': 3}
+    saved = client.get('/api/trades').json()
+    assert len(saved) == 5 and sum(row['net_pnl'] == 0 for row in saved) == 2
+
+
+def test_all_break_even_preview_is_empty_and_exclusion_never_updates_existing_trades(local):
+    client, _ = local
+    content = labelled_fx(tags='REVERSAL AT KEY LEVEL', note='Original note', pnl=0)
+    no = upload(client, content, include_breakeven='false').json()
+    assert no['rows'] == [] and no['total_rows'] == 0
+    assert no['excluded_breakeven'] == 1 and no['counts'] == {'new': 0, 'duplicates': 0, 'errors': 0}
+    yes = upload(client, content).json()
+    assert upload(client, content, 'confirm', yes['preview_token']).json()['inserted'] == 1
+    before = client.get('/api/trades').json()
+    guide = {'REVERSAL AT KEY LEVEL': {'field': 'strategy', 'value': 'Reversal'}}
+    client.put('/api/tag-mappings', json=guide)
+    updated = labelled_fx(tags='REVERSAL AT KEY LEVEL', note='Changed note', pnl=0)
+    options = {'include_breakeven': 'false', 'update_labels': 'true'}
+    preview = upload(client, updated, **options).json()
+    assert preview['label_updates'] == [] and preview['counts']['updates'] == 0
+    assert upload(client, updated, 'confirm', preview['preview_token'], **options).json() == {'inserted': 0, 'skipped': 0, 'updated': 0, 'excluded_breakeven': 1}
+    assert client.get('/api/trades').json() == before
+
+
+def test_break_even_exclusion_uses_closed_net_results_after_fees_not_missing_or_open(local):
+    client, _ = local
+    content = b'id,symbol,direction,entry_time,exit_time,entry_price,exit_price,qty,fees\nfee-loss,NQ,buy,2026-07-01 13:30,2026-07-01 13:40,18000,18000,1,5\nflat,NQ,buy,2026-07-02 13:30,2026-07-02 13:40,18000,18000,1,0\nopen,NQ,buy,2026-07-03 13:30,,18000,,1,0\n'
+    preview = upload(client, content, source='csv', include_breakeven='false').json()
+    assert preview['excluded_breakeven'] == 1
+    assert {row['external_id'] for row in preview['rows']} == {'fee-loss', 'open'}
+    assert next(row for row in preview['rows'] if row['external_id'] == 'fee-loss')['net_pnl'] == -5
+    assert next(row for row in preview['rows'] if row['external_id'] == 'open')['net_pnl'] is None
+    invalid = labelled_fx(pnl=0).replace(b',0,', b',,')
+    missing = upload(client, invalid, include_breakeven='false').json()
+    assert missing['counts']['errors'] == 1 and missing['excluded_breakeven'] == 0
+
+
 def upload(client, content, action="preview", token="", **options):
     data = {"account_id": "1", "source": "fxreplay", "timezone": "UTC", "mapping": "{}", "preview_token": token, **options}
     return client.post(f"/api/import/{action}", data=data, files={"file": ("replay.csv", content, "text/csv")})
@@ -480,7 +545,7 @@ def test_label_update_preserves_all_financial_fields_and_rolls_back_new_rows(loc
 
 def test_import_preferences_save_without_upload_and_validate_account_and_options(local):
     client, _ = local
-    preferences = {'account_id': 1, 'source': 'fxreplay', 'timezone': 'Etc/GMT+4', 'dayfirst': True, 'update_labels': False}
+    preferences = {'account_id': 1, 'source': 'fxreplay', 'timezone': 'Etc/GMT+4', 'dayfirst': True, 'update_labels': False, 'include_breakeven': False}
     assert client.put('/api/import-preferences', json=preferences).json() == preferences
     assert client.get('/api/metadata').json()['import_profile'] == preferences
     assert client.get('/api/trades').json() == []

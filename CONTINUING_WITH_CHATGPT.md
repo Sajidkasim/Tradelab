@@ -48,6 +48,13 @@ session timezone (fixed UTC−4 by default). CSV Day meanings keep the original 
 an import preview flags disagreement with the entry date. Day tags never replace
 timestamps or determine the weekday filter. Existing untagged trades work too.
 
+The import page offers Include break-even trades? Yes / No. No excludes closed
+trades with exactly zero realised net P&L before preview, insertion or re-import
+label updates. Missing results and open trades are not break-even. The signed
+preview binds this choice, and the preview reports the excluded count. Existing
+journal trades are never deleted by this option. The choice is remembered after
+confirmation; older clients default to including break-even trades.
+
 For the owner's explicitly confirmed full-target/stop tests, services.fixed_rr
 adapts tagged backtests into separate model observations and calls the existing
 core summary. Never save those model observations as recorded R or original risk.

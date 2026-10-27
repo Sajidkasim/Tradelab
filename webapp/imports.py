@@ -17,7 +17,7 @@ MAX_UPLOAD = 5 * 1024 * 1024
 EXTENSIONS = (".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".json")
 
 
-def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping):
+def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping, include_breakeven=True):
     if len(content) > MAX_UPLOAD:
         raise ValueError("Choose a file smaller than 5 MB.")
     if not filename.lower().endswith(EXTENSIONS):
@@ -79,6 +79,13 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                             return "invalid date"
                     raw[column] = raw[column].map(utc)
             trades, errors = importers.normalise(raw, used_mapping, instruments, source=Source(source), account_id=account_id, dayfirst=False)
+    # Only exclude closed, exactly-zero realised results. Missing P&L and
+    # open positions are not break-even; small profits/losses stay untouched.
+    excluded_breakeven = 0
+    if not include_breakeven:
+        kept = [trade for trade in trades if not (trade.exit_price is not None and trade.net_pnl == 0)]
+        excluded_breakeven = len(trades) - len(kept)
+        trades = kept
     # Preserve journal fields when supplied by a richer native export.
     note_column = importers.auto_map(list(raw.columns)).get('notes')
     strategy_column = importers.auto_map(list(raw.columns)).get('setup_name')
@@ -127,6 +134,7 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                 'confirmations':sum(bool(label['confirmations']) for label in labels),
                 'notes':len(original_notes), 'total':len(trades)}
     return trades, {"native": native, "source": "fxreplay" if native else source,
+                    "excluded_breakeven": excluded_breakeven,
                     "columns": list(raw.columns), "mapping": used_mapping,
                     "counts": import_flow.preview_counts(preview, errors),
                     "rows": rows, "coverage": coverage, "_notes": original_notes, "total_rows": len(preview), "errors": errors,
@@ -135,6 +143,6 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                     "tags": source_tags}
 
 
-def digest(content, filename, account_id, source, timezone, dayfirst, mapping):
-    options = json.dumps([filename, account_id, source, timezone, dayfirst, mapping], sort_keys=True).encode()
+def digest(content, filename, account_id, source, timezone, dayfirst, mapping, include_breakeven=True):
+    options = json.dumps([filename, account_id, source, timezone, dayfirst, mapping, include_breakeven], sort_keys=True).encode()
     return hashlib.sha256(content + options).hexdigest()

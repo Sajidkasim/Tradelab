@@ -1023,15 +1023,13 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
 }) => {
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page
-    .getByLabel("Choose a trade export")
-    .setInputFiles({
-      name: "weekday.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(
-        "id,dateStart,dateEnd,pair,rPnL,side,status,strategy\nweekday-monday,2026-07-06T13:30:00Z,2026-07-06T13:40:00Z,NQ,125,buy,closed,Weekday check\n",
-      ),
-    });
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "weekday.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "id,dateStart,dateEnd,pair,rPnL,side,status,strategy\nweekday-monday,2026-07-06T13:30:00Z,2026-07-06T13:40:00Z,NQ,125,buy,closed,Weekday check\n",
+    ),
+  });
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
@@ -1116,5 +1114,110 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     .click();
   await expect(
     page.getByText(/Day tag Friday disagrees with entry date/),
+  ).toBeVisible();
+});
+
+test("break-even import choice excludes zero results, refreshes preview and is remembered", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const choice = page.getByLabel("Include break-even trades?", { exact: true });
+  await expect(choice).toHaveValue("yes");
+  await choice.selectOption("no");
+  const content =
+    "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-zero,2026-07-08T13:30:00Z,2026-07-08T13:40:00Z,NQ,0,buy,closed\nbe-browser-win,2026-07-09T13:30:00Z,2026-07-09T13:40:00Z,NQ,100,buy,closed\nbe-browser-small-loss,2026-07-10T13:30:00Z,2026-07-10T13:40:00Z,NQ,-0.01,buy,closed\n";
+  await page
+    .getByLabel("Choose a trade export")
+    .setInputFiles({
+      name: "break-even.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(content),
+    });
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(page.locator(".preview-card tbody tr")).toHaveCount(2);
+  await expect(page.locator(".preview-card")).toContainText(
+    "1 break-even trades excluded",
+  );
+  await choice.selectOption("yes");
+  await expect(page.locator(".preview-card")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(page.locator(".preview-card tbody tr")).toHaveCount(3);
+  await choice.selectOption("no");
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Import 2 trades", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "1 break-even trades will also be excluded",
+  );
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "2 trades added", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".import-success")).toContainText(
+    "1 break-even trades excluded",
+  );
+  await page.reload();
+  await expect(choice).toHaveValue("no");
+  const onlyZero =
+    "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-only-zero,2026-07-11T13:30:00Z,2026-07-11T13:40:00Z,NQ,0,buy,closed\n";
+  await page
+    .getByLabel("Choose a trade export")
+    .setInputFiles({
+      name: "only-zero.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(onlyZero),
+    });
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Nothing to import after excluding break-even trades. Choose Yes above to include them.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Import 0 trades", exact: true }),
+  ).toBeDisabled();
+  await page.screenshot({
+    path: "test-results/primuslab-break-even-import.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "test-results/primuslab-break-even-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await choice.selectOption("yes");
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(page.locator(".preview-card tbody tr")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Import 1 trades", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "1 trades added", exact: true }),
   ).toBeVisible();
 });

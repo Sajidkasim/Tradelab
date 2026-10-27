@@ -300,6 +300,7 @@ def create_app(config: Settings | None = None):
     async def import_file(action: str, request: Request, file: UploadFile = File(...), account_id: int = Form(...),
                           source: str = Form("fxreplay"), timezone: str = Form("UTC"), dayfirst: bool = Form(False),
                           mapping: str = Form("{}"), preview_token: str = Form(""), update_labels: bool = Form(False),
+                          include_breakeven: bool = Form(True),
                           remember_profile: bool = Form(False), member=Depends(workspace)):
         if action not in ("preview", "confirm"):
             raise HTTPException(404)
@@ -311,11 +312,11 @@ def create_app(config: Settings | None = None):
             columns = json.loads(mapping)
         except json.JSONDecodeError:
             raise ValueError("Check the column mapping.") from None
-        fingerprint = imports.digest(content, filename, account_id, source, timezone, dayfirst, columns)
+        fingerprint = imports.digest(content, filename, account_id, source, timezone, dayfirst, columns, include_breakeven)
         def operation():
             with app.state.workspaces.lock:
                 database = db(request, member)
-                parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns)
+                parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns, include_breakeven)
                 notes = preview.pop('_notes', {})
                 changes, issues = import_updates.plan(database, parsed, notes) if update_labels else ([], [])
                 preview['issues'].extend(issues)
@@ -336,7 +337,10 @@ def create_app(config: Settings | None = None):
                     result = import_updates.apply(database, parsed, changes) if update_labels else database.insert_trades(parsed)
                     if remember_profile:
                         database.set_setting(import_updates.PROFILE_KEY, {'account_id':account_id, 'source':preview['source'],
-                            'timezone':timezone, 'dayfirst':dayfirst, 'update_labels':update_labels})
+                            'timezone':timezone, 'dayfirst':dayfirst, 'update_labels':update_labels,
+                            'include_breakeven':include_breakeven})
+                    if preview['excluded_breakeven']:
+                        result['excluded_breakeven'] = preview['excluded_breakeven']
                     app.state.workspaces.bump(member["key"])
                     return result
                 preview["preview_token"] = signer.dumps(signature)
