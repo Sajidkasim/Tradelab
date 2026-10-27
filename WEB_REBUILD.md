@@ -90,6 +90,27 @@ rPnL is retained. maxRiskReward and planned targets are not treated as realised 
 A richer export's notes/strategy columns are preserved when present; a file with
 no notes cannot supply journal content. Screenshots require separate storage.
 
+## Confirmed fixed-RR backtests
+
+The owner confirmed on 27 October 2026 that the current 1:3 test closes every
+winner at the full target and every loser at the full stop. A Target RR meaning
+in the tag guide has an explicit full-target/full-stop checkbox. It is off by
+default for new models, including later 1:2 tests. The mapping stores canonical
+rr:target and rr:fixed tags; it does not write inferred financial fields.
+
+services.fixed_rr builds a separate copy of eligible closed backtests with model
+observations (+3R/-1R for 1:3), then calls the unchanged core.metrics.summary_stats.
+Live, untagged, target-only and zero-result rows are excluded. Conflicting targets
+are flagged instead of guessed. The dollar graph and saved R/risk/P&L stay intact.
+
+Results offers a Target RR filter and shows its definition near the three cards.
+Average R · fixed test is used only when every selected closed trade qualifies
+and no recorded R exists. It is explicitly a model before costs. If any recorded
+R exists, the original Average R card takes priority and the model is a separately
+labelled comparison. Partial subsets never silently replace the headline average.
+The model's R values are not described as measured net returns. Existing records
+receive target tags only through an opted-in label-update import preview.
+
 ## Local development and checks
 
 ```bash

@@ -360,6 +360,9 @@ export default function Import({ meta, refresh, onBack, toast }) {
                         {row.labels?.confirmations?.join(" + ") ||
                           "Confirmations not recorded"}
                         {row.has_note ? " · Note included" : ""}
+                        {row.target_rr && row.target_rr !== "Not recorded"
+                          ? ` · Target RR ${row.target_rr}${row.fixed_exit ? " · full target / stop" : ""}`
+                          : ""}
                       </small>
                     </td>
                     <td>{row.status}</td>
@@ -387,6 +390,9 @@ export default function Import({ meta, refresh, onBack, toast }) {
                     → {item.strategy || "Unclassified"} · {item.labels.level} ·{" "}
                     {item.labels.timeframe} ·{" "}
                     {item.labels.confirmations.join(" + ")}
+                    {item.target_rr && item.target_rr !== "Not recorded"
+                      ? ` · Target RR ${item.target_rr}`
+                      : ""}
                     {item.note_added ? " · Note appended" : ""}
                   </p>
                 ))}

@@ -8,7 +8,7 @@ import pandas as pd
 from core import importers
 from core.models import Source
 from core.fills_to_trades import pair_fills, root_symbol
-from services import import_flow, trade_labels
+from services import import_flow, trade_labels, fixed_rr
 from .workspaces import records
 from core import edge
 
@@ -101,7 +101,7 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
         trade.tags, trade.setup_name = fields["tags"], fields["setup_name"]
         issues.extend(warnings)
     source_tags = sorted({trade_labels.original_tag(tag) for trade in trades for tag in trade.tags
-                          if not tag.startswith("edge:") and tag != "pnl-only"})
+                          if not tag.startswith("edge:") and not fixed_rr.is_internal(tag) and tag != "pnl-only"})
     if any(tag.strip().upper() == '15M' and tag not in mappings for tag in source_tags):
         issues.append('15M appears in both of your FX Replay timeframe groups. Use Level TF: 15M and Entry TF: 15M to keep them separate; bare 15M remains unassigned.')
     preview = importers.preview(trades, db.existing_external_ids())
@@ -117,6 +117,7 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
     for row, trade in zip(rows, trades):
         row['setup_name'] = trade.setup_name
         row['labels'] = edge.read_labels(trade.tags)
+        row.update(fixed_rr.read(trade.tags))
         row['has_note'] = bool(original_notes.get(trade.external_id))
     labels = [edge.read_labels(trade.tags) for trade in trades]
     coverage = {'strategies':sum(bool(t.setup_name.strip()) for t in trades),

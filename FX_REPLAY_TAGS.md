@@ -14,6 +14,12 @@ timeframe, news and market-condition meanings are supported. New strategy,
 confirmation and timeframe values become available in the editor/filter lists
 without a code change. A combined tag can still have several explicit meanings.
 
+Target RR accepts labels such as 1:3 and 1:2. Full target/full stop is a separate
+explicit confirmation for each model, not an assumption made from a target tag.
+The owner confirmed this for the current 1:3 test. The frontend can then show a
+fixed-test average before costs, using the existing core summary. Recorded R
+takes priority when present; no R, risk or dollar results are overwritten.
+
 Another CSV name adds an alias without removing the old name. Point both names
 to the same PrimusLab name to keep future results grouped consistently. Edit
 changes a future import meaning; Forget this meaning removes that preference

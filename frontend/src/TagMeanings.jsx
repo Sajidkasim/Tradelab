@@ -168,6 +168,34 @@ export default function TagMeanings({
                   }
                 />
               </Field>
+              {rule.field === "target_rr" && (
+                <div className="stack">
+                  <label className="review-check">
+                    <input
+                      type="checkbox"
+                      checked={rule.full_exit === true}
+                      onChange={(e) =>
+                        setEditor({
+                          ...editor,
+                          rules: editor.rules.map((r, i) =>
+                            i === index
+                              ? { ...r, full_exit: e.target.checked }
+                              : r,
+                          ),
+                        })
+                      }
+                    />
+                    Wins hit the full target; losses hit the full stop
+                  </label>
+                  <small className="muted">
+                    Backtests only. Enables a fixed-RR model before costs: a 1:3
+                    win is +3R and a loss is −1R. Break-even rows and live
+                    trades are excluded. Partial and early exits need actual
+                    recorded risk instead. Saved financial results stay
+                    unchanged.
+                  </small>
+                </div>
+              )}
               {editor.rules.length > 1 && (
                 <Button
                   type="button"

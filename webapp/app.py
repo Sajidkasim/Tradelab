@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from core import edge
 from core.models import Source
-from services import trade_labels
+from services import trade_labels, fixed_rr
 from .config import Settings, from_env
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
@@ -178,6 +178,8 @@ def create_app(config: Settings | None = None):
         frame = frame.drop(columns=["screenshot_path"], errors="ignore")
         if not frame.empty:
             frame["labels"] = frame["tags"].map(edge.read_labels)
+            frame['target_rr'] = frame['tags'].map(lambda tags: fixed_rr.read(tags)['target_rr'])
+            frame['fixed_exit'] = frame['tags'].map(lambda tags: fixed_rr.read(tags)['fixed_exit'])
             frame["needs_tagging"] = trade_labels.needs_tagging(frame)
         return records(frame)
 

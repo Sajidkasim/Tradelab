@@ -801,13 +801,11 @@ test("new strategies, renamed CSV tags and keep-only choices work on later impor
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nfuture-tag-guide,2026-07-03 13:31:00,2026-07-03 13:45:00,CME_MINI:NQ1,125,buy,closed,"BREAKOUT MODEL V2,JOURNAL A"\n`;
   async function previewFile() {
-    await page
-      .getByLabel("Choose a trade export")
-      .setInputFiles({
-        name: "future.csv",
-        mimeType: "text/csv",
-        buffer: Buffer.from(content),
-      });
+    await page.getByLabel("Choose a trade export").setInputFiles({
+      name: "future.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(content),
+    });
     await page
       .getByRole("button", { name: "Preview trades", exact: true })
       .click();
@@ -929,4 +927,95 @@ test("import preferences save before upload and settings fit mobile in both them
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "test-results/primuslab-simple-import.png" });
+});
+
+test("fixed RR results use confirmed backtest outcomes and preserve recorded risk", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  let dialog = await importSettings(page, "Tag meanings");
+  await dialog.getByRole("button", { name: "Add a tag", exact: true }).click();
+  await dialog.getByLabel("Tag in your CSV", { exact: true }).fill("1:3");
+  await dialog
+    .getByLabel("Use this tag as", { exact: true })
+    .selectOption("target_rr");
+  await dialog.getByLabel("Name in PrimusLab", { exact: true }).fill("1:3");
+  await dialog
+    .getByLabel("Wins hit the full target; losses hit the full stop", {
+      exact: true,
+    })
+    .check();
+  await dialog
+    .getByRole("button", { name: "Save meaning", exact: true })
+    .click();
+  await expect(dialog.locator(".tag-meaning-editor")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  const modelCsv = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nrr-win,2026-07-04 13:30,2026-07-04 13:40,NQ,300,buy,closed,1:3\nrr-loss,2026-07-05 13:30,2026-07-05 13:40,NQ,-100,buy,closed,1:3\n`;
+  async function importCsv(content, count) {
+    await page
+      .getByLabel("Choose a trade export")
+      .setInputFiles({
+        name: "rr.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(content),
+      });
+    await page
+      .getByRole("button", { name: "Preview trades", exact: true })
+      .click();
+    await expect(page.locator(".preview-card tbody")).toContainText(
+      "Target RR 1:3",
+    );
+    await page
+      .getByRole("button", { name: `Import ${count} trades`, exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm import", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: `${count} trades added`, exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Review & tag trades", exact: true })
+      .click();
+    await page
+      .locator(".explorer")
+      .getByLabel("Target RR", { exact: true })
+      .selectOption("1:3");
+    await expect(page.locator(".results-content")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+  }
+  await importCsv(modelCsv, 2);
+  await expect(page.locator(".lab-rr-model")).toContainText("Target RR: 1:3");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Average R · fixed test" }).first(),
+  ).toContainText("1.00R");
+  await expect(page.locator(".lab-rr-model")).toContainText("before costs");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Trades analysed" }).first(),
+  ).toContainText("2");
+  await page.screenshot({
+    path: "test-results/primuslab-fixed-rr-results.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  // Actual exported risk takes priority over the fixed-model comparison.
+  const actual = `id,symbol,direction,entry_time,exit_time,pnl,risk_amount,tags\nrr-actual,NQ,buy,2026-07-06 13:30,2026-07-06 13:40,125,50,1:3\n`;
+  await importCsv(actual, 1);
+  await expect(
+    page.locator(".stat").filter({ hasText: "Average R" }).first(),
+  ).toContainText("2.50R");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Average R · fixed test" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".lab-rr-model")).toContainText(
+    "Recorded R is available",
+  );
+  await page
+    .locator(".explorer")
+    .getByLabel("Target RR", { exact: true })
+    .selectOption("Any RR");
 });

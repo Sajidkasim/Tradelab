@@ -469,3 +469,42 @@ def test_future_strategy_aliases_and_keep_only_tags_survive_import_and_backup(lo
     assert 'Breakout and retest' in json.dumps(backup)
     assert 'Different future meaning' in json.dumps(backup)
     assert before[0]['net_pnl'] == 125 and before[0]['r_multiple'] is None
+
+
+def test_fixed_rr_preview_results_filter_and_reimport_never_overwrite_financials(local):
+    from services import fixed_rr
+    client, _ = local
+    rule = {'field': 'target_rr', 'value': '1:3', 'full_exit': True}
+    assert client.put('/api/tag-mappings', json={'1:3': rule}).status_code == 200
+    data = pd.DataFrame([
+        {'id': 'fixed-win', 'dateStart': '2026-07-01 13:30', 'dateEnd': '2026-07-01 13:40', 'pair': 'NQ', 'rPnL': 300, 'side': 'buy', 'status': 'closed', 'tags': '1:3'},
+        {'id': 'fixed-loss', 'dateStart': '2026-07-02 13:30', 'dateEnd': '2026-07-02 13:40', 'pair': 'NQ', 'rPnL': -100, 'side': 'buy', 'status': 'closed', 'tags': '1:3'},
+    ]).to_csv(index=False).encode()
+    preview = upload(client, data).json()
+    assert preview['tags'] == ['1:3']  # internal model markers aren't new export tags
+    assert preview['rows'][0]['target_rr'] == '1:3' and preview['rows'][0]['fixed_exit']
+    assert preview['rows'][0]['r_multiple'] is None
+    assert upload(client, data, 'confirm', preview['preview_token']).json()['inserted'] == 2
+    before = client.get('/api/trades').json()
+    response = client.post('/api/results', json={'scope': 'All', 'combined': True}).json()
+    assert response['stats']['net_pnl'] == 200 and response['stats']['avg_r'] is None
+    assert response['fixed_rr']['avg_r'] == 1 and response['fixed_rr']['complete']
+    assert client.post('/api/results', json={'target_rr': '1:2'}).json()['stats']['trades'] == 0
+    assert client.post('/api/results', json={'target_rr': '1:3'}).json()['stats']['trades'] == 2
+    assert client.post('/api/results', json={'target_rr': '1:0'}).status_code == 422
+    assert client.get('/api/metadata').json()['target_rrs'] == ['1:3']
+    # An opted-in label re-import changes the model only, never actual R/risk/P&L.
+    assert client.put('/api/tag-mappings', json={'1:3': {'field': 'target_rr', 'value': '1:2', 'full_exit': True}}).status_code == 200
+    preview = upload(client, data, update_labels='true').json()
+    assert upload(client, data, 'confirm', preview['preview_token'], update_labels='true').json()['updated'] == 2
+    after = client.get('/api/trades').json()
+    for old, new in zip(before, after):
+        assert new['target_rr'] == '1:2'
+        for field in ('net_pnl', 'gross_pnl', 'r_multiple', 'initial_risk', 'qty', 'entry_price', 'exit_price', 'stop_price', 'fees'):
+            assert old[field] == new[field]
+    assert client.post('/api/results', json={'target_rr': '1:2'}).json()['fixed_rr']['avg_r'] == .5
+    # Ordinary label review preserves the target marker without extra core fields.
+    row = after[0]
+    result = client.patch(f'/api/trades/{row["id"]}', json={'strategy': 'Reviewed model', 'labels': {}, 'notes': '', 'confirmed': True})
+    assert result.json()['target_rr'] == '1:2'
+    assert client.get('/api/trades').json()[0]['r_multiple'] is None

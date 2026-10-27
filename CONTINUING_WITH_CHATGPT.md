@@ -43,6 +43,12 @@ entries retain tags without classification. Preferences affect future imports;
 existing labels only change through the explicit previewed re-import option.
 All financial fields and core signatures remain untouched by these settings.
 
+For the owner's explicitly confirmed full-target/stop tests, services.fixed_rr
+adapts tagged backtests into separate model observations and calls the existing
+core summary. Never save those model observations as recorded R or original risk.
+Live/untagged/zero-result trades are excluded, recorded R takes priority in the
+headline, and every future ratio requires its own explicit full-exit confirmation.
+
 ## The one-page architecture
 
 ```

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from core import edge
 from core.db import trades_t
 from core.models import Trade
-from services import trade_labels
+from services import trade_labels, fixed_rr
 
 PROFILE_KEY = 'primuslab_import_profile'
 
@@ -43,8 +43,10 @@ def plan(database, parsed, notes):
         merged = {key: new[key] if new[key] != edge.UNKNOWN else labels[key] for key in edge.LABEL_KEYS}
         merged['confirmations'] = new['confirmations'] or labels['confirmations']
         strategy = incoming.setup_name.strip() or existing.setup_name
-        label_changes = merged != labels or strategy != existing.setup_name
-        tags = edge.write_labels(list(dict.fromkeys(existing.tags + incoming.tags)), **merged)
+        supplied_rr = fixed_rr.read(incoming.tags)
+        rr_changed = supplied_rr['target_rr'] != edge.UNKNOWN and supplied_rr != fixed_rr.read(existing.tags)
+        label_changes = merged != labels or strategy != existing.setup_name or rr_changed
+        tags = edge.write_labels(fixed_rr.merge(existing.tags, incoming.tags), **merged)
         if label_changes or not reviewed:
             tags = [tag for tag in tags if tag != 'edge:reviewed']
         text = existing.notes or ''
@@ -56,6 +58,7 @@ def plan(database, parsed, notes):
             changes.append({'id': existing.id, 'external_id': incoming.external_id, 'fields': fields,
                             'before': {key:old[key] for key in ('setup_name','tags','notes')},
                             'preview': {'previous_strategy':existing.setup_name, 'strategy':strategy, 'labels':merged,
+                                        'target_rr': fixed_rr.read(tags)['target_rr'],
                                         'note_added': bool(note and note not in (existing.notes or ''))}})
     return changes, list(dict.fromkeys(warnings))
 

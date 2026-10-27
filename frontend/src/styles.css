@@ -2199,3 +2199,5 @@ td strong {
 .import-attention h3 { font-size: 14px; margin-bottom: 7px; }
 .import-attention p { font-size: 12px; color: var(--tl-muted); line-height: 1.6; }
 @media (max-width: 600px) { .tag-guide-heading { flex-wrap: wrap; } .tag-meaning-row > div { flex-basis: calc(100% - 80px); } .tag-meaning-row .tag-alias-button { margin-left: auto; } .tag-meaning-rule { padding: 14px; } }
+.lab-rr-model { display: flex; flex-direction: column; gap: 7px; padding: 14px 18px; margin-bottom: 14px; border: 1px solid var(--tl-border); border-radius: 12px; background: var(--lab-tint); font-size: 12px; }
+.lab-rr-model span { color: var(--tl-muted); font-size: 11px; line-height: 1.6; }

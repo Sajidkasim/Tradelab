@@ -2,11 +2,12 @@
 import json
 import re
 from core import edge
+from . import fixed_rr
 
 MAPPING_KEY = 'fx_tag_mappings'
 FIELDS = {'strategy': 'Strategy', 'level': 'Key level / PDA', 'timeframe': 'Level timeframe',
           'entry_timeframe': 'Entry timeframe', 'confirmation': 'Confirmation',
-          'condition': 'Market condition', 'news': 'News'}
+          'condition': 'Market condition', 'news': 'News', 'target_rr': 'Target RR'}
 ORIGINAL_TAG_PREFIX = 'fx-original:'
 # Owner's FX Replay groups, confirmed 27 October 2026. 15M occurs in both
 # timeframe groups, so it deliberately has no unqualified suggestion.
@@ -60,6 +61,12 @@ def export_tags(value):
 
 def suggested_mapping(tag):
     normal = tag.strip().rstrip('\\').strip().upper()
+    match = re.fullmatch(r'(?:RR\s*:?\s*)?(1\s*:\s*\d+(?:\.\d+)?)', normal)
+    if match:
+        try:
+            return {'field': 'target_rr', 'value': fixed_rr.ratio(match[1])[0]}
+        except ValueError:
+            return {'field': '', 'value': ''}
     if normal in FX_TAG_GUIDE:
         field, value = FX_TAG_GUIDE[normal]
         return {'field': field, 'value': value}
@@ -118,6 +125,10 @@ def validate_mappings(payload):
         for rule in rules:
             if not isinstance(rule, dict) or rule.get('field') not in FIELDS or not isinstance(rule.get('value'), str) or not 0 < len(rule['value'].strip()) <= 120:
                 raise ValueError('Each tag rule needs a field and a short value.')
+            if rule['field'] == 'target_rr':
+                fixed_rr.ratio(rule['value'])
+                if 'full_exit' in rule and type(rule['full_exit']) is not bool:
+                    raise ValueError('Confirm full target or full stop with a checkbox.')
     return payload
 
 
@@ -144,8 +155,19 @@ def mapped_fields(tags, mappings, strategy=''):
             if field in FIELDS and value:
                 candidates.setdefault(field, set()).add(value)
     issues = []
+    target = None
+    full_exit = False
     for field, values in candidates.items():
-        if field == 'confirmation':
+        if field == 'target_rr':
+            normalized = {fixed_rr.ratio(value)[0] for value in values}
+            if len(normalized) != 1:
+                issues.append('Conflicting target RR tags; the fixed-RR model is not applied.')
+                retained = [tag for tag in retained if not fixed_rr.is_internal(tag)]
+            else:
+                target = next(iter(normalized))
+                full_exit = any(rule.get('field') == 'target_rr' and rule.get('full_exit') is True
+                                for tag in raw_tags for rule in mapping_rules(mappings.get(tag, {})))
+        elif field == 'confirmation':
             labels['confirmations'] = sorted(set(labels['confirmations']) | values)
         elif len(values) != 1:
             issues.append(f'Conflicting {FIELDS[field].lower()} tags; choose it when reviewing.')
@@ -163,6 +185,10 @@ def mapped_fields(tags, mappings, strategy=''):
     # Retain the original export labels as well as the internal structured labels.
     result = edge.write_labels(retained, **labels)
     result = list(dict.fromkeys(retained + result))
+    if 'target_rr' in candidates:
+        result = [tag for tag in result if not fixed_rr.is_internal(tag)]
+        if target:
+            result = fixed_rr.write(result, target, full_exit)
     if not reviewed:
         result = [t for t in result if t != 'edge:reviewed']
     return {'setup_name': strategy, 'tags': result}, issues

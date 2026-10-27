@@ -52,3 +52,21 @@ it("requires explicit fields and values, preserves composite meanings and reject
     cleanMeaning([{ field: "strategy", value: "x".repeat(121) }], false),
   ).toThrow();
 });
+
+it("fixed-RR confirmation is saved only for the target category", () => {
+  expect(
+    cleanMeaning(
+      [{ field: "target_rr", value: "1:3", full_exit: true }],
+      false,
+    ),
+  ).toEqual({ rules: [{ field: "target_rr", value: "1:3", full_exit: true }] });
+  expect(
+    meaningText({ field: "target_rr", value: "1:3", full_exit: true }),
+  ).toContain("full target / stop");
+  expect(
+    cleanMeaning(
+      [{ field: "strategy", value: "My model", full_exit: true }],
+      false,
+    ).rules[0],
+  ).not.toHaveProperty("full_exit");
+});

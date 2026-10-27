@@ -4,6 +4,7 @@ export const tagFields = [
   { value: "confirmation", label: "Confirmation", example: "e.g. SMT" },
   { value: "timeframe", label: "Level timeframe", example: "e.g. 1H" },
   { value: "entry_timeframe", label: "Entry timeframe", example: "e.g. 1m" },
+  { value: "target_rr", label: "Target RR", example: "e.g. 1:3" },
   { value: "news", label: "News", example: "e.g. Major news" },
   { value: "condition", label: "Market condition", example: "e.g. Trending" },
 ];
@@ -18,7 +19,7 @@ export function meaningText(entry) {
     ? rules
         .map(
           (rule) =>
-            `${tagFields.find((f) => f.value === rule.field)?.label || rule.field}: ${rule.value}`,
+            `${tagFields.find((f) => f.value === rule.field)?.label || rule.field}: ${rule.value}${rule.field === "target_rr" && rule.full_exit ? " · full target / stop" : ""}`,
         )
         .join(" · ")
     : "Choose what this tag means";
@@ -46,6 +47,9 @@ export function cleanMeaning(rules, keepOnly) {
     rules: rules.map((rule) => ({
       field: rule.field,
       value: rule.value.trim(),
+      ...(rule.field === "target_rr" && rule.full_exit === true
+        ? { full_exit: true }
+        : {}),
     })),
   };
 }

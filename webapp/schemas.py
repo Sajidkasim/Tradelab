@@ -30,6 +30,7 @@ class Filters(StrictModel):
     level: str = "Any level"
     timeframe: str = "Any timeframe"
     entry_timeframe: str = "Any timeframe"
+    target_rr: str = "Any RR"
     confirmations: list[str] = Field(default_factory=list, max_length=30)
     news: str = "Any news status"
     condition: str = "Any condition"

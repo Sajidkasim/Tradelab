@@ -22,6 +22,7 @@ const initial = {
   level: "Any level",
   timeframe: "Any timeframe",
   entry_timeframe: "Any timeframe",
+  target_rr: "Any RR",
   confirmations: [],
   news: "Any news status",
   condition: "Any condition",
@@ -219,6 +220,20 @@ export default function Results({
               onChange={(e) => change("entry_timeframe", e.target.value)}
             />
           </div>
+          <Select
+            label="Target RR"
+            values={[
+              "Any RR",
+              ...new Set([
+                ...(meta.target_rrs || []),
+                ...trades
+                  .map((trade) => trade.target_rr)
+                  .filter((value) => value && value !== unknown),
+              ]),
+            ]}
+            value={filters.target_rr}
+            onChange={(e) => change("target_rr", e.target.value)}
+          />
           <div className="field">
             <span>Confirmations</span>
             <Checkboxes
@@ -339,6 +354,7 @@ export default function Results({
             comparison={comparison}
             onTrades={onTrades}
             palette={meta.palette[mode]}
+            configuredTargets={meta.target_rrs || []}
           />
           <Button
             className="detail-button"
@@ -370,8 +386,16 @@ function ResultSample({
   comparison,
   onTrades,
   palette,
+  configuredTargets,
 }) {
   const s = data?.stats;
+  const model = data?.fixed_rr;
+  const useFixed = model?.complete && data.r_count === 0;
+  const targets = model?.targets?.length
+    ? model.targets
+    : filters.target_rr !== "Any RR"
+      ? [filters.target_rr]
+      : configuredTargets;
   return (
     <section
       className="result-sample"
@@ -450,6 +474,26 @@ function ResultSample({
         <span className="lab-step">03 / UNDERSTAND</span>
         <span>Results for your selection</span>
       </div>
+      {!!targets?.length && (
+        <div className="lab-rr-model">
+          <strong>Target RR: {targets.join(" · ")}</strong>
+          <span>
+            {useFixed
+              ? "Full target / full stop · fixed backtest model before costs"
+              : model?.complete
+                ? "Recorded R is available and is shown below. The fixed model remains a separate comparison before costs."
+                : model?.count
+                  ? `${model.count} of ${s.trades} trades fit the fixed backtest model. Filter by Target RR to isolate a test.`
+                  : "Target label only until matching full-target/stop backtests are imported."}
+          </span>
+          {!useFixed && model?.count > 0 && (
+            <span>
+              Average R for the fixed-model subset: {rvalue(model.avg_r)}. The
+              card below uses recorded R.
+            </span>
+          )}
+        </div>
+      )}
       <div className={`stats card ${busy ? "updating" : ""}`}>
         <Stat
           label="Win rate"
@@ -461,12 +505,14 @@ function ResultSample({
           }
         />
         <Stat
-          label="Average R"
-          value={s ? rvalue(s.avg_r) : "—"}
+          label={useFixed ? "Average R · fixed test" : "Average R"}
+          value={s ? rvalue(useFixed ? model.avg_r : s.avg_r) : "—"}
           caption={
-            s
-              ? `R recorded on ${data.r_count} of ${s.trades} trades`
-              : "Realised return on risk"
+            useFixed
+              ? `${model.count} tagged backtests · before costs`
+              : s
+                ? `R recorded on ${data.r_count} of ${s.trades} trades`
+                : "Realised return on risk"
           }
         />
         <Stat
@@ -482,6 +528,8 @@ function ResultSample({
           amount you risked; −1R means you lost it. Average R is the mean
           realised R across trades with recorded risk. For example, +0.25R
           equals an average $25 gain when each trade risks $100.
+          {useFixed &&
+            " This selection uses your confirmed full-target/full-stop model. The displayed average comes from those fixed outcomes before costs, rather than recorded dollar risk. Saved dollar results and actual R values are unchanged."}
         </p>
       </details>
       {detail && s && (
@@ -490,6 +538,13 @@ function ResultSample({
             <Stat label="Net result" value={money(s.net_pnl)} />
             <Stat label="Profit factor" value={number(s.profit_factor)} />
             <Stat label="Maximum drawdown" value={money(s.max_drawdown)} />
+            {useFixed && (
+              <Stat
+                label="Recorded average R"
+                value={rvalue(s.avg_r)}
+                caption={`Original risk recorded on ${data.r_count} trades`}
+              />
+            )}
           </div>
           <p>
             {s.wins} wins · {s.losses} losses · {s.scratches} break-even. 95%
