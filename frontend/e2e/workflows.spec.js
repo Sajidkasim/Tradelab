@@ -14,7 +14,7 @@ async function open(page) {
   ).toBeVisible();
 }
 
-test("manual entry, no page reload, setup graph, and separate results samples", async ({
+test("manual entry, setup exploration and combined or separate source results", async ({
   page,
 }) => {
   const failures = [];
@@ -72,9 +72,8 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
   await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(
     page.locator(".stat").filter({ hasText: "Win rate" }).first(),
-  ).toContainText("100.0%");
+  ).toContainText("50.0%");
   await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
-  await page.getByRole("button", { name: "Explore a strategy" }).click();
   await expect(
     page.getByRole("heading", { name: "Explore a strategy" }),
   ).toBeVisible();
@@ -87,29 +86,40 @@ test("manual entry, no page reload, setup graph, and separate results samples", 
   await expect(
     page.getByRole("group", { name: "Results sample", exact: true }),
   ).toHaveCount(0);
-  const backtesting = page.getByRole("region", {
-    name: "Backtesting results",
-    exact: true,
-  });
-  const forward = page.getByRole("region", {
-    name: "Forward testing results",
+  const combined = page.getByRole("region", {
+    name: "Combined results",
     exact: true,
   });
   await expect(
-    backtesting.locator(".stat").filter({ hasText: "Win rate" }),
+    combined.locator(".stat").filter({ hasText: "Win rate" }),
+  ).toContainText("50.0%");
+  await expect(
+    combined.locator(".stat").filter({ hasText: "Trades analysed" }),
+  ).toContainText("2");
+  await expect(page.locator(".js-plotly-plot")).toHaveCount(1);
+  const sources = page.getByRole("group", { name: "Data source", exact: true });
+  await sources
+    .getByRole("button", { name: "Backtesting", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("region", { name: "Backtesting results", exact: true })
+      .locator(".stat")
+      .filter({ hasText: "Win rate" }),
   ).toContainText("100.0%");
+  await sources
+    .getByRole("button", { name: "Live trading", exact: true })
+    .click();
   await expect(
-    forward.locator(".stat").filter({ hasText: "Win rate" }),
+    page
+      .getByRole("region", { name: "Live trading results", exact: true })
+      .locator(".stat")
+      .filter({ hasText: "Win rate" }),
   ).toContainText("0.0%");
-  await expect(
-    backtesting.locator(".stat").filter({ hasText: "Trade count" }),
-  ).toContainText("1");
-  await expect(
-    forward.locator(".stat").filter({ hasText: "Trade count" }),
-  ).toContainText("1");
-  await expect(page.locator(".js-plotly-plot")).toHaveCount(2);
-  await expect(backtesting.locator(".scatterlayer .point")).toHaveCount(2);
-  await expect(forward.locator(".scatterlayer .point")).toHaveCount(2);
+  await sources.getByRole("button", { name: "All", exact: true }).click();
+  await page.getByLabel("Show drawdown", { exact: true }).check();
+  await expect(page.locator(".js-plotly-plot")).toHaveCount(1);
+  await page.getByLabel("Show drawdown", { exact: true }).uncheck();
   await page.screenshot({
     path: "test-results/primuslab-all-results.png",
     fullPage: true,
@@ -123,9 +133,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
 }) => {
   await open(page);
   await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Import FX Replay", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await page.getByLabel("Choose a trade export").setInputFiles({
     name: "replay.csv",
     mimeType: "text/csv",
@@ -148,7 +156,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     page.getByRole("heading", { name: "2 trades added" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Review & tag trades" }).click();
-  await page.getByRole("button", { name: /Needs tagging/ }).click();
+  await page.getByRole("button", { name: /To finish/ }).click();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
   await page
     .getByRole("button", { name: /Edit trade/ })
@@ -177,10 +185,10 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   await dialog.getByRole("button", { name: "Save & next" }).click();
   await expect(dialog).not.toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Your review queue is clear" }),
+    page.getByRole("heading", { name: "All caught up" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Import FX Replay", exact: true })
+    .getByRole("button", { name: "Import", exact: true })
     .first()
     .click();
   await page.getByLabel("Choose a trade export").setInputFiles({
@@ -234,7 +242,6 @@ test("backup download, playbook, themes and mobile layout", async ({
     path: "test-results/primuslab-results-light.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Explore a strategy" }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
@@ -312,9 +319,7 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await expect(
     page.getByRole("button", { name: "Add trade", exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Import FX Replay", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByLabel("These trades are…")).not.toBeVisible();
   await page
     .getByText("File options & column mapping", { exact: true })
@@ -325,7 +330,7 @@ test("compact navigation and workspace tools remain accessible on mobile", async
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     )
     .toBe(true);
-  await page.getByRole("link", { name: "Journal", exact: true }).click();
+  await page.getByRole("link", { name: "Strategy Lab", exact: true }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
@@ -357,21 +362,18 @@ test("one journal keeps exploration beside results and trades below, with All fi
   );
   await expect(
     page.getByRole("combobox", { name: "Strategy", exact: true }),
-  ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Explore a strategy", exact: true })
-    .click();
+  ).toHaveCount(1);
   await page
     .locator(".explorer")
     .getByLabel("Strategy", { exact: true })
     .selectOption("Browser setup");
-  await expect(page.locator(".js-plotly-plot")).toHaveCount(2);
+  await expect(page.locator(".js-plotly-plot")).toHaveCount(1);
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
   );
   await sources
-    .getByRole("button", { name: "Forward testing", exact: true })
+    .getByRole("button", { name: "Live trading", exact: true })
     .click();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(1);
   await sources.getByRole("button", { name: "All", exact: true }).click();
@@ -438,7 +440,7 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(3);
   const manual = page
     .locator(".trade-table tbody tr")
-    .filter({ hasText: "Forward" });
+    .filter({ hasText: "Live trade" });
   await manual.getByRole("button", { name: /Delete trade/ }).click();
   await page
     .getByRole("dialog")
@@ -446,13 +448,234 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
     .click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
-  const forward = page.getByRole("region", {
-    name: "Forward testing results",
-    exact: true,
-  });
+  await page
+    .getByRole("group", { name: "Data source", exact: true })
+    .getByRole("button", { name: "Live trading", exact: true })
+    .click();
   await expect(
-    forward.locator(".stat").filter({ hasText: "Trade count" }),
+    page
+      .getByRole("region", { name: "Live trading results", exact: true })
+      .locator(".stat")
+      .filter({ hasText: "Trades analysed" }),
   ).toContainText("0");
   await page.reload();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
+});
+
+test("composite CSV tags are approved once, notes survive, and re-import previews label updates", async ({
+  page,
+}) => {
+  const tagged = `id,dateStart,dateEnd,pair,rPnL,side,status,tags,notes\nrelease-browser,2013/01/25 17:07:59,2013/01/25 19:13:55,CME_MINI:NQ1,125,sell,closed,"CONTINUATION,HTF LEVEL 1HR FVG,CISD FVG \\",Export note\n`;
+  async function choose(content) {
+    await page
+      .getByLabel("Choose a trade export")
+      .setInputFiles({
+        name: "tagged.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(content),
+      });
+    await page
+      .getByRole("button", { name: "Preview trades", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Check the preview" }),
+    ).toBeVisible();
+  }
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await choose(tagged);
+  await page.getByText("Recognise strategy tags", { exact: true }).click();
+  await expect(
+    page
+      .locator(".tag-map-group")
+      .filter({ hasText: "HTF LEVEL 1HR FVG" })
+      .getByRole("combobox"),
+  ).toHaveCount(2);
+  await expect(
+    page
+      .locator(".tag-map-group")
+      .filter({ hasText: "CISD FVG" })
+      .getByRole("combobox"),
+  ).toHaveCount(2);
+  await page
+    .getByRole("button", { name: "Save mappings & preview again" })
+    .click();
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(page.locator(".preview-card tbody")).toContainText(
+    "Continuation",
+  );
+  await expect(page.locator(".preview-card tbody")).toContainText("CISD + FVG");
+  await page
+    .getByRole("button", { name: "Import 1 trades", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "1 trades added", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Import another file", exact: true })
+    .click();
+  await page
+    .getByLabel("Update labels on existing trades", { exact: true })
+    .check();
+  await choose(
+    tagged
+      .replace(",125,sell", ",9999,sell")
+      .replace("Export note", "Another export note"),
+  );
+  await expect(
+    page.locator(".preview-card .stat").filter({ hasText: "Label updates" }),
+  ).toContainText("1");
+  await page
+    .getByRole("button", { name: "Import 0 trades · update 1", exact: true })
+    .click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm import", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "0 trades added · 1 updated",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Review & tag trades", exact: true })
+    .click();
+  await expect(
+    page.locator(".trade-table tbody tr").filter({ hasText: "Continuation" }),
+  ).toContainText("125.00");
+});
+
+test("Lab settings expose exactly the requested windows and save custom names", async ({
+  page,
+}) => {
+  await open(page);
+  await expect(page.getByText("New York focused", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByText("Session, news & market", { exact: true }).click();
+  const sessions = page.getByLabel("Session window", { exact: true });
+  await expect(sessions.locator("option")).toHaveCount(7);
+  await expect(sessions).toHaveValue("All sessions");
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "Lab settings", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByLabel("Session 1 starts", { exact: true }),
+  ).toHaveValue("20:00");
+  await expect(
+    dialog.getByLabel("Session 6 ends", { exact: true }),
+  ).toHaveValue("16:00");
+  await dialog
+    .getByLabel("Session 4 name", { exact: true })
+    .fill("My opening window");
+  await dialog
+    .getByRole("button", { name: "Save lab settings", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(sessions.locator("option")).toContainText([
+    "All sessions",
+    "Asia",
+    "London",
+    "New York pre-market",
+    "My opening window",
+    "Lunch",
+    "Afternoon",
+  ]);
+  await page.reload();
+  await page.getByText("Session, news & market", { exact: true }).click();
+  await expect(
+    page.getByLabel("Session window").locator("option"),
+  ).toContainText([
+    "All sessions",
+    "Asia",
+    "London",
+    "New York pre-market",
+    "My opening window",
+    "Lunch",
+    "Afternoon",
+  ]);
+});
+
+test("eight-row pagination and exact-count delete-all handle changed data safely", async ({
+  page,
+}) => {
+  await open(page);
+  const identity = await (await page.request.get("/api/session")).json();
+  const headers = {
+    Origin: "http://127.0.0.1:8111",
+    "X-Primus-CSRF": identity.csrf,
+  };
+  async function seed(index) {
+    const response = await page.request.post("/api/trades", {
+      headers,
+      data: {
+        symbol: "ES",
+        direction: "long",
+        account_id: 1,
+        source: "backtest",
+        strategy: "Pagination",
+        labels: {},
+        confirmed: false,
+        entry_time: `2026-08-${String(index + 1).padStart(2, "0")}T09:30:00-04:00`,
+        exit_time: `2026-08-${String(index + 1).padStart(2, "0")}T10:00:00-04:00`,
+        net_pnl: 50,
+        risk_amount: 100,
+        notes: "Synthetic browser check only",
+      },
+    });
+    expect(response.status()).toBe(200);
+  }
+  for (let i = 0; i < 8; i++) await seed(i);
+  await page.reload();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(8);
+  await page
+    .locator(".table-footer")
+    .getByRole("button", { name: "Next", exact: true })
+    .click();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(3);
+  await page
+    .getByRole("button", { name: "Manage trades", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Delete all trades", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("11");
+  await dialog
+    .getByRole("button", { name: "Continue to confirmation" })
+    .click();
+  await dialog.getByRole("textbox").fill("10");
+  await expect(
+    dialog.getByRole("button", { name: "Delete all 11 trades", exact: true }),
+  ).toBeDisabled();
+  await seed(8);
+  await dialog.getByRole("textbox").fill("11");
+  await dialog
+    .getByRole("button", { name: "Delete all 11 trades", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText("Your trades changed");
+  await dialog
+    .getByRole("button", { name: "Get the latest trade count" })
+    .click();
+  await expect(dialog).toContainText("12");
+  await dialog
+    .getByRole("button", { name: "Continue to confirmation" })
+    .click();
+  await dialog.getByRole("textbox").fill("12");
+  await dialog
+    .getByRole("button", { name: "Delete all 12 trades", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "No trades yet" }).last(),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".trade-table tbody tr")).toHaveCount(0);
 });

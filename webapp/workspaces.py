@@ -13,6 +13,7 @@ from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
 from services import trade_labels
+from . import lab_settings, import_updates
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
           "All": LIVE_SOURCES + BACKTEST_SOURCES}
@@ -93,19 +94,22 @@ class Workspaces:
         db = self.database(key)
         frame = self.trades(key)
         book = edge.playbook(db.get_setting(edge.PLAYBOOK_KEY))
+        lab = lab_settings.read(db)
         used = sorted(set(frame["setup_name"].dropna()) - {""}) if not frame.empty else []
         return clean({"accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": list(dict.fromkeys(book["strategies"] + [s.name for s in db.setups()] + used)),
                       "timeframes": edge.TIMEFRAMES, "confirmations": edge.CONFIRMATIONS,
-                      "news": edge.NEWS, "conditions": edge.CONDITIONS,
-                      "windows": list(edge.NY_WINDOWS), "palette": charts.PALETTE,
+                      "news": lab["news"], "conditions": lab["conditions"],
+                      "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,
+                      "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
                       "tag_mappings": db.get_setting(trade_labels.MAPPING_KEY, {})})
 
     def results(self, key, filters):
         frame = self.trades(key)
-        # All can browse both histories, but a results sample is always singular.
-        scope = filters.sample if filters.scope == "All" else filters.scope
+        # The owner explicitly requested a combined laboratory history. Older
+        # clients retain their separate samples unless they opt into combined All.
+        scope = ("All" if filters.combined else filters.sample) if filters.scope == "All" else filters.scope
         base = frame[frame["source"].isin(SCOPES[scope])].copy()
         if filters.account_id is not None:
             base = base[base["account_id"] == filters.account_id]
@@ -118,6 +122,9 @@ class Workspaces:
         if not base.empty:
             base["setup_name"] = base["setup_name"].fillna("").replace("", "Unclassified")
         query = {name: getattr(filters, name) for name in ("strategy", "direction", "level", "timeframe", "entry_timeframe", "confirmations", "news", "condition", "window", "symbol")}
+        if filters.window != "New York":
+            settings = lab_settings.read(self.database(key))
+            base["edge_window"] = [lab_settings.session_of(stamp, settings) for stamp in base["entry_time"]]
         matched = edge.select(base, **query)
         stats = metrics.summary_stats(matched)
         closed = metrics.closed(matched)
@@ -129,7 +136,8 @@ class Workspaces:
         import json
         response = {"stats": clean(stats), "sample": scope, "collection_count": len(metrics.closed(base)),
                     "r_count": int(closed["r_multiple"].notna().sum()) if not closed.empty else 0,
-                    "chart": json.loads(chart.to_json()) if chart else None}
+                    "chart": json.loads(chart.to_json()) if chart else None,
+                    "chart_latest": clean({"time": equity["time"].iloc[-1].isoformat(), "equity": equity["equity"].iloc[-1]}) if not equity.empty else None}
         if filters.detail:
             response["breakdown"] = records(metrics.breakdown(matched, filters.comparison))
         return response

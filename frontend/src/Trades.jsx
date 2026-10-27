@@ -3,15 +3,16 @@ import {
   Plus,
   Trash2,
   Upload,
-  Search,
   ArrowUpRight,
   Download,
   Settings2,
+  ClipboardCheck,
 } from "lucide-react";
 import { api } from "./api";
 import {
   Button,
   Heading,
+  Segments,
   Empty,
   Modal,
   Notice,
@@ -19,7 +20,10 @@ import {
   Menu,
 } from "./components";
 import TradeForm from "./TradeForm";
+import DeleteAllTrades from "./DeleteAllTrades";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
+
+const PAGE_SIZE = 8;
 
 export default function Trades({
   meta,
@@ -30,13 +34,13 @@ export default function Trades({
   scope,
 }) {
   const [pending, setPending] = useState(false),
-    [search, setSearch] = useState(""),
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
     [previous, setPrevious] = useState(null),
     [book, setBook] = useState(false),
     [bulk, setBulk] = useState(false);
   const [deleting, setDeleting] = useState(null);
+  const [deleteAll, setDeleteAll] = useState(false);
   const [selected, setSelected] = useState([]),
     [strategy, setStrategy] = useState(""),
     [busy, setBusy] = useState(false),
@@ -44,18 +48,13 @@ export default function Trades({
   const queue = useMemo(
     () =>
       trades.filter(
-        (t) =>
-          belongsTo(t, scope) &&
-          (!pending || t.needs_tagging) &&
-          `${t.symbol} ${t.setup_name} ${t.direction}`
-            .toLowerCase()
-            .includes(search.toLowerCase()),
+        (t) => belongsTo(t, scope) && (!pending || t.needs_tagging),
       ),
-    [trades, scope, pending, search],
+    [trades, scope, pending],
   );
   const currentPage = Math.min(
     page,
-    Math.max(0, Math.ceil(queue.length / 30) - 1),
+    Math.max(0, Math.ceil(queue.length / PAGE_SIZE) - 1),
   );
   useEffect(() => {
     setPage(0);
@@ -82,7 +81,10 @@ export default function Trades({
       setBusy(false);
     }
   }
-  const pendingCount = trades.filter((t) => t.needs_tagging).length;
+  const unfinished = trades.filter(
+    (t) => belongsTo(t, scope) && t.needs_tagging,
+  );
+  const pendingCount = unfinished.length;
   const trade =
     typeof opened === "number" ? trades.find((t) => t.id === opened) : null;
   async function saved(updated, next) {
@@ -124,7 +126,7 @@ export default function Trades({
         action={
           <div className="actions">
             <Button onClick={onImport}>
-              <Upload size={16} /> Import FX Replay
+              <Upload size={16} /> Import
             </Button>
             <Button variant="primary" onClick={() => setOpened("new")}>
               <Plus size={17} /> Add trade
@@ -132,36 +134,33 @@ export default function Trades({
           </div>
         }
       />
-      <div className="toolbar">
-        <Button
-          className={pending ? "active" : ""}
-          aria-pressed={pending}
-          onClick={() => {
-            setPending(!pending);
+      <div className="trade-review-toolbar">
+        <Segments
+          label="Trade list"
+          values={[
+            { value: "all", label: "All trades" },
+            { value: "unfinished", label: `To finish · ${pendingCount}` },
+          ]}
+          value={pending ? "unfinished" : "all"}
+          onChange={(value) => {
+            setPending(value === "unfinished");
             setPage(0);
+            setSelected([]);
           }}
-        >
-          Needs tagging <span className="count">{pendingCount}</span>
-        </Button>
-        <div className="search">
-          <Search size={16} />
-          <input
-            aria-label="Search trades"
-            placeholder="Market or strategy"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-          />
-        </div>
+        />
+        <p>Open a trade to add its strategy and setup details.</p>
       </div>
       <div className="card journal-card">
         <div className="section-title">
           <div>
-            <h2>{pending ? "Your review queue" : "Trade journal"}</h2>
+            <h2>{pending ? "Trades to finish" : "Your trades"}</h2>
             <p>
-              {queue.length} trades · {scope === "All" ? "All sources" : scope}{" "}
+              {queue.length} trades ·{" "}
+              {scope === "All"
+                ? "All sources"
+                : scope === "Forward testing"
+                  ? "Live trading"
+                  : scope}{" "}
               · New York time
             </p>
           </div>
@@ -181,8 +180,40 @@ export default function Trades({
             <a href="/api/export/csv">
               <Download size={15} /> Download CSV
             </a>
+            <button
+              className="menu-danger"
+              disabled={!trades.length}
+              onClick={() => setDeleteAll(true)}
+            >
+              <Trash2 size={15} /> Delete all trades
+            </button>
           </Menu>
         </div>
+        {pendingCount > 0 && (
+          <div className="review-prompt">
+            <ClipboardCheck size={20} />
+            <div>
+              <strong>
+                {pendingCount}{" "}
+                {pendingCount === 1 ? "trade needs" : "trades need"} setup
+                details
+              </strong>
+              <p>
+                Add a strategy and check the confirmations so you can explore
+                these trades in the lab.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setPending(true);
+                setPage(0);
+                setOpened(unfinished[0].id);
+              }}
+            >
+              Review next <ArrowUpRight size={14} />
+            </Button>
+          </div>
+        )}
         {queue.length ? (
           <>
             <div className="table-wrap">
@@ -191,10 +222,10 @@ export default function Trades({
                   <tr>
                     {bulk && <th>Select</th>}
                     <th>Trade</th>
-                    <th>Strategy</th>
+                    <th className="trade-strategy-cell">Strategy</th>
                     <th>Net result</th>
-                    <th>Realised R</th>
-                    <th>Status</th>
+                    <th className="trade-r-cell">Realised R</th>
+                    <th className="trade-status-cell">Status</th>
                     <th>
                       <span className="sr-only">Actions</span>
                     </th>
@@ -202,7 +233,10 @@ export default function Trades({
                 </thead>
                 <tbody>
                   {queue
-                    .slice(currentPage * 30, currentPage * 30 + 30)
+                    .slice(
+                      currentPage * PAGE_SIZE,
+                      currentPage * PAGE_SIZE + PAGE_SIZE,
+                    )
                     .map((t) => (
                       <tr key={t.id} onClick={() => !bulk && setOpened(t.id)}>
                         {bulk && (
@@ -221,7 +255,7 @@ export default function Trades({
                             />
                           </td>
                         )}
-                        <td>
+                        <td className="trade-summary">
                           <strong>
                             {t.symbol}{" "}
                             <span className="side-label">
@@ -231,8 +265,12 @@ export default function Trades({
                           <small className="table-caption">
                             {tradeDate(t.entry_time)} · {sourceNames[t.source]}
                           </small>
+                          <small className="mobile-trade-detail">
+                            {t.setup_name || "Add strategy"}
+                            {t.needs_tagging ? " · To finish" : ""}
+                          </small>
                         </td>
-                        <td>
+                        <td className="trade-strategy-cell">
                           {t.setup_name || (
                             <span className="muted">Unclassified</span>
                           )}
@@ -247,13 +285,16 @@ export default function Trades({
                           }
                         >
                           {money(t.net_pnl)}
+                          <small className="mobile-trade-detail">
+                            {rvalue(t.r_multiple)}
+                          </small>
                         </td>
-                        <td>{rvalue(t.r_multiple)}</td>
-                        <td>
+                        <td className="trade-r-cell">{rvalue(t.r_multiple)}</td>
+                        <td className="trade-status-cell">
                           <span
                             className={`badge ${t.needs_tagging ? "pending" : ""}`}
                           >
-                            {t.needs_tagging ? "Needs tagging" : "Reviewed"}
+                            {t.needs_tagging ? "Add details" : "Complete"}
                           </span>
                         </td>
                         <td>
@@ -287,9 +328,9 @@ export default function Trades({
             </div>
             <div className="table-footer">
               <span>
-                {Math.min(currentPage * 30 + 1, queue.length)}–
-                {Math.min((currentPage + 1) * 30, queue.length)} of{" "}
-                {queue.length}
+                {Math.min(currentPage * PAGE_SIZE + 1, queue.length)}–
+                {Math.min((currentPage + 1) * PAGE_SIZE, queue.length)} of{" "}
+                {queue.length} trades
               </span>
               <div>
                 <Button
@@ -299,7 +340,7 @@ export default function Trades({
                   Previous
                 </Button>
                 <Button
-                  disabled={(currentPage + 1) * 30 >= queue.length}
+                  disabled={(currentPage + 1) * PAGE_SIZE >= queue.length}
                   onClick={() => setPage(currentPage + 1)}
                 >
                   Next
@@ -309,17 +350,29 @@ export default function Trades({
           </>
         ) : (
           <Empty
+            action={
+              pending ? (
+                <Button
+                  onClick={() => {
+                    setPending(false);
+                    setPage(0);
+                  }}
+                >
+                  Show all trades
+                </Button>
+              ) : undefined
+            }
             title={
               pending
-                ? "Your review queue is clear"
+                ? "All caught up"
                 : trades.length
                   ? "No trades match these filters"
                   : "No trades yet"
             }
           >
             {pending
-              ? "Switch off Needs tagging to amend an existing trade."
-              : "Use Add trade or Import FX Replay above to get started."}
+              ? "These trades have their strategy and confirmations checked. Choose All trades to view your journal."
+              : "Use Add trade or Import above to get started."}
           </Empty>
         )}
         {bulk && (
@@ -398,6 +451,19 @@ export default function Trades({
             </div>
           </div>
         </Modal>
+      )}
+      {deleteAll && (
+        <DeleteAllTrades
+          onClose={() => setDeleteAll(false)}
+          refresh={refresh}
+          toast={toast}
+          onDeleted={() => {
+            setSelected([]);
+            setBulk(false);
+            setPage(0);
+            setOpened(null);
+          }}
+        />
       )}
       {book && (
         <Playbook

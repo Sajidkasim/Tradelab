@@ -21,6 +21,7 @@ class Labels(StrictModel):
 class Filters(StrictModel):
     scope: Literal["Backtesting", "Forward testing", "All"] = "Backtesting"
     sample: Literal["Backtesting", "Forward testing"] = "Backtesting"
+    combined: bool = False
     account_id: int | None = None
     start: date | None = None
     end: date | None = None
@@ -84,3 +85,21 @@ class PositionSize(StrictModel):
     entry: float = Field(gt=0)
     stop: float = Field(gt=0)
     risk_dollars: float = Field(gt=0)
+
+
+class SessionWindow(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+    start: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end: str = Field(pattern=r"^\d{2}:\d{2}$")
+
+
+class LabSettings(StrictModel):
+    timezone: Literal["Etc/GMT+4", "America/New_York"] = "Etc/GMT+4"
+    sessions: list[SessionWindow] = Field(min_length=1, max_length=16)
+    news: list[str] = Field(min_length=1, max_length=30)
+    conditions: list[str] = Field(min_length=1, max_length=30)
+
+
+class DeleteAllTrades(StrictModel):
+    confirmation_count: int = Field(gt=0, strict=True)
+    preview_token: str = Field(min_length=1, max_length=2048)

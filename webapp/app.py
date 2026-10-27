@@ -21,9 +21,9 @@ from core import edge
 from core.models import Source
 from services import trade_labels
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups
+from . import imports, backups, lab_settings, trade_deletion, import_updates
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 
 
@@ -215,6 +215,30 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump(member["key"])
             return serialise_trade(database.get_trade(trade_id))
 
+    @app.post("/api/trades/deletion-preview")
+    def deletion_preview(request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            snapshot = trade_deletion.read_snapshot(db(request, member))
+        token = signer.dumps({**snapshot, 'purpose': 'delete-all-trades', 'workspace': member['key'], 'csrf': request.session['csrf']})
+        return {'count': snapshot['count'], 'preview_token': token}
+
+    @app.delete("/api/trades")
+    def delete_all_trades(payload: DeleteAllTrades, request: Request, member=Depends(workspace)):
+        try:
+            snapshot = signer.loads(payload.preview_token, max_age=300)
+        except (BadSignature, SignatureExpired):
+            raise HTTPException(409, "This confirmation has expired. Open Delete all trades again.") from None
+        if (snapshot.get('purpose') != 'delete-all-trades' or snapshot.get('workspace') != member['key']
+                or not hmac.compare_digest(snapshot.get('csrf', ''), request.session['csrf'])
+                or snapshot.get('count') != payload.confirmation_count):
+            raise HTTPException(409, "The trade count does not match. Open Delete all trades again.")
+        with app.state.workspaces.lock:
+            count = trade_deletion.remove_snapshot(db(request, member), snapshot)
+            if count is None:
+                raise HTTPException(409, "Your trades changed. Open Delete all trades again to confirm the new count.")
+            app.state.workspaces.bump(member['key'])
+        return {'deleted': count}
+
     @app.delete("/api/trades/{trade_id}")
     def delete_trade(trade_id: int, request: Request, member=Depends(workspace)):
         database = db(request, member)
@@ -232,6 +256,14 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump(member["key"])
         return {"updated": count}
 
+    @app.put("/api/lab-settings")
+    def save_lab_settings(payload: LabSettings, request: Request, member=Depends(workspace)):
+        values = lab_settings.validate(payload.model_dump())
+        with app.state.workspaces.lock:
+            db(request, member).set_setting(lab_settings.KEY, values)
+            app.state.workspaces.bump(member["key"])
+        return values
+
     @app.put("/api/playbook")
     def playbook(payload: Playbook, request: Request, member=Depends(workspace)):
         if any(len(value) > 120 for value in payload.strategies + payload.levels):
@@ -246,11 +278,7 @@ def create_app(config: Settings | None = None):
         if len(await request.body()) > 100000:
             raise HTTPException(413, "Too many tag mappings.")
         payload = await request.json()
-        if not isinstance(payload, dict) or len(payload) > 200:
-            raise ValueError("Choose up to 200 tag mappings.")
-        for tag, rule in payload.items():
-            if not isinstance(rule, dict) or rule.get("field") not in trade_labels.FIELDS or not isinstance(rule.get("value"), str) or not 0 < len(rule["value"]) <= 120 or len(tag) > 200:
-                raise ValueError("Each tag needs a field and a short value.")
+        trade_labels.validate_mappings(payload)
         await run_in_threadpool(db(request, member).set_setting, trade_labels.MAPPING_KEY, payload)
         app.state.workspaces.bump(member["key"])
         return {"ok": True}
@@ -258,7 +286,8 @@ def create_app(config: Settings | None = None):
     @app.post("/api/import/{action}")
     async def import_file(action: str, request: Request, file: UploadFile = File(...), account_id: int = Form(...),
                           source: str = Form("fxreplay"), timezone: str = Form("UTC"), dayfirst: bool = Form(False),
-                          mapping: str = Form("{}"), preview_token: str = Form(""), member=Depends(workspace)):
+                          mapping: str = Form("{}"), preview_token: str = Form(""), update_labels: bool = Form(False),
+                          remember_profile: bool = Form(False), member=Depends(workspace)):
         if action not in ("preview", "confirm"):
             raise HTTPException(404)
         content = await file.read(imports.MAX_UPLOAD + 1)
@@ -270,22 +299,34 @@ def create_app(config: Settings | None = None):
         except json.JSONDecodeError:
             raise ValueError("Check the column mapping.") from None
         fingerprint = imports.digest(content, filename, account_id, source, timezone, dayfirst, columns)
-        if action == "confirm":
-            try:
-                approval = signer.loads(preview_token, max_age=900)
-            except (BadSignature, SignatureExpired):
-                raise HTTPException(409, "Preview the file again before importing.") from None
-            if approval != [member["key"], fingerprint]:
-                raise HTTPException(409, "File or import options changed. Preview again.")
         def operation():
             with app.state.workspaces.lock:
                 database = db(request, member)
                 parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns)
+                notes = preview.pop('_notes', {})
+                changes, issues = import_updates.plan(database, parsed, notes) if update_labels else ([], [])
+                preview['issues'].extend(issues)
+                if update_labels:
+                    preview['counts']['updates'] = len(changes)
+                preview['label_updates'] = [{'id':item['id'], **item['preview']} for item in changes][:200]
+                signature = [member['key'], fingerprint, import_updates.digest({
+                    'mappings': database.get_setting(trade_labels.MAPPING_KEY, {}),
+                    'update_labels': update_labels, 'remember_profile': remember_profile,
+                    'changes':changes if update_labels else None})]
                 if action == "confirm":
-                    result = database.insert_trades(parsed)
+                    try:
+                        approval = signer.loads(preview_token, max_age=900)
+                    except (BadSignature, SignatureExpired):
+                        raise HTTPException(409, "Preview the file again before importing.") from None
+                    if approval != signature:
+                        raise HTTPException(409, "File, labels or import options changed. Preview again.")
+                    result = import_updates.apply(database, parsed, changes) if update_labels else database.insert_trades(parsed)
+                    if remember_profile:
+                        database.set_setting(import_updates.PROFILE_KEY, {'account_id':account_id, 'source':preview['source'],
+                            'timezone':timezone, 'dayfirst':dayfirst, 'update_labels':update_labels})
                     app.state.workspaces.bump(member["key"])
                     return result
-                preview["preview_token"] = signer.dumps([member["key"], fingerprint])
+                preview["preview_token"] = signer.dumps(signature)
                 return preview
         return await run_in_threadpool(operation)
 

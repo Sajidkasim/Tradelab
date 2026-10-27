@@ -10,6 +10,7 @@
   --tl-positive: #2a78d6;
   --tl-negative: #d03b3b;
   --tl-warning: #fab219;
+  --tl-sage: #1baf7a;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -23,5 +24,6 @@
   --tl-positive: #3987e5;
   --tl-negative: #d03b3b;
   --tl-warning: #fab219;
+  --tl-sage: #199e70;
   color-scheme: dark;
 }

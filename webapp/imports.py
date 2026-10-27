@@ -10,6 +10,7 @@ from core.models import Source
 from core.fills_to_trades import pair_fills, root_symbol
 from services import import_flow, trade_labels
 from .workspaces import records
+from core import edge
 
 MAX_UPLOAD = 5 * 1024 * 1024
 EXTENSIONS = (".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".json")
@@ -22,7 +23,7 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
         raise ValueError("Choose CSV, TSV, TXT, Excel or JSON.")
     if account_id not in {a.id for a in db.accounts()}:
         raise ValueError("Choose an account in your workspace.")
-    if timezone not in ("UTC", "America/New_York", "Europe/London"):
+    if timezone not in ("UTC", "Etc/GMT+4", "America/New_York", "Europe/London"):
         raise ValueError("Choose a supported export time zone.")
     if source not in ("fxreplay", "backtest", "csv", "excel"):
         raise ValueError("Choose backtesting or forward testing.")
@@ -32,6 +33,7 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
     native = import_flow.is_fx_analytics(raw)
     used_mapping = mapping or importers.auto_map(list(raw.columns))
     instruments = db.instruments()
+    original_notes = {}
     if native:
         trades, errors = import_flow.fx_analytics(raw, instruments, account_id, timezone)
     else:
@@ -76,6 +78,22 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                             return "invalid date"
                     raw[column] = raw[column].map(utc)
             trades, errors = importers.normalise(raw, used_mapping, instruments, source=Source(source), account_id=account_id, dayfirst=False)
+    # Preserve journal fields when supplied by a richer native export.
+    note_column = importers.auto_map(list(raw.columns)).get('notes')
+    strategy_column = importers.auto_map(list(raw.columns)).get('setup_name')
+    source_rows = {str(row.get('id', '')):row for row in raw.to_dict('records')} if native else {}
+    for trade in trades:
+        if native:
+            row = source_rows.get(trade.external_id, {})
+            note = row.get(note_column) if note_column else None
+            if note is not None and pd.notna(note) and str(note).strip():
+                original_notes[trade.external_id] = str(note).strip()
+                trade.notes = str(note).strip() + '\n\n' + trade.notes
+            strategy = row.get(strategy_column) if strategy_column else None
+            if strategy is not None and pd.notna(strategy):
+                trade.setup_name = str(strategy).strip()
+        elif trade.notes.strip():
+            original_notes[trade.external_id] = trade.notes
     mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
     issues = []
     for trade in trades:
@@ -91,11 +109,21 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
             seen.add(trade.external_id)
         if "pnl-only" in trade.tags:
             preview.loc[index, ["entry_price", "exit_price"]] = None
+    rows = records(preview.head(200))
+    for row, trade in zip(rows, trades):
+        row['setup_name'] = trade.setup_name
+        row['labels'] = edge.read_labels(trade.tags)
+        row['has_note'] = bool(original_notes.get(trade.external_id))
+    labels = [edge.read_labels(trade.tags) for trade in trades]
+    coverage = {'strategies':sum(bool(t.setup_name.strip()) for t in trades),
+                'confirmations':sum(bool(label['confirmations']) for label in labels),
+                'notes':len(original_notes), 'total':len(trades)}
     return trades, {"native": native, "source": "fxreplay" if native else source,
                     "columns": list(raw.columns), "mapping": used_mapping,
                     "counts": import_flow.preview_counts(preview, errors),
-                    "rows": records(preview.head(200)), "total_rows": len(preview), "errors": errors,
+                    "rows": rows, "coverage": coverage, "_notes": original_notes, "total_rows": len(preview), "errors": errors,
                     "issues": list(dict.fromkeys(issues)),
+                    "suggestions": {tag: trade_labels.suggested_mapping(tag) for trade in trades for tag in trade.tags if not tag.startswith("edge:") and tag != "pnl-only"},
                     "tags": sorted({t for trade in trades for t in trade.tags if not t.startswith("edge:") and t != "pnl-only"})}
 
 

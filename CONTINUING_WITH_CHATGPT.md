@@ -27,6 +27,15 @@ Do not reintroduce team selectors or mix their schemas into the owner journal.
 Password entry/setup is performed by the human user; do not print credentials.
 See GO_LIVE.md for the current four hosting settings and local setup helper.
 
+## Owner-approved Strategy Lab draft (27 October 2026)
+
+For the React laboratory only, the owner has explicitly requested one combined
+All history and summary, with Backtesting and Live trading available separately.
+This overrides the earlier separate-sample presentation requirement for All.
+Keep original source labels and use core.metrics/core.charts on the selected raw
+trades; never average per-source statistics in React. The owner has now authorised full tests and publishing the completed design.
+See WEB_REBUILD.md for the implemented import, session and deletion safeguards.
+
 ## The one-page architecture
 
 ```

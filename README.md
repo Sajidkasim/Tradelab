@@ -3,7 +3,7 @@
 A trading journal, performance dashboard, model lab, backtester and risk manager for
 futures and options — built for a Topstep trader, works for any account.
 
-The new personal React website uses one password and has Results and Trades.
+The personal React website uses one password and puts Results and Trades on one Strategy Lab page.
 It runs alongside this older Streamlit version. See
 **[WEB_REBUILD.md](WEB_REBUILD.md)** for the local preview, tests and hosted transition.
 
@@ -83,9 +83,10 @@ nightly.py         auto-journal
 ### Results and Trades workflow
 
 Start in **Results**. Choose **Backtesting**, **Forward testing** or **All**, then a strategy.
-In the React rebuild, **All** shows backtesting and forward results in separate
-labelled sections with their own graphs. The original Streamlit version still
-asks for a **Results sample**. Statistics stay separate in both versions.
+In the React rebuild, **All** combines the selected trades into one graph and
+summary, as explicitly requested by the owner. **Live trading** is the display
+name for Forward testing. The original Streamlit version still
+asks for a **Results sample**. The original Streamlit statistics remain separated.
 **Explore a setup** shows controls alongside the live graph: direction, level, timeframes and
 confirmations, with session and news under their own expandable section.
 All selected confirmations must be present (SMT + CISD means both). New York includes

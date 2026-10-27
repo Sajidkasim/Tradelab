@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Sun, Moon, Calculator, Download, LogOut } from "lucide-react";
+import {
+  Sun,
+  Moon,
+  Calculator,
+  Download,
+  LogOut,
+  Settings2,
+} from "lucide-react";
 import { api, setCsrf } from "./api";
 import { Button, Notice, Menu } from "./components";
 import Results from "./Results";
@@ -8,6 +15,7 @@ import Import from "./Import";
 import Unlock from "./Unlock";
 import Tools from "./Tools";
 import Backup from "./Backup";
+import LabSettings from "./LabSettings";
 import icon from "../../assets/primuslab-icon.svg";
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
@@ -27,6 +35,7 @@ export default function App() {
     );
   const [scope, setScope] = useState("All"),
     [backup, setBackup] = useState(false),
+    [labSettings, setLabSettings] = useState(false),
     [message, setMessage] = useState("");
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
@@ -149,7 +158,7 @@ export default function App() {
               navigate("results");
             }}
           >
-            Journal
+            Strategy Lab
           </a>
         </nav>
         <Menu label="My journal" className="workspace-menu">
@@ -161,6 +170,9 @@ export default function App() {
                 : "Private workspace"}
             </small>
           </div>
+          <button onClick={() => setLabSettings(true)}>
+            <Settings2 size={16} /> Lab settings
+          </button>
           <button onClick={() => setBackup(true)}>
             <Download size={16} /> Backup & restore
           </button>
@@ -183,7 +195,11 @@ export default function App() {
           {error && <Notice error>{error}</Notice>}
           <div hidden={!journalPages.includes(page)} className="journal-page">
             <div className="journal-intro">
-              <h1>Trading journal</h1>
+              <div>
+                <span className="eyebrow">PRIMUSLAB</span>
+                <h1>Strategy Lab</h1>
+                <p>Find the setups worth repeating.</p>
+              </div>
               <nav aria-label="Journal sections">
                 <a
                   href="#results"
@@ -250,6 +266,14 @@ export default function App() {
         <div className="toast" role="status">
           {message}
         </div>
+      )}
+      {labSettings && (
+        <LabSettings
+          meta={meta}
+          refresh={refresh}
+          toast={toast}
+          onClose={() => setLabSettings(false)}
+        />
       )}
       {backup && (
         <Backup

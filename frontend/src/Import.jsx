@@ -42,24 +42,46 @@ const targets = [
 const sourceOptions = [
   { value: "fxreplay", label: "FX Replay · Backtesting" },
   { value: "backtest", label: "Other backtesting" },
-  { value: "csv", label: "Forward testing · CSV" },
-  { value: "excel", label: "Forward testing · Excel" },
+  { value: "csv", label: "Live trading · CSV" },
+  { value: "excel", label: "Live trading · Excel" },
 ];
 export default function Import({ meta, refresh, onBack, toast }) {
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
     [detected, setDetected] = useState(null),
     [done, setDone] = useState(null);
-  const [account, setAccount] = useState(meta.accounts[0]?.id),
-    [source, setSource] = useState("fxreplay"),
-    [timezone, setTimezone] = useState("UTC"),
-    [dayfirst, setDayfirst] = useState(false),
+  const [account, setAccount] = useState(
+      meta.accounts.some((a) => a.id === meta.import_profile?.account_id)
+        ? meta.import_profile.account_id
+        : meta.accounts[0]?.id,
+    ),
+    [source, setSource] = useState(meta.import_profile?.source || "fxreplay"),
+    [timezone, setTimezone] = useState(meta.import_profile?.timezone || "UTC"),
+    [dayfirst, setDayfirst] = useState(meta.import_profile?.dayfirst || false),
     [mapping, setMapping] = useState({});
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false),
     [tagMap, setTagMap] = useState(meta.tag_mappings || {});
+  const [updateLabels, setUpdateLabels] = useState(
+    meta.import_profile?.update_labels || false,
+  );
+  const [rememberProfile, setRememberProfile] = useState(true);
   const ref = useRef();
+  function editRule(tag, index, key, value) {
+    const rules = tagMap[tag]?.rules || [
+      tagMap[tag] || { field: "", value: "" },
+    ];
+    setTagMap({
+      ...tagMap,
+      [tag]: {
+        rules: rules.map((rule, i) =>
+          i === index ? { ...rule, [key]: value } : rule,
+        ),
+      },
+    });
+  }
+
   function invalidate() {
     setPreview(null);
     setDone(null);
@@ -81,6 +103,8 @@ export default function Import({ meta, refresh, onBack, toast }) {
     f.append("timezone", timezone);
     f.append("dayfirst", dayfirst);
     f.append("mapping", JSON.stringify(mapping));
+    f.append("update_labels", updateLabels);
+    f.append("remember_profile", rememberProfile);
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
   }
@@ -96,13 +120,14 @@ export default function Import({ meta, refresh, onBack, toast }) {
       if (action === "preview") {
         setPreview(result);
         setDetected(result);
+        setTagMap((previous) => ({ ...result.suggestions, ...previous }));
       } else {
         setDone(result);
         setPreview(null);
         setConfirm(false);
         await refresh();
         toast(
-          `${result.inserted} trades imported. ${result.skipped} duplicates skipped.`,
+          `${result.inserted} trades added. ${result.updated || 0} label updates. ${result.skipped} duplicates skipped.`,
         );
       }
     } catch (e) {
@@ -117,9 +142,16 @@ export default function Import({ meta, refresh, onBack, toast }) {
     setError("");
     try {
       const saved = Object.fromEntries(
-        Object.entries(tagMap).filter(
-          ([tag, rule]) => rule.field && rule.value?.trim(),
-        ),
+        Object.entries(tagMap)
+          .map(([tag, entry]) => [
+            tag,
+            {
+              rules: (entry.rules || [entry]).filter(
+                (rule) => rule.field && rule.value?.trim(),
+              ),
+            },
+          ])
+          .filter(([, entry]) => entry.rules.length),
       );
       await api("/tag-mappings", { method: "PUT", body: saved });
       await refresh();
@@ -169,7 +201,8 @@ export default function Import({ meta, refresh, onBack, toast }) {
           onChange={(e) => choose(e.target.files[0])}
         />
         <p className="muted">
-          Export from FX Replay Analytics. Preview your trades before saving.
+          Upload a CSV, Excel or JSON trade export. FX Replay exports are
+          recognised automatically. Preview everything before saving.
         </p>
         <details className="disclosure">
           <summary>File options & column mapping</summary>
@@ -200,7 +233,15 @@ export default function Import({ meta, refresh, onBack, toast }) {
 
             <Select
               label="Export time zone"
-              values={["UTC", "America/New_York", "Europe/London"]}
+              values={[
+                { value: "UTC", label: "UTC" },
+                { value: "Etc/GMT+4", label: "Fixed UTC−4" },
+                {
+                  value: "America/New_York",
+                  label: "New York clock (seasonal)",
+                },
+                { value: "Europe/London", label: "London clock (seasonal)" },
+              ]}
               value={timezone}
               onChange={(e) => {
                 invalidate();
@@ -253,6 +294,34 @@ export default function Import({ meta, refresh, onBack, toast }) {
             )}
           </div>
         </details>
+        <div className="import-preferences">
+          <label className="review-check">
+            <input
+              type="checkbox"
+              checked={updateLabels}
+              onChange={(e) => {
+                setUpdateLabels(e.target.checked);
+                invalidate();
+              }}
+            />
+            Update labels on existing trades
+          </label>
+          <small>
+            Only provided labels are updated. Saved results and notes are
+            preserved; blank fields never clear your work.
+          </small>
+          <label className="review-check">
+            <input
+              type="checkbox"
+              checked={rememberProfile}
+              onChange={(e) => {
+                setRememberProfile(e.target.checked);
+                invalidate();
+              }}
+            />
+            Remember my import settings
+          </label>
+        </div>
         {error && <Notice error>{error}</Notice>}
         {!preview && !done && (
           <Button
@@ -268,7 +337,10 @@ export default function Import({ meta, refresh, onBack, toast }) {
       {done && (
         <div className="card import-success">
           <FileCheck size={36} />
-          <h2>{done.inserted} trades added</h2>
+          <h2>
+            {done.inserted} trades added
+            {done.updated ? ` · ${done.updated} updated` : ""}
+          </h2>
           <p>
             {done.skipped} duplicates skipped. Give your trades a strategy and
             review their confirmations next.
@@ -306,6 +378,26 @@ export default function Import({ meta, refresh, onBack, toast }) {
               value={preview.counts.duplicates}
             />
             <Stat label="Rows with errors" value={preview.counts.errors} />
+            {updateLabels && (
+              <Stat label="Label updates" value={preview.counts.updates || 0} />
+            )}
+          </div>
+          <div className="import-coverage">
+            <strong>What came through</strong>
+            <p>
+              Strategies: {preview.coverage.strategies}/{preview.coverage.total}{" "}
+              · Confirmations: {preview.coverage.confirmations}/
+              {preview.coverage.total} · Notes: {preview.coverage.notes}/
+              {preview.coverage.total}
+            </p>
+            {!preview.coverage.notes && (
+              <p>No journal notes were found in this file.</p>
+            )}
+            <p>
+              Export times interpreted as{" "}
+              {timezone === "Etc/GMT+4" ? "fixed UTC−4" : timezone}. Preview
+              times below are shown in New York time.
+            </p>
           </div>
           {preview.native && (
             <Notice>
@@ -338,6 +430,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
                   <th>Net result</th>
                   <th>Realised R</th>
                   <th>Strategy</th>
+                  <th>Setup details</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -350,6 +443,20 @@ export default function Import({ meta, refresh, onBack, toast }) {
                     <td>{money(row.net_pnl)}</td>
                     <td>{rvalue(row.r_multiple)}</td>
                     <td>{row.setup_name || "Unclassified"}</td>
+                    <td>
+                      {[
+                        row.labels?.level,
+                        row.labels?.timeframe,
+                        row.labels?.entry_timeframe,
+                      ]
+                        .filter((v) => v && v !== "Not recorded")
+                        .join(" · ") || "Not recorded"}
+                      <small className="table-caption">
+                        {row.labels?.confirmations?.join(" + ") ||
+                          "Confirmations not recorded"}
+                        {row.has_note ? " · Note included" : ""}
+                      </small>
+                    </td>
                     <td>{row.status}</td>
                   </tr>
                 ))}
@@ -371,41 +478,74 @@ export default function Import({ meta, refresh, onBack, toast }) {
                   confirmations still need review.
                 </p>
                 {preview.tags.map((tag) => (
-                  <div className="tag-map" key={tag}>
+                  <div className="tag-map-group" key={tag}>
                     <strong>{tag}</strong>
-                    <Select
-                      label="Field"
-                      values={[
-                        { value: "", label: "Ignore" },
-                        ...[
-                          "strategy",
-                          "level",
-                          "timeframe",
-                          "entry_timeframe",
-                          "confirmation",
-                          "news",
-                          "condition",
-                        ],
-                      ]}
-                      value={tagMap[tag]?.field || ""}
-                      onChange={(e) =>
+                    {(
+                      tagMap[tag]?.rules || [
+                        tagMap[tag] || { field: "", value: "" },
+                      ]
+                    ).map((rule, index) => (
+                      <div className="tag-map" key={index}>
+                        <Select
+                          label={`Field ${index + 1} for ${tag}`}
+                          values={[
+                            { value: "", label: "Ignore" },
+                            ...[
+                              "strategy",
+                              "level",
+                              "timeframe",
+                              "entry_timeframe",
+                              "confirmation",
+                              "news",
+                              "condition",
+                            ],
+                          ]}
+                          value={rule.field || ""}
+                          onChange={(e) =>
+                            editRule(tag, index, "field", e.target.value)
+                          }
+                        />
+                        <Field label={`Value ${index + 1} for ${tag}`}>
+                          <input
+                            value={rule.value || ""}
+                            onChange={(e) =>
+                              editRule(tag, index, "value", e.target.value)
+                            }
+                          />
+                        </Field>
+                        <Button
+                          onClick={() => {
+                            const rules = tagMap[tag]?.rules || [
+                              tagMap[tag] || {},
+                            ];
+                            setTagMap({
+                              ...tagMap,
+                              [tag]: {
+                                rules: rules.filter((_, i) => i !== index),
+                              },
+                            });
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      disabled={(tagMap[tag]?.rules?.length || 0) >= 8}
+                      onClick={() => {
+                        const rules =
+                          tagMap[tag]?.rules ||
+                          (tagMap[tag] ? [tagMap[tag]] : []);
                         setTagMap({
                           ...tagMap,
-                          [tag]: { ...tagMap[tag], field: e.target.value },
-                        })
-                      }
-                    />
-                    <Field label="Value">
-                      <input
-                        value={tagMap[tag]?.value || ""}
-                        onChange={(e) =>
-                          setTagMap({
-                            ...tagMap,
-                            [tag]: { ...tagMap[tag], value: e.target.value },
-                          })
-                        }
-                      />
-                    </Field>
+                          [tag]: {
+                            rules: [...rules, { field: "", value: "" }],
+                          },
+                        });
+                      }}
+                    >
+                      Add another meaning
+                    </Button>
                   </div>
                 ))}
                 <Button busy={busy} onClick={saveMappings}>
@@ -414,13 +554,36 @@ export default function Import({ meta, refresh, onBack, toast }) {
               </div>
             </details>
           )}
+          {preview.label_updates.length > 0 && (
+            <details className="disclosure">
+              <summary>
+                {preview.label_updates.length} existing trades have label
+                changes
+              </summary>
+              <div>
+                {preview.label_updates.map((item) => (
+                  <p key={item.id}>
+                    Trade {item.id}: {item.previous_strategy || "Unclassified"}{" "}
+                    → {item.strategy || "Unclassified"} · {item.labels.level} ·{" "}
+                    {item.labels.timeframe} ·{" "}
+                    {item.labels.confirmations.join(" + ")}
+                    {item.note_added ? " · Note appended" : ""}
+                  </p>
+                ))}
+              </div>
+            </details>
+          )}
           <Button
             variant="primary"
             busy={busy}
-            disabled={!preview.counts.new}
+            disabled={!preview.counts.new && !(preview.counts.updates > 0)}
             onClick={() => setConfirm(true)}
           >
-            Import {preview.counts.new} trades <Check size={16} />
+            Import {preview.counts.new} trades
+            {preview.counts.updates
+              ? ` · update ${preview.counts.updates}`
+              : ""}{" "}
+            <Check size={16} />
           </Button>
         </section>
       )}
@@ -433,7 +596,10 @@ export default function Import({ meta, refresh, onBack, toast }) {
             <p>
               Add {preview.counts.new} trades to{" "}
               {meta.accounts.find((a) => a.id === account)?.name}? Duplicates
-              and invalid rows will be skipped.
+              and invalid rows will be skipped.{" "}
+              {preview.counts.updates
+                ? `${preview.counts.updates} existing trades will receive the previewed label updates. Their financial results remain unchanged.`
+                : ""}
             </p>
             <Button
               variant="primary"

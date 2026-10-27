@@ -235,7 +235,11 @@ export function Chart({ figure, height = 380 }) {
             ? {
                 ...trace,
                 mode: "markers",
-                marker: { ...trace.marker, size: 6, color: trace.line?.color },
+                marker: {
+                  ...trace.marker,
+                  size: trace.marker?.size || 6,
+                  color: trace.line?.color || trace.marker?.color,
+                },
               }
             : trace,
         );

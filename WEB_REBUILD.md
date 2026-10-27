@@ -1,10 +1,82 @@
-# PrimusLab personal browser rebuild
+# PrimusLab Strategy Lab
 
-The React/FastAPI website is now a single-owner journal with one password.
-See [GO_LIVE.md](GO_LIVE.md) for password creation and hosted launch steps.
-The older Streamlit app remains separate and has not been redeployed or changed.
+The personal React/FastAPI app runs alongside the legacy Streamlit app. The live
+service is https://primuslab-web.onrender.com. It uses the existing owner database
+and one personal password. It has no Google login or team endpoints.
 
-## Run a separate local preview
+## Interface
+
+Results and Trades share one Strategy Lab page. All is first and selected by
+default. At the owner's explicit request, All combines the selected raw trades
+into one core-generated history and summary. Backtesting and Live trading remain
+available individually. Live trading is the display label for the existing
+Forward testing API scope; stored sources are unchanged. Older API clients retain
+their separate-sample contract unless they send combined=true.
+
+Explore a strategy stays open. The graph uses the existing core equity series,
+with palette-derived colour, area shading, hover values and the actual final
+closed-trade marker. Drawdown is optional. No price feed or fake-live indicator is
+shown, and no financial series is computed in React. The three cards show win
+rate, average realised R and trades analysed. Missing R stays missing.
+
+Trades shows 8 records per page, Import, Add trade, All trades / To finish and a
+Review next action. Individual deletion requires confirmation. Manage trades
+contains playbook lists, bulk strategy labels, CSV download and Delete all trades.
+Delete-all shows the whole-journal count, then requires typing that count. The
+server verifies a short-lived session-bound snapshot of full record contents,
+including protection against SQLite ID reuse. Deletion is transactional, rejects
+stale snapshots, and preserves accounts and settings.
+
+## Sessions and settings
+
+My journal → Lab settings edits session names/times, the session clock, news
+labels and market-condition labels. Defaults confirmed by the owner are fixed
+UTC−4 throughout the year:
+
+- Asia: 20:00–02:00
+- London: 02:00–07:00
+- New York pre-market: 07:00–09:30
+- New York open: 09:30–12:00
+- Lunch: 12:00–13:30
+- Afternoon: 13:30–16:00
+
+The optional New York clock follows seasonal UTC−4/UTC−5. Session assignment uses
+entry time; windows are start-inclusive and end-exclusive. Overnight windows are
+split into ordinary intervals passed to core.metrics.session_of. Overlaps and
+invalid names/times are rejected. Gaps remain included under All sessions.
+Settings are stored under primuslab_lab_settings and included in JSON backups.
+Existing trades are not rewritten when session windows change. Market options
+come from saved journal symbols.
+
+## CSV import
+
+Drop a CSV, TSV, Excel or JSON file, preview, then confirm. Native FX Replay
+Analytics is recognised automatically. The preview shows strategy/confirmation/
+note coverage, detailed labels and any errors. Export timezone is explicit,
+including UTC, fixed UTC−4, New York or London. Remember my import settings stores
+account, source, clock, day-first dates and label-update preference after a
+confirmed import; it does not store credentials.
+
+Recognise strategy tags offers suggestions that only take effect after saving.
+One export label can map to multiple fields. The owner's CONTINUATION, HTF LEVEL
+1HR FVG and CISD FVG labels have suggestions for strategy, level/timeframe and
+both confirmations respectively. Original tag strings are retained. Changed
+confirmations still require an explicit review.
+
+Update labels on existing trades is opt-in. The preview matches source/account,
+external trade ID, symbol, direction and entry time. Non-empty provided labels
+may update existing labels. Blank fields preserve saved details. Incoming notes
+are appended once, and existing notes remain intact. Saved financial fields are
+never updated by label re-import. Signed approval covers import options, mapping
+rules and the proposed changes. Stale plans are rejected. With label updates
+selected, new rows and label updates share one transaction.
+
+FX Replay's amount is not assumed to be a futures contract count. Its realised
+rPnL is retained. maxRiskReward and planned targets are not treated as realised R.
+A richer export's notes/strategy columns are preserved when present; a file with
+no notes cannot supply journal content. Screenshots require separate storage.
+
+## Local development and checks
 
 ```bash
 .venv/bin/python -m pip install -r requirements-web.txt
@@ -14,56 +86,11 @@ npm --prefix frontend run build
 bash run-web.sh
 ```
 
-Open http://127.0.0.1:8100. Preview records are in `data/primus-web-preview.db`;
-no cloud or old local journal is imported. If the user created
-`data/private/personal-login.env` through the password helper, the launcher loads
-it and exercises the password gate. Otherwise this loopback-only preview opens
-without a password. Hosted deployments always require a password and HTTPS.
-
-## Architecture and retained behaviour
-
-`frontend/` contains shared React components and palette-derived theme tokens.
-`webapp/` wraps the tested core without changing formulas or signatures. Stats
-and chart values come from core.metrics/core.charts; position sizes from core.risk.
-Workspaces.bump('owner') invalidates reads after writes.
-
-Results and Trades share one Journal page. All is the default and the first
-data-source option; it requests two independent result samples; neither the frontend nor API merges live and backtesting stats.
-Explore a strategy opens beside the graphs; the standalone strategy dropdown
-is now inside this panel. Summary numbers follow each graph, and Trades sits
-below Results with the same data-source selection. Exploration filters affect
-Results; search and Needs tagging filter the trade list. A bin button on each
-trade asks for confirmation before deletion and refreshes both sections.
-
-Editable strategies/PDA labels, confirmations, timeframes, news, quick entries,
-price-based entries, FX Replay/file imports, mapping, duplicate checks, notes,
-bulk strategy tags, confirmed individual trade deletion, JSON backups and empty-journal restore remain available.
-
-There are no Google login or team/sharing endpoints in this API. The owner uses
-the original root trading tables. The legacy team data is preserved but cannot
-be selected. Web login sessions have their own database table and are excluded
-from journal exports. The older services.team module remains for the original
-Streamlit app and its regression tests.
-
-My journal → Advanced tools now opens a personal position-size calculator and
-links back to Results for setup research. The legacy bars backtester, full risk
-suite and broker integration remain in the repository, not this browser UI.
-No broker order-writing code is added. Chart image upload still needs durable
-storage; keep image files separately from JSON journal backups.
-
-## Password setup and hosting
-
-The user runs Set PrimusLab Password.command or tools/set_personal_password.py
-and enters the password themselves. The helper writes only its Argon2id hash
-and a generated session secret, with file mode 0600 under ignored data/private/.
-Never read or print those values in chat, logs or tests against real credentials.
-
-Dockerfile.web serves the frontend and API from one HTTPS origin on a host such
-as Render. Four environment settings are listed in .env.web.example. No Google
-client or callback is needed. Keep one process/instance for the login throttle.
-Paid hosting and final live checks are still separate from a local build.
-
-## Checks
+The loopback preview uses a separate SQLite database; it never imports hosted or
+old local records automatically. If data/private/personal-login.env exists, the
+launcher loads its protected password configuration. Otherwise loopback preview
+opens without a password. Hosted deployment always requires HTTPS, PostgreSQL,
+an Argon2id password hash and a session secret. See GO_LIVE.md.
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -72,7 +99,25 @@ npm --prefix frontend run build
 npm --prefix frontend run test:browser
 ```
 
-Browser tests start two loopback servers with disposable databases: an unlocked
-workflow preview and a password-protected preview with a synthetic test password.
-They never open or populate the user's real cloud journal. They cover unlocking,
-locking, navigation, import, duplicates, tagging, tools, backups and mobile layout.
+Browser checks use disposable servers on ports 8111 and 8112, including one with a
+synthetic password. They never open the real hosted database. Cover combined and
+single-source results, imports and re-imports, mappings, notes, session editing,
+backups, pagination, deletion, themes, mobile layout and password locking.
+
+The service calls core.metrics/core.charts/core.risk without changing formulas or
+signatures, and invalidates reads with Workspaces.bump after writes. The legacy
+bars backtester, full risk suite and read-only broker integration remain in the
+repository, outside the rebuilt UI. No broker order-writing code is added.
+
+## Deployment and data
+
+Use the existing Render service, Dockerfile.web, one worker/instance and the
+persistent Supabase database. Keep auto-deploy off and publish tested commits
+manually. No login credentials or database settings need changing for UI updates.
+Keep the default onrender URL unless PRIMUSLAB_PUBLIC_URL and trusted origin
+checks are intentionally updated together.
+
+My journal → Backup & restore downloads full JSON or trades CSV. JSON contains
+trades, labels, notes, accounts and settings. Image files and login sessions are
+excluded. Restore is allowed only into an empty journal. Never use the real
+journal for destructive checks or populate it with synthetic preview data.

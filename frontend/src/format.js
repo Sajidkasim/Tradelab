@@ -44,9 +44,9 @@ export function labelsOnly(labels) {
 export const sourceNames = {
   fxreplay: "FX Replay",
   backtest: "Backtest",
-  manual: "Forward",
-  csv: "Forward CSV",
-  excel: "Forward Excel",
+  manual: "Live trade",
+  csv: "Live CSV",
+  excel: "Live Excel",
   api: "Broker",
 };
 export const backtestSources = ["backtest", "fxreplay"];

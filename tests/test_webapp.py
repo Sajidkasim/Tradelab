@@ -226,3 +226,178 @@ def test_delete_requires_csrf_and_same_origin(local):
     for headers in [{'X-Primus-CSRF': ''}, {'Origin': 'https://untrusted.example'}]:
         assert client.delete(f'/api/trades/{target}', headers=headers).status_code == 403
         assert app.state.workspaces.root.get_trade(target) is not None
+
+
+def test_combined_all_uses_underlying_trades_and_keeps_missing_r_missing(local):
+    client, app = local
+    for body in [trade_payload(),trade_payload(clock='09:40',pnl=-50),trade_payload('manual','10:30',pnl=200)]:
+        client.post('/api/trades',json=body)
+    preview=upload(client,fx_file()).json()
+    upload(client,fx_file(),'confirm',preview['preview_token'])
+    result=client.post('/api/results',json={'scope':'All','combined':True,'window':'All sessions','detail':True}).json()
+    assert result['sample']=='All'
+    assert result['stats']['trades']==5 and result['stats']['win_rate']==0.6
+    assert result['stats']['net_pnl']==400 and result['r_count']==3
+    assert result['chart_latest']['equity']==400
+    assert result['stats']['avg_r']==pytest.approx(5/3)
+    assert client.post('/api/results',json={'scope':'Backtesting','combined':True}).json()['stats']['trades']==4
+    assert client.post('/api/results',json={'scope':'Forward testing','combined':True}).json()['stats']['trades']==1
+
+
+def test_lab_settings_persist_in_backup_and_regroup_results(local):
+    from copy import deepcopy
+    from webapp import lab_settings
+    client,app=local
+    client.post('/api/trades',json=trade_payload())
+    settings=deepcopy(lab_settings.DEFAULTS)
+    assert client.get('/api/metadata').json()['windows']==[s['name'] for s in settings['sessions']]
+    result=client.post('/api/results',json={'window':'New York open'}).json()
+    assert result['stats']['trades']==1
+    settings['sessions'][3]['name']='My open'
+    settings['news']=['High impact','Quiet']
+    assert client.put('/api/lab-settings',json=settings).status_code==200
+    assert client.post('/api/results',json={'window':'My open'}).json()['stats']['trades']==1
+    assert client.get('/api/metadata').json()['news']==settings['news']
+    saved=client.get('/api/export/backup').json()['settings']
+    assert any(item['key']==lab_settings.KEY for item in saved)
+    settings['sessions'][0]['end']='03:00'
+    assert client.put('/api/lab-settings',json=settings).status_code==422
+    assert client.get('/api/metadata').json()['lab_settings']['sessions'][0]['end']=='02:00'
+
+
+def test_delete_all_requires_exact_fresh_snapshot_and_keeps_accounts_settings(local):
+    client,app=local
+    client.post('/api/trades',json=trade_payload())
+    client.post('/api/trades',json=trade_payload('manual','10:30'))
+    preview=client.post('/api/trades/deletion-preview').json()
+    assert preview['count']==2
+    def remove(count, token): return client.request('DELETE','/api/trades',json={'confirmation_count':count,'preview_token':token})
+    assert remove(1,preview['preview_token']).status_code==409
+    assert remove(2,'tampered').status_code==409
+    assert client.request('DELETE','/api/trades',json={'confirmation_count':2,'preview_token':preview['preview_token']},headers={'X-Primus-CSRF':''}).status_code==403
+    oldid=client.get('/api/trades').json()[0]['id']
+    client.delete(f'/api/trades/{oldid}')
+    client.post('/api/trades',json=trade_payload('manual','11:00'))
+    assert remove(2,preview['preview_token']).status_code==409  # same count, different IDs
+    fresh=client.post('/api/trades/deletion-preview').json()
+    accounts=client.get('/api/metadata').json()['accounts']
+    assert remove(2,fresh['preview_token']).json()=={'deleted':2}
+    assert client.get('/api/trades').json()==[]
+    assert client.post('/api/results',json={'scope':'All','combined':True}).json()['stats']['trades']==0
+    assert client.get('/api/metadata').json()['accounts']==accounts
+    assert client.get('/api/export/backup').json()['trades']==[]
+    assert remove(2,fresh['preview_token']).status_code==409
+
+
+def test_delete_all_expiry_and_transaction_rollback(local,monkeypatch):
+    from itsdangerous.timed import TimestampSigner
+    from webapp import trade_deletion
+    client,app=local
+    client.post('/api/trades',json=trade_payload())
+    from itsdangerous import URLSafeTimedSerializer
+    from dataclasses import replace
+    from sqlalchemy import event
+    from sqlalchemy.exc import SQLAlchemyError
+    preview=client.post('/api/trades/deletion-preview').json()
+    signer=URLSafeTimedSerializer(app.state.config.secret,salt='primus-import-preview')
+    payload=signer.loads(preview['preview_token'])
+    original=TimestampSigner.get_timestamp
+    monkeypatch.setattr(TimestampSigner,'get_timestamp',lambda self:original(self)-1000)
+    stale=signer.dumps(payload)
+    monkeypatch.setattr(TimestampSigner,'get_timestamp',original)
+    assert client.request('DELETE','/api/trades',json={'confirmation_count':1,'preview_token':stale}).status_code==409
+    database=app.state.workspaces.root
+    trade=database.get_trade(client.get('/api/trades').json()[0]['id'])
+    database.insert_trades([replace(trade,id=None,external_id=f'rollback-{i}') for i in range(600)])
+    app.state.workspaces.bump('owner')
+    preview=client.post('/api/trades/deletion-preview').json()
+    calls=[0]
+    def fail_second_delete(conn,cursor,statement,parameters,context,executemany):
+        if statement.startswith('DELETE FROM trades'):
+            calls[0]+=1
+            if calls[0]==2: raise SQLAlchemyError('Synthetic delete failure')
+    event.listen(database.engine,'before_cursor_execute',fail_second_delete)
+    try:
+        result=client.request('DELETE','/api/trades',json={'confirmation_count':601,'preview_token':preview['preview_token']})
+        assert result.status_code==503
+    finally:
+        event.remove(database.engine,'before_cursor_execute',fail_second_delete)
+    assert len(client.get('/api/trades').json())==601
+
+
+def labelled_fx(tags='CONTINUATION,HTF LEVEL 1HR FVG,CISD FVG \\', note='Export note', pnl=125):
+    return pd.DataFrame([{'id':'release-labels','dateStart':'2013/01/25 17:07:59','dateEnd':'2013/01/25 19:13:55',
+                         'pair':'CME_MINI:NQ1','rPnL':pnl,'side':'sell','status':'closed','tags':tags,'notes':note}]).to_csv(index=False).encode()
+
+
+def test_composite_export_tags_notes_and_explicit_reimport_updates(local):
+    from core import edge
+    from services import trade_labels
+    client,app=local
+    content=labelled_fx()
+    preview=upload(client,content).json()
+    assert preview['coverage']['notes']==1 and preview['coverage']['strategies']==0
+    mappings=preview['suggestions']
+    assert len(mappings['HTF LEVEL 1HR FVG']['rules'])==2
+    assert client.put('/api/tag-mappings',json=mappings).status_code==200
+    preview=upload(client,content).json()
+    assert preview['rows'][0]['setup_name']=='Continuation'
+    assert preview['rows'][0]['labels']['confirmations']==['CISD','FVG']
+    assert preview['rows'][0]['labels']['timeframe']=='1H'
+    assert upload(client,content,'confirm',preview['preview_token'],remember_profile='true').status_code==409
+    preview=upload(client,content,remember_profile='true').json()
+    assert upload(client,content,'confirm',preview['preview_token'],remember_profile='true').json()=={'inserted':1,'skipped':0}
+    assert client.get('/api/metadata').json()['import_profile']['timezone']=='UTC'
+    saved=client.get('/api/trades').json()[0]
+    assert 'Export note' in saved['notes'] and saved['net_pnl']==125
+    client.patch(f'/api/trades/{saved["id"]}',json={'strategy':'Local model','labels':{'level':'NWOG','confirmations':['SMT']},'notes':'My private local note','confirmed':True})
+    updated=labelled_fx(note='New export note',pnl=9999)
+    preview=upload(client,updated,update_labels='true').json()
+    assert preview['counts']['updates']==1
+    assert preview['label_updates'][0]['previous_strategy']=='Local model'
+    result=upload(client,updated,'confirm',preview['preview_token'],update_labels='true')
+    assert result.status_code==200,result.text
+    assert result.json()=={'inserted':0,'skipped':0,'updated':1}
+    row=client.get('/api/trades').json()[0]
+    assert row['net_pnl']==125 and row['r_multiple'] is None
+    assert row['setup_name']=='Continuation' and row['labels']['confirmations']==['CISD','FVG']
+    assert 'My private local note' in row['notes'] and 'New export note' in row['notes']
+    assert row['needs_tagging']  # changed confirmations need an explicit review
+    blank=labelled_fx(tags='',note='',pnl=-1234)
+    pv=upload(client,blank,update_labels='true').json()
+    assert upload(client,blank,'confirm',pv['preview_token'],update_labels='true').status_code==200
+    after=client.get('/api/trades').json()[0]
+    assert after['setup_name']==row['setup_name'] and after['notes']==row['notes'] and after['net_pnl']==125
+    pv=upload(client,content,update_labels='true').json()
+    client.patch(f'/api/trades/{row["id"]}',json={'strategy':'Changed during preview','labels':{},'confirmed':False,'notes':'Keep this'})
+    assert upload(client,content,'confirm',pv['preview_token'],update_labels='true').status_code==409
+    assert client.get('/api/trades').json()[0]['notes']=='Keep this'
+
+
+def test_label_update_preserves_all_financial_fields_and_rolls_back_new_rows(local,monkeypatch):
+    from webapp import import_updates
+    client,app=local
+    content=b'id,symbol,direction,entry_time,exit_time,pnl,risk_amount,setup\nfinancial-proof,NQ,buy,2026-07-01 13:30,2026-07-01 13:45,100,50,Original\n'
+    pv=upload(client,content,source='csv').json()
+    assert upload(client,content,'confirm',pv['preview_token'],source='csv').status_code==200
+    before=client.get('/api/trades').json()[0]
+    changed=content.replace(b'100,50,Original',b'9000,10,New model')
+    pv=upload(client,changed,source='csv',update_labels='true').json()
+    assert upload(client,changed,'confirm',pv['preview_token'],source='csv',update_labels='true').status_code==200
+    after=client.get('/api/trades').json()[0]
+    for field in ('net_pnl','gross_pnl','r_multiple','initial_risk','qty','entry_price','exit_price','stop_price','fees','source','account_id','external_id'):
+        assert after[field]==before[field],field
+    assert after['r_multiple']==2 and after['setup_name']=='New model'
+    # A stale update plan must roll back new inserts in the same transaction.
+    database=app.state.workspaces.root
+    from webapp import imports
+    parsed,preview=imports.parse(changed+b'new-row,ES,buy,2026-07-01 14:00,2026-07-01 14:15,50,100,Other\n','replay.csv',database,1,'csv','UTC',False,{})
+    changes,_=import_updates.plan(database,parsed,{})
+    assert changes==[]
+    changed_again=changed.replace(b'New model',b'Changed again')+b'new-row,ES,buy,2026-07-01 14:00,2026-07-01 14:15,50,100,Other\n'
+    parsed,_=imports.parse(changed_again,'replay.csv',database,1,'csv','UTC',False,{})
+    changes,_=import_updates.plan(database,parsed,{})
+    database.update_trade(after['id'],notes='Concurrent note')
+    with pytest.raises(ValueError,match='changed'):
+        import_updates.apply(database,parsed,changes)
+    assert 'new-row' not in database.existing_external_ids()

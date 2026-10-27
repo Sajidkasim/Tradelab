@@ -211,3 +211,11 @@ def test_password_helper_allows_correction_without_closing(tmp_path, monkeypatch
 def test_delete_is_private_when_journal_is_locked(personal):
     client, app, _ = personal
     assert client.delete('/api/trades/1').status_code == 401
+
+
+def test_release_writes_stay_private(personal):
+    client, app, _ = personal
+    assert client.post('/api/trades/deletion-preview').status_code==401
+    assert client.request('DELETE','/api/trades',json={'confirmation_count':1,'preview_token':'x'}).status_code==401
+    from webapp.lab_settings import DEFAULTS
+    assert client.put('/api/lab-settings',json=DEFAULTS).status_code==401

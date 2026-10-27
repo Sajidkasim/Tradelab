@@ -1,7 +1,6 @@
 # PrimusLab: your personal online journal
 
-This rebuild is for one owner, with one password. The main pages are Results
-and Trades. My journal holds backups, appearance, personal tools and Lock journal.
+This rebuild is for one owner, with one password. Results and Trades share one Strategy Lab page. My journal holds backups, appearance, personal tools and Lock journal.
 There are no Google login, invitations, team selectors or shared-results endpoints.
 
 ## 1. Set your password privately
@@ -32,15 +31,16 @@ private login configuration if you created it. Without that file, it opens an
 unlocked preview available only on this computer. The preview journal is separate
 from your real cloud data.
 
-- Results shows win rate, average R and trade count, with one graph.
-- All shows separately labelled backtesting and forward sections. It never mixes
-  the samples or asks for a second sample choice.
-- Explore a setup keeps the graph alongside the filters on larger screens.
-- Trades keeps Add trade, Import FX Replay and Needs tagging visible. Manage
-  trades holds your editable strategies/key levels, bulk tags and CSV export.
-- My journal contains JSON backups, appearance, Lock journal and personal tools.
-- Advanced tools now opens personal risk sizing and a route back to setup research
-  inside this app. It does not send you to the sleeping Streamlit site.
+- Results shows win rate, average R and trade count below an interactive graph.
+- All combines selected backtesting and live trades, as requested by the owner.
+  Switch to Backtesting or Live trading to view them individually.
+- Explore a strategy stays open beside the graph on larger screens.
+- Trades keeps Add trade, Import and To finish visible, with eight trades per page.
+  Manage trades holds playbook lists, bulk labels, export and guarded delete-all.
+- My journal contains Lab settings, backups, appearance, Lock journal and tools.
+- Advanced tools opens personal risk sizing and a route back to setup research.
+- Import previews tags and notes, remembers settings, and offers explicit label
+  updates on existing IDs while preserving saved financial results.
 
 The legacy bar-based strategy engine and broker integration remain in the
 repository; they have not been moved into this browser interface. The trading

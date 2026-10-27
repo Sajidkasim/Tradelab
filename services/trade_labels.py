@@ -30,6 +30,14 @@ def export_tags(value):
 
 
 def suggested_mapping(tag):
+    normal = tag.strip().rstrip('\\').strip().upper()
+    known = {
+        'CONTINUATION': [{'field': 'strategy', 'value': 'Continuation'}],
+        'HTF LEVEL 1HR FVG': [{'field': 'level', 'value': 'FVG'}, {'field': 'timeframe', 'value': '1H'}],
+        'CISD FVG': [{'field': 'confirmation', 'value': 'CISD'}, {'field': 'confirmation', 'value': 'FVG'}],
+    }
+    if normal in known:
+        return {'rules': known[normal]}
     prefixes = {'strategy': 'strategy', 'model': 'strategy', 'key level': 'level',
                 'level tf': 'timeframe', 'entry tf': 'entry_timeframe'}
     if ':' in tag:
@@ -41,15 +49,33 @@ def suggested_mapping(tag):
     return {'field': '', 'value': ''}
 
 
+def mapping_rules(entry):
+    return entry.get('rules', [entry]) if isinstance(entry, dict) else []
+
+
+def validate_mappings(payload):
+    if not isinstance(payload, dict) or len(payload) > 200:
+        raise ValueError('Choose up to 200 tag mappings.')
+    for tag, entry in payload.items():
+        rules = mapping_rules(entry)
+        if not isinstance(tag, str) or len(tag) > 200 or not isinstance(rules, list) or not 1 <= len(rules) <= 8:
+            raise ValueError('Each tag needs between 1 and 8 field rules.')
+        for rule in rules:
+            if not isinstance(rule, dict) or rule.get('field') not in FIELDS or not isinstance(rule.get('value'), str) or not 0 < len(rule['value'].strip()) <= 120:
+                raise ValueError('Each tag rule needs a field and a short value.')
+    return payload
+
+
 def mapped_fields(tags, mappings, strategy=''):
     """Only apply approved mappings; never infer absence or mark a trade reviewed."""
     labels = edge.read_labels(tags)
     candidates = {}
     for tag in export_tags(tags):
-        rule = mappings.get(tag, {})
-        field, value = rule.get('field'), str(rule.get('value', '')).strip()
-        if field in FIELDS and value:
-            candidates.setdefault(field, set()).add(value)
+        entry = mappings.get(tag, {})
+        for rule in mapping_rules(entry):
+            field, value = rule.get('field'), str(rule.get('value', '')).strip()
+            if field in FIELDS and value:
+                candidates.setdefault(field, set()).add(value)
     issues = []
     for field, values in candidates.items():
         if field == 'confirmation':

@@ -1,38 +1,33 @@
 import { expect, it, vi } from "vitest";
 import { fetchResultSamples } from "./resultSamples";
 
-it("All fetches two independent result samples with identical setup filters", async () => {
+it("All asks the server for one combined raw-trade sample", async () => {
   const filters = {
     scope: "All",
     strategy: "My setup",
     confirmations: ["SMT", "CISD"],
-    window: "New York",
+    window: "All sessions",
   };
   const request = vi.fn(async (path, options) => ({
     sample: options.body.scope,
   }));
   const signal = new AbortController().signal;
-  const data = await fetchResultSamples(
-    request,
-    filters,
-    { mode: "light", detail: true },
-    signal,
-  );
-  expect(data).toEqual([
-    { sample: "Backtesting" },
-    { sample: "Forward testing" },
-  ]);
-  expect(request).toHaveBeenCalledTimes(2);
-  for (const [index, scope] of ["Backtesting", "Forward testing"].entries()) {
-    expect(request.mock.calls[index][1]).toMatchObject({
+  expect(
+    await fetchResultSamples(
+      request,
+      filters,
+      { mode: "light", detail: true },
       signal,
-      body: { ...filters, scope, sample: scope, mode: "light", detail: true },
-    });
-  }
+    ),
+  ).toEqual([{ sample: "All" }]);
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.mock.calls[0][1]).toMatchObject({
+    signal,
+    body: { ...filters, combined: true, mode: "light", detail: true },
+  });
   expect(filters.scope).toBe("All");
 });
-
-it("A single data source needs only its own result request", async () => {
+it("A single data source stays singular", async () => {
   const request = vi.fn(async () => ({ sample: "Forward testing" }));
   await fetchResultSamples(
     request,
@@ -41,5 +36,8 @@ it("A single data source needs only its own result request", async () => {
     undefined,
   );
   expect(request).toHaveBeenCalledTimes(1);
-  expect(request.mock.calls[0][1].body.scope).toBe("Forward testing");
+  expect(request.mock.calls[0][1].body).toMatchObject({
+    scope: "Forward testing",
+    combined: false,
+  });
 });

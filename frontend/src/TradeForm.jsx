@@ -163,7 +163,7 @@ export default function TradeForm({
             label="Save to"
             values={[
               { value: "backtest", label: "Backtesting" },
-              { value: "manual", label: "Forward testing" },
+              { value: "manual", label: "Live trading" },
             ]}
             value={source}
             onChange={(e) => setSource(e.target.value)}
