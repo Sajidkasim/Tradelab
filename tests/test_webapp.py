@@ -307,6 +307,55 @@ def test_playbook_and_bulk_strategy_preserve_results_and_invalidate_reads(local)
     assert saved['setup_name'] == 'New strategy' and saved['net_pnl'] == 100 and saved['notes'] == row['notes'] and saved['labels'] == row['labels']
 
 
+def test_strategy_editor_and_choices_share_a_list_and_removed_names_stay_hidden(local):
+    from core.models import Setup
+    client, app = local
+    active = ['Displacement at key level continuation', 'Reversal at key level']
+    for clock, name in [('09:30', active[0]), ('10:30', active[1]), ('11:30', 'Old strategy')]:
+        assert client.post('/api/trades', json=trade_payload(clock=clock, strategy=name)).status_code == 200
+    database = app.state.workspaces.database('owner')
+    database.upsert_setup(Setup('Legacy model'))
+    mappings = {'OLD CSV': {'field': 'strategy', 'value': 'Old mapped name'}}
+    client.put('/api/tag-mappings', json=mappings)
+    metadata = client.get('/api/metadata').json()
+    assert metadata['playbook']['strategies'] == metadata['strategies']
+    assert {'Old strategy', 'Legacy model', 'Old mapped name'}.issubset(metadata['strategies'])
+    trades = client.get('/api/trades').json()
+    results = client.post('/api/results', json={'scope': 'All', 'combined': True, 'window': 'All sessions'}).json()['stats']
+    payload = {'strategies': active, 'levels': metadata['playbook']['levels']}
+    assert client.put('/api/playbook', json=payload).json() == payload
+    current = client.get('/api/metadata').json()
+    assert current['strategies'] == active and current['playbook'] == payload
+    assert client.get('/api/trades').json() == trades
+    assert client.post('/api/results', json={'scope': 'All', 'combined': True, 'window': 'All sessions'}).json()['stats'] == results
+    assert client.get('/api/metadata').json()['tag_mappings'] == mappings
+    # Even a later trade with an explicitly removed name cannot resurrect it.
+    client.post('/api/trades', json=trade_payload(clock='12:30', strategy='Old strategy'))
+    assert client.get('/api/metadata').json()['strategies'] == active
+    assert client.post('/api/results', json={'scope': 'All', 'combined': True, 'window': 'All sessions'}).json()['stats']['trades'] == 4
+    # Removing is reversible; re-adding the name restores it without rewriting trades.
+    restored = {**payload, 'strategies': active + ['Old strategy']}
+    client.put('/api/playbook', json=restored)
+    assert client.get('/api/metadata').json()['playbook'] == restored
+    assert len(client.get('/api/trades').json()) == 4
+
+
+def test_new_import_strategy_names_appear_in_both_lists_and_removals_survive_refresh(local):
+    client, _ = local
+    book = {'strategies': ['My current strategy'], 'levels': ['My level']}
+    client.put('/api/playbook', json=book)
+    client.put('/api/tag-mappings', json={'NEW MODEL': {'field': 'strategy', 'value': 'My next test'}})
+    meta = client.get('/api/metadata').json()
+    assert meta['strategies'] == meta['playbook']['strategies'] == ['My current strategy', 'My next test']
+    client.put('/api/playbook', json=book)
+    client.put('/api/tag-mappings', json={'NEW MODEL': {'field': 'strategy', 'value': 'My next test'}})
+    assert client.get('/api/metadata').json()['strategies'] == ['My current strategy']
+    client.put('/api/playbook', json={**book, 'strategies': []})
+    assert client.get('/api/metadata').json()['strategies'] == []
+    client.put('/api/playbook', json={**book, 'strategies': ['My next test']})
+    assert client.get('/api/metadata').json()['strategies'] == ['My next test']
+
+
 def test_delete_manual_and_imported_trades_refreshes_results_and_exports(local):
     client, app = local
     client.post('/api/trades', json=trade_payload('manual'))

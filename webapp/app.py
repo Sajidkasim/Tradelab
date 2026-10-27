@@ -19,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from core import edge
 from core.models import Source
-from services import trade_labels, fixed_rr
+from services import trade_labels, fixed_rr, strategy_catalog
 from .config import Settings, from_env
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
@@ -270,9 +270,9 @@ def create_app(config: Settings | None = None):
     def playbook(payload: Playbook, request: Request, member=Depends(workspace)):
         if any(len(value) > 120 for value in payload.strategies + payload.levels):
             raise ValueError("Keep strategy and level names under 120 characters.")
-        book = edge.playbook(payload.model_dump())
-        db(request, member).set_setting(edge.PLAYBOOK_KEY, book)
-        app.state.workspaces.bump(member["key"])
+        with app.state.workspaces.lock:
+            book = strategy_catalog.save(db(request, member), app.state.workspaces.trades(member['key']), payload.model_dump())
+            app.state.workspaces.bump(member["key"])
         return book
 
     @app.put("/api/tag-mappings")

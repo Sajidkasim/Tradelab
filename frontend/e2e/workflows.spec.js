@@ -1127,13 +1127,11 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await choice.selectOption("no");
   const content =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-zero,2026-07-08T13:30:00Z,2026-07-08T13:40:00Z,NQ,0,buy,closed\nbe-browser-win,2026-07-09T13:30:00Z,2026-07-09T13:40:00Z,NQ,100,buy,closed\nbe-browser-small-loss,2026-07-10T13:30:00Z,2026-07-10T13:40:00Z,NQ,-0.01,buy,closed\n";
-  await page
-    .getByLabel("Choose a trade export")
-    .setInputFiles({
-      name: "break-even.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(content),
-    });
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "break-even.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(content),
+  });
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
@@ -1171,13 +1169,11 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await expect(choice).toHaveValue("no");
   const onlyZero =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-only-zero,2026-07-11T13:30:00Z,2026-07-11T13:40:00Z,NQ,0,buy,closed\n";
-  await page
-    .getByLabel("Choose a trade export")
-    .setInputFiles({
-      name: "only-zero.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from(onlyZero),
-    });
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "only-zero.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(onlyZero),
+  });
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
@@ -1220,4 +1216,63 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await expect(
     page.getByRole("heading", { name: "1 trades added", exact: true }),
   ).toBeVisible();
+});
+
+test("strategy editor matches Explore and removed choices do not return after reload", async ({
+  page,
+}) => {
+  await open(page);
+  const strategy = page
+    .locator(".explorer")
+    .getByLabel("Strategy", { exact: true });
+  const available = (await strategy.locator("option").allTextContents()).filter(
+    (name) => !["All strategies", "Unclassified"].includes(name),
+  );
+  await page
+    .getByRole("button", { name: "Manage trades", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Edit strategies & levels", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
+    available.join("\n"),
+  );
+  const active = ["Browser setup", "Replay setup"];
+  await dialog
+    .getByLabel("Strategies", { exact: true })
+    .fill(active.join("\n"));
+  await dialog.getByRole("button", { name: "Save lists", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(strategy.locator("option")).toHaveText([
+    "All strategies",
+    ...active,
+    "Unclassified",
+  ]);
+  await page.reload();
+  await expect(strategy.locator("option")).toHaveText([
+    "All strategies",
+    ...active,
+    "Unclassified",
+  ]);
+  await strategy.selectOption("Browser setup");
+  await page
+    .getByRole("button", { name: "Manage trades", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Edit strategies & levels", exact: true })
+    .click();
+  await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
+    active.join("\n"),
+  );
+  await dialog.getByLabel("Strategies", { exact: true }).fill("Replay setup");
+  await dialog.getByRole("button", { name: "Save lists", exact: true }).click();
+  await expect(strategy).toHaveValue("All strategies");
+  await page.getByRole("button", { name: "Add trade", exact: true }).click();
+  await expect(dialog.locator("#strategies option")).toHaveCount(1);
+  await expect(dialog.locator("#strategies option")).toHaveAttribute(
+    "value",
+    "Replay setup",
+  );
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 });

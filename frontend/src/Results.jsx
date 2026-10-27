@@ -67,6 +67,12 @@ export default function Results({
     setFilters((current) => {
       const next = { ...current };
       if (
+        current.strategy !== "All strategies" &&
+        current.strategy !== "Unclassified" &&
+        !meta.strategies.includes(current.strategy)
+      )
+        next.strategy = "All strategies";
+      if (
         current.window !== "All sessions" &&
         !meta.windows.includes(current.window)
       )
@@ -76,11 +82,13 @@ export default function Results({
         !trades.some((trade) => trade.symbol === current.symbol)
       )
         next.symbol = "All markets";
-      return next.window === current.window && next.symbol === current.symbol
+      return next.window === current.window &&
+        next.symbol === current.symbol &&
+        next.strategy === current.strategy
         ? current
         : next;
     });
-  }, [meta.windows, trades]);
+  }, [meta.windows, meta.strategies, trades]);
   const change = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
   useEffect(() => {
     const controller = new AbortController();

@@ -508,8 +508,8 @@ function Playbook({ meta, onClose, refresh, toast }) {
     <Modal title="Strategies & key levels" onClose={onClose}>
       <form onSubmit={save} className="stack">
         <p className="muted">
-          One name per line. Trades keep their saved labels when a name is
-          removed from this list.
+          One name per line. This list is shared with Explore and trade entry.
+          Removing a name hides the choice; its saved trades are kept.
         </p>
         <div className="form-grid two">
           <Field label="Strategies">

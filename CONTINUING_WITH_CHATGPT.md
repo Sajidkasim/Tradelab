@@ -55,6 +55,12 @@ preview binds this choice, and the preview reports the excluded count. Existing
 journal trades are never deleted by this option. The choice is remembered after
 confirmation; older clients default to including break-even trades.
 
+The React strategy editor, Explore dropdown and trade-entry suggestions share
+services.strategy_catalog. Newly used/mapped strategies appear in the editor
+too. Removing a choice saves hidden_strategies inside edge_playbook so older
+trades and CSV aliases cannot silently re-add it. Saved trades and All results
+are unchanged; re-adding the exact name restores the choice.
+
 For the owner's explicitly confirmed full-target/stop tests, services.fixed_rr
 adapts tagged backtests into separate model observations and calls the existing
 core summary. Never save those model observations as recorded R or original risk.

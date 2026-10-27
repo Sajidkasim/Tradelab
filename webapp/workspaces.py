@@ -12,7 +12,7 @@ import pandas as pd
 from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
-from services import trade_labels, fixed_rr, weekdays
+from services import trade_labels, fixed_rr, weekdays, strategy_catalog
 from . import lab_settings, import_updates
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
@@ -94,13 +94,12 @@ class Workspaces:
     def metadata(self, key):
         db = self.database(key)
         frame = self.trades(key)
-        book = edge.playbook(db.get_setting(edge.PLAYBOOK_KEY))
         lab = lab_settings.read(db)
         mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
-        used = sorted(set(frame["setup_name"].dropna()) - {""}) if not frame.empty else []
+        book = strategy_catalog.read(db, frame, mappings)
         return clean({"accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
-                      "playbook": book, "strategies": list(dict.fromkeys(book["strategies"] + [s.name for s in db.setups()] + used + trade_labels.mapped_values(mappings, 'strategy'))),
+                      "playbook": book, "strategies": book['strategies'],
                       "timeframes": list(dict.fromkeys(edge.TIMEFRAMES + trade_labels.mapped_values(mappings, 'timeframe') + trade_labels.mapped_values(mappings, 'entry_timeframe'))),
                       "confirmations": list(dict.fromkeys(edge.CONFIRMATIONS + trade_labels.mapped_values(mappings, 'confirmation'))),
                       "news": lab["news"], "conditions": lab["conditions"],
