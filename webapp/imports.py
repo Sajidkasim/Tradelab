@@ -100,6 +100,10 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
         fields, warnings = trade_labels.mapped_fields(trade.tags, mappings, trade.setup_name)
         trade.tags, trade.setup_name = fields["tags"], fields["setup_name"]
         issues.extend(warnings)
+    source_tags = sorted({trade_labels.original_tag(tag) for trade in trades for tag in trade.tags
+                          if not tag.startswith("edge:") and tag != "pnl-only"})
+    if any(tag.strip().upper() == '15M' and tag not in mappings for tag in source_tags):
+        issues.append('15M appears in both of your FX Replay timeframe groups. Use Level TF: 15M and Entry TF: 15M to keep them separate; bare 15M remains unassigned.')
     preview = importers.preview(trades, db.existing_external_ids())
     seen = set(db.existing_external_ids())
     for index, trade in enumerate(trades):
@@ -123,8 +127,8 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                     "counts": import_flow.preview_counts(preview, errors),
                     "rows": rows, "coverage": coverage, "_notes": original_notes, "total_rows": len(preview), "errors": errors,
                     "issues": list(dict.fromkeys(issues)),
-                    "suggestions": {tag: trade_labels.suggested_mapping(tag) for trade in trades for tag in trade.tags if not tag.startswith("edge:") and tag != "pnl-only"},
-                    "tags": sorted({t for trade in trades for t in trade.tags if not t.startswith("edge:") and t != "pnl-only"})}
+                    "suggestions": {tag: trade_labels.suggested_mapping(tag) for tag in source_tags},
+                    "tags": source_tags}
 
 
 def digest(content, filename, account_id, source, timezone, dayfirst, mapping):

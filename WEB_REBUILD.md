@@ -58,6 +58,11 @@ account, source, clock, day-first dates and label-update preference after a
 confirmed import; it does not store credentials.
 
 Recognise strategy tags offers suggestions that only take effect after saving.
+It is available before upload and includes the owner's confirmed FX Replay
+groups; see [FX_REPLAY_TAGS.md](FX_REPLAY_TAGS.md). Saved custom mappings take
+priority. Ambiguous bare 15M is left unassigned; Level TF: 15M and Entry TF: 15M
+keep the two roles separate. FVG explicitly mapped as a key level is preserved
+in an audit tag without being counted as an entry confirmation.
 One export label can map to multiple fields. The owner's CONTINUATION, HTF LEVEL
 1HR FVG and CISD FVG labels have suggestions for strategy, level/timeframe and
 both confirmations respectively. Original tag strings are retained. Changed

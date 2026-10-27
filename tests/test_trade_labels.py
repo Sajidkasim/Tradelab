@@ -62,3 +62,45 @@ def test_unchecked_confirmation_remains_unknown_until_explicitly_reviewed():
     assert not edge.read_labels(fields['tags'])['reviewed']
     assert edge.read_labels(fields['tags'])['confirmations'] == []
     assert 'pnl-only' in fields['tags']
+
+
+@pytest.mark.parametrize(('tag', 'field', 'value'), [
+    ('DISPLACEMENT AT KEY LEVEL', 'strategy', 'Displacement at key level'),
+    ('REVERSAL AT KEY LEVEL', 'strategy', 'Reversal at key level'),
+    ('ORDERBLOCK', 'level', 'Order block'),
+    ('PDL PDH', 'level', 'Previous day high / low'),
+    ('MONTHLY', 'timeframe', 'Monthly'),
+    ('1HR', 'timeframe', '1H'),
+    ('15S', 'entry_timeframe', '15s'),
+    ('KEY LEVEL TIME FRAME: 15M', 'timeframe', '15m'),
+    ('ENTRY TIME FRAME: 15M', 'entry_timeframe', '15m'),
+])
+def test_confirmed_fx_groups_have_exact_suggestions(tag, field, value):
+    assert trade_labels.suggested_mapping(tag) == {'field': field, 'value': value}
+
+
+def test_unqualified_shared_timeframe_and_shortened_strategy_are_not_guessed():
+    assert trade_labels.suggested_mapping('15M') == {'field': '', 'value': ''}
+    assert trade_labels.suggested_mapping('DISPLACEMENT AT K...') == {'field': '', 'value': ''}
+    first = trade_labels.fx_tag_guide()
+    first['SMT']['value'] = 'Changed'
+    assert trade_labels.fx_tag_guide()['SMT']['value'] == 'SMT'
+
+
+def test_fvg_level_does_not_become_a_false_entry_confirmation():
+    mappings = trade_labels.fx_tag_guide()
+    raw = ['DISPLACEMENT AT KEY LEVEL', 'FVG', '1HR', '1M', 'CISD', 'SMT']
+    fields, issues = trade_labels.mapped_fields(raw, mappings)
+    labels = edge.read_labels(fields['tags'])
+    assert not issues and fields['setup_name'] == 'Displacement at key level'
+    assert labels['level'] == 'FVG' and labels['timeframe'] == '1H'
+    assert labels['entry_timeframe'] == '1m'
+    assert labels['confirmations'] == ['CISD', 'SMT']
+    assert not labels['reviewed']
+    assert 'fx-original:FVG' in fields['tags']
+    again, _ = trade_labels.mapped_fields(fields['tags'], mappings, fields['setup_name'])
+    assert edge.read_labels(again['tags']) == labels
+    assert set(again['tags']) == set(fields['tags'])
+    # No approved mapping means legacy confirmation behaviour stays unchanged.
+    before, _ = trade_labels.mapped_fields(raw, {})
+    assert edge.read_labels(before['tags'])['confirmations'] == ['CISD', 'FVG', 'SMT']

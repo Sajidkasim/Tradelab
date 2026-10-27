@@ -103,7 +103,8 @@ class Workspaces:
                       "news": lab["news"], "conditions": lab["conditions"],
                       "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
-                      "tag_mappings": db.get_setting(trade_labels.MAPPING_KEY, {})})
+                      "tag_mappings": db.get_setting(trade_labels.MAPPING_KEY, {}),
+                      "tag_suggestions": trade_labels.fx_tag_guide()})
 
     def results(self, key, filters):
         frame = self.trades(key)

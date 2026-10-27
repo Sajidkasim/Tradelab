@@ -467,13 +467,11 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
 }) => {
   const tagged = `id,dateStart,dateEnd,pair,rPnL,side,status,tags,notes\nrelease-browser,2013/01/25 17:07:59,2013/01/25 19:13:55,CME_MINI:NQ1,125,sell,closed,"CONTINUATION,HTF LEVEL 1HR FVG,CISD FVG \\",Export note\n`;
   async function choose(content) {
-    await page
-      .getByLabel("Choose a trade export")
-      .setInputFiles({
-        name: "tagged.csv",
-        mimeType: "text/csv",
-        buffer: Buffer.from(content),
-      });
+    await page.getByLabel("Choose a trade export").setInputFiles({
+      name: "tagged.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(content),
+    });
     await page
       .getByRole("button", { name: "Preview trades", exact: true })
       .click();
@@ -678,4 +676,67 @@ test("eight-row pagination and exact-count delete-all handle changed data safely
   ).toBeVisible();
   await page.reload();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(0);
+});
+
+test("FX Replay tag guide saves before upload and separates levels from confirmations", async ({
+  page,
+}) => {
+  await open(page);
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByText("Recognise strategy tags", { exact: true }).click();
+  await expect(
+    page.getByLabel("Field 1 for DISPLACEMENT AT KEY LEVEL", { exact: true }),
+  ).toHaveValue("strategy");
+  await expect(
+    page.getByLabel("Value 1 for REVERSAL AT KEY LEVEL", { exact: true }),
+  ).toHaveValue("Reversal at key level");
+  await expect(page.getByLabel("Field 1 for FVG", { exact: true })).toHaveValue(
+    "level",
+  );
+  await page
+    .getByRole("button", { name: "Save tag meanings", exact: true })
+    .click();
+  await expect(
+    page.getByText("Tag meanings saved for future imports.", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Import trades", exact: true }),
+  ).toBeVisible();
+  await page.getByText("Recognise strategy tags", { exact: true }).click();
+  await expect(
+    page
+      .locator(".tag-map-group")
+      .filter({ hasText: "DISPLACEMENT AT KEY LEVEL" }),
+  ).toContainText("Remembered");
+  const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags
+new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,closed,"DISPLACEMENT AT KEY LEVEL,FVG,1HR,1M,CISD,SMT,15M"
+`;
+  await page.getByLabel("Choose a trade export").setInputFiles({
+    name: "guide.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(content),
+  });
+  await page
+    .getByRole("button", { name: "Preview trades", exact: true })
+    .click();
+  await expect(page.locator(".preview-card tbody")).toContainText(
+    "Displacement at key level",
+  );
+  await expect(page.locator(".preview-card tbody")).toContainText(
+    "FVG · 1H · 1m",
+  );
+  await expect(page.locator(".preview-card tbody")).toContainText("CISD + SMT");
+  await expect(page.locator(".preview-card")).toContainText(
+    "15M appears in both",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Check the preview" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Back to trades", exact: true })
+    .click();
+  await expect(
+    page.getByText("new-guide-preview", { exact: true }),
+  ).toHaveCount(0);
 });

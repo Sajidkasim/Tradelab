@@ -7,6 +7,35 @@ MAPPING_KEY = 'fx_tag_mappings'
 FIELDS = {'strategy': 'Strategy', 'level': 'Key level / PDA', 'timeframe': 'Level timeframe',
           'entry_timeframe': 'Entry timeframe', 'confirmation': 'Confirmation',
           'condition': 'Market condition', 'news': 'News'}
+ORIGINAL_TAG_PREFIX = 'fx-original:'
+# Owner's FX Replay groups, confirmed 27 October 2026. 15M occurs in both
+# timeframe groups, so it deliberately has no unqualified suggestion.
+FX_TAG_GUIDE = {
+    'DISPLACEMENT AT KEY LEVEL': ('strategy', 'Displacement at key level'),
+    'REVERSAL AT KEY LEVEL': ('strategy', 'Reversal at key level'),
+    'FVG': ('level', 'FVG'),
+    'ORDERBLOCK': ('level', 'Order block'),
+    'PDL PDH': ('level', 'Previous day high / low'),
+    'MSS': ('confirmation', 'MSS'),
+    'CISD': ('confirmation', 'CISD'),
+    'SMT': ('confirmation', 'SMT'),
+    'WEEKLY': ('timeframe', 'Weekly'),
+    'MONTHLY': ('timeframe', 'Monthly'),
+    '4HR': ('timeframe', '4H'),
+    '1HR': ('timeframe', '1H'),
+    '1M': ('entry_timeframe', '1m'),
+    '15S': ('entry_timeframe', '15s'),
+    '5M': ('entry_timeframe', '5m'),
+}
+
+
+def fx_tag_guide():
+    return {tag: {'field': field, 'value': value}
+            for tag, (field, value) in FX_TAG_GUIDE.items()}
+
+
+def original_tag(tag):
+    return tag[len(ORIGINAL_TAG_PREFIX):] if tag.startswith(ORIGINAL_TAG_PREFIX) else tag
 
 
 def export_tags(value):
@@ -31,6 +60,9 @@ def export_tags(value):
 
 def suggested_mapping(tag):
     normal = tag.strip().rstrip('\\').strip().upper()
+    if normal in FX_TAG_GUIDE:
+        field, value = FX_TAG_GUIDE[normal]
+        return {'field': field, 'value': value}
     known = {
         'CONTINUATION': [{'field': 'strategy', 'value': 'Continuation'}],
         'HTF LEVEL 1HR FVG': [{'field': 'level', 'value': 'FVG'}, {'field': 'timeframe', 'value': '1H'}],
@@ -38,12 +70,21 @@ def suggested_mapping(tag):
     }
     if normal in known:
         return {'rules': known[normal]}
-    prefixes = {'strategy': 'strategy', 'model': 'strategy', 'key level': 'level',
-                'level tf': 'timeframe', 'entry tf': 'entry_timeframe'}
+    prefixes = {'strategy': 'strategy', 'strat': 'strategy', 'model': 'strategy',
+                'key level': 'level', 'confluence': 'confirmation',
+                'level tf': 'timeframe', 'key level timeframe': 'timeframe',
+                'key level time frame': 'timeframe', 'entry tf': 'entry_timeframe',
+                'entry timeframe': 'entry_timeframe', 'entry time frame': 'entry_timeframe'}
     if ':' in tag:
         prefix, value = tag.split(':', 1)
         if prefix.strip().casefold() in prefixes and value.strip():
-            return {'field': prefixes[prefix.strip().casefold()], 'value': value.strip()}
+            field = prefixes[prefix.strip().casefold()]
+            value = value.strip()
+            if field in ('timeframe', 'entry_timeframe'):
+                value = {'MONTHLY': 'Monthly', 'WEEKLY': 'Weekly', 'DAILY': 'Daily',
+                         '4HR': '4H', '1HR': '1H', '15M': '15m', '5M': '5m',
+                         '1M': '1m', '15S': '15s', '5S': '5s'}.get(value.upper(), value)
+            return {'field': field, 'value': value}
     if tag in edge.CONFIRMATIONS:
         return {'field': 'confirmation', 'value': tag}
     return {'field': '', 'value': ''}
@@ -68,9 +109,21 @@ def validate_mappings(payload):
 
 def mapped_fields(tags, mappings, strategy=''):
     """Only apply approved mappings; never infer absence or mark a trade reviewed."""
-    labels = edge.read_labels(tags)
+    raw_tags = list(dict.fromkeys(original_tag(tag) for tag in export_tags(tags)))
+    # A legacy bare FVG is otherwise treated as an entry confirmation by core.
+    # An explicit owner mapping to a key level must take precedence. Preserve
+    # that original wording in an audit tag which core does not interpret.
+    non_confirmation = {
+        tag for tag in raw_tags
+        if mapping_rules(mappings.get(tag, {}))
+        and any(rule.get('field') in FIELDS for rule in mapping_rules(mappings.get(tag, {})))
+        and not any(rule.get('field') == 'confirmation' for rule in mapping_rules(mappings.get(tag, {})))
+        and tag.casefold() in {value.casefold() for value in edge.CONFIRMATIONS}
+    }
+    retained = [ORIGINAL_TAG_PREFIX + tag if tag in non_confirmation else tag for tag in raw_tags]
+    labels = edge.read_labels(retained)
     candidates = {}
-    for tag in export_tags(tags):
+    for tag in raw_tags:
         entry = mappings.get(tag, {})
         for rule in mapping_rules(entry):
             field, value = rule.get('field'), str(rule.get('value', '')).strip()
@@ -94,8 +147,8 @@ def mapped_fields(tags, mappings, strategy=''):
             issues.append(f'Existing {FIELDS[field].lower()} kept; export tag disagrees.')
     reviewed = labels.pop('reviewed')
     # Retain the original export labels as well as the internal structured labels.
-    result = edge.write_labels(tags, **labels)
-    result = list(dict.fromkeys(export_tags(tags) + result))
+    result = edge.write_labels(retained, **labels)
+    result = list(dict.fromkeys(retained + result))
     if not reviewed:
         result = [t for t in result if t != 'edge:reviewed']
     return {'setup_name': strategy, 'tags': result}, issues

@@ -62,7 +62,10 @@ export default function Import({ meta, refresh, onBack, toast }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false),
-    [tagMap, setTagMap] = useState(meta.tag_mappings || {});
+    [tagMap, setTagMap] = useState({
+      ...meta.tag_suggestions,
+      ...meta.tag_mappings,
+    });
   const [updateLabels, setUpdateLabels] = useState(
     meta.import_profile?.update_labels || false,
   );
@@ -155,7 +158,11 @@ export default function Import({ meta, refresh, onBack, toast }) {
       );
       await api("/tag-mappings", { method: "PUT", body: saved });
       await refresh();
-      toast("Tag mappings saved. Preview again to apply them.");
+      toast(
+        file
+          ? "Tag meanings saved. Preview again to apply them."
+          : "Tag meanings saved for future imports.",
+      );
       invalidate();
     } catch (e) {
       setError(e.message);
@@ -334,6 +341,109 @@ export default function Import({ meta, refresh, onBack, toast }) {
           </Button>
         )}
       </div>
+      <div className="card">
+        {Object.keys(tagMap).length > 0 && (
+          <details className="disclosure">
+            <summary>Recognise strategy tags</summary>
+            <div className="stack">
+              <p>
+                Your FX Replay tag guide. Save once to remember these meanings
+                for future imports. Existing saved meanings take priority;
+                confirmations still need review.
+              </p>
+              <p className="muted">
+                A plain 15M tag cannot identify which timeframe group it came
+                from. In FX Replay, name those tags{" "}
+                <strong>Level TF: 15M</strong> and{" "}
+                <strong>Entry TF: 15M</strong>. Use these prefixes for any
+                timeframe you use in both groups.
+              </p>
+              {Object.keys(tagMap).map((tag) => (
+                <div className="tag-map-group" key={tag}>
+                  <strong>{tag}</strong>
+                  <small>
+                    {meta.tag_mappings?.[tag]
+                      ? "Remembered"
+                      : "Suggested · save to remember"}
+                  </small>
+                  {(
+                    tagMap[tag]?.rules || [
+                      tagMap[tag] || { field: "", value: "" },
+                    ]
+                  ).map((rule, index) => (
+                    <div className="tag-map" key={index}>
+                      <Select
+                        label={`Field ${index + 1} for ${tag}`}
+                        values={[
+                          { value: "", label: "Keep original tag only" },
+                          { value: "strategy", label: "Strategy" },
+                          { value: "level", label: "Key level / PDA" },
+                          { value: "timeframe", label: "Level timeframe" },
+                          {
+                            value: "entry_timeframe",
+                            label: "Entry timeframe",
+                          },
+                          { value: "confirmation", label: "Confirmation" },
+                          { value: "news", label: "News" },
+                          { value: "condition", label: "Market condition" },
+                        ]}
+                        value={rule.field || ""}
+                        onChange={(e) =>
+                          editRule(tag, index, "field", e.target.value)
+                        }
+                      />
+                      <Field label={`Value ${index + 1} for ${tag}`}>
+                        <input
+                          value={rule.value || ""}
+                          onChange={(e) =>
+                            editRule(tag, index, "value", e.target.value)
+                          }
+                        />
+                      </Field>
+                      <Button
+                        onClick={() => {
+                          const rules = tagMap[tag]?.rules || [
+                            tagMap[tag] || {},
+                          ];
+                          setTagMap({
+                            ...tagMap,
+                            [tag]: {
+                              rules: rules.filter((_, i) => i !== index),
+                            },
+                          });
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    disabled={(tagMap[tag]?.rules?.length || 0) >= 8}
+                    onClick={() => {
+                      const rules =
+                        tagMap[tag]?.rules ||
+                        (tagMap[tag] ? [tagMap[tag]] : []);
+                      setTagMap({
+                        ...tagMap,
+                        [tag]: {
+                          rules: [...rules, { field: "", value: "" }],
+                        },
+                      });
+                    }}
+                  >
+                    Add another meaning
+                  </Button>
+                </div>
+              ))}
+              <Button busy={busy} onClick={saveMappings}>
+                {detected
+                  ? "Save mappings & preview again"
+                  : "Save tag meanings"}
+              </Button>
+            </div>
+          </details>
+        )}
+      </div>
       {done && (
         <div className="card import-success">
           <FileCheck size={36} />
@@ -468,91 +578,6 @@ export default function Import({ meta, refresh, onBack, toast }) {
               Showing the first 200 of {preview.total_rows} valid trades. The
               confirmed import processes all valid rows.
             </p>
-          )}
-          {preview.tags.length > 0 && (
-            <details className="disclosure">
-              <summary>Recognise strategy tags</summary>
-              <div className="stack">
-                <p>
-                  Save how your export tags map to your setup. No guessing, and
-                  confirmations still need review.
-                </p>
-                {preview.tags.map((tag) => (
-                  <div className="tag-map-group" key={tag}>
-                    <strong>{tag}</strong>
-                    {(
-                      tagMap[tag]?.rules || [
-                        tagMap[tag] || { field: "", value: "" },
-                      ]
-                    ).map((rule, index) => (
-                      <div className="tag-map" key={index}>
-                        <Select
-                          label={`Field ${index + 1} for ${tag}`}
-                          values={[
-                            { value: "", label: "Ignore" },
-                            ...[
-                              "strategy",
-                              "level",
-                              "timeframe",
-                              "entry_timeframe",
-                              "confirmation",
-                              "news",
-                              "condition",
-                            ],
-                          ]}
-                          value={rule.field || ""}
-                          onChange={(e) =>
-                            editRule(tag, index, "field", e.target.value)
-                          }
-                        />
-                        <Field label={`Value ${index + 1} for ${tag}`}>
-                          <input
-                            value={rule.value || ""}
-                            onChange={(e) =>
-                              editRule(tag, index, "value", e.target.value)
-                            }
-                          />
-                        </Field>
-                        <Button
-                          onClick={() => {
-                            const rules = tagMap[tag]?.rules || [
-                              tagMap[tag] || {},
-                            ];
-                            setTagMap({
-                              ...tagMap,
-                              [tag]: {
-                                rules: rules.filter((_, i) => i !== index),
-                              },
-                            });
-                          }}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      disabled={(tagMap[tag]?.rules?.length || 0) >= 8}
-                      onClick={() => {
-                        const rules =
-                          tagMap[tag]?.rules ||
-                          (tagMap[tag] ? [tagMap[tag]] : []);
-                        setTagMap({
-                          ...tagMap,
-                          [tag]: {
-                            rules: [...rules, { field: "", value: "" }],
-                          },
-                        });
-                      }}
-                    >
-                      Add another meaning
-                    </Button>
-                  </div>
-                ))}
-                <Button busy={busy} onClick={saveMappings}>
-                  Save mappings & preview again
-                </Button>
-              </div>
-            </details>
           )}
           {preview.label_updates.length > 0 && (
             <details className="disclosure">

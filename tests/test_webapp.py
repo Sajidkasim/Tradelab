@@ -330,6 +330,31 @@ def labelled_fx(tags='CONTINUATION,HTF LEVEL 1HR FVG,CISD FVG \\', note='Export 
                          'pair':'CME_MINI:NQ1','rPnL':pnl,'side':'sell','status':'closed','tags':tags,'notes':note}]).to_csv(index=False).encode()
 
 
+def test_fx_screenshot_tag_guide_is_remembered_without_importing_trades(local):
+    client, _ = local
+    metadata = client.get('/api/metadata').json()
+    assert metadata['tag_mappings'] == {}
+    guide = metadata['tag_suggestions']
+    assert client.put('/api/tag-mappings', json=guide).status_code == 200
+    assert client.get('/api/trades').json() == []
+    assert client.get('/api/metadata').json()['tag_mappings'] == guide
+    content = labelled_fx(tags='REVERSAL AT KEY LEVEL,FVG,MONTHLY,1M,CISD,15M')
+    preview = upload(client, content).json()
+    row = preview['rows'][0]
+    assert row['setup_name'] == 'Reversal at key level'
+    assert row['labels']['level'] == 'FVG' and row['labels']['timeframe'] == 'Monthly'
+    assert row['labels']['entry_timeframe'] == '1m'
+    assert row['labels']['confirmations'] == ['CISD']
+    assert 'FVG' in preview['tags'] and 'fx-original:FVG' not in preview['tags']
+    assert any('15M appears in both' in issue for issue in preview['issues'])
+    assert row['net_pnl'] == 125 and row['r_multiple'] is None
+    assert client.get('/api/trades').json() == []
+    assert upload(client, content, 'confirm', preview['preview_token']).json()['inserted'] == 1
+    saved = client.get('/api/trades').json()[0]
+    assert saved['labels']['confirmations'] == ['CISD'] and saved['needs_tagging']
+    assert saved['net_pnl'] == 125 and saved['r_multiple'] is None
+
+
 def test_composite_export_tags_notes_and_explicit_reimport_updates(local):
     from core import edge
     from services import trade_labels
