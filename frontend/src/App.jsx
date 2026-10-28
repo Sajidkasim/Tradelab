@@ -6,6 +6,7 @@ import {
   Download,
   LogOut,
   Settings2,
+  Users,
 } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { Button, Notice, Menu } from "./components";
@@ -16,6 +17,7 @@ import Unlock from "./Unlock";
 import Tools from "./Tools";
 import Backup from "./Backup";
 import LabSettings from "./LabSettings";
+import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
@@ -36,6 +38,7 @@ export default function App() {
   const [scope, setScope] = useState("All"),
     [backup, setBackup] = useState(false),
     [labSettings, setLabSettings] = useState(false),
+    [access, setAccess] = useState(false),
     [message, setMessage] = useState("");
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
@@ -176,6 +179,9 @@ export default function App() {
           <button onClick={() => setBackup(true)}>
             <Download size={16} /> Backup & restore
           </button>
+          {session.owner && session.auth_mode === "google" && <button onClick={() => setAccess(true)}>
+            <Users size={16} /> Manage access
+          </button>}
           <button onClick={() => setMode(mode === "light" ? "dark" : "light")}>
             {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
@@ -283,6 +289,7 @@ export default function App() {
           count={trades.length}
         />
       )}
+      {access && session.owner && session.auth_mode === "google" && <Access onClose={() => setAccess(false)} />}
     </div>
   );
 }

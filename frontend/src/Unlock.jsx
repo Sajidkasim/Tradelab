@@ -87,11 +87,13 @@ function MarketStudy() {
 
 export default function Unlock({ ready, onUnlocked, authMode = "password" }) {
   const google = authMode === "google";
+  const loginStatus = new URLSearchParams(window.location.search).get("login");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState(new URLSearchParams(window.location.search).get("login") === "retry"
-      ? "Sign-in wasn’t completed. Please try Google again." : "");
+    [error, setError] = useState(loginStatus === "blocked"
+      ? "Access to this account has been blocked. Please contact the PrimusLab owner."
+      : loginStatus === "retry" ? "Sign-in wasn’t completed. Please try Google again." : "");
   async function submit(event) {
     event.preventDefault();
     setBusy(true);

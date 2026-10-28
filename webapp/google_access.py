@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 import httpx
 import sqlalchemy as sa
+from sqlalchemy.schema import CreateColumn
 
 from .personal_access import SESSION_SECONDS, now_utc
 
@@ -23,6 +24,9 @@ identities = sa.Table('primus_google_identities', metadata,
     sa.Column('key', sa.String(32), primary_key=True),
     sa.Column('subject', sa.String(64), unique=True),
     sa.Column('owner_email', sa.String(254)),
+    sa.Column('email', sa.String(254)),
+    sa.Column('joined_at', sa.DateTime),
+    sa.Column('last_sign_in', sa.DateTime),
     sa.Column('active', sa.Boolean, nullable=False, default=True))
 sessions = sa.Table('primus_google_sessions', metadata,
     sa.Column('token_hash', sa.String(64), primary_key=True),
@@ -33,6 +37,10 @@ sessions = sa.Table('primus_google_sessions', metadata,
 
 class LoginError(Exception):
     """Deliberately carries no provider response or credentials."""
+
+
+class AccountBlocked(LoginError):
+    """Verified identity whose access the owner has disabled."""
 
 
 def harden_tables(database, tables):
@@ -80,6 +88,13 @@ class GoogleAccess:
         self.version = hmac.new(config.secret.encode(), f'google:{config.supabase_url}'.encode(), hashlib.sha256).hexdigest()
         self.client = httpx.Client(timeout=15, follow_redirects=False)
         metadata.create_all(database.engine)
+        # Additive auth-only migration. Existing journal tables are untouched.
+        existing = {column['name'] for column in sa.inspect(database.engine).get_columns(identities.name)}
+        with database.engine.begin() as connection:
+            for column in identities.columns:
+                if column.name not in existing:
+                    ddl = str(CreateColumn(column).compile(dialect=database.engine.dialect))
+                    connection.exec_driver_sql(f'ALTER TABLE {identities.name} ADD COLUMN {ddl}')
         harden_tables(database, metadata.sorted_tables)
         insert = (__import__('sqlalchemy.dialects.sqlite', fromlist=['insert']).insert if database.is_sqlite else
                   __import__('sqlalchemy.dialects.postgresql', fromlist=['insert']).insert)
@@ -129,19 +144,22 @@ class GoogleAccess:
             existing = connection.execute(sa.select(identities).where(identities.c.subject == subject)).mappings().first()
             if existing:
                 if not existing['active']:
-                    raise LoginError()
+                    raise AccountBlocked()
+                connection.execute(identities.update().where(identities.c.key == existing['key']).values(
+                    email=email, last_sign_in=now_utc()))
                 return existing['key']
             owner = connection.execute(sa.select(identities).where(identities.c.key == 'owner')).mappings().one()
             if email == owner['owner_email']:
                 if owner['subject'] is not None or not owner['active']:
                     raise LoginError()
                 changed = connection.execute(identities.update().where(identities.c.key == 'owner', identities.c.subject.is_(None))
-                                             .values(subject=subject))
+                                             .values(subject=subject, email=email, joined_at=now_utc(), last_sign_in=now_utc()))
                 if changed.rowcount != 1:
                     raise LoginError()
                 return 'owner'
             key = token_hex(16)
-            connection.execute(identities.insert().values(key=key, subject=subject, active=True))
+            connection.execute(identities.insert().values(key=key, subject=subject, email=email, active=True,
+                                                         joined_at=now_utc(), last_sign_in=now_utc()))
             return key
 
     def registered(self, key):
@@ -150,14 +168,42 @@ class GoogleAccess:
                                                                      identities.c.subject.is_not(None))) is not None
 
     def issue(self, key):
-        if not self.registered(key):
-            raise LoginError()
-        token = token_urlsafe(48)
-        with self.database.engine.begin() as connection:
+        # Share the block lock so a concurrent callback cannot leave a session
+        # which becomes usable again after an unblock.
+        with self.lock, self.database.engine.begin() as connection:
+            if not connection.scalar(sa.select(identities.c.key).where(identities.c.key == key, identities.c.active.is_(True),
+                                                                      identities.c.subject.is_not(None))):
+                raise LoginError()
+            token = token_urlsafe(48)
             connection.execute(sessions.delete().where(sa.or_(sessions.c.expires_at <= now_utc(), sessions.c.version != self.version)))
             connection.execute(sessions.insert().values(token_hash=hashlib.sha256(token.encode()).hexdigest(), key=key,
                 version=self.version, expires_at=now_utc() + timedelta(seconds=SESSION_SECONDS)))
         return token
+
+    def people(self):
+        valid_sessions = sa.select(sessions.c.key, sa.func.count().label('count')).where(
+            sessions.c.expires_at > now_utc(), sessions.c.version == self.version).group_by(sessions.c.key).subquery()
+        with self.database.engine.connect() as connection:
+            rows = connection.execute(sa.select(identities.c.key, identities.c.email, identities.c.owner_email,
+                identities.c.active, identities.c.joined_at, identities.c.last_sign_in,
+                sa.func.coalesce(valid_sessions.c.count, 0).label('sessions')).outerjoin(
+                    valid_sessions, valid_sessions.c.key == identities.c.key).order_by(identities.c.joined_at, identities.c.key)).mappings()
+            def stamp(value):
+                return value.isoformat() + 'Z' if value else None
+            return [{'id': row['key'], 'email': row['email'] or row['owner_email'], 'owner': row['key'] == 'owner',
+                     'allowed': row['active'], 'joined_at': stamp(row['joined_at']), 'last_sign_in': stamp(row['last_sign_in']),
+                     'signed_in_sessions': row['sessions'] if row['active'] else 0} for row in rows]
+
+    def set_allowed(self, key, allowed):
+        if key == 'owner':
+            raise PermissionError('Your owner account cannot be blocked.')
+        with self.lock, self.database.engine.begin() as connection:
+            found = connection.scalar(sa.select(identities.c.key).where(identities.c.key == key))
+            if not found:
+                raise ValueError('This account no longer exists. Refresh the list.')
+            connection.execute(identities.update().where(identities.c.key == key).values(active=allowed))
+            if not allowed:
+                connection.execute(sessions.delete().where(sessions.c.key == key))
 
     def member(self, token):
         if not isinstance(token, str) or not 40 <= len(token) <= 100:

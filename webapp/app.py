@@ -21,11 +21,11 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
-from .google_access import LoginError
+from .google_access import LoginError, AccountBlocked
 
 
 def create_app(config: Settings | None = None):
@@ -165,6 +165,8 @@ def create_app(config: Settings | None = None):
             # Finish private storage initialization before issuing access.
             app.state.workspaces.database(key)
             token = access.issue(key)
+        except AccountBlocked:
+            return RedirectResponse('/?login=blocked', status_code=303)
         except LoginError:
             return RedirectResponse('/?login=retry', status_code=303)
         access.revoke(request.session.get('google_token'))
@@ -205,6 +207,22 @@ def create_app(config: Settings | None = None):
     @app.get("/api/metadata")
     def metadata(request: Request, member=Depends(workspace)):
         return app.state.workspaces.metadata(member["key"])
+
+    def access_owner(member):
+        if not config.google_required or member['key'] != 'owner':
+            raise HTTPException(403, 'Only the owner can manage account access.')
+
+    @app.get('/api/access')
+    def list_access(member=Depends(workspace)):
+        access_owner(member)
+        return app.state.workspaces.google.people()
+
+    @app.patch('/api/access/{account_key}')
+    def change_access(account_key: str, payload: AccountAccess, member=Depends(workspace)):
+        access_owner(member)
+        app.state.workspaces.google.set_allowed(account_key, payload.allowed)
+        app.state.workspaces.bump(account_key)
+        return {'ok': True}
 
     @app.post('/api/tools/position-size')
     def position_size(payload: PositionSize, request: Request, member=Depends(workspace)):

@@ -9,6 +9,10 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
+class AccountAccess(StrictModel):
+    allowed: bool = Field(strict=True)
+
+
 class Labels(StrictModel):
     level: str = Field(default=edge.UNKNOWN, max_length=120)
     timeframe: str = Field(default=edge.UNKNOWN, max_length=120)

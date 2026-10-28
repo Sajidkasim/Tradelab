@@ -221,3 +221,106 @@ def test_revocation_expiry_and_browser_workspace_tampering(google):
     with pytest.raises(PermissionError):
         app.state.workspaces.database('a' * 32)
 
+
+def test_only_owner_can_list_and_block_accounts_and_old_sessions_never_revive(google):
+    client, app, state = google
+    assert client.get('/api/access').status_code == 401
+    login(client, state)
+    owner_cookie = client.cookies.get('primus_session')
+    assert client.patch('/api/access/owner', json={'allowed': False}).status_code == 403
+    client.cookies.clear()
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert client.get('/api/access').status_code == 403
+    assert client.post('/api/trades', json=trade_payload(strategy='Never visible to owner')).status_code == 200
+    friend_cookie = client.cookies.get('primus_session')
+    # A second browser session for the same Google account.
+    client.cookies.clear()
+    login(client, state, 'friend@example.com', 'friend-sub')
+    second_cookie = client.cookies.get('primus_session')
+    client.cookies.clear()
+    client.cookies.set('primus_session', owner_cookie)
+    csrf(client)
+    roster = client.get('/api/access').json()
+    friend = next(person for person in roster if person['email'] == 'friend@example.com')
+    assert friend['signed_in_sessions'] == 2 and friend['last_sign_in'].endswith('Z')
+    assert friend['joined_at'] and friend['allowed'] and not friend['owner']
+    assert set(friend) == {'id', 'email', 'owner', 'allowed', 'joined_at', 'last_sign_in', 'signed_in_sessions'}
+    assert 'Never visible' not in str(roster) and 'subject' not in str(roster) and 'token' not in str(roster)
+    key = friend['id']
+    assert client.patch(f'/api/access/{key}', json={'allowed': 'false'}).status_code == 422
+    assert client.patch(f'/api/access/{key}', headers={'Origin': 'https://attacker.test'}, json={'allowed': False}).status_code == 403
+    assert client.patch(f'/api/access/{key}', json={'allowed': False, 'owner': True}).status_code == 422
+    assert client.patch(f'/api/access/{key}', json={'allowed': False}).status_code == 200
+    assert next(person for person in client.get('/api/access').json() if person['id'] == key)['signed_in_sessions'] == 0
+    for cookie in (friend_cookie, second_cookie):
+        client.cookies.clear()
+        client.cookies.set('primus_session', cookie)
+        assert client.get('/api/trades').status_code == 401
+        assert client.get('/api/metadata').status_code == 401
+        assert client.get('/api/export/backup').status_code == 401
+        assert client.get('/api/access').status_code == 401
+    csrf(client)
+    state['user'] = provider_user('friend@example.com', 'friend-sub')
+    client.post('/api/login/google')
+    assert client.get('/auth/callback?code=single-use-test-code', follow_redirects=False).headers['location'] == '/?login=blocked'
+    with pytest.raises(LoginError):
+        app.state.workspaces.google.issue(key)
+    client.cookies.clear()
+    client.cookies.set('primus_session', owner_cookie)
+    csrf(client)
+    assert client.patch(f'/api/access/{key}', json={'allowed': True}).status_code == 200
+    client.cookies.clear()
+    client.cookies.set('primus_session', friend_cookie)
+    assert client.get('/api/trades').status_code == 401
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert client.get('/api/trades').json()[0]['setup_name'] == 'Never visible to owner'
+    assert client.patch('/api/access/owner', json={'allowed': False}).status_code == 403
+    assert client.patch(f'/api/access/{key}', json={'allowed': True}).status_code == 403
+
+
+def test_signed_out_session_count_and_owner_alias_email_refresh(google):
+    client, app, state = google
+    login(client, state)
+    owner_cookie = client.cookies.get('primus_session')
+    client.cookies.clear()
+    login(client, state, 'friend@example.com', 'friend-sub')
+    client.post('/api/logout')
+    client.cookies.clear()
+    client.cookies.set('primus_session', owner_cookie)
+    csrf(client)
+    friend = next(person for person in client.get('/api/access').json() if not person['owner'])
+    assert friend['signed_in_sessions'] == 0 and friend['allowed']
+    assert client.patch('/api/access/missing-account', json={'allowed': False}).status_code == 422
+    # Stable Google identity, changed verified address: same private journal.
+    client.cookies.clear()
+    login(client, state, 'newfriend@example.com', 'friend-sub')
+    client.cookies.clear()
+    client.cookies.set('primus_session', owner_cookie)
+    csrf(client)
+    updated = next(person for person in client.get('/api/access').json() if not person['owner'])
+    assert updated['id'] == friend['id'] and updated['email'] == 'newfriend@example.com'
+
+
+def test_account_details_migrate_existing_auth_tables_without_reassigning_owner(google, tmp_path):
+    from core.db import Database
+    from webapp.google_access import GoogleAccess
+    _, app, _ = google
+    root = Database(str(tmp_path / 'old-auth.db'))
+    root.init()
+    old = sa.Table(identities.name, sa.MetaData(), sa.Column('key', sa.String(32), primary_key=True),
+        sa.Column('subject', sa.String(64), unique=True), sa.Column('owner_email', sa.String(254)),
+        sa.Column('active', sa.Boolean, nullable=False))
+    old.create(root.engine)
+    with root.engine.begin() as connection:
+        connection.execute(old.insert().values(key='owner', subject='old-bound-subject', owner_email='owner@example.com', active=True))
+    access = GoogleAccess(root, app.state.config)
+    try:
+        assert {'email', 'joined_at', 'last_sign_in'} <= {column['name'] for column in sa.inspect(root.engine).get_columns(identities.name)}
+        assert access.people()[0]['email'] == 'owner@example.com'
+        assert access.join('owner@example.com', 'old-bound-subject') == 'owner'
+        with pytest.raises(LoginError):
+            access.join('owner@example.com', 'different-subject')
+    finally:
+        access.close()
+        root.engine.dispose()
+

@@ -2,7 +2,9 @@
 
 The React app supports `PRIMUSLAB_AUTH_MODE=google`. Each verified Google
 identity gets its own journal, including trades, imports, settings, results and
-backups. There is no roster, sharing switch or route for browsing other users.
+backups. The owner-only My journal → Manage access screen lists verified account
+emails, last sign-in times, session status and Block/Unblock controls. It never
+opens other journals. There is no sharing switch or route for browsing others.
 The configured owner retains the original trading tables. New users start empty.
 The application does not provide end-to-end encryption: the hosting/database
 administrator still has infrastructure access. Ordinary members cannot access
@@ -58,6 +60,11 @@ the identity registry deliberately refuses reassignment.
   journal uses explicit schema translation for every query, import and backup.
   Numeric trade/account IDs can safely overlap between journals. SQLite tests
   use a separate file per identity. Never use a client-supplied workspace key.
+- Blocking disables the identity and revokes all of its app sessions immediately.
+  Unblocking requires a fresh Google sign-in; it cannot revive old session cookies.
+  Journals remain saved. The owner cannot block their own account. Session counts
+  mean unexpired app sessions, not live online presence. Accounts created before
+  this account-list update supply their email on their next Google sign-in.
 - Auth tables are separate from the eight-table journal backup format. Restoring
   a journal cannot restore identities, sessions or memberships.
 - Keep one worker/instance: pending logins are bounded in memory and expire after

@@ -1856,6 +1856,24 @@ td strong {
   color: var(--tl-surface);
   border-color: var(--tl-negative);
 }
+
+.access-person {
+  border: 1px solid var(--tl-border);
+  border-radius: 14px;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+.access-person-heading, .access-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+.access-person-heading strong { overflow-wrap: anywhere; min-width: 0; }
+.access-actions { justify-content: flex-end; }
+.access-person > .button { justify-self: start; }
 @media (max-width: 700px) {
   .journal-intro {
     align-items: flex-start;
