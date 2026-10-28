@@ -27,3 +27,12 @@
   --tl-sage: #199e70;
   color-scheme: dark;
 }
+:root {
+  --tl-entry-page: #0d0d0d;
+  --tl-entry-surface: #1a1a19;
+  --tl-entry-ink: #ffffff;
+  --tl-entry-muted: #c3c2b7;
+  --tl-entry-border: #2c2c2a;
+  --tl-entry-accent: #199e70;
+  --tl-entry-error: #d03b3b;
+}

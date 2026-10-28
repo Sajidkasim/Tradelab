@@ -10,4 +10,13 @@ for mode, p in PALETTE.items():
     for name, value in {"page": p["page"], "surface": p["surface"], "ink": p["ink"], "ink2": p["ink2"], "muted": p["muted"], "border": p["grid"], "accent": p["series"][0], "positive": p["div_pos"], "negative": p["critical"], "warning": p["warning"], "sage": p["series"][2]}.items():
         lines.append(f"  --tl-{name}: {value};")
     lines.extend([f"  color-scheme: {mode};", "}"])
+# The entrance keeps the same dark Primus treatment in either journal theme.
+# Its branding also uses the existing palette, with no financial colour changes.
+lines.append(":root {")
+for name, value in {"page": PALETTE["dark"]["page"], "surface": PALETTE["dark"]["surface"],
+                    "ink": PALETTE["dark"]["ink"], "muted": PALETTE["dark"]["ink2"],
+                    "border": PALETTE["dark"]["grid"], "accent": PALETTE["dark"]["series"][2],
+                    "error": PALETTE["dark"]["critical"]}.items():
+    lines.append(f"  --tl-entry-{name}: {value};")
+lines.append("}")
 Path(__file__).resolve().parents[1].joinpath("frontend/src/theme.css").write_text("\n".join(lines) + "\n")

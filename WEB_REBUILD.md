@@ -6,6 +6,15 @@ and one personal password. It has no Google login or team endpoints.
 
 ## Interface
 
+The public entrance uses the owner's supplied Primus compass logo, a dark
+emerald split layout and a decorative market study. The illustration never reads
+journal data or represents recorded performance. Mobile prioritises the password
+form, with a show/hide control and keyboard submission. This visual update keeps
+the existing password/session protection; Google sign-in and separate personal
+journals require a separate authenticated storage transition before enabling.
+The entrance's fixed dark tokens are exported from the existing chart palette
+by tools/web_theme.py; the private journal still supports both themes.
+
 Results and Trades share one Strategy Lab page. All is first and selected by
 default. At the owner's explicit request, All combines the selected raw trades
 into one core-generated history and summary. Backtesting and Live trading remain
