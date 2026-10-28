@@ -126,6 +126,10 @@ def create_app(config: Settings | None = None):
     def health():
         return {"status": "ok", "application": "PrimusLab"}
 
+    @app.get('/privacy')
+    def privacy():
+        return FileResponse(Path(__file__).with_name('privacy.html'), media_type='text/html')
+
     @app.get("/api/session")
     def session(request: Request):
         request.session.setdefault('csrf', token_urlsafe(32))

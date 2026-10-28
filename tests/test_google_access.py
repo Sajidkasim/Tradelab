@@ -71,6 +71,9 @@ def test_google_config_never_falls_back_to_password(google):
         with pytest.raises(ValueError):
             replace(app.state.config, **changes).validate()
     assert not app.state.config.password_required
+    notice = client.get('/privacy')
+    assert notice.status_code == 200 and 'text/html' in notice.headers['content-type']
+    assert 'Other members cannot view' in notice.text and 'end-to-end' in notice.text
     assert csrf(client)['auth_mode'] == 'google'
     assert client.post('/api/unlock', json={'password': 'even-the-old-password'}).status_code == 404
     for route in ('/api/trades', '/api/metadata', '/api/export/backup', '/api/export/csv'):

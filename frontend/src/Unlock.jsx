@@ -193,7 +193,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password" }) {
           </form>
           <footer className="login-panel-footer">
             <span>Less noise. More understanding.</span>
-            <span>PRIMUS / 01</span>
+            <a href="/privacy">Privacy</a>
           </footer>
         </section>
       </div>
