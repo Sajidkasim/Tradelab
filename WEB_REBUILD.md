@@ -135,8 +135,9 @@ bash run-web.sh
 The loopback preview uses a separate SQLite database; it never imports hosted or
 old local records automatically. If data/private/personal-login.env exists, the
 launcher loads its protected password configuration. Otherwise loopback preview
-opens without a password. Hosted deployment always requires HTTPS, PostgreSQL,
-an Argon2id password hash and a session secret. See GO_LIVE.md.
+opens without a password. Hosted deployment requires HTTPS, PostgreSQL and a
+session secret. Google mode uses the provider configuration in GOOGLE_LOGIN.md;
+the retained password mode requires an Argon2id hash. See GO_LIVE.md.
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -145,8 +146,8 @@ npm --prefix frontend run build
 npm --prefix frontend run test:browser
 ```
 
-Browser checks use disposable servers on ports 8111 and 8112, including one with a
-synthetic password. They never open the real hosted database. Cover combined and
+Browser checks use disposable servers on ports 8111, 8112 and 8114, including a
+synthetic password and mocked Google accounts. They never open the real hosted database. Cover combined and
 single-source results, imports and re-imports, mappings, notes, session editing,
 backups, pagination, deletion, themes, mobile layout and password locking.
 
@@ -167,3 +168,26 @@ My journal → Backup & restore downloads full JSON or trades CSV. JSON contains
 trades, labels, notes, accounts and settings. Image files and login sessions are
 excluded. Restore is allowed only into an empty journal. Never use the real
 journal for destructive checks or populate it with synthetic preview data.
+
+## Next backend priorities — retained at the owner's request, 28 October 2026
+
+These are planned improvements, not implemented or scheduled work:
+
+1. Fetch trade-list pages from the server instead of sending the full journal to
+   the browser. Preserve core-generated results across all matching trades.
+2. Replace the global journal-operation lock with per-journal coordination so one
+   user's import does not block another user's work. Keep authorization and
+   workspace-scoped cache invalidation intact.
+3. Add encrypted, dated off-site backups and verify restores against a disposable
+   database. Review storage costs and destination before configuring transfers.
+4. Add a database-readiness check and monitoring; the current /health endpoint
+   checks application responsiveness only.
+5. Formalize versioned migrations and a separate test deployment/database.
+6. Record import history: file name/date, additions, duplicates and failures,
+   scoped to the importing user's journal.
+
+Measure real latency before increasing hosting spend. Keep Render and Supabase.
+The owner bought primustrader.co.uk from Wix and explicitly selected `/lab` for
+the existing PrimusLab journal/research section. See DOMAIN_SETUP.md for routing,
+DNS, Google sign-in and the staged cutover. The broader homepage will be added
+later; the root currently redirects to the laboratory when Lab routing is enabled.

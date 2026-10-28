@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from starlette.concurrency import run_in_threadpool
@@ -47,12 +47,22 @@ def create_app(config: Settings | None = None):
     allowed_hosts = [urlsplit(config.public_url).hostname]
     if config.local:
         allowed_hosts = ["127.0.0.1", "localhost", "[::1]"]
+    if config.legacy_host:
+        allowed_hosts.append(config.legacy_host)
+    if config.custom_host:
+        allowed_hosts.append(config.custom_host)
     app.add_middleware(SessionMiddleware, secret_key=config.secret, session_cookie="primus_session",
                        max_age=SESSION_SECONDS, same_site="lax", https_only=not config.local)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @app.middleware("http")
     async def security_headers(request, call_next):
+        if config.legacy_host and request.url.hostname == config.legacy_host and request.url.hostname != urlsplit(config.public_url).hostname:
+            # Never forward a POST body, credential or OAuth code to a new host.
+            if request.method not in ('GET', 'HEAD'):
+                return JSONResponse({'detail': 'Open the new PrimusLab address before saving.'}, status_code=409)
+            return RedirectResponse(config.public_url.rstrip('/') + (config.lab_path or '/'), status_code=302,
+                                    headers={'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'})
         if config.local:
             try:
                 loopback = ipaddress.ip_address(request.client.host).is_loopback
@@ -128,7 +138,10 @@ def create_app(config: Settings | None = None):
 
     @app.get('/privacy')
     def privacy():
-        return FileResponse(Path(__file__).with_name('privacy.html'), media_type='text/html')
+        path = Path(__file__).with_name('privacy.html')
+        if config.lab_path:
+            return HTMLResponse(path.read_text().replace('href="/"', 'href="/lab"', 1))
+        return FileResponse(path, media_type='text/html')
 
     @app.get("/api/session")
     def session(request: Request):
@@ -166,13 +179,13 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.database(key)
             token = access.issue(key)
         except AccountBlocked:
-            return RedirectResponse('/?login=blocked', status_code=303)
+            return RedirectResponse((config.lab_path or '/') + '?login=blocked', status_code=303)
         except LoginError:
-            return RedirectResponse('/?login=retry', status_code=303)
+            return RedirectResponse((config.lab_path or '/') + '?login=retry', status_code=303)
         access.revoke(request.session.get('google_token'))
         request.session.clear()
         request.session.update(google_token=token, csrf=token_urlsafe(32))
-        return RedirectResponse('/', status_code=303)
+        return RedirectResponse(config.lab_path or '/', status_code=303)
 
     @app.post('/api/unlock')
     async def unlock(payload: Unlock, request: Request):
@@ -448,9 +461,21 @@ def create_app(config: Settings | None = None):
     def frontend(path: str):
         if path.startswith(("api/", "auth/")) or path == "team":
             raise HTTPException(404)
+        if config.lab_path:
+            if not path:
+                return RedirectResponse(config.lab_path, status_code=307)
+            if path in ('trades', 'journal', 'overview', 'import', 'tools'):
+                return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
+            if path == 'lab/':
+                return RedirectResponse('/lab', status_code=307)
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools'):
+                raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():
             raise HTTPException(503, "Build the frontend before starting PrimusLab.")
+        if config.lab_path:
+            return HTMLResponse(index.read_text().replace('name="primus-lab-path" content=""',
+                                                         'name="primus-lab-path" content="/lab"'))
         return FileResponse(index)
 
     return app

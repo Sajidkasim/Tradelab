@@ -19,11 +19,11 @@ import Backup from "./Backup";
 import LabSettings from "./LabSettings";
 import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
+import { labHref, journalPage } from "./paths";
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () =>
-  location.pathname.split("/")[1] ||
-  (location.hash === "#trades" ? "trades" : "results");
+  journalPage(location.pathname, location.hash);
 
 export default function App() {
   const [session, setSession] = useState(null),
@@ -102,7 +102,7 @@ export default function App() {
     history.pushState(
       {},
       "",
-      journalPages.includes(next) ? `/#${section}` : `/${next}`,
+      journalPages.includes(next) ? `${labHref()}#${section}` : labHref(next),
     );
     requestAnimationFrame(() => {
       if (journalPages.includes(next))
@@ -142,7 +142,7 @@ export default function App() {
     <div className="app-shell">
       <header className="site-header">
         <a
-          href="/"
+          href={labHref()}
           className="brand"
           onClick={(event) => {
             event.preventDefault();
@@ -154,7 +154,7 @@ export default function App() {
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a
-            href="/"
+            href={labHref()}
             aria-current={journalPages.includes(page) ? "page" : undefined}
             onClick={(event) => {
               event.preventDefault();

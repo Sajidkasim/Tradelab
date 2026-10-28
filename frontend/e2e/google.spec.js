@@ -9,6 +9,7 @@ async function login(page, who) {
   await expect(page.getByLabel("Journal password", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(`${origin}/lab`);
 }
 
 test("Google opens separate journals, and signing out revokes the browser session", async ({ page, browser }) => {
@@ -85,4 +86,23 @@ test("only the owner can manage access; blocking revokes sessions and unblocking
   await expect(friend.getByRole('heading', { name: 'Results', exact: true })).toBeVisible();
   expect(await friend.evaluate(async () => (await (await fetch('/api/trades')).json())[0].setup_name)).toBe('Friend private strategy');
   await context.close();
+});
+
+test('Lab navigation, reloads and backup links work inside the website section', async ({ page }) => {
+  await login(page, 'owner');
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/lab/import`);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Import trades', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'My journal', exact: true }).click();
+  await page.getByRole('button', { name: 'Backup & restore', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Download full JSON backup', exact: true })).toHaveAttribute('href', '/api/export/backup');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'My journal', exact: true }).click();
+  await page.getByRole('button', { name: 'Advanced tools', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/lab/tools`);
+  await page.reload();
+  await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Strategy Lab', exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/lab#results`);
+  await expect(page.getByRole('heading', { name: 'Results', exact: true })).toBeVisible();
 });

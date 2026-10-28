@@ -20,6 +20,9 @@ class Settings:
     auth_mode: str = "password"
     supabase_url: str = ""
     supabase_key: str = field(default="", repr=False)
+    lab_path: str = ""
+    legacy_host: str = ""
+    custom_host: str = ""
 
     @property
     def google_required(self):
@@ -32,6 +35,16 @@ class Settings:
         return not self.google_required and (not self.local or bool(self.password_hash))
 
     def validate(self):
+        if self.lab_path not in ('', '/lab'):
+            raise ValueError('PRIMUSLAB_LAB_PATH must be empty or /lab.')
+        if self.legacy_host:
+            import re
+            if not re.fullmatch(r'[a-z0-9-]+\.onrender\.com', self.legacy_host):
+                raise ValueError('Use the existing onrender.com hostname for the legacy redirect.')
+        if self.custom_host:
+            import re
+            if not re.fullmatch(r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}', self.custom_host):
+                raise ValueError('Use a plain custom domain hostname, without a URL or wildcard.')
         if self.auth_mode not in ("password", "google"):
             raise ValueError("Choose password or google for PRIMUSLAB_AUTH_MODE.")
         if self.google_required:
@@ -78,6 +91,9 @@ def from_env():
         local=local, password_hash=os.getenv("PRIMUSLAB_PASSWORD_HASH", ""),
         auth_mode=os.getenv("PRIMUSLAB_AUTH_MODE", "password"),
         supabase_url=os.getenv("PRIMUSLAB_SUPABASE_URL", "").rstrip('/'),
-        supabase_key=os.getenv("PRIMUSLAB_SUPABASE_PUBLISHABLE_KEY", ""))
+        supabase_key=os.getenv("PRIMUSLAB_SUPABASE_PUBLISHABLE_KEY", ""),
+        lab_path=os.getenv("PRIMUSLAB_LAB_PATH", ""),
+        legacy_host=os.getenv("PRIMUSLAB_LEGACY_HOST", ""),
+        custom_host=os.getenv("PRIMUSLAB_CUSTOM_HOST", ""))
     settings.validate()
     return settings

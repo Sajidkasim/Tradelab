@@ -26,7 +26,7 @@ def provider(request):
 with TemporaryDirectory(prefix='primus-google-tests-') as folder:
     config = Settings(str(Path(folder) / 'test.db'), 'owner@example.com', token_urlsafe(48), 'http://127.0.0.1:8114',
                       local=True, auth_mode='google', supabase_url='https://abcdefghijklmnopqrst.supabase.co',
-                      supabase_key='synthetic-browser-test-key')
+                      supabase_key='synthetic-browser-test-key', lab_path='/lab')
     app = create_app(config)
     original = app.router.lifespan_context
     @asynccontextmanager
