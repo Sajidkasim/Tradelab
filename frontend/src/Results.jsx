@@ -67,6 +67,21 @@ export default function Results({
     setFilters((current) => {
       const next = { ...current };
       if (
+        current.timeframe !== "Any timeframe" &&
+        current.timeframe !== unknown &&
+        !meta.level_timeframes.includes(current.timeframe)
+      )
+        next.timeframe = "Any timeframe";
+      if (
+        current.entry_timeframe !== "Any timeframe" &&
+        current.entry_timeframe !== unknown &&
+        !meta.entry_timeframes.includes(current.entry_timeframe)
+      )
+        next.entry_timeframe = "Any timeframe";
+      next.confirmations = current.confirmations.filter((value) =>
+        meta.confirmations.includes(value),
+      );
+      if (
         current.strategy !== "All strategies" &&
         current.strategy !== "Unclassified" &&
         !meta.strategies.includes(current.strategy)
@@ -84,11 +99,21 @@ export default function Results({
         next.symbol = "All markets";
       return next.window === current.window &&
         next.symbol === current.symbol &&
-        next.strategy === current.strategy
+        next.strategy === current.strategy &&
+        next.timeframe === current.timeframe &&
+        next.entry_timeframe === current.entry_timeframe &&
+        next.confirmations.length === current.confirmations.length
         ? current
         : next;
     });
-  }, [meta.windows, meta.strategies, trades]);
+  }, [
+    meta.windows,
+    meta.strategies,
+    meta.confirmations,
+    meta.level_timeframes,
+    meta.entry_timeframes,
+    trades,
+  ]);
   const change = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
   useEffect(() => {
     const controller = new AbortController();
@@ -204,26 +229,22 @@ export default function Results({
           <div className="form-grid two">
             <Select
               label="Level timeframe"
-              values={values(
-                ["Any timeframe", ...meta.timeframes, unknown],
-                "timeframe",
-              ).map((option) =>
-                option === "Any timeframe"
-                  ? { value: option, label: "Any" }
-                  : option,
+              values={["Any timeframe", ...meta.level_timeframes, unknown].map(
+                (option) =>
+                  option === "Any timeframe"
+                    ? { value: option, label: "Any" }
+                    : option,
               )}
               value={filters.timeframe}
               onChange={(e) => change("timeframe", e.target.value)}
             />
             <Select
               label="Entry timeframe"
-              values={values(
-                ["Any timeframe", ...meta.timeframes, unknown],
-                "entry_timeframe",
-              ).map((option) =>
-                option === "Any timeframe"
-                  ? { value: option, label: "Any" }
-                  : option,
+              values={["Any timeframe", ...meta.entry_timeframes, unknown].map(
+                (option) =>
+                  option === "Any timeframe"
+                    ? { value: option, label: "Any" }
+                    : option,
               )}
               value={filters.entry_timeframe}
               onChange={(e) => change("entry_timeframe", e.target.value)}
@@ -259,12 +280,7 @@ export default function Results({
           <div className="field">
             <span>Confirmations</span>
             <Checkboxes
-              values={[
-                ...new Set([
-                  ...meta.confirmations,
-                  ...trades.flatMap((t) => t.labels?.confirmations || []),
-                ]),
-              ]}
+              values={meta.confirmations}
               selected={filters.confirmations}
               onChange={(v) => change("confirmations", v)}
             />

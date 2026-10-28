@@ -100,6 +100,9 @@ class LabSettings(StrictModel):
     sessions: list[SessionWindow] = Field(min_length=1, max_length=16)
     news: list[str] = Field(min_length=1, max_length=30)
     conditions: list[str] = Field(min_length=1, max_length=30)
+    confirmations: list[str] | None = Field(default=None, max_length=200)
+    level_timeframes: list[str] | None = Field(default=None, max_length=200)
+    entry_timeframes: list[str] | None = Field(default=None, max_length=200)
 
 
 class DeleteAllTrades(StrictModel):

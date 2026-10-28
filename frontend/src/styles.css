@@ -1905,6 +1905,15 @@ td strong {
   font-size: 12px;
   margin-top: 7px;
 }
+.lab-settings-form > .segments {
+  width: 100%;
+  flex-wrap: wrap;
+}
+.lab-settings-form > .segments > button {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
 .lab-settings-form .disclosure p {
   margin-top: 14px;
 }

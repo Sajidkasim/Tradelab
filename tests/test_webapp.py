@@ -356,6 +356,49 @@ def test_new_import_strategy_names_appear_in_both_lists_and_removals_survive_ref
     assert client.get('/api/metadata').json()['strategies'] == ['My next test']
 
 
+def test_setup_settings_share_choices_preserve_trades_and_keep_removed_labels_hidden(local):
+    from webapp import lab_settings
+    client, app = local
+    client.post('/api/trades', json=trade_payload())
+    guide = {'MACRO': {'field': 'confirmation', 'value': 'MACRO'},
+             'MONTHLY': {'field': 'timeframe', 'value': 'Monthly'},
+             '5S': {'field': 'entry_timeframe', 'value': '5s'}}
+    client.put('/api/tag-mappings', json=guide)
+    before = client.get('/api/trades').json()
+    stats = client.post('/api/results', json={'window': 'All sessions'}).json()['stats']
+    meta = client.get('/api/metadata').json()
+    assert 'MACRO' in meta['lab_settings']['confirmations']
+    assert 'Monthly' in meta['level_timeframes'] and '5s' in meta['entry_timeframes']
+    payload = {**meta['lab_settings'], 'confirmations': ['SMT', 'MACRO', 'My confirmation'],
+               'level_timeframes': ['Monthly', '1H'], 'entry_timeframes': ['5s', '1m']}
+    response = client.put('/api/lab-settings', json=payload)
+    assert response.status_code == 200, response.text
+    meta = client.get('/api/metadata').json()
+    for key in lab_settings.CHOICE_FIELDS:
+        assert meta[key] == payload[key] == meta['lab_settings'][key]
+    assert client.get('/api/trades').json() == before
+    assert client.post('/api/results', json={'window': 'All sessions'}).json()['stats'] == stats
+    # Old clients can update the clock without resetting the new lists.
+    legacy = {key: payload[key] for key in ('timezone', 'sessions', 'news', 'conditions')}
+    legacy['timezone'] = 'America/New_York'
+    assert client.put('/api/lab-settings', json=legacy).status_code == 200
+    meta = client.get('/api/metadata').json()
+    assert meta['confirmations'] == payload['confirmations']
+    assert meta['level_timeframes'] == payload['level_timeframes']
+    assert 'CISD' not in meta['confirmations'] and '4H' not in meta['level_timeframes']
+    # Newly taught labels remain discoverable; old removals are not resurrected.
+    guide['NEW'] = {'field': 'confirmation', 'value': 'Future test'}
+    client.put('/api/tag-mappings', json=guide)
+    meta = client.get('/api/metadata').json()
+    assert 'Future test' in meta['confirmations'] and 'CISD' not in meta['confirmations']
+    restored = {**meta['lab_settings'], 'confirmations': meta['confirmations'] + ['CISD']}
+    client.put('/api/lab-settings', json=restored)
+    assert 'CISD' in client.get('/api/metadata').json()['confirmations']
+    backup = client.get('/api/export/backup').json()
+    assert any(setting['key'] == lab_settings.KEY and 'hidden_choices' in setting['value'] for setting in backup['settings'])
+    assert client.get('/api/trades').json() == before
+
+
 def test_delete_manual_and_imported_trades_refreshes_results_and_exports(local):
     client, app = local
     client.post('/api/trades', json=trade_payload('manual'))

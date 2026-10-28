@@ -34,3 +34,30 @@ def test_settings_reject_overlaps_duplicates_invalid_times_and_unknown_zone():
         {'news':[]}, {'conditions':['Not recorded']},
     ]:
         with pytest.raises(ValueError): lab_settings.validate({**deepcopy(lab_settings.DEFAULTS),**patch})
+
+
+@pytest.mark.parametrize('key', list(lab_settings.CHOICE_FIELDS))
+def test_setup_choice_validation_accepts_empty_and_cleans_labels(key):
+    payload = deepcopy(lab_settings.DEFAULTS)
+    payload[key] = [' Custom ', 'Custom', 'Another']
+    assert lab_settings.validate(payload)[key] == ['Custom', 'Another']
+    payload[key] = []
+    assert lab_settings.validate(payload)[key] == []
+    for invalid in [['Not recorded'], ['Any timeframe'], ['x' * 121], [''], [None], ['X'] * 201]:
+        with pytest.raises(ValueError):
+            lab_settings.validate({**payload, key: invalid})
+
+
+def test_legacy_settings_keep_their_clock_and_session_windows():
+    from core.db import Database
+    database = Database(':memory:'); database.init()
+    payload = deepcopy(lab_settings.DEFAULTS)
+    for key in lab_settings.CHOICE_FIELDS:
+        payload.pop(key)
+    payload['timezone'] = 'America/New_York'
+    payload['sessions'][0]['name'] = 'My Asia window'
+    database.set_setting(lab_settings.KEY, payload)
+    read = lab_settings.read(database)
+    assert read['timezone'] == 'America/New_York'
+    assert read['sessions'][0]['name'] == 'My Asia window'
+    assert read['confirmations'] == lab_settings.DEFAULTS['confirmations']

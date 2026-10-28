@@ -579,6 +579,9 @@ test("Lab settings expose exactly the requested windows and save custom names", 
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Lab settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: "Session windows", exact: true })
+    .click();
   await expect(
     dialog.getByLabel("Session 1 starts", { exact: true }),
   ).toHaveValue("20:00");
@@ -1274,5 +1277,136 @@ test("strategy editor matches Explore and removed choices do not return after re
     "value",
     "Replay setup",
   );
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+});
+
+test("Lab setup labels edit confirmations and separate timeframes without rewriting old trades", async ({
+  page,
+}) => {
+  await open(page);
+  const explorer = page.locator(".explorer");
+  async function settings() {
+    await page.getByRole("button", { name: "My journal", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Lab settings", exact: true })
+      .click();
+    return page.getByRole("dialog", { name: "Lab settings", exact: true });
+  }
+  let dialog = await settings();
+  await expect(
+    dialog.getByLabel("Confirmations / confluence", { exact: true }),
+  ).toBeVisible();
+  await dialog
+    .getByLabel("Confirmations / confluence", { exact: true })
+    .fill("SMT\nMACRO\nMy confluence");
+  await dialog
+    .getByLabel("Level timeframes", { exact: true })
+    .fill("Daily\n2H");
+  await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m\n30s");
+  await dialog
+    .getByRole("button", { name: "Save lab settings", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    explorer.getByLabel("My confluence", { exact: true }),
+  ).toBeVisible();
+  await expect(explorer.getByLabel("CISD", { exact: true })).toHaveCount(0);
+  await expect(
+    explorer.getByLabel("Level timeframe", { exact: true }).locator("option"),
+  ).toHaveText(["Any", "Daily", "2H", "Not recorded"]);
+  await expect(
+    explorer.getByLabel("Entry timeframe", { exact: true }).locator("option"),
+  ).toHaveText(["Any", "1m", "30s", "Not recorded"]);
+  await page.reload();
+  dialog = await settings();
+  await expect(
+    dialog.getByLabel("Confirmations / confluence", { exact: true }),
+  ).toHaveValue("SMT\nMACRO\nMy confluence");
+  await expect(
+    dialog.getByLabel("Level timeframes", { exact: true }),
+  ).toHaveValue("Daily\n2H");
+  await page.screenshot({
+    path: "test-results/primuslab-lab-setup-settings.png",
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "test-results/primuslab-lab-setup-settings-mobile.png",
+  });
+  await dialog
+    .getByRole("button", { name: "Session windows", exact: true })
+    .click();
+  await expect(
+    dialog.getByLabel("Session 4 name", { exact: true }),
+  ).toHaveValue("My opening window");
+  await dialog
+    .getByRole("button", { name: "News & market", exact: true })
+    .click();
+  await expect(dialog.getByLabel("News labels", { exact: true })).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Setup labels", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // Log a disposable trade using the new choices, then hide them in settings.
+  await page.getByRole("button", { name: "Add trade", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Strategy", { exact: true }).fill("Replay setup");
+  await dialog
+    .getByLabel("Level timeframe", { exact: true })
+    .selectOption("2H");
+  await dialog
+    .getByLabel("Entry timeframe", { exact: true })
+    .selectOption("30s");
+  await dialog.getByLabel("My confluence", { exact: true }).check();
+  await dialog
+    .getByLabel("Entry time · New York", { exact: true })
+    .fill("2026-07-12T09:30");
+  await dialog.getByLabel("Net result ($)", { exact: true }).fill("100");
+  await dialog.getByLabel("Original risk ($)", { exact: true }).fill("50");
+  await dialog
+    .getByRole("button", { name: "Save & log next", exact: true })
+    .click();
+  await expect(
+    page.getByText("Trade saved. Ready for the next.", { exact: true }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await explorer
+    .getByLabel("Level timeframe", { exact: true })
+    .selectOption("2H");
+  await explorer.getByLabel("My confluence", { exact: true }).check();
+  dialog = await settings();
+  await dialog
+    .getByLabel("Confirmations / confluence", { exact: true })
+    .fill("SMT\nMACRO");
+  await dialog.getByLabel("Level timeframes", { exact: true }).fill("Daily");
+  await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m");
+  await dialog
+    .getByRole("button", { name: "Save lab settings", exact: true })
+    .click();
+  await expect(
+    explorer.getByLabel("Level timeframe", { exact: true }),
+  ).toHaveValue("Any timeframe");
+  await expect(
+    explorer.getByLabel("My confluence", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: /^Edit trade / })
+    .first()
+    .click();
+  dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByLabel("Level timeframe", { exact: true }),
+  ).toHaveValue("2H");
+  await expect(
+    dialog.getByLabel("Entry timeframe", { exact: true }),
+  ).toHaveValue("30s");
+  await expect(
+    dialog.getByLabel("My confluence", { exact: true }),
+  ).toBeChecked();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
 });

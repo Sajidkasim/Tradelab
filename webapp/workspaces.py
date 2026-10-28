@@ -96,12 +96,14 @@ class Workspaces:
         frame = self.trades(key)
         lab = lab_settings.read(db)
         mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
+        lab.update(lab_settings.choices(db, frame, mappings))
         book = strategy_catalog.read(db, frame, mappings)
         return clean({"accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
-                      "timeframes": list(dict.fromkeys(edge.TIMEFRAMES + trade_labels.mapped_values(mappings, 'timeframe') + trade_labels.mapped_values(mappings, 'entry_timeframe'))),
-                      "confirmations": list(dict.fromkeys(edge.CONFIRMATIONS + trade_labels.mapped_values(mappings, 'confirmation'))),
+                      "timeframes": list(dict.fromkeys(lab['level_timeframes'] + lab['entry_timeframes'])),
+                      "level_timeframes": lab['level_timeframes'], "entry_timeframes": lab['entry_timeframes'],
+                      "confirmations": lab['confirmations'],
                       "news": lab["news"], "conditions": lab["conditions"],
                       "weekdays": list(weekdays.DAYS[:5]),
                       "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,

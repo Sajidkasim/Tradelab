@@ -61,6 +61,13 @@ too. Removing a choice saves hidden_strategies inside edge_playbook so older
 trades and CSV aliases cannot silently re-add it. Saved trades and All results
 are unchanged; re-adding the exact name restores the choice.
 
+Lab settings has separate Setup labels, Session windows and News & market tabs.
+Confirmation, level-timeframe and entry-timeframe choices are shared by Explore
+and trade entry. New mapped/saved values are discoverable; explicit removals
+persist in hidden_choices in the lab setting. Removing a choice never edits
+stored trade tags. Reviews retain an existing trade's selected legacy labels.
+Older clients can still save sessions/news without overwriting setup lists.
+
 For the owner's explicitly confirmed full-target/stop tests, services.fixed_rr
 adapts tagged backtests into separate model observations and calls the existing
 core summary. Never save those model observations as recorded R or original risk.

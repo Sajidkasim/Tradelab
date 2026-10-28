@@ -3,6 +3,7 @@ from datetime import time
 from copy import deepcopy
 import pandas as pd
 from core import edge, metrics
+from services import trade_labels
 
 KEY = 'primuslab_lab_settings'
 DEFAULTS = {
@@ -17,7 +18,12 @@ DEFAULTS = {
     ],
     'news': list(edge.NEWS),
     'conditions': list(edge.CONDITIONS),
+    'confirmations': list(edge.CONFIRMATIONS),
+    'level_timeframes': list(edge.TIMEFRAMES),
+    'entry_timeframes': list(edge.TIMEFRAMES),
 }
+CHOICE_FIELDS = {'confirmations': 'confirmation', 'level_timeframes': 'timeframe',
+                 'entry_timeframes': 'entry_timeframe'}
 RESERVED = {'All sessions', 'New York', 'Other', 'Outside configured sessions', edge.UNKNOWN}
 
 
@@ -56,6 +62,14 @@ def validate(payload):
         if edge.UNKNOWN in labels or any(v.startswith('Any ') for v in labels):
             raise ValueError('Not recorded and Any are provided automatically; leave them out of your lists.')
         result[key] = labels
+    for key in CHOICE_FIELDS:
+        values = payload.get(key, DEFAULTS[key])
+        if not isinstance(values, list) or len(values) > 200 or any(not isinstance(v, str) or not v.strip() or len(v.strip()) > 120 for v in values):
+            raise ValueError('Use up to 200 non-empty setup labels, up to 120 characters each.')
+        labels = list(dict.fromkeys(v.strip() for v in values))
+        if any(value.casefold() == edge.UNKNOWN.casefold() or value.casefold().startswith('any ') for value in labels):
+            raise ValueError('Not recorded and Any are provided automatically; leave them out of your lists.')
+        result[key] = labels
     return result
 
 
@@ -67,6 +81,42 @@ def read(database):
         return validate(stored)
     except (ValueError, AttributeError):
         return deepcopy(DEFAULTS)
+
+
+def choices(database, frame, mappings=None):
+    """Discover labels once, while respecting choices explicitly hidden in settings."""
+    settings = read(database)
+    stored = database.get_setting(KEY, {})
+    hidden = stored.get('hidden_choices', {}) if isinstance(stored, dict) else {}
+    hidden = hidden if isinstance(hidden, dict) else {}
+    mappings = database.get_setting(trade_labels.MAPPING_KEY, {}) if mappings is None else mappings
+    labels = [edge.read_labels(tags) for tags in frame['tags']] if not frame.empty else []
+    result = {}
+    for key, field in CHOICE_FIELDS.items():
+        used = [value for label in labels for value in label['confirmations']] if key == 'confirmations' else [label[field] for label in labels]
+        removed = hidden.get(key, [])
+        removed = {value for value in removed if isinstance(value, str)} if isinstance(removed, list) else set()
+        candidates = settings[key] + trade_labels.mapped_values(mappings, field) + used
+        result[key] = list(dict.fromkeys(value for value in candidates if value and value != edge.UNKNOWN and value not in removed))
+    return result
+
+
+def save(database, frame, payload):
+    current = choices(database, frame)
+    values = validate({**read(database), **payload})
+    stored = database.get_setting(KEY, {})
+    previous = stored.get('hidden_choices', {}) if isinstance(stored, dict) else {}
+    previous = previous if isinstance(previous, dict) else {}
+    hidden = {}
+    for key in CHOICE_FIELDS:
+        old = previous.get(key, [])
+        removed = {value for value in old if isinstance(value, str)} if isinstance(old, list) else set()
+        if key in payload:
+            removed.update(set(current[key]) - set(values[key]))
+            removed.difference_update(values[key])
+        hidden[key] = sorted(removed)
+    database.set_setting(KEY, {**values, 'hidden_choices': hidden})
+    return values
 
 
 def session_of(stamp, settings):

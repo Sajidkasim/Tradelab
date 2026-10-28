@@ -25,13 +25,19 @@ export default function Labels({ value, onChange, meta }) {
         </Field>
         <Select
           label="Level timeframe"
-          values={options(meta.timeframes, value.timeframe)}
+          values={options(
+            meta.level_timeframes || meta.timeframes,
+            value.timeframe,
+          )}
           value={value.timeframe}
           onChange={(e) => change("timeframe", e.target.value)}
         />
         <Select
           label="Entry timeframe"
-          values={options(meta.timeframes, value.entry_timeframe)}
+          values={options(
+            meta.entry_timeframes || meta.timeframes,
+            value.entry_timeframe,
+          )}
           value={value.entry_timeframe}
           onChange={(e) => change("entry_timeframe", e.target.value)}
         />

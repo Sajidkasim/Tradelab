@@ -260,9 +260,8 @@ def create_app(config: Settings | None = None):
 
     @app.put("/api/lab-settings")
     def save_lab_settings(payload: LabSettings, request: Request, member=Depends(workspace)):
-        values = lab_settings.validate(payload.model_dump())
         with app.state.workspaces.lock:
-            db(request, member).set_setting(lab_settings.KEY, values)
+            values = lab_settings.save(db(request, member), app.state.workspaces.trades(member['key']), payload.model_dump(exclude_none=True))
             app.state.workspaces.bump(member["key"])
         return values
 
