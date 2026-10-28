@@ -134,7 +134,7 @@ export default function App() {
       </div>
     );
   if (!session.authenticated)
-    return <Unlock ready={Boolean(session.csrf)} onUnlocked={boot} />;
+    return <Unlock ready={Boolean(session.csrf)} onUnlocked={boot} authMode={session.auth_mode} />;
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -185,7 +185,7 @@ export default function App() {
           </button>
           {session.can_lock && (
             <button onClick={logout}>
-              <LogOut size={16} /> Lock journal
+              <LogOut size={16} /> {session.auth_mode === "google" ? "Sign out" : "Lock journal"}
             </button>
           )}
         </Menu>

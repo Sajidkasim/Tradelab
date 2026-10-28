@@ -85,16 +85,23 @@ function MarketStudy() {
   );
 }
 
-export default function Unlock({ ready, onUnlocked }) {
+export default function Unlock({ ready, onUnlocked, authMode = "password" }) {
+  const google = authMode === "google";
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(new URLSearchParams(window.location.search).get("login") === "retry"
+      ? "Sign-in wasn’t completed. Please try Google again." : "");
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
+      if (google) {
+        const result = await api("/login/google", { method: "POST" });
+        window.location.assign(result.url);
+        return;
+      }
       const result = await api("/unlock", {
         method: "POST",
         body: { password },
@@ -142,7 +149,7 @@ export default function Unlock({ ready, onUnlocked }) {
             <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
             <h1 id="login-title">Welcome back.</h1>
             <p>Your trades. Your research. Your next discovery.</p>
-            <div className="login-password-field">
+            {!google && <div className="login-password-field">
               <label htmlFor="journal-password">Journal password</label>
               <div className="login-password-control">
                 <input
@@ -165,7 +172,7 @@ export default function Unlock({ ready, onUnlocked }) {
                   {visible ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </div>
+            </div>}
             {error && (
               <div id="login-error">
                 <Notice error>{error}</Notice>
@@ -177,11 +184,11 @@ export default function Unlock({ ready, onUnlocked }) {
               busy={busy}
               disabled={!ready}
             >
-              Open my journal <ArrowRight size={18} aria-hidden="true" />
+              {google ? "Continue with Google" : "Open my journal"} <ArrowRight size={18} aria-hidden="true" />
             </Button>
             <div className="login-form-note">
               <LockKeyhole size={13} aria-hidden="true" />
-              <span>A quiet space for your trading research.</span>
+              <span>{google ? "New here? Your first sign-in creates your private journal. Other members cannot see your trades." : "A quiet space for your trading research."}</span>
             </div>
           </form>
           <footer className="login-panel-footer">

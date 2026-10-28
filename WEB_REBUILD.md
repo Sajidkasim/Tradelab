@@ -2,16 +2,18 @@
 
 The personal React/FastAPI app runs alongside the legacy Streamlit app. The live
 service is https://primuslab-web.onrender.com. It uses the existing owner database
-and one personal password. It has no Google login or team endpoints.
+and supports password mode or Google sign-in with independent private journals.
+See [GOOGLE_LOGIN.md](GOOGLE_LOGIN.md) for the explicit Google configuration.
+It has no team or shared-journal endpoints.
 
 ## Interface
 
 The public entrance uses the owner's supplied Primus compass logo, a dark
 emerald split layout and a decorative market study. The illustration never reads
 journal data or represents recorded performance. Mobile prioritises the password
-form, with a show/hide control and keyboard submission. This visual update keeps
-the existing password/session protection; Google sign-in and separate personal
-journals require a separate authenticated storage transition before enabling.
+form in password mode, with a show/hide control and keyboard submission. Google
+mode instead presents one Continue with Google action, with private journal
+creation on first verified sign-in. Other members' data is never selectable.
 The entrance's fixed dark tokens are exported from the existing chart palette
 by tools/web_theme.py; the private journal still supports both themes.
 

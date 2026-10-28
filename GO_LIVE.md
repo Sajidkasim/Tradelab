@@ -1,5 +1,9 @@
 # PrimusLab: your personal online journal
 
+For the new Google sign-in with one private journal per person, follow
+[GOOGLE_LOGIN.md](GOOGLE_LOGIN.md). The instructions below describe the retained
+single-owner password deployment/rollback and do not enable Google accounts.
+
 This rebuild is for one owner, with one password. Results and Trades share one Strategy Lab page. My journal holds backups, appearance, personal tools and Lock journal.
 There are no Google login, invitations, team selectors or shared-results endpoints.
 

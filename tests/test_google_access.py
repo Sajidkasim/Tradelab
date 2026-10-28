@@ -1,0 +1,220 @@
+"""No real credentials or journals: exercise Google PKCE and account isolation."""
+import base64
+from dataclasses import replace
+from datetime import timedelta
+import hashlib
+import json
+from urllib.parse import parse_qs, urlsplit
+
+import httpx
+from fastapi.testclient import TestClient
+import pytest
+import sqlalchemy as sa
+
+from webapp.app import create_app
+from webapp.config import Settings
+from webapp.google_access import LoginError, google_identity, identities, sessions
+from webapp.personal_access import now_utc
+from tests.test_webapp import trade_payload, upload, labelled_fx
+
+
+def provider_user(email='owner@example.com', subject='owner-sub'):
+    return {'id': 'supabase-test-user', 'email': email, 'email_confirmed_at': '2026-01-01T00:00:00Z',
+            'identities': [{'provider': 'google', 'identity_data': {'sub': subject, 'email': email, 'email_verified': True}}]}
+
+
+@pytest.fixture
+def google(tmp_path):
+    config = Settings(str(tmp_path / 'google.db'), 'owner@example.com', 'synthetic-session-secret-for-isolated-tests',
+                      'http://127.0.0.1:8100', local=True, auth_mode='google',
+                      supabase_url='https://abcdefghijklmnopqrst.supabase.co', supabase_key='synthetic-publishable-key')
+    app = create_app(config)
+    with TestClient(app, base_url=config.public_url, client=('127.0.0.1', 12345)) as client:
+        access = app.state.workspaces.google
+        access.client.close()
+        state = {'user': provider_user(), 'verifiers': [], 'fail': False}
+        def provider(request):
+            assert request.headers['apikey'] == config.supabase_key
+            if state['fail']:
+                return httpx.Response(400, json={'error': 'provider-sensitive-detail'})
+            if request.method == 'POST':
+                body = json.loads(request.content)
+                assert body['auth_code'] == 'single-use-test-code'
+                state['verifiers'].append(body['code_verifier'])
+                return httpx.Response(200, json={'access_token': 'synthetic-server-only-token'})
+            assert request.headers['authorization'] == 'Bearer synthetic-server-only-token'
+            return httpx.Response(200, json=state['user'])
+        access.client = httpx.Client(transport=httpx.MockTransport(provider))
+        yield client, app, state
+
+
+def csrf(client):
+    state = client.get('/api/session').json()
+    client.headers.update({'Origin': 'http://127.0.0.1:8100', 'X-Primus-CSRF': state['csrf']})
+    return state
+
+
+def login(client, state, email='owner@example.com', subject='owner-sub'):
+    state['user'] = provider_user(email, subject)
+    csrf(client)
+    started = client.post('/api/login/google')
+    assert started.status_code == 200, started.text
+    returned = client.get('/auth/callback?code=single-use-test-code', follow_redirects=False)
+    assert returned.status_code == 303 and returned.headers['location'] == '/', returned.text
+    return csrf(client)
+
+
+def test_google_config_never_falls_back_to_password(google):
+    client, app, _ = google
+    for changes in ({'supabase_url': 'http://untrusted.test'}, {'supabase_key': ''}, {'owner_email': ''},
+                    {'auth_mode': 'typo'}, {'secret': 'short'}):
+        with pytest.raises(ValueError):
+            replace(app.state.config, **changes).validate()
+    assert not app.state.config.password_required
+    assert csrf(client)['auth_mode'] == 'google'
+    assert client.post('/api/unlock', json={'password': 'even-the-old-password'}).status_code == 404
+    for route in ('/api/trades', '/api/metadata', '/api/export/backup', '/api/export/csv'):
+        assert client.get(route).status_code == 401
+
+
+def test_pkce_is_browser_bound_single_use_and_does_not_expose_tokens(google):
+    client, app, state = google
+    csrf(client)
+    assert client.post('/api/login/google', headers={'Origin': 'https://attacker.test'}).status_code == 403
+    before = client.post('/api/login/google').json()
+    query = parse_qs(urlsplit(before['url']).query)
+    assert query['provider'] == ['google'] and query['code_challenge_method'] == ['s256']
+    assert query['redirect_to'] == ['http://127.0.0.1:8100/auth/callback']
+    browser_cookie = client.cookies.get('primus_session')
+    payload = json.loads(base64.b64decode(browser_cookie.split('.')[0]))
+    assert 'google_attempt' in payload and 'verifier' not in str(payload)
+    client.cookies.clear()
+    rejected = client.get('/auth/callback?code=single-use-test-code', follow_redirects=False)
+    assert rejected.headers['location'] == '/?login=retry' and not state['verifiers']
+    client.cookies.set('primus_session', browser_cookie)
+    result = client.get('/auth/callback?code=single-use-test-code', follow_redirects=False)
+    assert result.headers['location'] == '/' and result.headers['referrer-policy'] == 'no-referrer'
+    verifier = state['verifiers'][0]
+    expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
+    assert query['code_challenge'] == [expected]
+    assert 'synthetic-server-only-token' not in result.headers['set-cookie']
+    client.cookies.clear()
+    client.cookies.set('primus_session', browser_cookie)
+    assert client.get('/auth/callback?code=single-use-test-code', follow_redirects=False).headers['location'] == '/?login=retry'
+    assert len(state['verifiers']) == 1
+
+
+def test_provider_errors_and_unverified_editable_claims_fail_closed(google):
+    client, app, state = google
+    csrf(client)
+    client.post('/api/login/google')
+    state['fail'] = True
+    result = client.get('/auth/callback?code=single-use-test-code', follow_redirects=False)
+    assert result.headers['location'] == '/?login=retry'
+    assert 'provider-sensitive-detail' not in result.text
+    assert client.get('/api/trades').status_code == 401
+    for user in ({'email': 'owner@example.com', 'user_metadata': {'email_verified': True, 'sub': 'owner-sub'}},
+                 {**provider_user(), 'identities': [{'provider': 'email', 'identity_data': provider_user()['identities'][0]['identity_data']}]},
+                 {**provider_user(), 'email': 'imposter@example.com'},
+                 {**provider_user(), 'identities': [{'provider': 'google', 'identity_data': {'sub': 'owner-sub', 'email': 'owner@example.com', 'email_verified': False}}]}):
+        with pytest.raises(LoginError):
+            google_identity(user)
+    access = app.state.workspaces.google
+    attempt, _ = access.start()
+    access.attempts[attempt] = ('expired-verifier', 0)
+    with pytest.raises(LoginError):
+        access.exchange(attempt, 'single-use-test-code')
+
+
+def test_owner_binding_cannot_be_reassigned_by_email_or_configuration(google):
+    client, app, state = google
+    assert login(client, state)['owner'] is True
+    key = app.state.workspaces.google.join(*google_identity(provider_user('OWNER@example.com')))
+    assert key == 'owner'
+    with pytest.raises(LoginError):
+        app.state.workspaces.google.join(*google_identity(provider_user('owner@example.com', 'another-google-sub')))
+    from webapp.google_access import GoogleAccess
+    with pytest.raises(ValueError, match='original owner'):
+        GoogleAccess(app.state.workspaces.root, replace(app.state.config, owner_email='new@example.com'))
+
+
+def test_private_trades_settings_imports_deletes_results_and_backups(google):
+    client, app, state = google
+    # These original trades exist before anyone signs in, exactly like cutover.
+    from core.models import Trade, Source
+    from datetime import datetime, timezone
+    original = Trade(account_id=1, symbol='NQ', direction='long', qty=1, entry_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                     exit_time=datetime(2026, 1, 1, tzinfo=timezone.utc), entry_price=100, exit_price=101, source=Source.MANUAL)
+    app.state.workspaces.root.insert_trades([original])
+    login(client, state)
+    owner_rows = client.get('/api/trades').json()
+    assert len(owner_rows) == 1
+    assert client.post('/api/trades', json=trade_payload(strategy='Owner only')).status_code == 200
+    owner_meta = client.get('/api/metadata').json()
+    updated = {**owner_meta['lab_settings'], 'confirmations': ['Owner private confirmation']}
+    assert client.put('/api/lab-settings', json=updated).status_code == 200
+    owner_backup = client.get('/api/export/backup').content
+    deletion = client.post('/api/trades/deletion-preview').json()
+    preview = upload(client, labelled_fx()).json()
+    owner_cookie = client.cookies.get('primus_session')
+    client.cookies.clear()
+    assert login(client, state, 'friend@example.com', 'friend-sub')['owner'] is False
+    assert client.get('/api/trades').json() == []
+    assert 'Owner private confirmation' not in client.get('/api/metadata').text
+    assert client.patch('/api/trades/2', json={'strategy': 'Steal', 'labels': {}, 'notes': '', 'confirmed': False}).status_code == 404
+    assert client.delete('/api/trades/2').status_code == 404
+    assert client.request('DELETE', '/api/trades', json={'confirmation_count': deletion['count'], 'preview_token': deletion['preview_token']}).status_code == 409
+    assert upload(client, labelled_fx(), 'confirm', preview['preview_token']).status_code == 409
+    assert client.post('/api/trades', json=trade_payload(strategy='Friend only', pnl=-50)).status_code == 200
+    assert len(client.get('/api/trades').json()) == 1
+    assert 'Owner only' not in client.get('/api/export/backup').text
+    assert 'primus_google' not in client.get('/api/export/backup').text
+    result = client.post('/api/results', json={'scope': 'All', 'combined': True, 'window': 'All sessions'}).json()
+    assert result['stats']['trades'] == 1
+    friend_preview = upload(client, labelled_fx()).json()
+    assert upload(client, labelled_fx(), 'confirm', friend_preview['preview_token']).json()['inserted'] == 1
+    assert upload(client, labelled_fx()).json()['counts']['duplicates'] == 1
+    friend_cookie = client.cookies.get('primus_session')
+    client.cookies.clear()
+    client.cookies.set('primus_session', owner_cookie)
+    csrf(client)
+    assert client.get('/api/export/backup').content == owner_backup
+    assert upload(client, labelled_fx()).json()['counts']['new'] == 1
+    assert client.delete('/api/trades/1').status_code == 200
+    client.cookies.clear()
+    client.cookies.set('primus_session', friend_cookie)
+    csrf(client)
+    assert len(client.get('/api/trades').json()) == 2  # Same numeric ID remained private.
+    # A third journal can restore only a backup explicitly uploaded into it.
+    client.cookies.clear()
+    login(client, state, 'third@example.com', 'third-sub')
+    assert client.post('/api/restore', files={'file': ('backup.json', owner_backup)}).status_code == 200
+    assert len(client.get('/api/trades').json()) == 2
+    client.cookies.clear()
+    client.cookies.set('primus_session', friend_cookie)
+    csrf(client)
+    assert 'Owner only' not in client.get('/api/export/backup').text
+
+
+def test_revocation_expiry_and_browser_workspace_tampering(google):
+    client, app, state = google
+    login(client, state, 'friend@example.com', 'friend-sub')
+    saved = client.cookies.get('primus_session')
+    assert client.post('/api/logout').status_code == 200
+    client.cookies.clear()
+    client.cookies.set('primus_session', saved)
+    assert client.get('/api/trades').status_code == 401
+    login(client, state)
+    access = app.state.workspaces.google
+    with access.database.engine.begin() as connection:
+        connection.execute(sessions.update().values(expires_at=now_utc() - timedelta(seconds=1)))
+    assert client.get('/api/trades').status_code == 401
+    # Even a validly signed legacy cookie cannot select another workspace.
+    from itsdangerous import TimestampSigner
+    forged = base64.b64encode(json.dumps({'key': 'owner', 'personal_token': 'x' * 48, 'csrf': 'x'}).encode())
+    client.cookies.clear()
+    client.cookies.set('primus_session', TimestampSigner(app.state.config.secret).sign(forged).decode())
+    assert client.get('/api/trades').status_code == 401
+    with pytest.raises(PermissionError):
+        app.state.workspaces.database('a' * 32)
+

@@ -20,12 +20,14 @@ must run after writes. Access is checked for every private API request. Test new
 logic with pytest, browser helper tests with Vitest, and the main user flows with
 Playwright. Tests use a disposable database and never populate the hosted journal.
 
-The React API is now single-owner and uses a personal password, not Google or
-team membership. webapp.personal_access handles Argon2id password verification,
-a bounded login throttle and revocable sessions stored separately from trades.
-Do not reintroduce team selectors or mix their schemas into the owner journal.
-Password entry/setup is performed by the human user; do not print credentials.
-See GO_LIVE.md for the current four hosting settings and local setup helper.
+The React API supports private per-person Google journals via Supabase PKCE;
+see GOOGLE_LOGIN.md for the explicit deployment switch and provider setup.
+webapp.google_access verifies provider identities and issues revocable sessions.
+Never use editable user metadata or a client workspace key for authorization.
+The owner retains the original tables; each other verified identity has separate
+storage. Every API read/write, import token, cache and backup is workspace-scoped.
+There are no team selectors or sharing routes. Password mode remains an explicit
+single-owner rollback, disabled while Google mode is active. Never print secrets.
 
 ## Owner-approved Strategy Lab draft (27 October 2026)
 

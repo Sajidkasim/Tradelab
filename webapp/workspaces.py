@@ -58,6 +58,7 @@ def serialise_trade(trade):
 
 class Workspaces:
     def __init__(self, config):
+        self.google = None
         self.root = Database(config.database)
         self.root.init()
         if not self.root.accounts():
@@ -65,20 +66,37 @@ class Workspaces:
         self.databases = {"owner": self.root}
         self.frames = {}
         self.lock = RLock()
+        if config.google_required:
+            from .google_access import GoogleAccess, harden_tables
+            from core.db import metadata as trading_metadata
+            harden_tables(self.root, trading_metadata.sorted_tables)
+            self.google = GoogleAccess(self.root, config)
 
     def database(self, key):
-        # This app can open only the owner's original tables. Existing teammate
-        # schemas are preserved but cannot be selected by any request or cookie.
-        if key != 'owner':
+        if self.google and not self.google.registered(key):
+            raise PermissionError('Sign in to your own journal.')
+        if not self.google and key != 'owner':
             raise PermissionError('This is a personal journal.')
         with self.lock:
-            return self.root
+            if key not in self.databases:
+                from services.team import MemberDatabase
+                from core.db import metadata as trading_metadata
+                from .google_access import harden_tables
+                database = MemberDatabase(self.root, key)
+                database.init()
+                harden_tables(database, trading_metadata.sorted_tables)
+                if not database.accounts():
+                    database.upsert_account(Account('My account', 50000, 1000, 2000))
+                self.databases[key] = database
+            return self.databases[key]
 
     def trades(self, key):
         with self.lock:
             cached = self.frames.get(key)
             if cached is None or monotonic() - cached[0] > 5:
                 frame = self.database(key).trades_df(sources=SCOPES["All"])
+                if len(self.frames) >= 32:
+                    self.frames.pop(next(iter(self.frames)))
                 self.frames[key] = (monotonic(), frame)
             return self.frames[key][1].copy(deep=True)
 
@@ -88,6 +106,8 @@ class Workspaces:
             self.frames.pop(key, None)
 
     def close(self):
+        if self.google:
+            self.google.close()
         for db in self.databases.values():
             db.engine.dispose()
 

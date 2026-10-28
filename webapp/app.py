@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse, Response
+from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from starlette.concurrency import run_in_threadpool
@@ -25,6 +25,7 @@ from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, 
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
+from .google_access import LoginError
 
 
 def create_app(config: Settings | None = None):
@@ -70,7 +71,7 @@ def create_app(config: Settings | None = None):
         if not request.url.path.startswith("/assets/"):
             response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Referrer-Policy"] = "no-referrer" if request.url.path.startswith('/auth/') else "same-origin"
         response.headers["X-Frame-Options"] = "DENY"
         return response
 
@@ -100,6 +101,14 @@ def create_app(config: Settings | None = None):
             raise HTTPException(403, "Saving requires the PrimusLab website.")
 
     def workspace(request: Request):
+        if config.google_required:
+            try:
+                member = request.app.state.workspaces.google.member(request.session.get('google_token'))
+            except LoginError:
+                raise HTTPException(401, 'Sign in to your journal to continue.') from None
+            if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+                check_write(request)
+            return member
         if config.password_required and not request.app.state.personal_sessions.valid(request.session.get('personal_token')):
             raise HTTPException(401, 'Unlock your journal to continue.')
         if request.method not in ("GET", "HEAD", "OPTIONS"):
@@ -123,12 +132,46 @@ def create_app(config: Settings | None = None):
         try:
             member = workspace(request)
         except (PermissionError, HTTPException):
-            return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf']}
-        return {'authenticated': True, 'name': 'My journal', 'owner': True, 'local': config.local, 'can_lock': config.password_required,
+            return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf'], 'auth_mode': config.auth_mode}
+        return {'authenticated': True, 'name': member['name'], 'owner': member['key'] == 'owner', 'local': config.local,
+                'auth_mode': config.auth_mode, 'can_lock': config.password_required or config.google_required,
                 'csrf': request.session['csrf']}
+
+    @app.post('/api/login/google')
+    def start_google(request: Request):
+        if not config.google_required:
+            raise HTTPException(404)
+        check_write(request)
+        try:
+            attempt, url = app.state.workspaces.google.start(request.session.get('google_attempt'))
+        except LoginError:
+            raise HTTPException(429, 'Sign-in is busy. Please try again in a few minutes.') from None
+        request.session['google_attempt'] = attempt
+        return {'url': url}
+
+    @app.get('/auth/callback')
+    def google_callback(request: Request):
+        if not config.google_required:
+            raise HTTPException(404)
+        access = app.state.workspaces.google
+        attempt = request.session.pop('google_attempt', None)
+        try:
+            email, subject = access.exchange(attempt, request.query_params.get('code'))
+            key = access.join(email, subject)
+            # Finish private storage initialization before issuing access.
+            app.state.workspaces.database(key)
+            token = access.issue(key)
+        except LoginError:
+            return RedirectResponse('/?login=retry', status_code=303)
+        access.revoke(request.session.get('google_token'))
+        request.session.clear()
+        request.session.update(google_token=token, csrf=token_urlsafe(32))
+        return RedirectResponse('/', status_code=303)
 
     @app.post('/api/unlock')
     async def unlock(payload: Unlock, request: Request):
+        if config.google_required:
+            raise HTTPException(404)
         check_write(request)
         if config.password_required:
             try:
@@ -146,6 +189,9 @@ def create_app(config: Settings | None = None):
 
     @app.post("/api/logout")
     def logout(request: Request, member=Depends(workspace)):
+        if config.google_required:
+            app.state.workspaces.google.revoke(request.session.get('google_token'))
+            app.state.workspaces.bump(member['key'])
         if config.password_required:
             app.state.personal_sessions.revoke(request.session.get('personal_token'))
             app.state.workspaces.bump('owner')
