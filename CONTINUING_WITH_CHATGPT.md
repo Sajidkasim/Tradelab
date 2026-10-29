@@ -107,7 +107,27 @@ private workspace cache. No changes to `core/`.
 Run `tools/run_research_preview.py` for the disposable example journal at
 http://127.0.0.1:8115/lab. It never reads real database settings or credentials.
 
+## Control design preview — 29 October 2026
+
+The owner requested clearer typography, selected buttons with ticks, styled
+strategy/timeframe dropdowns, a searchable key-level picker and removable active
+filters. Confirmations sit directly below Entry timeframe. These frontend changes are local only. The owner explicitly repeated:
+**Do not upload until we review.** Do not commit/push/deploy this design before
+that review and approval. Preview at http://127.0.0.1:8115/lab uses disposable
+sample trades. No financial formulas, API behaviour or real journals changed.
+
 ## The one-page architecture
+
+### Classic appearance preview — 29 October 2026
+
+The owner requested an optional Bloomberg 2000 inspired edition. The Modern /
+Classic switch in the header and sign-in screen remembers a browser preference
+(`primus-appearance`). Classic uses its own navy, burgundy and pale market-panel
+CSS tokens in `frontend/src/classic.css`, compact controls, navigation and tables.
+Classic also has bundled pixel SVG arrow/hand cursors for mouse devices, raised
+desktop-style controls and inset fields. Text inputs retain the typing cursor.
+Chart changes affect presentation only. Modern retains its light/dark preference.
+This remains a local preview; do not commit, push or deploy before owner review.
 
 ```
 app.py                  navigation only (st.navigation with one st.Page per view)

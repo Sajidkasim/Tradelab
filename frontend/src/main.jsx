@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./theme.css";
 import "./styles.css";
+import "./classic.css";
 
 class ErrorBoundary extends React.Component {
   state = { failed: false };

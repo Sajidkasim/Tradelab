@@ -4,6 +4,7 @@ import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import LabHistory from "./LabHistory";
 import SavedSetups from "./SavedSetups";
+import { SearchSelect, FilterChips } from "./ExploreControls";
 import {
   Button,
   Select,
@@ -231,7 +232,7 @@ export default function Results({
               onChange={(v) => change("direction", v)}
             />
           </div>
-          <Select
+          <SearchSelect
             label="Key level / PDA"
             values={values(
               ["Any level", ...meta.playbook.levels, unknown],
@@ -240,29 +241,34 @@ export default function Results({
             value={filters.level}
             onChange={(e) => change("level", e.target.value)}
           />
-          <div className="form-grid two">
-            <Select
-              label="Level timeframe"
-              values={["Any timeframe", ...meta.level_timeframes, unknown].map(
-                (option) =>
-                  option === "Any timeframe"
-                    ? { value: option, label: "Any" }
-                    : option,
-              )}
-              value={filters.timeframe}
-              onChange={(e) => change("timeframe", e.target.value)}
+          <Select
+            label="Level timeframe"
+            values={[
+              { value: "Any timeframe", label: "Any" },
+              ...meta.level_timeframes,
+              unknown,
+            ]}
+            value={filters.timeframe}
+            onChange={(e) => change("timeframe", e.target.value)}
+          />
+          <Select
+            label="Entry timeframe"
+            values={[
+              { value: "Any timeframe", label: "Any" },
+              ...meta.entry_timeframes,
+              unknown,
+            ]}
+            value={filters.entry_timeframe}
+            onChange={(e) => change("entry_timeframe", e.target.value)}
+          />
+          <div className="field">
+            <span>Confirmations</span>
+            <Checkboxes
+              values={meta.confirmations}
+              selected={filters.confirmations}
+              onChange={(v) => change("confirmations", v)}
             />
-            <Select
-              label="Entry timeframe"
-              values={["Any timeframe", ...meta.entry_timeframes, unknown].map(
-                (option) =>
-                  option === "Any timeframe"
-                    ? { value: option, label: "Any" }
-                    : option,
-              )}
-              value={filters.entry_timeframe}
-              onChange={(e) => change("entry_timeframe", e.target.value)}
-            />
+            <small>Every selected confirmation must be present.</small>
           </div>
           <Select
             label="Target RR"
@@ -291,15 +297,6 @@ export default function Results({
               : "New York time"}
             . No day tag needed.
           </small>
-          <div className="field">
-            <span>Confirmations</span>
-            <Checkboxes
-              values={meta.confirmations}
-              selected={filters.confirmations}
-              onChange={(v) => change("confirmations", v)}
-            />
-            <small>Every selected confirmation must be present.</small>
-          </div>
           <details className="disclosure">
             <summary>Session, news & market</summary>
             <div>
@@ -396,6 +393,19 @@ export default function Results({
           </details>
         </aside>
         <section className="results-content" aria-busy={busy}>
+          <FilterChips
+            filters={filters}
+            defaults={initial}
+            onRemove={(key, item) =>
+              change(
+                key,
+                key === "confirmations"
+                  ? filters.confirmations.filter((v) => v !== item)
+                  : initial[key],
+              )
+            }
+            onClear={() => setFilters(initial)}
+          />
           {error && <Notice error>{error}</Notice>}
           <ResultSample
             sample={scope}

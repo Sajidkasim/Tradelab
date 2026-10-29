@@ -21,11 +21,15 @@ import Access from "./Access";
 import ResearchTests, { TestSelector } from "./ResearchTests";
 import icon from "../../assets/primuslab-icon.svg";
 import { labHref, journalPage } from "./paths";
+import { AppearanceContext, AppearanceSwitch } from "./Appearance";
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () => journalPage(location.pathname, location.hash);
 
 export default function App() {
+  const [appearance, setAppearance] = useState(() =>
+    localStorage.getItem("primus-appearance") === "classic" ? "classic" : "modern",
+  );
   const [session, setSession] = useState(null),
     [meta, setMeta] = useState(null),
     [trades, setTrades] = useState([]),
@@ -84,9 +88,11 @@ export default function App() {
     return () => window.removeEventListener("primus:logout", clear);
   }, []);
   useEffect(() => {
-    document.documentElement.dataset.theme = mode;
+    document.documentElement.dataset.theme = appearance === "classic" ? "light" : mode;
+    document.documentElement.dataset.appearance = appearance;
     localStorage.setItem("primus-theme", mode);
-  }, [mode]);
+    localStorage.setItem("primus-appearance", appearance);
+  }, [mode, appearance]);
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => setMessage(""), 4500);
@@ -149,12 +155,15 @@ export default function App() {
   if (!session.authenticated)
     return (
       <Unlock
+        appearance={appearance}
+        onAppearanceChange={setAppearance}
         ready={Boolean(session.csrf)}
         onUnlocked={boot}
         authMode={session.auth_mode}
       />
     );
   return (
+    <AppearanceContext.Provider value={appearance}>
     <div className="app-shell">
       <header className="site-header">
         <a
@@ -180,6 +189,7 @@ export default function App() {
             Strategy Lab
           </a>
         </nav>
+        <AppearanceSwitch value={appearance} onChange={setAppearance} />
         <Menu label="My journal" className="workspace-menu">
           <div className="menu-account">
             <strong>{session.name}</strong>
@@ -200,7 +210,7 @@ export default function App() {
               <Users size={16} /> Manage access
             </button>
           )}
-          <button onClick={() => setMode(mode === "light" ? "dark" : "light")}>
+          <button onClick={() => { setAppearance("modern"); setMode(mode === "light" ? "dark" : "light"); }}>
             {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
           </button>
@@ -215,6 +225,17 @@ export default function App() {
           )}
         </Menu>
       </header>
+      {appearance === "classic" && (
+        <nav className="classic-nav" aria-label="Classic navigation">
+          <strong>RESEARCH DESK</strong>
+          <button onClick={() => navigate("results")}>Results</button>
+          <button onClick={() => navigate("trades")}>Trade journal</button>
+          <button onClick={() => navigate("import")}>Import</button>
+          <button onClick={() => setTestsOpen(true)}>My tests</button>
+          <button onClick={() => setLabSettings(true)}>Lab settings</button>
+          <span>PRIVATE JOURNAL · CLASSIC EDITION</span>
+        </nav>
+      )}
       <div className="main-shell">
         <main className="content">
           {session.local && (
@@ -263,7 +284,7 @@ export default function App() {
                 meta={meta}
                 trades={trades}
                 revision={revision}
-                mode={mode}
+                mode={appearance === "classic" ? "light" : mode}
                 scope={scope}
                 setScope={setScope}
                 studyId={study}
@@ -306,6 +327,13 @@ export default function App() {
           )}
         </main>
       </div>
+      {appearance === "classic" && (
+        <footer className="classic-footer">
+          <span>PrimusLab · Personal trading research</span>
+          <span>Classic edition</span>
+          <a href="#" onClick={(event) => { event.preventDefault(); window.scrollTo({ top: 0 }); }}>Back to top ↑</a>
+        </footer>
+      )}
       {message && (
         <div className="toast" role="status">
           {message}
@@ -341,5 +369,6 @@ export default function App() {
         />
       )}
     </div>
+    </AppearanceContext.Provider>
   );
 }

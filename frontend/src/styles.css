@@ -2555,3 +2555,101 @@ td strong {
 .bulk-panel > small { flex-basis: 100%; }
 @media (max-width: 700px) { .research-toolbar > .field { max-width: none; } .research-context { margin-left: 0; flex-basis: 100%; } .saved-setup-toolbar .button { align-self: stretch; } }
 @media (max-width: 600px) { .tag-guide-heading { flex-wrap: wrap; } .tag-meaning-row > div { flex-basis: calc(100% - 80px); } .tag-meaning-row .tag-alias-button { margin-left: auto; } .tag-meaning-rule { padding: 14px; } }
+
+/* Clear, consistent laboratory controls. */
+.field > span { font-size: 13px; font-weight: 600; color: var(--tl-ink2); }
+.field input, .field select, .field textarea { font-size: 14px; min-height: 44px; border-radius: 10px; }
+.field small, .explorer small { font-size: 12px; line-height: 1.55; color: var(--tl-ink2); }
+.button { font-size: 13px; min-height: 42px; font-weight: 600; border-radius: 10px; }
+.segments button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; }
+#results > .toolbar .segments .selected { background: var(--tl-accent); color: var(--tl-entry-ink); }
+.explorer .segments .selected { background: var(--tl-accent); color: var(--tl-entry-ink); }
+.lab-grid .explorer .field > span { font-size: 13px; font-weight: 600; }
+.lab-grid .explorer .checks label { padding: 9px 12px; min-height: 38px; font-size: 13px; border-radius: 9px; }
+.lab-grid .explorer .checks label.checked { background: var(--tl-accent); border-color: var(--tl-accent); color: var(--tl-entry-ink); }
+.quick-choices > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick-choices button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 9px; padding: 8px 10px; min-height: 38px; font-size: 12px; font-weight: 550; }
+.quick-choices button:hover { border-color: var(--tl-accent); }
+.quick-choices button[aria-pressed="true"] { color: var(--tl-entry-ink); background: var(--tl-accent); border-color: var(--tl-accent); }
+.strategy-choices > div { display: grid; grid-template-columns: 1fr 1fr; }
+.strategy-choices button { text-align: left; justify-content: space-between; padding: 12px; min-height: 52px; line-height: 1.45; }
+.strategy-choices button svg { flex-shrink: 0; }
+.search-select { position: relative; }
+.picker-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--tl-border); background: var(--tl-surface); font-size: 14px; text-align: left; }
+.picker-trigger svg { flex-shrink: 0; }
+.picker-trigger[aria-expanded="true"] { border-color: var(--tl-accent); }
+.picker-panel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: 100%; background: var(--tl-surface); border: 1px solid var(--tl-border); border-radius: 12px; box-shadow: 0 12px 35px color-mix(in srgb, var(--tl-ink) 15%, transparent); overflow: hidden; }
+.picker-search { display: flex; align-items: center; padding: 8px 12px; gap: 8px; border-bottom: 1px solid var(--tl-border); }
+.field .picker-search input { width: 100%; min-width: 0; border: 0; background: transparent; min-height: 36px; padding: 6px; }
+.picker-options { max-height: 270px; overflow-y: auto; padding: 5px; }
+.picker-options button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 11px 10px; border: 0; border-radius: 7px; text-align: left; font-size: 13px; background: transparent; }
+.picker-options button[aria-selected="true"] { color: var(--tl-accent); font-weight: 650; }
+.picker-options button.keyboard-option { background: var(--lab-tint); }
+.picker-empty { padding: 14px; font-size: 13px; color: var(--tl-ink2); }
+.active-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.active-filter-label { width: 100%; font-size: 12px; font-weight: 600; color: var(--tl-ink2); }
+.active-filters button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--tl-border); border-radius: 20px; background: var(--tl-surface); padding: 7px 11px; font-size: 12px; }
+.active-filters .clear-filters { border-color: transparent; color: var(--tl-accent); background: transparent; }
+@media (max-width: 600px) { .quick-choices button { min-height: 44px; } .picker-options button { min-height: 44px; } }
+.lab-grid .field input, .lab-grid .field select { font-size: 14px; }
+.lab-grid .explorer .segments .selected { background: var(--tl-accent); color: var(--tl-entry-ink); }
+
+/* Keep the filter column from creating an empty page below the chart. */
+.lab-grid .explorer .checks input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  flex: 0 0 16px;
+}
+.lab-grid .explorer .checks label {
+  min-height: 36px;
+  padding: 7px 10px;
+}
+.lab-grid .explorer > .field,
+.lab-grid .explorer > .form-grid,
+.lab-grid .explorer > .disclosure { margin-top: 16px; }
+.lab-grid .explorer .saved-setup-toolbar { margin-bottom: 14px; padding-bottom: 14px; }
+@media (min-width: 901px) {
+  .lab-grid .explorer {
+    max-height: min(860px, calc(100dvh - 110px));
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--tl-border) transparent;
+    overscroll-behavior-y: contain;
+    padding: 20px;
+  }
+}
+@media (max-width: 700px) {
+  .lab-grid .explorer > .field,
+  .lab-grid .explorer > .form-grid { margin-top: 0; }
+}
+
+/* Dropdowns share a clear label, generous text and a consistent chevron. */
+.explorer .field:has(> select) { position: relative; }
+.explorer .field:has(> select)::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 19px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--tl-ink2);
+  border-bottom: 1.5px solid var(--tl-ink2);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.lab-grid .explorer .field select {
+  appearance: none;
+  padding: 12px 40px 12px 13px;
+  min-height: 46px;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--tl-surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--tl-ink) 4%, transparent);
+  transition: border-color .15s ease;
+}
+.explorer .field select:hover { border-color: var(--tl-accent); }
+.explorer .field select:focus-visible { border-color: var(--tl-accent); }
+.explorer .field select option { color: var(--tl-ink); background: var(--tl-surface); }

@@ -9,6 +9,7 @@ import {
 import { api, setCsrf } from "./api";
 import { Button, Notice } from "./components";
 import compass from "../../assets/primus-compass.png";
+import { AppearanceSwitch } from "./Appearance";
 
 // An abstract market illustration, never a chart of journal performance.
 function MarketStudy() {
@@ -85,7 +86,7 @@ function MarketStudy() {
   );
 }
 
-export default function Unlock({ ready, onUnlocked, authMode = "password" }) {
+export default function Unlock({ ready, onUnlocked, authMode = "password", appearance, onAppearanceChange }) {
   const google = authMode === "google";
   const loginStatus = new URLSearchParams(window.location.search).get("login");
   const [password, setPassword] = useState("");
@@ -119,6 +120,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password" }) {
   }
   return (
     <main className="login">
+      <div className="login-appearance"><AppearanceSwitch value={appearance} onChange={onAppearanceChange} /></div>
       <div className="login-shell">
         <section className="login-story" aria-labelledby="login-story-title">
           <header className="login-brand">

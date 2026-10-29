@@ -54,13 +54,11 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       page.getByLabel("Import into test", { exact: true }),
     ).toHaveValue(testId);
     const csv = `id,dateStart,dateEnd,pair,rPnL,side,status,strategy,tags\nresearch-a,2026-07-02 13:30,2026-07-02 13:45,NQ,300,buy,closed,Research reversal,SWEEP UPPER\nresearch-b,2026-07-01 13:30,2026-07-01 13:45,NQ,-100,sell,closed,Research reversal,SWEEP LOWER\n`;
-    await page
-      .getByLabel("Choose a trade export")
-      .setInputFiles({
-        name: "research.csv",
-        mimeType: "text/csv",
-        buffer: Buffer.from(csv),
-      });
+    await page.getByLabel("Choose a trade export").setInputFiles({
+      name: "research.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
     await page
       .getByRole("button", { name: "Preview trades", exact: true })
       .click();
@@ -94,6 +92,8 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await dialog
       .getByRole("button", { name: "Save & next", exact: true })
       .click();
+    // Wait for the next trade to replace the submitted form before editing it.
+    await expect(dialog.getByLabel("Original risk ($)", { exact: true })).toHaveValue("");
     await dialog
       .getByLabel("Original risk is not available — keep R unrecorded", {
         exact: true,
