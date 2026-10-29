@@ -64,6 +64,12 @@ trades and CSV aliases cannot silently re-add it. Saved trades and All results
 are unchanged; re-adding the exact name restores the choice.
 
 Lab settings has separate Setup labels, Session windows and News & market tabs.
+Strategies & levels now lives in the same, wider Lab settings window; the old
+Manage trades editor is removed. This tab saves through the existing private
+playbook endpoint and retains its shared vocabulary and hidden-choice behaviour.
+RR imports support multiple separately approved ratios (including 1:2 and 1:3).
+Each target must keep its own full-exit confirmation. Unmapped or conflicting
+tags stay unclassified, and target tags never become recorded financial R.
 Confirmation, level-timeframe and entry-timeframe choices are shared by Explore
 and trade entry. New mapped/saved values are discoverable; explicit removals
 persist in hidden_choices in the lab setting. Removing a choice never edits

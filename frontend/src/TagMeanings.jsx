@@ -217,11 +217,12 @@ export default function TagMeanings({
                     Wins hit the full target; losses hit the full stop
                   </label>
                   <small className="muted">
-                    Backtests only. Enables a fixed-RR model before costs: a 1:3
-                    win is +3R and a loss is −1R. Break-even rows and live
-                    trades are excluded. Partial and early exits need actual
-                    recorded risk instead. Saved financial results stay
-                    unchanged.
+                    Backtests only. Confirms full exits for this target ratio
+                    only. A 1:2 target models a full win as +2R; 1:3 models it
+                    as +3R. Full-stop losses are −1R, before costs. Each ratio
+                    needs its own confirmation. Break-even rows and live trades
+                    are excluded. Partial and early exits need actual recorded
+                    risk. Saved financial results stay unchanged.
                   </small>
                 </div>
               )}

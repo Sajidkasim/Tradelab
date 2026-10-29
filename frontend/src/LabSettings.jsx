@@ -11,6 +11,8 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
   const [news, setNews] = useState(settings.news.join("\n"));
   const [conditions, setConditions] = useState(settings.conditions.join("\n"));
   const [tab, setTab] = useState("setup");
+  const [strategies, setStrategies] = useState(meta.playbook.strategies.join("\n"));
+  const [levels, setLevels] = useState(meta.playbook.levels.join("\n"));
   const [labels, setLabels] = useState({
     confirmations: settings.confirmations.join("\n"),
     level_timeframes: settings.level_timeframes.join("\n"),
@@ -30,6 +32,13 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
     setBusy(true);
     setError("");
     try {
+      if (tab === "strategies") {
+        await api("/playbook", { method: "PUT", body: { strategies: strategies.split("\n"), levels: levels.split("\n") } });
+        await refresh();
+        toast("Your strategy and level lists are saved.");
+        onClose();
+        return;
+      }
       await api("/lab-settings", {
         method: "PUT",
         body: {
@@ -65,6 +74,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
   return (
     <Modal
       title="Lab settings"
+      className="lab-settings-modal"
       onClose={() => {
         if (!busy) onClose();
       }}
@@ -78,6 +88,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         <Segments
           label="Lab settings sections"
           values={[
+            { value: "strategies", label: "Strategies & levels" },
             { value: "setup", label: "Setup labels" },
             { value: "sessions", label: "Session windows" },
             { value: "news", label: "News & market" },
@@ -86,6 +97,16 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
           value={tab}
           onChange={setTab}
         />
+        {tab === "strategies" && (
+          <div className="stack">
+            <div><h3>Strategies & key levels</h3><p className="muted">One name per line. These lists are shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
+            <div className="form-grid two">
+              <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
+              <Field label="Key levels / PDA" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
+            </div>
+            <small className="muted">Changing a list keeps existing trade labels. Use Clean up tags when you want to merge or rename labels already saved on trades.</small>
+          </div>
+        )}
         {tab === "cleanup" && <TagCleanup refresh={refresh} toast={toast} />}
         {tab === "setup" && (
           <div className="stack">
@@ -276,7 +297,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
               Cancel
             </Button>
             <Button type="submit" variant="primary" busy={busy}>
-              Save lab settings
+              {tab === "strategies" ? "Save strategies & levels" : "Save lab settings"}
             </Button>
           </div>
         )}

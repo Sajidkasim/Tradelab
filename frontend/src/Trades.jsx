@@ -5,7 +5,6 @@ import {
   Upload,
   ArrowUpRight,
   Download,
-  Settings2,
   ClipboardCheck,
 } from "lucide-react";
 import { api } from "./api";
@@ -42,7 +41,6 @@ export default function Trades({
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
     [previous, setPrevious] = useState(null),
-    [book, setBook] = useState(false),
     [bulk, setBulk] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteAll, setDeleteAll] = useState(false);
@@ -199,9 +197,6 @@ export default function Trades({
             </p>
           </div>
           <Menu label="Manage trades">
-            <button onClick={() => setBook(true)}>
-              <Settings2 size={15} /> Edit strategies & levels
-            </button>
             <button
               disabled={!queue.length}
               onClick={() => {
@@ -585,73 +580,6 @@ export default function Trades({
           }}
         />
       )}
-      {book && (
-        <Playbook
-          meta={meta}
-          onClose={() => setBook(false)}
-          refresh={refresh}
-          toast={toast}
-        />
-      )}
     </>
-  );
-}
-
-function Playbook({ meta, onClose, refresh, toast }) {
-  const [strategies, setStrategies] = useState(
-      meta.playbook.strategies.join("\n"),
-    ),
-    [levels, setLevels] = useState(meta.playbook.levels.join("\n")),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  async function save(e) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await api("/playbook", {
-        method: "PUT",
-        body: {
-          strategies: strategies.split("\n"),
-          levels: levels.split("\n"),
-        },
-      });
-      await refresh();
-      toast("Your strategy and level lists are saved.");
-      onClose();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Modal title="Strategies & key levels" onClose={onClose}>
-      <form onSubmit={save} className="stack">
-        <p className="muted">
-          One name per line. This list is shared with Explore and trade entry.
-          Removing a name hides the choice; its saved trades are kept.
-        </p>
-        <div className="form-grid two">
-          <Field label="Strategies">
-            <textarea
-              rows={10}
-              value={strategies}
-              onChange={(e) => setStrategies(e.target.value)}
-            />
-          </Field>
-          <Field label="Key levels / PDA">
-            <textarea
-              rows={10}
-              value={levels}
-              onChange={(e) => setLevels(e.target.value)}
-            />
-          </Field>
-        </div>
-        {error && <Notice error>{error}</Notice>}
-        <Button type="submit" variant="primary" busy={busy}>
-          Save lists
-        </Button>
-      </form>
-    </Modal>
   );
 }

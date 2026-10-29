@@ -237,15 +237,14 @@ test("backup download, playbook, themes and mobile layout", async ({
 }) => {
   await open(page);
   await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Manage trades", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Edit strategies & levels" }).click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
+  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
     .getByLabel("Strategies", { exact: true })
     .fill("Browser setup\nReplay setup\nMy next model");
-  await dialog.getByRole("button", { name: "Save lists" }).click();
+  await dialog.getByRole("button", { name: "Save strategies & levels" }).click();
   await expect(dialog).not.toBeVisible();
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Backup & restore" }).click();
@@ -1241,12 +1240,9 @@ test("strategy editor matches Explore and removed choices do not return after re
   const available = (await strategy.locator("option").allTextContents()).filter(
     (name) => !["All strategies", "Unclassified"].includes(name),
   );
-  await page
-    .getByRole("button", { name: "Manage trades", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Edit strategies & levels", exact: true })
-    .click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
+  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
     available.join("\n"),
@@ -1255,7 +1251,7 @@ test("strategy editor matches Explore and removed choices do not return after re
   await dialog
     .getByLabel("Strategies", { exact: true })
     .fill(active.join("\n"));
-  await dialog.getByRole("button", { name: "Save lists", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save strategies & levels", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(strategy.locator("option")).toHaveText([
     "All strategies",
@@ -1269,17 +1265,14 @@ test("strategy editor matches Explore and removed choices do not return after re
     "Unclassified",
   ]);
   await strategy.selectOption("Browser setup");
-  await page
-    .getByRole("button", { name: "Manage trades", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Edit strategies & levels", exact: true })
-    .click();
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
+  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
   await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
     active.join("\n"),
   );
   await dialog.getByLabel("Strategies", { exact: true }).fill("Replay setup");
-  await dialog.getByRole("button", { name: "Save lists", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save strategies & levels", exact: true }).click();
   await expect(strategy).toHaveValue("All strategies");
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   await expect(dialog.locator("#strategies option")).toHaveCount(1);

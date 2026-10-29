@@ -97,7 +97,8 @@ Open **Trades → Add trade** for either net dollars plus original dollar risk, 
 **Trades → Import FX Replay** opens the importer; **Needs tagging** opens unfinished trade reviews.
 Trades' **Filters** include **All** to browse both histories without demo trades. Any statistics in
 advanced reviews still use a separate testing type. News and market condition remain **Not recorded**
-until explicitly labelled. Edit your strategy and key-level lists from Trades or Settings.
+until explicitly labelled. In the React website, edit strategy and key-level lists
+from My journal → Lab settings → Strategies & levels.
 
 The 1,000-trade counter uses the selected account, period and source before setup filters. It is a collection target,
 not a statistical guarantee. Average R is realised R; win/loss size is the ratio of average dollar outcomes, not planned target R.

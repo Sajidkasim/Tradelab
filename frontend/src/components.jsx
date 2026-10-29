@@ -191,7 +191,7 @@ export function Disclosure({ title, children, open = false }) {
     </details>
   );
 }
-export function Modal({ title, children, onClose }) {
+export function Modal({ title, children, onClose, className = "" }) {
   const ref = useRef();
   const titleId = useId();
   useEffect(() => {
@@ -202,7 +202,7 @@ export function Modal({ title, children, onClose }) {
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className={`modal ${className}`}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();

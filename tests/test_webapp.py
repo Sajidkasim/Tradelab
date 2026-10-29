@@ -715,3 +715,51 @@ def test_fixed_rr_preview_results_filter_and_reimport_never_overwrite_financials
     result = client.patch(f'/api/trades/{row["id"]}', json={'strategy': 'Reviewed model', 'labels': {}, 'notes': '', 'confirmed': True})
     assert result.json()['target_rr'] == '1:2'
     assert client.get('/api/trades').json()[0]['r_multiple'] is None
+
+
+def test_csv_multiple_rr_targets_keep_their_own_filters_models_and_duplicates(local):
+    client, _ = local
+    ratios = ['1:2', '1:3', '1:2.2']
+    mappings = {ratio: {'field': 'target_rr', 'value': ratio, 'full_exit': True} for ratio in ratios}
+    assert client.put('/api/tag-mappings', json=mappings).status_code == 200
+    rows = []
+    for index, ratio in enumerate(ratios):
+        for outcome, pnl in [('win', 400), ('loss', -200)]:
+            rows.append({'id': f'multiple-rr-{index}-{outcome}', 'dateStart': f'2026-07-{index + 1:02} 13:30',
+                'dateEnd': f'2026-07-{index + 1:02} 13:40', 'pair': 'NQ', 'rPnL': pnl, 'side': 'buy',
+                'status': 'closed', 'tags': ratio})
+    csv = pd.DataFrame(rows).to_csv(index=False).encode()
+    preview = upload(client, csv).json()
+    assert [row['target_rr'] for row in preview['rows']] == ['1:2', '1:2', '1:3', '1:3', '1:2.2', '1:2.2']
+    assert upload(client, csv, 'confirm', preview['preview_token']).json()['inserted'] == 6
+    before = client.get('/api/trades').json()
+    for ratio, expected in [('1:2', .5), ('1:3', 1), ('1:2.2', .6)]:
+        result = client.post('/api/results', json={'scope': 'All', 'combined': True, 'target_rr': ratio}).json()
+        assert result['stats']['trades'] == 2
+        assert result['stats']['net_pnl'] == 200
+        assert result['stats']['avg_r'] is None  # Target tags never become recorded R.
+        assert result['fixed_rr']['targets'] == [ratio]
+        assert result['fixed_rr']['avg_r'] == pytest.approx(expected)
+    combined = client.post('/api/results', json={'scope': 'All', 'combined': True}).json()
+    assert combined['stats']['trades'] == 6
+    assert combined['fixed_rr']['avg_r'] == pytest.approx(.7)
+    duplicate = upload(client, csv).json()
+    confirmed = upload(client, csv, 'confirm', duplicate['preview_token']).json()
+    assert confirmed['inserted'] == 0
+    assert client.get('/api/trades').json() == before
+
+
+def test_each_rr_needs_its_own_full_exit_confirmation_and_unknown_tags_are_not_guessed(local):
+    client, _ = local
+    mapping = {'1:2': {'field': 'target_rr', 'value': '1:2'},
+               '1:3': {'field': 'target_rr', 'value': '1:3', 'full_exit': True}}
+    assert client.put('/api/tag-mappings', json=mapping).status_code == 200
+    csv = pd.DataFrame([{'id': f'per-rr-confirm-{i}', 'dateStart': '2026-08-01 13:30',
+        'dateEnd': '2026-08-01 13:40', 'pair': 'NQ', 'rPnL': 300, 'side': 'buy',
+        'status': 'closed', 'tags': tag} for i, tag in enumerate(['1:2', '1:3', '1:4', '1:2;1:3'])]).to_csv(index=False).encode()
+    preview = upload(client, csv).json()
+    assert preview['rows'][0]['target_rr'] == '1:2' and not preview['rows'][0]['fixed_exit']
+    assert preview['rows'][1]['target_rr'] == '1:3' and preview['rows'][1]['fixed_exit']
+    assert preview['rows'][2]['target_rr'] == 'Not recorded'  # Unsaved meaning needs review.
+    assert preview['rows'][3]['target_rr'] == 'Not recorded'  # Conflicting ratios need review.
+    assert all(row['r_multiple'] is None for row in preview['rows'])

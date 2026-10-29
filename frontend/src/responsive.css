@@ -13,6 +13,10 @@
 .menu-panel { max-width: calc(100vw - 32px); }
 .modal { overflow-x: hidden; }
 .modal .form-grid > *, .modal .field { min-width: 0; }
+.modal.lab-settings-modal { width: min(1040px, calc(100% - 32px)); }
+.lab-settings-modal .lab-settings-form > .segments { flex-wrap: wrap; width: 100%; }
+.lab-settings-modal .lab-settings-form > .segments button { flex: 1 1 auto; white-space: normal; }
+.lab-settings-modal textarea { line-height: 1.7; }
 .access-refresh { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .access-details { width: 100%; border-top: 1px solid var(--tl-border); padding-top: 12px; }
 .access-details summary { cursor: pointer; font-size: 13px; padding: 6px 0; }

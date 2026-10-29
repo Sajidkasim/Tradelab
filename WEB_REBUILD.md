@@ -57,7 +57,9 @@ rate, average realised R and trades analysed. Missing R stays missing.
 
 Trades shows 8 records per page, Import, Add trade, All trades / To finish and a
 Review next action. Individual deletion requires confirmation. Manage trades
-contains playbook lists, bulk strategy labels, CSV download and Delete all trades.
+contains bulk strategy labels, CSV download and Delete all trades. Strategy and
+key-level lists live in My journal → Lab settings → Strategies & levels, in a
+wider settings window shared with confirmation, timeframe and session settings.
 Delete-all shows the whole-journal count, then requires typing that count. The
 server verifies a short-lived session-bound snapshot of full record contents,
 including protection against SQLite ID reuse. Deletion is transactional, rejects
