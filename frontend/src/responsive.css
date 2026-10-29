@@ -150,3 +150,33 @@
   .explorer { grid-template-columns: minmax(0, 1fr); }
   .lab-grid .explorer > .field, .lab-grid .explorer > .disclosure { grid-column: 1 / -1; }
 }
+
+/* Keep the import decision reachable without scrolling through a CSV. */
+.import-page.has-preview { padding-bottom: 150px; }
+.preview-card { scroll-margin-top: 100px; }
+.preview-card > .table-wrap { max-height: 460px; overflow: auto; }
+.preview-pagination, .preview-pagination > div { display: flex; align-items: center; gap: 10px; }
+.preview-pagination { justify-content: space-between; flex-wrap: wrap; margin-top: 16px; font-size: 12px; color: var(--tl-muted); }
+.import-action-bar { position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px max(24px, calc((100vw - 1188px) / 2)); padding-bottom: max(16px, env(safe-area-inset-bottom)); background: var(--tl-surface); color: var(--tl-ink); border-top: 1px solid var(--tl-border); box-shadow: 0 -4px 20px color-mix(in srgb, var(--tl-ink) 6%, transparent); }
+.import-action-summary { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.import-action-summary small { color: var(--tl-muted); }
+.import-action-bar > .button { flex-shrink: 0; }
+:root[data-appearance="classic"] .import-action-bar { background: var(--classic-face); box-shadow: var(--classic-raised); }
+@media (max-width: 700px) {
+  .import-action-bar { flex-wrap: wrap; gap: 10px; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
+  .import-action-bar > .button { width: 100%; }
+  .import-action-summary { font-size: 13px; }
+  .import-action-summary small { font-size: 11px; }
+  .preview-card { scroll-margin-top: 130px; }
+}
+
+.preview-card table { font-size: 12px; }
+.preview-card th { font-size: 11px; }
+@media (max-width: 700px) {
+  .preview-card thead { display: none; }
+  .preview-card table, .preview-card tbody { display: block; white-space: normal; }
+  .preview-card tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--tl-border); }
+  .preview-card td { display: block; padding: 0; border: 0; overflow-wrap: anywhere; }
+  .preview-card td::before { content: attr(data-label); display: block; font-size: 11px; color: var(--tl-muted); margin-bottom: 4px; }
+  .preview-card td[data-label="Setup details"] { grid-column: 1 / -1; }
+}

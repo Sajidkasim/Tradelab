@@ -153,7 +153,8 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   await open(page);
   await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "replay.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
@@ -220,7 +221,8 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .getByRole("button", { name: "Import", exact: true })
     .first()
     .click();
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "replay.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
@@ -293,30 +295,12 @@ test("backup download, playbook, themes and mobile layout", async ({
   });
 });
 
-test("personal tools use the existing risk calculations without a team login", async ({
-  page,
-}) => {
+test("journal menu keeps settings and backups without Advanced tools", async ({ page }) => {
   await open(page);
-  await expect(
-    page.getByRole("link", { name: "Team", exact: true }),
-  ).toHaveCount(0);
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Advanced tools", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Tools", exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Entry price", { exact: true }).fill("18000");
-  await page.getByLabel("Original stop", { exact: true }).fill("17995");
-  await page.getByRole("button", { name: "Calculate size" }).click();
-  await expect(
-    page.locator(".stat").filter({ hasText: "Contracts" }),
-  ).toContainText("2");
-  await page.getByRole("button", { name: "Open Results" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Results", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Advanced tools", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Lab settings", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Backup & restore", exact: true })).toBeVisible();
 });
 
 test("compact navigation and workspace tools remain accessible on mobile", async ({
@@ -496,6 +480,7 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
 }) => {
   const tagged = `id,dateStart,dateEnd,pair,rPnL,side,status,tags,notes\nrelease-browser,2013/01/25 17:07:59,2013/01/25 19:13:55,CME_MINI:NQ1,125,sell,closed,"CONTINUATION,HTF LEVEL 1HR FVG,CISD FVG \\",Export note\n`;
   async function choose(content) {
+    await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
     await page.getByLabel("Choose a trade export").setInputFiles({
       name: "tagged.csv",
       mimeType: "text/csv",
@@ -744,7 +729,8 @@ test("FX Replay tag guide saves before upload and separates levels from confirma
   const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags
 new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,closed,"DISPLACEMENT AT KEY LEVEL,FVG,1HR,1M,CISD,SMT,15M"
 `;
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "guide.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(content),
@@ -813,6 +799,7 @@ test("new strategies, renamed CSV tags and keep-only choices work on later impor
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   const content = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nfuture-tag-guide,2026-07-03 13:31:00,2026-07-03 13:45:00,CME_MINI:NQ1,125,buy,closed,"BREAKOUT MODEL V2,JOURNAL A"\n`;
   async function previewFile() {
+    await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
     await page.getByLabel("Choose a trade export").setInputFiles({
       name: "future.csv",
       mimeType: "text/csv",
@@ -965,6 +952,7 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   const modelCsv = `id,dateStart,dateEnd,pair,rPnL,side,status,tags\nrr-win,2026-07-04 13:30,2026-07-04 13:40,NQ,300,buy,closed,1:3\nrr-loss,2026-07-05 13:30,2026-07-05 13:40,NQ,-100,buy,closed,1:3\n`;
   async function importCsv(content, count) {
+    await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
     await page.getByLabel("Choose a trade export").setInputFiles({
       name: "rr.csv",
       mimeType: "text/csv",
@@ -1035,7 +1023,8 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
 }) => {
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "weekday.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -1114,7 +1103,8 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
   await expect(dialog.locator(".tag-meaning-editor")).toHaveCount(0);
   await expect(dialog).toContainText("Day: Friday");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "day.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -1139,7 +1129,8 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await choice.selectOption("no");
   const content =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-zero,2026-07-08T13:30:00Z,2026-07-08T13:40:00Z,NQ,0,buy,closed\nbe-browser-win,2026-07-09T13:30:00Z,2026-07-09T13:40:00Z,NQ,100,buy,closed\nbe-browser-small-loss,2026-07-10T13:30:00Z,2026-07-10T13:40:00Z,NQ,-0.01,buy,closed\n";
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "break-even.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(content),
@@ -1181,7 +1172,8 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await expect(choice).toHaveValue("no");
   const onlyZero =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-only-zero,2026-07-11T13:30:00Z,2026-07-11T13:40:00Z,NQ,0,buy,closed\n";
-  await page.getByLabel("Choose a trade export").setInputFiles({
+  await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
+    await page.getByLabel("Choose a trade export").setInputFiles({
     name: "only-zero.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(onlyZero),

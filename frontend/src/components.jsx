@@ -228,11 +228,13 @@ export function Chart({ figure, height = 380 }) {
   const ref = useRef();
   const [error, setError] = useState("");
   useEffect(() => {
+    const element = ref.current;
     let alive = true,
       plotly;
     setError("");
     import("plotly.js-basic-dist-min")
       .then((module) => {
+        if (!alive) return;
         plotly = module.default;
         // A line has no visible segment with one observation. Show its existing
         // point and one readable date tick without changing any financial values.
@@ -301,10 +303,10 @@ export function Chart({ figure, height = 380 }) {
               { responsive: true, displayModeBar: false },
             )
             .catch(() =>
-              setError("Chart could not be displayed. Refresh to retry."),
+              alive && setError("Chart could not be displayed. Refresh to retry."),
             );
       })
-      .catch(() => setError("Chart could not be loaded. Refresh to retry."));
+      .catch(() => alive && setError("Chart could not be loaded. Refresh to retry."));
     const observer = new ResizeObserver(() => {
       if (plotly && alive && ref.current?.data)
         plotly.relayout(ref.current, {
@@ -315,7 +317,7 @@ export function Chart({ figure, height = 380 }) {
     return () => {
       alive = false;
       observer.disconnect();
-      if (plotly && ref.current) plotly.purge(ref.current);
+      if (plotly && element) plotly.purge(element);
     };
   }, [figure, height, appearance]);
   return (

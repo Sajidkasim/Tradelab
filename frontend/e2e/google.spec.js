@@ -99,9 +99,8 @@ test('Lab navigation, reloads and backup links work inside the website section',
   await expect(page.getByRole('link', { name: 'Download full JSON backup', exact: true })).toHaveAttribute('href', '/api/export/backup');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: 'My journal', exact: true }).click();
-  await page.getByRole('button', { name: 'Advanced tools', exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/lab/tools`);
-  await page.reload();
+  await expect(page.getByRole('button', { name: 'Advanced tools', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'My journal', exact: true }).press('Escape');
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Strategy Lab', exact: true }).click();
   await expect(page).toHaveURL(`${origin}/lab#results`);
   await expect(page.getByRole('heading', { name: 'Results', exact: true })).toBeVisible();

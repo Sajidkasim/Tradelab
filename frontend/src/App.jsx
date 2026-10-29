@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Sun,
   Moon,
-  Calculator,
   Download,
   LogOut,
   Settings2,
@@ -14,7 +13,6 @@ import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
 import Unlock from "./Unlock";
-import Tools from "./Tools";
 import Backup from "./Backup";
 import LabSettings from "./LabSettings";
 import Access from "./Access";
@@ -222,9 +220,6 @@ export default function App() {
             {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
           </button>
-          <button onClick={() => navigate("tools")}>
-            <Calculator size={16} /> Advanced tools
-          </button>
           {session.can_lock && (
             <button onClick={logout}>
               <LogOut size={16} />{" "}
@@ -237,7 +232,7 @@ export default function App() {
         <nav className="classic-nav" aria-label="Classic navigation">
           <strong>RESEARCH DESK</strong>
           <button onClick={() => navigate("results")}>Results</button>
-          <button onClick={() => navigate("trades")}>Trade journal</button>
+          <button onClick={() => navigate("trades")}>Trades</button>
           <button onClick={() => navigate("import")}>Import</button>
           <button onClick={() => setTestsOpen(true)}>My tests</button>
           <button onClick={() => setLabSettings(true)}>Lab settings</button>
@@ -324,10 +319,7 @@ export default function App() {
               studyId={study === "unassigned" ? "" : study}
             />
           )}
-          {page === "tools" && (
-            <Tools meta={meta} onResults={() => navigate("results")} />
-          )}
-          {![...journalPages, "import", "tools"].includes(page) && (
+          {![...journalPages, "import"].includes(page) && (
             <div className="card empty">
               <h1>Page not found</h1>
               <Button onClick={() => navigate("results")}>Open Results</Button>

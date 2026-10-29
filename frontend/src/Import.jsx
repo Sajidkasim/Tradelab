@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   UploadCloud,
   ArrowLeft,
@@ -44,6 +44,13 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
     [confirm, setConfirm] = useState(false),
     [settings, setSettings] = useState(null);
   const ref = useRef();
+  const previewRef = useRef();
+  const [previewPage, setPreviewPage] = useState(0);
+  const pageSize = 20;
+  useEffect(() => {
+    setPreviewPage(0);
+    if (preview) previewRef.current?.scrollIntoView({ block: "start" });
+  }, [preview]);
   const [destination, setDestination] = useState(studyId);
   const unrecognised = pendingTags(preview?.tags, meta.tag_mappings);
   function invalidate() {
@@ -53,6 +60,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
     setConfirm(false);
   }
   function choose(next) {
+    if (busy) return;
     invalidate();
     setFile(next);
     setMapping({});
@@ -145,14 +153,14 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
     }
   }
   return (
-    <>
-      <Button className="back-button" onClick={onBack}>
+    <div className={`import-page ${preview ? "has-preview" : ""}`}>
+      <Button className="back-button" disabled={busy} onClick={onBack}>
         <ArrowLeft size={16} /> Back to trades
       </Button>
       <Heading
         title="Import trades"
         action={
-          <Button onClick={() => setSettings({ section: "files" })}>
+          <Button disabled={busy} onClick={() => setSettings({ section: "files" })}>
             <Settings2 size={15} /> Import settings
           </Button>
         }
@@ -160,6 +168,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
       {(meta.studies || []).length > 0 && (
         <div className="import-test-destination">
           <Select
+            disabled={busy}
             label="Import into test"
             values={testOptions(meta.studies, destination)}
             value={destination}
@@ -181,6 +190,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
           {timezone === "Etc/GMT+4" ? "UTC−4" : timezone}
         </p>
         <button
+          disabled={busy}
           className={`dropzone ${file ? "has-file" : ""}`}
           onClick={() => ref.current.click()}
           onDragOver={(e) => e.preventDefault()}
@@ -200,6 +210,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
         </button>
         <input
           ref={ref}
+          disabled={busy}
           type="file"
           className="sr-only"
           accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json"
@@ -297,10 +308,11 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
           {done.excluded_breakeven > 0 && (
             <p>{done.excluded_breakeven} break-even trades excluded.</p>
           )}
-          <Button variant="primary" onClick={onBack}>
+          <Button variant="primary" disabled={busy} onClick={onBack}>
             Review & tag trades <ArrowRight size={16} />
           </Button>
           <Button
+            disabled={busy}
             onClick={() => {
               setDone(null);
               setFile(null);
@@ -311,7 +323,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
         </div>
       )}
       {preview && (
-        <section className="card preview-card">
+        <section ref={previewRef} className="card preview-card">
           <div className="section-title">
             <div>
               <h2>Check the preview</h2>
@@ -400,15 +412,15 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((row, i) => (
+                {preview.rows.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((row, i) => (
                   <tr key={i}>
-                    <td>{row.symbol}</td>
-                    <td>{row.direction}</td>
-                    <td>{tradeDate(row.entry_time)}</td>
-                    <td>{money(row.net_pnl)}</td>
-                    <td>{rvalue(row.r_multiple)}</td>
-                    <td>{row.setup_name || "Unclassified"}</td>
-                    <td>
+                    <td data-label="Market">{row.symbol}</td>
+                    <td data-label="Side">{row.direction}</td>
+                    <td data-label="Entry · New York">{tradeDate(row.entry_time)}</td>
+                    <td data-label="Net result">{money(row.net_pnl)}</td>
+                    <td data-label="Realised R">{rvalue(row.r_multiple)}</td>
+                    <td data-label="Strategy">{row.setup_name || "Unclassified"}</td>
+                    <td data-label="Setup details">
                       {[
                         row.labels?.level,
                         row.labels?.timeframe,
@@ -425,12 +437,21 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
                           : ""}
                       </small>
                     </td>
-                    <td>{row.status}</td>
+                    <td data-label="Status">{row.status}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {preview.rows.length > pageSize && (
+            <nav className="preview-pagination" aria-label="Preview pages">
+              <span>{previewPage * pageSize + 1}–{Math.min((previewPage + 1) * pageSize, preview.rows.length)} of {preview.rows.length} preview rows</span>
+              <div>
+                <Button disabled={previewPage === 0} onClick={() => setPreviewPage((value) => value - 1)}>Previous</Button>
+                <Button disabled={(previewPage + 1) * pageSize >= preview.rows.length} onClick={() => setPreviewPage((value) => value + 1)}>Next</Button>
+              </div>
+            </nav>
+          )}
           {preview.total_rows > 200 && (
             <p className="muted">
               Showing the first 200 of {preview.total_rows} valid trades. The
@@ -459,6 +480,15 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
               </div>
             </details>
           )}
+        </section>
+      )}
+      {preview && (
+        <div className="import-action-bar" aria-label="Import actions">
+          <div className="import-action-summary" role="status">
+            {error && <span role="alert">{error}</span>}
+            <strong>{preview.counts.new || preview.counts.updates ? `${preview.counts.new} new trades · ${preview.counts.duplicates} duplicates skipped` : "Nothing new to import"}</strong>
+            <small>{preview.counts.updates ? `${preview.counts.updates} existing trades have label updates.` : preview.counts.new ? "Review the preview, then confirm to save." : `${preview.counts.duplicates} duplicates skipped · Your journal is unchanged.`}{preview.counts.errors ? ` ${preview.counts.errors} rows with errors — check the preview.` : ""}</small>
+          </div>
           <Button
             variant="primary"
             busy={busy}
@@ -466,12 +496,9 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
             onClick={() => setConfirm(true)}
           >
             Import {preview.counts.new} trades
-            {preview.counts.updates
-              ? ` · update ${preview.counts.updates}`
-              : ""}{" "}
-            <Check size={16} />
+            {preview.counts.updates ? ` · update ${preview.counts.updates}` : ""} <Check size={16} />
           </Button>
-        </section>
+        </div>
       )}
       {confirm && (
         <Modal
@@ -503,6 +530,6 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
           </div>
         </Modal>
       )}
-    </>
+    </div>
   );
 }

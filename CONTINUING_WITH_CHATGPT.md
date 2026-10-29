@@ -122,6 +122,24 @@ filters. Confirmations sit directly below Entry timeframe. These frontend change
 that review and approval. Preview at http://127.0.0.1:8115/lab uses disposable
 sample trades. No financial formulas, API behaviour or real journals changed.
 
+## Import usability review — 29 October 2026
+
+The React website no longer exposes Advanced tools; Classic navigation calls the
+journal section Trades. CSV preview uses 20-row pages (within the existing
+200-row server preview limit), with a persistent bottom confirmation action and
+new/duplicate counts. Mobile previews use labelled cells. Duplicate-only files
+clearly state that nothing is new. Previewing never saves, and confirmation still
+uses the existing signed preview and private workspace checks. File and import
+settings changes are disabled while an operation is pending. Chart cleanup keeps
+the original DOM node so Plotly can release it even after unmount.
+
+These latest changes are local for review; do not deploy without approval.
+A disposable local SQLite measurement with 1,000 synthetic trades took about
+0.96 s preview, 0.99 s confirm, 1.04 s duplicate preview, and 64 ms median Results
+response across 30 requests. Process RSS after warm-up was 182 MB and ended at
+184 MB. These are local measurements, not hosted Supabase latency or a guarantee
+of production capacity. Financial formulas were not changed.
+
 ## The one-page architecture
 
 ### Classic appearance preview — 29 October 2026
