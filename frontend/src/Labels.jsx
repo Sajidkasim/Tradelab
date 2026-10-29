@@ -1,5 +1,5 @@
 import React from "react";
-import { Field, Select, Checkboxes, Disclosure } from "./components";
+import { Select, Checkboxes, Disclosure } from "./components";
 import { unknown } from "./format";
 
 export default function Labels({ value, onChange, meta }) {
@@ -10,19 +10,12 @@ export default function Labels({ value, onChange, meta }) {
   return (
     <>
       <div className="form-grid">
-        <Field label="Key level / PDA">
-          <input
-            list="levels"
-            value={value.level === unknown ? "" : value.level}
-            placeholder="Choose or type a key level"
-            onChange={(e) => change("level", e.target.value || unknown)}
-          />
-          <datalist id="levels">
-            {meta.playbook.levels.map((v) => (
-              <option key={v} value={v} />
-            ))}
-          </datalist>
-        </Field>
+        <Select
+          label="Key level / PDA"
+          values={options(meta.playbook.levels, value.level)}
+          value={value.level || unknown}
+          onChange={(e) => change("level", e.target.value)}
+        />
         <Select
           label="Level timeframe"
           values={options(

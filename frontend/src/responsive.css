@@ -180,3 +180,15 @@
   .preview-card td::before { content: attr(data-label); display: block; font-size: 11px; color: var(--tl-muted); margin-bottom: 4px; }
   .preview-card td[data-label="Setup details"] { grid-column: 1 / -1; }
 }
+/* Use the same theme-aware menu for every Modern selection. */
+:root:not([data-appearance="classic"]) .picker-trigger,
+:root:not([data-appearance="classic"]) .styled-select-panel { font-family: Inter, system-ui, sans-serif; font-size: 14px; }
+:root:not([data-appearance="classic"]) .picker-trigger { color: var(--tl-ink); line-height: 1.4; }
+:root:not([data-appearance="classic"]) .picker-options button { color: var(--tl-ink); font-size: 14px; line-height: 1.4; min-height: 44px; }
+:root:not([data-appearance="classic"]) .picker-options button[aria-selected="true"] { color: var(--tl-accent); background: var(--lab-tint); }
+.picker-trigger > span { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 700px) {
+  :root:not([data-appearance="classic"]) .picker-trigger,
+  :root:not([data-appearance="classic"]) .styled-select-panel,
+  :root:not([data-appearance="classic"]) .picker-options button { font-size: 16px; }
+}

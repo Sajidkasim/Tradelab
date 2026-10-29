@@ -1,3 +1,4 @@
+import { pick, options, expectValue } from "./select-helpers";
 import { test, expect } from "@playwright/test";
 
 test("Explore supports searchable levels, keyboard choices and removable filters in both themes", async ({
@@ -31,12 +32,12 @@ test("Explore supports searchable levels, keyboard choices and removable filters
   await search.press("Escape");
   await expect(picker).toHaveAttribute("aria-expanded", "false");
   const timeframe = explorer.getByLabel("Level timeframe", { exact: true });
-  await timeframe.selectOption("1H");
-  await expect(timeframe).toHaveValue("1H");
+  await pick(timeframe, "1H");
+  await expectValue(timeframe, "1H");
   await page
     .getByRole("button", { name: "Remove level tf filter", exact: true })
     .click();
-  await expect(timeframe).toHaveValue("Any timeframe");
+  await expectValue(timeframe, "Any timeframe");
   const order = await explorer.evaluate((el) =>
     Array.from(el.children).map((child) => child.textContent),
   );

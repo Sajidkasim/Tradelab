@@ -1,3 +1,4 @@
+import { pick, options, expectValue } from "./select-helpers";
 import { test, expect } from "@playwright/test";
 
 test.describe.configure({ mode: "serial" });
@@ -47,13 +48,9 @@ test("manual entry, setup exploration and combined or separate source results", 
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Browser setup");
-  await dialog.getByLabel("Key level / PDA", { exact: true }).fill("FVG");
-  await dialog
-    .getByLabel("Level timeframe", { exact: true })
-    .selectOption("4H");
-  await dialog
-    .getByLabel("Entry timeframe", { exact: true })
-    .selectOption("1m");
+  await pick(dialog.getByLabel("Key level / PDA", { exact: true }), "FVG");
+  await pick(dialog.getByLabel("Level timeframe", { exact: true }), "4H");
+  await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "1m");
   await dialog.getByLabel("SMT", { exact: true }).check();
   await dialog.getByLabel("CISD", { exact: true }).check();
   await dialog
@@ -68,13 +65,12 @@ test("manual entry, setup exploration and combined or separate source results", 
   await expect(
     page.getByText("Trade saved. Ready for the next.", { exact: true }),
   ).toBeVisible();
-  await expect(dialog.getByLabel("Strategy", { exact: true })).toHaveValue(
+  await expectValue(
+    dialog.getByLabel("Strategy", { exact: true }),
     "Browser setup",
   );
-  await expect(
-    dialog.getByLabel("Net result ($)", { exact: true }),
-  ).toHaveValue("");
-  await dialog.getByLabel("Save to", { exact: true }).selectOption("manual");
+  await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
+  await pick(dialog.getByLabel("Save to", { exact: true }), "manual");
   await dialog
     .getByLabel("Entry time · New York", { exact: true })
     .fill("2026-07-01T10:30");
@@ -84,9 +80,7 @@ test("manual entry, setup exploration and combined or separate source results", 
     .getByLabel("I have checked the confirmations for this trade")
     .check();
   await dialog.getByRole("button", { name: "Save & log next" }).click();
-  await expect(
-    dialog.getByLabel("Net result ($)", { exact: true }),
-  ).toHaveValue("");
+  await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(
@@ -154,7 +148,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "replay.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
@@ -184,9 +178,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Replay setup");
-  await dialog
-    .getByLabel("Entry timeframe", { exact: true })
-    .selectOption("15s");
+  await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "15s");
   await dialog
     .getByLabel("Original risk is not available — keep R unrecorded", {
       exact: true,
@@ -196,14 +188,16 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .getByLabel("I have checked the confirmations for this trade")
     .check();
   await dialog.getByRole("button", { name: "Save & next" }).click();
-  await expect(dialog.getByLabel("Strategy", { exact: true })).toHaveValue("");
+  await expectValue(dialog.getByLabel("Strategy", { exact: true }), "");
   await dialog.getByRole("button", { name: "Use previous setup" }).click();
-  await expect(dialog.getByLabel("Strategy", { exact: true })).toHaveValue(
+  await expectValue(
+    dialog.getByLabel("Strategy", { exact: true }),
     "Replay setup",
   );
-  await expect(
+  await expectValue(
     dialog.getByLabel("Entry timeframe", { exact: true }),
-  ).toHaveValue("15s");
+    "15s",
+  );
   await dialog
     .getByLabel("Original risk is not available — keep R unrecorded", {
       exact: true,
@@ -222,7 +216,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .first()
     .click();
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "replay.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(csv),
@@ -240,13 +234,20 @@ test("backup download, playbook, themes and mobile layout", async ({
   await open(page);
   await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
-  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
+  await page
+    .locator(".workspace-menu")
+    .getByRole("button", { name: "Lab settings", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .click();
   const dialog = page.getByRole("dialog");
   await dialog
     .getByLabel("Strategies", { exact: true })
     .fill("Browser setup\nReplay setup\nMy next model");
-  await dialog.getByRole("button", { name: "Save strategies & levels" }).click();
+  await dialog
+    .getByRole("button", { name: "Save strategies & levels" })
+    .click();
   await expect(dialog).not.toBeVisible();
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Backup & restore" }).click();
@@ -295,12 +296,20 @@ test("backup download, playbook, themes and mobile layout", async ({
   });
 });
 
-test("journal menu keeps settings and backups without Advanced tools", async ({ page }) => {
+test("journal menu keeps settings and backups without Advanced tools", async ({
+  page,
+}) => {
   await open(page);
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Advanced tools", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Lab settings", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Backup & restore", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Advanced tools", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Lab settings", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Backup & restore", exact: true }),
+  ).toBeVisible();
 });
 
 test("compact navigation and workspace tools remain accessible on mobile", async ({
@@ -309,7 +318,9 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   await expect(page.locator(".sidebar")).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "PrimusLab", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "PrimusLab", exact: true }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(page).toHaveURL(/#results$/);
   await page.getByRole("button", { name: "My journal", exact: true }).click();
@@ -376,10 +387,10 @@ test("one journal keeps exploration beside results and trades below, with All fi
   await expect(
     page.getByRole("combobox", { name: "Strategy", exact: true }),
   ).toHaveCount(1);
-  await page
-    .locator(".explorer")
-    .getByLabel("Strategy", { exact: true })
-    .selectOption("Browser setup");
+  await pick(
+    page.locator(".explorer").getByLabel("Strategy", { exact: true }),
+    "Browser setup",
+  );
   await expect(page.locator(".js-plotly-plot")).toHaveCount(1);
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
@@ -395,9 +406,10 @@ test("one journal keeps exploration beside results and trades below, with All fi
     .locator(".explorer")
     .getByRole("button", { name: "Reset setup filters" })
     .click();
-  await expect(
+  await expectValue(
     page.locator(".explorer").getByLabel("Strategy", { exact: true }),
-  ).toHaveValue("All strategies");
+    "All strategies",
+  );
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
@@ -568,20 +580,22 @@ test("Lab settings expose exactly the requested windows and save custom names", 
   );
   await page.getByText("Session, news & market", { exact: true }).click();
   const sessions = page.getByLabel("Session window", { exact: true });
-  await expect(sessions.locator("option")).toHaveCount(7);
-  await expect(sessions).toHaveValue("All sessions");
+  await expect(await options(sessions)).toHaveCount(7);
+  await expectValue(sessions, "All sessions");
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await page.getByRole("button", { name: "Lab settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
     .getByRole("button", { name: "Session windows", exact: true })
     .click();
-  await expect(
+  await expectValue(
     dialog.getByLabel("Session 1 starts", { exact: true }),
-  ).toHaveValue("20:00");
-  await expect(
+    "20:00",
+  );
+  await expectValue(
     dialog.getByLabel("Session 6 ends", { exact: true }),
-  ).toHaveValue("16:00");
+    "16:00",
+  );
   await dialog
     .getByLabel("Session 4 name", { exact: true })
     .fill("My opening window");
@@ -589,7 +603,7 @@ test("Lab settings expose exactly the requested windows and save custom names", 
     .getByRole("button", { name: "Save lab settings", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
-  await expect(sessions.locator("option")).toContainText([
+  await expect(await options(sessions)).toContainText([
     "All sessions",
     "Asia",
     "London",
@@ -600,9 +614,7 @@ test("Lab settings expose exactly the requested windows and save custom names", 
   ]);
   await page.reload();
   await page.getByText("Session, news & market", { exact: true }).click();
-  await expect(
-    page.getByLabel("Session window").locator("option"),
-  ).toContainText([
+  await expect(await options(page.getByLabel("Session window"))).toContainText([
     "All sessions",
     "Asia",
     "London",
@@ -730,7 +742,7 @@ test("FX Replay tag guide saves before upload and separates levels from confirma
 new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,closed,"DISPLACEMENT AT KEY LEVEL,FVG,1HR,1M,CISD,SMT,15M"
 `;
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "guide.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(content),
@@ -870,9 +882,10 @@ test("import preferences save before upload and settings fit mobile in both them
     0,
   );
   let dialog = await importSettings(page);
-  await dialog
-    .getByLabel("Export time zone", { exact: true })
-    .selectOption("Etc/GMT+4");
+  await pick(
+    dialog.getByLabel("Export time zone", { exact: true }),
+    "Etc/GMT+4",
+  );
   await dialog
     .getByLabel("Day-first dates (31/12/2026)", { exact: true })
     .check();
@@ -885,9 +898,10 @@ test("import preferences save before upload and settings fit mobile in both them
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   dialog = await importSettings(page);
-  await expect(
+  await expectValue(
     dialog.getByLabel("Export time zone", { exact: true }),
-  ).toHaveValue("Etc/GMT+4");
+    "Etc/GMT+4",
+  );
   await expect(
     dialog.getByLabel("Day-first dates (31/12/2026)", { exact: true }),
   ).toBeChecked();
@@ -936,9 +950,10 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   let dialog = await importSettings(page, "Tag meanings");
   await dialog.getByRole("button", { name: "Add a tag", exact: true }).click();
   await dialog.getByLabel("Tag in your CSV", { exact: true }).fill("1:3");
-  await dialog
-    .getByLabel("Use this tag as", { exact: true })
-    .selectOption("target_rr");
+  await pick(
+    dialog.getByLabel("Use this tag as", { exact: true }),
+    "target_rr",
+  );
   await dialog.getByLabel("Name in PrimusLab", { exact: true }).fill("1:3");
   await dialog
     .getByLabel("Wins hit the full target; losses hit the full stop", {
@@ -977,10 +992,10 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
     await page
       .getByRole("button", { name: "Review & tag trades", exact: true })
       .click();
-    await page
-      .locator(".explorer")
-      .getByLabel("Target RR", { exact: true })
-      .selectOption("1:3");
+    await pick(
+      page.locator(".explorer").getByLabel("Target RR", { exact: true }),
+      "1:3",
+    );
     await expect(page.locator(".results-content")).toHaveAttribute(
       "aria-busy",
       "false",
@@ -1012,10 +1027,10 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
     page.locator(".stat").filter({ hasText: "Average R · fixed test" }),
   ).toHaveCount(0);
   await expect(page.locator(".lab-rr-model")).toHaveCount(0);
-  await page
-    .locator(".explorer")
-    .getByLabel("Target RR", { exact: true })
-    .selectOption("Any RR");
+  await pick(
+    page.locator(".explorer").getByLabel("Target RR", { exact: true }),
+    "Any RR",
+  );
 });
 
 test("weekday exploration updates results and CSV day meanings flag mismatches", async ({
@@ -1024,7 +1039,7 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "weekday.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -1049,7 +1064,7 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     .click();
   const explorer = page.locator(".explorer");
   const day = explorer.getByLabel("Day", { exact: true });
-  await expect(day.locator("option")).toHaveText([
+  await expect(await options(day)).toHaveText([
     "All days",
     "Monday",
     "Tuesday",
@@ -1057,10 +1072,8 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     "Thursday",
     "Friday",
   ]);
-  await explorer
-    .getByLabel("Strategy", { exact: true })
-    .selectOption("Weekday check");
-  await day.selectOption("Monday");
+  await pick(explorer.getByLabel("Strategy", { exact: true }), "Weekday check");
+  await pick(day, "Monday");
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",
@@ -1073,24 +1086,20 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     path: "test-results/primuslab-weekday-results.png",
     fullPage: true,
   });
-  await day.selectOption("Tuesday");
+  await pick(day, "Tuesday");
   await expect(
     page.getByRole("heading", { name: "No trades yet", exact: true }).first(),
   ).toBeVisible();
   await explorer
     .getByRole("button", { name: "Reset setup filters", exact: true })
     .click();
-  await expect(day).toHaveValue("All days");
+  await expectValue(day, "All days");
   await page.getByRole("button", { name: "Import", exact: true }).click();
   const dialog = await importSettings(page, "Tag meanings");
   await dialog.getByRole("button", { name: "Add a tag", exact: true }).click();
   await dialog.getByLabel("Tag in your CSV", { exact: true }).fill("FRIDAY");
-  await dialog
-    .getByLabel("Use this tag as", { exact: true })
-    .selectOption("weekday");
-  await dialog
-    .getByLabel("Name in PrimusLab", { exact: true })
-    .selectOption("Friday");
+  await pick(dialog.getByLabel("Use this tag as", { exact: true }), "weekday");
+  await pick(dialog.getByLabel("Name in PrimusLab", { exact: true }), "Friday");
   await expect(
     dialog.getByText(
       "Entry date in your session timezone determines the day filter.",
@@ -1104,7 +1113,7 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
   await expect(dialog).toContainText("Day: Friday");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "day.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(
@@ -1125,12 +1134,12 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
   const choice = page.getByLabel("Include break-even trades?", { exact: true });
-  await expect(choice).toHaveValue("yes");
-  await choice.selectOption("no");
+  await expectValue(choice, "yes");
+  await pick(choice, "no");
   const content =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-zero,2026-07-08T13:30:00Z,2026-07-08T13:40:00Z,NQ,0,buy,closed\nbe-browser-win,2026-07-09T13:30:00Z,2026-07-09T13:40:00Z,NQ,100,buy,closed\nbe-browser-small-loss,2026-07-10T13:30:00Z,2026-07-10T13:40:00Z,NQ,-0.01,buy,closed\n";
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "break-even.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(content),
@@ -1142,13 +1151,13 @@ test("break-even import choice excludes zero results, refreshes preview and is r
   await expect(page.locator(".preview-card")).toContainText(
     "1 break-even trades excluded",
   );
-  await choice.selectOption("yes");
+  await pick(choice, "yes");
   await expect(page.locator(".preview-card")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
   await expect(page.locator(".preview-card tbody tr")).toHaveCount(3);
-  await choice.selectOption("no");
+  await pick(choice, "no");
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
@@ -1169,11 +1178,11 @@ test("break-even import choice excludes zero results, refreshes preview and is r
     "1 break-even trades excluded",
   );
   await page.reload();
-  await expect(choice).toHaveValue("no");
+  await expectValue(choice, "no");
   const onlyZero =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-only-zero,2026-07-11T13:30:00Z,2026-07-11T13:40:00Z,NQ,0,buy,closed\n";
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
-    await page.getByLabel("Choose a trade export").setInputFiles({
+  await page.getByLabel("Choose a trade export").setInputFiles({
     name: "only-zero.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(onlyZero),
@@ -1205,7 +1214,7 @@ test("break-even import choice excludes zero results, refreshes preview and is r
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await choice.selectOption("yes");
+  await pick(choice, "yes");
   await page
     .getByRole("button", { name: "Preview trades", exact: true })
     .click();
@@ -1229,43 +1238,59 @@ test("strategy editor matches Explore and removed choices do not return after re
   const strategy = page
     .locator(".explorer")
     .getByLabel("Strategy", { exact: true });
-  const available = (await strategy.locator("option").allTextContents()).filter(
+  const available = (await (await options(strategy)).allTextContents()).filter(
     (name) => !["All strategies", "Unclassified"].includes(name),
   );
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
-  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
+  await page
+    .locator(".workspace-menu")
+    .getByRole("button", { name: "Lab settings", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
+  await expectValue(
+    dialog.getByLabel("Strategies", { exact: true }),
     available.join("\n"),
   );
   const active = ["Browser setup", "Replay setup"];
   await dialog
     .getByLabel("Strategies", { exact: true })
     .fill(active.join("\n"));
-  await dialog.getByRole("button", { name: "Save strategies & levels", exact: true }).click();
+  await dialog
+    .getByRole("button", { name: "Save strategies & levels", exact: true })
+    .click();
   await expect(dialog).not.toBeVisible();
-  await expect(strategy.locator("option")).toHaveText([
+  await expect(await options(strategy)).toHaveText([
     "All strategies",
     ...active,
     "Unclassified",
   ]);
   await page.reload();
-  await expect(strategy.locator("option")).toHaveText([
+  await expect(await options(strategy)).toHaveText([
     "All strategies",
     ...active,
     "Unclassified",
   ]);
-  await strategy.selectOption("Browser setup");
+  await pick(strategy, "Browser setup");
   await page.getByRole("button", { name: "My journal", exact: true }).click();
-  await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
-  await page.getByRole("button", { name: "Strategies & levels", exact: true }).click();
-  await expect(dialog.getByLabel("Strategies", { exact: true })).toHaveValue(
+  await page
+    .locator(".workspace-menu")
+    .getByRole("button", { name: "Lab settings", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .click();
+  await expectValue(
+    dialog.getByLabel("Strategies", { exact: true }),
     active.join("\n"),
   );
   await dialog.getByLabel("Strategies", { exact: true }).fill("Replay setup");
-  await dialog.getByRole("button", { name: "Save strategies & levels", exact: true }).click();
-  await expect(strategy).toHaveValue("All strategies");
+  await dialog
+    .getByRole("button", { name: "Save strategies & levels", exact: true })
+    .click();
+  await expectValue(strategy, "All strategies");
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   await expect(dialog.locator("#strategies option")).toHaveCount(1);
   await expect(dialog.locator("#strategies option")).toHaveAttribute(
@@ -1307,19 +1332,21 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   ).toBeVisible();
   await expect(explorer.getByLabel("CISD", { exact: true })).toHaveCount(0);
   await expect(
-    explorer.getByLabel("Level timeframe", { exact: true }).locator("option"),
+    await options(explorer.getByLabel("Level timeframe", { exact: true })),
   ).toHaveText(["Any", "Daily", "2H", "Not recorded"]);
   await expect(
-    explorer.getByLabel("Entry timeframe", { exact: true }).locator("option"),
+    await options(explorer.getByLabel("Entry timeframe", { exact: true })),
   ).toHaveText(["Any", "1m", "30s", "Not recorded"]);
   await page.reload();
   dialog = await settings();
-  await expect(
+  await expectValue(
     dialog.getByLabel("Confirmations / confluence", { exact: true }),
-  ).toHaveValue("SMT\nMACRO\nMy confluence");
-  await expect(
+    "SMT\nMACRO\nMy confluence",
+  );
+  await expectValue(
     dialog.getByLabel("Level timeframes", { exact: true }),
-  ).toHaveValue("Daily\n2H");
+    "Daily\n2H",
+  );
   await page.screenshot({
     path: "test-results/primuslab-lab-setup-settings.png",
   });
@@ -1335,9 +1362,10 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await dialog
     .getByRole("button", { name: "Session windows", exact: true })
     .click();
-  await expect(
+  await expectValue(
     dialog.getByLabel("Session 4 name", { exact: true }),
-  ).toHaveValue("My opening window");
+    "My opening window",
+  );
   await dialog
     .getByRole("button", { name: "News & market", exact: true })
     .click();
@@ -1351,12 +1379,8 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Replay setup");
-  await dialog
-    .getByLabel("Level timeframe", { exact: true })
-    .selectOption("2H");
-  await dialog
-    .getByLabel("Entry timeframe", { exact: true })
-    .selectOption("30s");
+  await pick(dialog.getByLabel("Level timeframe", { exact: true }), "2H");
+  await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "30s");
   await dialog.getByLabel("My confluence", { exact: true }).check();
   await dialog
     .getByLabel("Entry time · New York", { exact: true })
@@ -1370,9 +1394,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     page.getByText("Trade saved. Ready for the next.", { exact: true }),
   ).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await explorer
-    .getByLabel("Level timeframe", { exact: true })
-    .selectOption("2H");
+  await pick(explorer.getByLabel("Level timeframe", { exact: true }), "2H");
   await explorer.getByLabel("My confluence", { exact: true }).check();
   dialog = await settings();
   await dialog
@@ -1383,9 +1405,10 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await dialog
     .getByRole("button", { name: "Save lab settings", exact: true })
     .click();
-  await expect(
+  await expectValue(
     explorer.getByLabel("Level timeframe", { exact: true }),
-  ).toHaveValue("Any timeframe");
+    "Any timeframe",
+  );
   await expect(
     explorer.getByLabel("My confluence", { exact: true }),
   ).toHaveCount(0);
@@ -1394,12 +1417,14 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     .first()
     .click();
   dialog = page.getByRole("dialog");
-  await expect(
+  await expectValue(
     dialog.getByLabel("Level timeframe", { exact: true }),
-  ).toHaveValue("2H");
-  await expect(
+    "2H",
+  );
+  await expectValue(
     dialog.getByLabel("Entry timeframe", { exact: true }),
-  ).toHaveValue("30s");
+    "30s",
+  );
   await expect(
     dialog.getByLabel("My confluence", { exact: true }),
   ).toBeChecked();

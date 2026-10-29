@@ -41,23 +41,7 @@ export function Field({ label, hint, children, className = "" }) {
   );
 }
 export function Select({ label, values, empty, ...props }) {
-  const appearance = useContext(AppearanceContext);
-  if (appearance === "classic") return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
-  return (
-    <Field label={label}>
-      <select {...props}>
-        {empty && <option value="">{empty}</option>}
-        {values.map((v) => (
-          <option
-            key={typeof v === "object" ? v.value : v}
-            value={typeof v === "object" ? v.value : v}
-          >
-            {typeof v === "object" ? v.label : v}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
+  return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
 }
 export function Segments({ values, value, onChange, label }) {
   return (

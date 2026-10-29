@@ -1,3 +1,4 @@
+import { pick, options, expectValue } from "./select-helpers";
 import { test, expect } from "@playwright/test";
 
 test("research tests, risk review, saved setups and previewed tag cleanup work together", async ({
@@ -47,12 +48,13 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await expect(dialog).toHaveCount(0);
     const testId = await page
       .getByLabel("Research test", { exact: true })
-      .inputValue();
+      .getAttribute("data-value");
     expect(testId).toHaveLength(32);
     await page.getByRole("button", { name: "Import", exact: true }).click();
-    await expect(
+    await expectValue(
       page.getByLabel("Import into test", { exact: true }),
-    ).toHaveValue(testId);
+      testId,
+    );
     const csv = `id,dateStart,dateEnd,pair,rPnL,side,status,strategy,tags\nresearch-a,2026-07-02 13:30,2026-07-02 13:45,NQ,300,buy,closed,Research reversal,SWEEP UPPER\nresearch-b,2026-07-01 13:30,2026-07-01 13:45,NQ,-100,sell,closed,Research reversal,SWEEP LOWER\n`;
     await page.getByLabel("Choose a trade export").setInputFiles({
       name: "research.csv",
@@ -93,7 +95,10 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       .getByRole("button", { name: "Save & next", exact: true })
       .click();
     // Wait for the next trade to replace the submitted form before editing it.
-    await expect(dialog.getByLabel("Original risk ($)", { exact: true })).toHaveValue("");
+    await expectValue(
+      dialog.getByLabel("Original risk ($)", { exact: true }),
+      "",
+    );
     await dialog
       .getByLabel("Original risk is not available — keep R unrecorded", {
         exact: true,
@@ -116,10 +121,10 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     expect(
       before.find((row) => row.external_id === "research-b").r_multiple,
     ).toBe(null);
-    await page
-      .locator(".explorer")
-      .getByLabel("Strategy", { exact: true })
-      .selectOption("Research reversal");
+    await pick(
+      page.locator(".explorer").getByLabel("Strategy", { exact: true }),
+      "Research reversal",
+    );
     await page.locator(".explorer").getByLabel("SMT", { exact: true }).check();
     await page
       .getByRole("button", { name: "Save current setup", exact: true })
@@ -137,9 +142,10 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       .getByLabel("SMT", { exact: true })
       .uncheck();
     const saved = await (await page.request.get("/api/metadata")).json();
-    await page
-      .getByLabel("Saved setup", { exact: true })
-      .selectOption(saved.saved_setups[0].id);
+    await pick(
+      page.getByLabel("Saved setup", { exact: true }),
+      saved.saved_setups[0].id,
+    );
     await expect(
       page.locator(".explorer").getByLabel("SMT", { exact: true }),
     ).toBeChecked();
@@ -203,7 +209,7 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await expect(dialog).toHaveCount(0);
     const secondId = await page
       .getByLabel("Research test", { exact: true })
-      .inputValue();
+      .getAttribute("data-value");
     await page
       .getByRole("button", { name: "Add existing trades", exact: true })
       .click();
@@ -218,9 +224,7 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await expect(
       page.getByRole("button", { name: "Assign selected trades", exact: true }),
     ).toHaveCount(0);
-    await page
-      .getByLabel("Research test", { exact: true })
-      .selectOption(secondId);
+    await pick(page.getByLabel("Research test", { exact: true }), secondId);
     await expect(page.locator(".trade-table tbody tr")).toHaveCount(1);
     await page.reload();
     await expect(page.getByLabel("Saved setup", { exact: true })).toBeVisible();

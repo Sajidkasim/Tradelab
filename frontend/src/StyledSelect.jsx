@@ -84,7 +84,7 @@ export default function StyledSelect({ label, values, value, onChange, searchabl
   return (
     <div className="field search-select styled-select" ref={root} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
       <span id={`${id}-label`}>{label}</span>
-      <button {...props} type="button" ref={trigger} className="picker-trigger" disabled={disabled}
+      <button {...props} type="button" ref={trigger} className="picker-trigger" disabled={disabled} data-value={value ?? ""}
         role={searchable ? undefined : "combobox"}
         aria-labelledby={searchable ? `${id}-label ${id}-value` : `${id}-label`}
         aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? `${id}-list` : undefined}
@@ -96,7 +96,7 @@ export default function StyledSelect({ label, values, value, onChange, searchabl
       {open && <div ref={panel} popover="manual" className={`picker-panel styled-select-panel ${searchable ? "with-search" : ""}`} style={position} tabIndex={-1} onKeyDown={keys}>
         {searchable && <div className="picker-search"><Search size={15} aria-hidden="true" /><input ref={search} aria-label={`Search ${label.toLowerCase()}`} placeholder="Type to find…" value={query} role="combobox" aria-autocomplete="list" aria-controls={`${id}-list`} aria-expanded="true" aria-activedescendant={visible[active] ? `${id}-option-${active}` : undefined} onChange={(event) => { setQuery(event.target.value); setActive(0); }} /></div>}
         <div role="listbox" aria-label={label} id={`${id}-list`} className="picker-options" tabIndex={searchable ? undefined : -1} aria-activedescendant={visible[active] ? `${id}-option-${active}` : undefined}>
-          {visible.map((item, index) => <button type="button" role="option" tabIndex={-1} id={`${id}-option-${index}`} key={item.value} data-option-index={index}
+          {visible.map((item, index) => <button type="button" role="option" tabIndex={-1} id={`${id}-option-${index}`} key={item.value} data-option-index={index} data-value={String(item.value)}
             disabled={item.disabled} aria-selected={String(item.value) === String(value)} className={index === active ? "keyboard-option" : ""}
             onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}>
             <span>{item.label}</span>{String(item.value) === String(value) && <Check size={16} aria-hidden="true" />}

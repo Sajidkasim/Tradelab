@@ -140,6 +140,17 @@ response across 30 requests. Process RSS after warm-up was 182 MB and ended at
 184 MB. These are local measurements, not hosted Supabase latency or a guarantee
 of production capacity. Financial formulas were not changed.
 
+## Phone dropdown consistency — 29 October 2026
+
+Add/edit trade Key level / PDA uses the saved-level dropdown rather than a
+browser datalist input. Existing legacy labels remain selectable; edit the
+available levels in Lab settings → Strategies & levels. Shared Select now uses
+StyledSelect in both appearances, retaining Classic styling and applying
+consistent Modern fonts, colours, selected states and phone touch sizing.
+Opening a non-searchable dropdown focuses its list, not a typing input.
+Keyboard and top-layer menu behaviour remain shared. Changes stay local for
+review before publishing.
+
 ## The one-page architecture
 
 ### Classic appearance preview — 29 October 2026
@@ -153,7 +164,7 @@ desktop-style controls and inset fields. Text inputs retain the typing cursor.
 Classic selects use `StyledSelect.jsx` with top-layer menus so scrolling filters
 and dialogs cannot clip options. Key-level search shares that menu. Keep arrow,
 Home/End, type-to-select, Tab and Escape controls working; Escape closes only
-the menu before its containing dialog. Modern keeps native select controls.
+the menu before its containing dialog. Modern uses the same dropdown component with its light/dark theme tokens.
 Chart changes affect presentation only. Modern retains its light/dark preference.
 This remains a local preview; do not commit, push or deploy before owner review.
 
