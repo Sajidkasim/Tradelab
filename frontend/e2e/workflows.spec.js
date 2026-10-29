@@ -326,9 +326,9 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   await expect(page.locator(".sidebar")).toHaveCount(0);
-  await expect(
-    page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
-  ).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "PrimusLab", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
+  await expect(page).toHaveURL(/#results$/);
   await page.getByRole("button", { name: "My journal", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
@@ -360,7 +360,7 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   await importDialog
     .getByRole("button", { name: "Close", exact: true })
     .click();
-  await page.getByRole("link", { name: "Strategy Lab", exact: true }).click();
+  await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(page.locator(".results-content")).toHaveAttribute(
     "aria-busy",
     "false",

@@ -106,3 +106,26 @@ test('Lab navigation, reloads and backup links work inside the website section',
   await expect(page).toHaveURL(`${origin}/lab#results`);
   await expect(page.getByRole('heading', { name: 'Results', exact: true })).toBeVisible();
 });
+
+test("Manage access refreshes session details after another person signs out", async ({ page, browser }) => {
+  await login(page, "owner");
+  const context = await browser.newContext({ userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1" });
+  const friend = await context.newPage();
+  await login(friend, "friend");
+  const before = (await (await page.request.get(`${origin}/api/access`)).json()).find((p) => !p.owner).signed_in_sessions;
+  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "Manage access", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Manage access", exact: true });
+  const person = dialog.getByRole("article", { name: "friend@example.com", exact: true });
+  await person.getByText("Account & device details", { exact: true }).click();
+  await expect(person.locator(".access-facts dd").nth(1)).toHaveText(String(before));
+  await expect(person.locator(".access-facts")).toContainText("Phone · iOS · Safari");
+  await friend.getByRole("button", { name: "My journal", exact: true }).click();
+  await friend.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(friend.getByRole("button", { name: "Continue with Google" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Refresh list", exact: true }).click();
+  await expect(person.locator(".access-facts dd").nth(1)).toHaveText(String(before - 1));
+  await expect(dialog.locator(".access-refresh")).toContainText("Updated");
+  await page.screenshot({ path: "test-results/primus-access-activity.png", fullPage: true });
+  await context.close();
+});

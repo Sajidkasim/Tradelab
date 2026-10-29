@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useId, useContext } from "react";
 import { AppearanceContext } from "./Appearance";
+import StyledSelect from "./StyledSelect";
 import { X, ArrowRight, ChevronDown, Check } from "lucide-react";
 
 export function Button({
@@ -40,6 +41,8 @@ export function Field({ label, hint, children, className = "" }) {
   );
 }
 export function Select({ label, values, empty, ...props }) {
+  const appearance = useContext(AppearanceContext);
+  if (appearance === "classic") return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
   return (
     <Field label={label}>
       <select {...props}>

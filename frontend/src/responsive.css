@@ -1,0 +1,148 @@
+/* Shared sizing guardrails for Modern and Classic. */
+.app-shell, .main-shell, .content, .results-content, .field { min-width: 0; }
+.field input, .field select, .field textarea { max-width: 100%; }
+.trade-table { font-size: 13px; }
+.trade-table td { overflow-wrap: anywhere; }
+.table-caption, .side-label, .review-prompt p,
+.lab-grid .stat small, .lab-grid .chart-card .history-hint,
+.history-footer, .history-source, .update-state,
+.lab-summary-label, .lab-source-note, .results-caption { font-size: 11px; }
+.lab-grid .stat > span { font-size: 12px; }
+.lab-grid .stat strong { font-size: clamp(26px, 2.4vw, 34px); overflow-wrap: anywhere; }
+.history-headline strong { font-size: clamp(30px, 3vw, 38px); overflow-wrap: anywhere; }
+.menu-panel { max-width: calc(100vw - 32px); }
+.modal { overflow-x: hidden; }
+.modal .form-grid > *, .modal .field { min-width: 0; }
+.access-refresh { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.access-details { width: 100%; border-top: 1px solid var(--tl-border); padding-top: 12px; }
+.access-details summary { cursor: pointer; font-size: 13px; padding: 6px 0; }
+.access-facts { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 2fr); gap: 9px 14px; font-size: 12px; }
+.access-facts dt { color: var(--tl-ink2); }
+.access-facts dd { margin: 0; overflow-wrap: anywhere; }
+.access-session { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--tl-border); padding: 12px; margin-top: 12px; }
+.access-session p { overflow-wrap: anywhere; font-size: 11px; }
+.login-form .login-activity-note { font-size: 11px; margin-top: 16px; line-height: 1.55; color: var(--tl-entry-muted); }
+.login-activity-note a { text-decoration: underline; }
+.styled-select-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  max-width: calc(100vw - 16px);
+  color: var(--tl-ink);
+  background: var(--tl-surface);
+  overflow: hidden;
+}
+.styled-select-panel:popover-open { display: flex; flex-direction: column; }
+.styled-select-panel .picker-search { flex-shrink: 0; }
+.styled-select-panel .picker-options { min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; }
+.styled-select-panel .picker-options button { white-space: normal; overflow-wrap: anywhere; }
+.styled-select .picker-trigger > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+:root[data-appearance="classic"] .styled-select-panel {
+  background: var(--tl-surface);
+  border: 2px solid var(--classic-face);
+  border-radius: 0;
+  box-shadow: var(--classic-raised), 2px 2px var(--classic-shadow);
+  font: 14px Tahoma, Arial, sans-serif;
+}
+:root[data-appearance="classic"] .styled-select-panel .picker-options { padding: 2px; scrollbar-color: var(--classic-shadow) var(--classic-face); }
+:root[data-appearance="classic"] .styled-select-panel .picker-options button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font: inherit;
+  color: var(--tl-ink);
+  background: var(--tl-surface);
+}
+:root[data-appearance="classic"] .styled-select-panel .picker-options button[aria-selected="true"] { font-weight: bold; }
+:root[data-appearance="classic"] .styled-select-panel .picker-options button.keyboard-option,
+:root[data-appearance="classic"] .styled-select-panel .picker-options button:hover {
+  background: var(--classic-navy);
+  color: var(--classic-white);
+}
+:root[data-appearance="classic"] .styled-select-panel .picker-search { padding: 6px 8px; background: var(--classic-face); }
+:root[data-appearance="classic"] .styled-select-panel .picker-search input { font: inherit; border: 1px solid var(--classic-shadow); border-radius: 0; box-shadow: var(--classic-sunken); background: var(--tl-surface); color: var(--tl-ink); }
+:root[data-appearance="classic"] .styled-select .picker-trigger { font: inherit; font-size: 14px; }
+:root[data-appearance="classic"] .styled-select .picker-trigger > svg { background: var(--classic-face); box-shadow: var(--classic-raised); width: 22px; height: 22px; padding: 3px; }
+:root[data-appearance="classic"] input[type="checkbox"] {
+  appearance: none;
+  width: 16px; height: 16px;
+  min-height: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--classic-shadow);
+  border-radius: 0;
+  box-shadow: var(--classic-sunken);
+  background: var(--tl-surface);
+  color: var(--tl-ink);
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+}
+:root[data-appearance="classic"] input[type="checkbox"]:checked::after { content: "✓"; font: bold 14px Arial, sans-serif; line-height: 1; }
+:root[data-appearance="classic"] .trade-table { font-size: 13px; }
+:root[data-appearance="classic"] .lab-grid .stat small { font-size: 11px; }
+:root[data-appearance="classic"] .lab-grid .stat strong { font-size: clamp(25px, 2.2vw, 30px); }
+:root[data-appearance="classic"] #trades .journal-card { border-radius: 0; }
+@media (min-width: 701px) {
+  .lab-grid .explorer { max-height: min(860px, calc(100dvh - 110px)); overflow-y: auto; scrollbar-width: thin; }
+  :root[data-appearance="classic"] .lab-grid .explorer { max-height: min(760px, calc(100dvh - 110px)); }
+}
+@media (min-width: 701px) and (max-width: 1100px) {
+  .site-header { gap: 16px; }
+  .main-nav a { padding-left: 8px; padding-right: 8px; }
+  .lab-grid .stat { padding: 16px 12px; }
+  .lab-grid .stat strong { font-size: 27px; }
+  :root[data-appearance="classic"] .lab-grid .stat > span { margin: -16px -12px 10px; }
+}
+@media (max-width: 700px) {
+  .site-header, :root[data-appearance="classic"] .site-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    height: auto;
+    padding: 12px 16px;
+  }
+  .site-header .main-nav { display: none; }
+  .site-header .brand { grid-row: 1; grid-column: 1; }
+  .site-header .workspace-menu { grid-row: 1; grid-column: 2; }
+  .site-header .appearance-switch { grid-row: 2; grid-column: 1 / -1; justify-self: end; margin: 0; }
+  :root[data-appearance="classic"] .brand { font-size: 22px; padding: 0; margin: 0; background: transparent; }
+  :root[data-appearance="classic"] .workspace-menu > summary { font-size: 12px; }
+  .site-header .brand img { width: 24px; height: 24px; }
+  .field input:not([type="checkbox"]):not([type="radio"]), .field select, .field textarea,
+  .lab-grid .explorer .field select, .picker-trigger,
+  :root[data-appearance="classic"] .field input:not([type="checkbox"]):not([type="radio"]),
+  :root[data-appearance="classic"] .field select, :root[data-appearance="classic"] .field textarea,
+  :root[data-appearance="classic"] .lab-grid .explorer .field select,
+  :root[data-appearance="classic"] .picker-trigger { font-size: 16px; }
+  :root[data-appearance="classic"] .styled-select .picker-trigger,
+  :root[data-appearance="classic"] .styled-select-panel { font-size: 16px; }
+  .lab-grid .explorer .field, .lab-grid .explorer > .field { min-width: 0; }
+  .lab-grid .explorer, :root[data-appearance="classic"] .lab-grid .explorer { max-height: clamp(320px, 60dvh, 560px); overflow-y: auto; scrollbar-width: thin; }
+  .lab-grid .explorer .field > span { font-size: 13px; }
+  .lab-grid .stat > span { font-size: 12px; }
+  .lab-grid .stat small { font-size: 11px; }
+  .lab-grid .stat strong { font-size: 26px; }
+  .lab-grid .history-card .section-title { flex-wrap: wrap; }
+  .history-headline { flex-wrap: wrap; }
+  .history-footer { flex-wrap: wrap; gap: 6px; }
+  .modal .segments { max-width: 100%; flex-wrap: wrap; width: 100%; }
+  .modal .segments button { white-space: normal; }
+  .review-prompt { flex-wrap: wrap; padding: 14px; }
+  .review-prompt > div { flex-basis: calc(100% - 40px); }
+  .review-prompt .button { margin-left: auto; }
+  .login-password-control input { font-size: 16px; }
+}
+@media (max-width: 420px) {
+  .lab-grid .stats { grid-template-columns: minmax(0, 1fr); }
+  .lab-grid .stat { gap: 9px; padding: 15px; }
+  .lab-grid .stat strong { font-size: 28px; }
+  :root[data-appearance="classic"] .lab-grid .stat { padding: 12px; border-right: 0; border-bottom: 1px solid var(--tl-border); }
+  :root[data-appearance="classic"] .lab-grid .stat > span { margin: -12px -12px 8px; }
+  :root[data-appearance="classic"] .lab-grid .stat:last-child { border-bottom: 0; }
+  .explorer { grid-template-columns: minmax(0, 1fr); }
+  .lab-grid .explorer > .field, .lab-grid .explorer > .disclosure { grid-column: 1 / -1; }
+}

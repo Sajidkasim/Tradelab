@@ -311,7 +311,7 @@
   [data-appearance="classic"] body,
   [data-appearance="classic"] body * { cursor: url("./cursors/classic-arrow.svg") 1 1, default; }
   [data-appearance="classic"] :is(a, button, summary, select, label:has(input[type="checkbox"])),
-  [data-appearance="classic"] :is(a, button, summary, select, label:has(input[type="checkbox"])) * { cursor: url("./cursors/classic-hand.svg") 8 2, pointer; }
+  [data-appearance="classic"] :is(a, button, summary, select, label:has(input[type="checkbox"])) * { cursor: url("./cursors/classic-hand.svg") 7 1, pointer; }
   [data-appearance="classic"] :is(input:not([type="checkbox"]):not([type="radio"]), textarea),
   [data-appearance="classic"] [contenteditable="true"] { cursor: text; }
   [data-appearance="classic"] :disabled { cursor: not-allowed; }

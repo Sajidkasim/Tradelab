@@ -19,8 +19,9 @@ test("Classic persists across pages and reloads, while Modern retains its dark p
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await nav.getByRole("button", { name: "Results", exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.locator(".explorer").getByLabel("Entry timeframe", { exact: true }).selectOption("1m");
-  await expect(page.locator(".explorer").getByLabel("Entry timeframe", { exact: true })).toHaveValue("1m");
+  await page.locator(".explorer").getByRole("combobox", { name: "Entry timeframe", exact: true }).click();
+  await page.getByRole("option", { name: "1m", exact: true }).click();
+  await expect(page.locator(".explorer").getByRole("combobox", { name: "Entry timeframe", exact: true })).toHaveText("1m");
   await page.getByRole("button", { name: "Modern", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(nav).toHaveCount(0);

@@ -194,6 +194,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
               <LockKeyhole size={13} aria-hidden="true" />
               <span>{google ? "New here? Your first sign-in creates your private journal. Other members cannot see your trades." : "A quiet space for your trading research."}</span>
             </div>
+            {google && <p className="login-activity-note">For account security, the owner can see sign-in activity, browser/device hints and connection addresses. <a href="/privacy">Privacy details</a></p>}
           </form>
           <footer className="login-panel-footer">
             <span>Less noise. More understanding.</span>

@@ -244,7 +244,8 @@ def test_only_owner_can_list_and_block_accounts_and_old_sessions_never_revive(go
     friend = next(person for person in roster if person['email'] == 'friend@example.com')
     assert friend['signed_in_sessions'] == 2 and friend['last_sign_in'].endswith('Z')
     assert friend['joined_at'] and friend['allowed'] and not friend['owner']
-    assert set(friend) == {'id', 'email', 'owner', 'allowed', 'joined_at', 'last_sign_in', 'signed_in_sessions'}
+    assert set(friend) == {'id', 'email', 'owner', 'allowed', 'joined_at', 'last_sign_in', 'signed_in_sessions',
+        'last_seen', 'user_agent', 'client_ip', 'device', 'system', 'browser', 'recently_active', 'sessions'}
     assert 'Never visible' not in str(roster) and 'subject' not in str(roster) and 'token' not in str(roster)
     key = friend['id']
     assert client.patch(f'/api/access/{key}', json={'allowed': 'false'}).status_code == 422
@@ -311,12 +312,21 @@ def test_account_details_migrate_existing_auth_tables_without_reassigning_owner(
         sa.Column('subject', sa.String(64), unique=True), sa.Column('owner_email', sa.String(254)),
         sa.Column('active', sa.Boolean, nullable=False))
     old.create(root.engine)
+    old_sessions = sa.Table(sessions.name, sa.MetaData(), sa.Column('token_hash', sa.String(64), primary_key=True),
+        sa.Column('key', sa.String(32)), sa.Column('version', sa.String(64)), sa.Column('expires_at', sa.DateTime))
+    old_sessions.create(root.engine)
+    old_token = 'synthetic-old-browser-session-' + 'x' * 32
     with root.engine.begin() as connection:
         connection.execute(old.insert().values(key='owner', subject='old-bound-subject', owner_email='owner@example.com', active=True))
+        connection.execute(old_sessions.insert().values(token_hash=hashlib.sha256(old_token.encode()).hexdigest(), key='owner',
+            version=app.state.workspaces.google.version, expires_at=now_utc() + timedelta(days=1)))
     access = GoogleAccess(root, app.state.config)
     try:
         assert {'email', 'joined_at', 'last_sign_in'} <= {column['name'] for column in sa.inspect(root.engine).get_columns(identities.name)}
         assert access.people()[0]['email'] == 'owner@example.com'
+        assert {'created_at', 'last_seen', 'user_agent', 'client_ip'} <= {column['name'] for column in sa.inspect(root.engine).get_columns(sessions.name)}
+        assert access.member(old_token, user_agent='Firefox/142', client_ip='127.0.0.1')['key'] == 'owner'
+        assert access.people()[0]['browser'] == 'Firefox'
         assert access.join('owner@example.com', 'old-bound-subject') == 'owner'
         with pytest.raises(LoginError):
             access.join('owner@example.com', 'different-subject')
@@ -324,3 +334,41 @@ def test_account_details_migrate_existing_auth_tables_without_reassigning_owner(
         access.close()
         root.engine.dispose()
 
+
+
+def test_activity_updates_device_metadata_without_trusting_forwarded_addresses(google, monkeypatch):
+    client, app, state = google
+    client.headers['User-Agent'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Version/18.0 Mobile/15E148 Safari/604.1'
+    client.headers['X-Forwarded-For'] = '8.8.8.8'
+    assert client.post('/api/activity').status_code == 401
+    login(client, state)
+    roster = client.get('/api/access')
+    assert roster.headers['cache-control'] == 'no-store'
+    person = roster.json()[0]
+    assert (person['device'], person['system'], person['browser']) == ('Phone', 'iOS', 'Safari')
+    assert person['client_ip'] == '127.0.0.1'  # Never accepts a spoofed forwarding header.
+    assert person['recently_active'] and len(person['sessions']) == 1
+    assert set(person['sessions'][0]) == {'last_seen', 'user_agent', 'client_ip', 'device', 'system', 'browser', 'started_at', 'expires_at'}
+    first = person['last_seen']
+    future = now_utc() + timedelta(minutes=3)
+    monkeypatch.setattr('webapp.google_access.now_utc', lambda: future)
+    assert app.state.workspaces.google.people()[0]['recently_active'] is False
+    client.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0) Chrome/142.0.0.0 Safari/537.36'
+    assert client.post('/api/activity', headers={'Origin': 'https://attacker.test'}).status_code == 403
+    assert client.post('/api/activity').status_code == 200
+    refreshed = client.get('/api/access').json()[0]
+    assert refreshed['last_seen'] != first
+    assert refreshed['recently_active'] and refreshed['system'] == 'Windows' and refreshed['browser'] == 'Chrome'
+    assert client.get('/privacy').status_code == 200
+    assert b'Wi-Fi names' in client.get('/privacy').content
+    assert client.post('/api/logout').status_code == 200
+    assert app.state.workspaces.google.people()[0]['sessions'] == []
+
+
+def test_connection_details_are_bounded_and_browser_hints_are_not_claimed_as_exact_models():
+    from webapp.google_access import connection_details, device_details
+    assert len(connection_details('x' * 2000, 'not-an-ip')['user_agent']) == 512
+    assert connection_details(None, 'not-an-ip')['client_ip'] is None
+    assert device_details(None) == {'device': 'Unknown', 'system': 'Unknown', 'browser': 'Unknown'}
+    assert device_details('Android Chrome/142 Mobile')['device'] == 'Phone'
+    assert device_details('Android Chrome/142')['device'] == 'Tablet'

@@ -113,7 +113,8 @@ def create_app(config: Settings | None = None):
     def workspace(request: Request):
         if config.google_required:
             try:
-                member = request.app.state.workspaces.google.member(request.session.get('google_token'))
+                member = request.app.state.workspaces.google.member(request.session.get('google_token'),
+                    user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
             except LoginError:
                 raise HTTPException(401, 'Sign in to your journal to continue.') from None
             if request.method not in ('GET', 'HEAD', 'OPTIONS'):
@@ -177,7 +178,7 @@ def create_app(config: Settings | None = None):
             key = access.join(email, subject)
             # Finish private storage initialization before issuing access.
             app.state.workspaces.database(key)
-            token = access.issue(key)
+            token = access.issue(key, user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
         except AccountBlocked:
             return RedirectResponse((config.lab_path or '/') + '?login=blocked', status_code=303)
         except LoginError:
@@ -229,6 +230,10 @@ def create_app(config: Settings | None = None):
     def list_access(member=Depends(workspace)):
         access_owner(member)
         return app.state.workspaces.google.people()
+
+    @app.post('/api/activity')
+    def activity(member=Depends(workspace)):
+        return {'ok': True}
 
     @app.patch('/api/access/{account_key}')
     def change_access(account_key: str, payload: AccountAccess, member=Depends(workspace)):

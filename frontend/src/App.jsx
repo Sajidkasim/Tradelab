@@ -94,6 +94,14 @@ export default function App() {
     localStorage.setItem("primus-appearance", appearance);
   }, [mode, appearance]);
   useEffect(() => {
+    if (!session?.authenticated || session.auth_mode !== "google") return;
+    const report = () => { if (document.visibilityState === "visible") api("/activity", { method: "POST" }).catch(() => {}); };
+    report();
+    const timer = setInterval(report, 60000);
+    document.addEventListener("visibilitychange", report);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", report); };
+  }, [session?.authenticated, session?.auth_mode]);
+  useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => setMessage(""), 4500);
     return () => clearTimeout(timer);

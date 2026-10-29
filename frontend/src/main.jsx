@@ -4,6 +4,7 @@ import App from "./App";
 import "./theme.css";
 import "./styles.css";
 import "./classic.css";
+import "./responsive.css";
 
 class ErrorBoundary extends React.Component {
   state = { failed: false };

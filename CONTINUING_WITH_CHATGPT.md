@@ -126,8 +126,26 @@ Classic switch in the header and sign-in screen remembers a browser preference
 CSS tokens in `frontend/src/classic.css`, compact controls, navigation and tables.
 Classic also has bundled pixel SVG arrow/hand cursors for mouse devices, raised
 desktop-style controls and inset fields. Text inputs retain the typing cursor.
+Classic selects use `StyledSelect.jsx` with top-layer menus so scrolling filters
+and dialogs cannot clip options. Key-level search shares that menu. Keep arrow,
+Home/End, type-to-select, Tab and Escape controls working; Escape closes only
+the menu before its containing dialog. Modern keeps native select controls.
 Chart changes affect presentation only. Modern retains its light/dark preference.
 This remains a local preview; do not commit, push or deploy before owner review.
+
+### Account activity preview — 29 October 2026
+
+The owner requested device information and fresher Manage access data. Auth-only
+additive columns record bounded browser user-agent hints, the server-observed
+connection address and last-seen timestamps. Never trust raw forwarding headers
+or infer an exact phone model, Wi-Fi name or physical location. No geolocation
+service is called. Owner-only `/api/access` returns account/session metadata,
+never another person's journal, auth token or provider subject. Visible Google
+sessions report activity each minute; updates are throttled to 30 seconds.
+Manage access refreshes every 15 seconds when visible and on explicit refresh.
+“Active recently” means within two minutes, not verified live presence. Existing
+sessions acquire new metadata on their next private request. The login notice
+and privacy page disclose collection. This change is local pending owner review.
 
 ```
 app.py                  navigation only (st.navigation with one st.Page per view)

@@ -7,6 +7,7 @@ import base64
 from datetime import timedelta
 import hashlib
 import hmac
+import ipaddress
 import re
 from secrets import token_hex, token_urlsafe
 from threading import RLock
@@ -27,11 +28,18 @@ identities = sa.Table('primus_google_identities', metadata,
     sa.Column('email', sa.String(254)),
     sa.Column('joined_at', sa.DateTime),
     sa.Column('last_sign_in', sa.DateTime),
+    sa.Column('last_seen', sa.DateTime),
+    sa.Column('user_agent', sa.String(512)),
+    sa.Column('client_ip', sa.String(45)),
     sa.Column('active', sa.Boolean, nullable=False, default=True))
 sessions = sa.Table('primus_google_sessions', metadata,
     sa.Column('token_hash', sa.String(64), primary_key=True),
     sa.Column('key', sa.String(32), sa.ForeignKey(identities.c.key), nullable=False),
     sa.Column('version', sa.String(64), nullable=False),
+    sa.Column('created_at', sa.DateTime),
+    sa.Column('last_seen', sa.DateTime),
+    sa.Column('user_agent', sa.String(512)),
+    sa.Column('client_ip', sa.String(45)),
     sa.Column('expires_at', sa.DateTime, nullable=False))
 
 
@@ -41,6 +49,26 @@ class LoginError(Exception):
 
 class AccountBlocked(LoginError):
     """Verified identity whose access the owner has disabled."""
+
+
+def connection_details(user_agent=None, client_ip=None):
+    agent = ''.join(c for c in str(user_agent or '') if c.isprintable())[:512]
+    try:
+        address = str(ipaddress.ip_address(client_ip))
+    except (ValueError, TypeError):
+        address = None
+    return {'user_agent': agent or None, 'client_ip': address}
+
+
+def device_details(agent):
+    """User-agent hints, never a verified device model or physical location."""
+    agent = agent or ''
+    system = next((label for marker, label in [('iPad', 'iPadOS'), ('iPhone', 'iOS'), ('Android', 'Android'),
+        ('Windows', 'Windows'), ('Macintosh', 'macOS'), ('Linux', 'Linux')] if marker in agent), 'Unknown')
+    device = 'Tablet' if 'iPad' in agent or ('Android' in agent and 'Mobile' not in agent) else 'Phone' if 'iPhone' in agent or 'Mobile' in agent else 'Computer' if system != 'Unknown' else 'Unknown'
+    browser = next((label for marker, label in [('Edg/', 'Edge'), ('OPR/', 'Opera'), ('Firefox/', 'Firefox'),
+        ('FxiOS/', 'Firefox'), ('Chrome/', 'Chrome'), ('CriOS/', 'Chrome'), ('Safari/', 'Safari')] if marker in agent), 'Unknown')
+    return {'device': device, 'system': system, 'browser': browser}
 
 
 def harden_tables(database, tables):
@@ -89,12 +117,13 @@ class GoogleAccess:
         self.client = httpx.Client(timeout=15, follow_redirects=False)
         metadata.create_all(database.engine)
         # Additive auth-only migration. Existing journal tables are untouched.
-        existing = {column['name'] for column in sa.inspect(database.engine).get_columns(identities.name)}
         with database.engine.begin() as connection:
-            for column in identities.columns:
-                if column.name not in existing:
-                    ddl = str(CreateColumn(column).compile(dialect=database.engine.dialect))
-                    connection.exec_driver_sql(f'ALTER TABLE {identities.name} ADD COLUMN {ddl}')
+            for table in (identities, sessions):
+                existing = {column['name'] for column in sa.inspect(connection).get_columns(table.name)}
+                for column in table.columns:
+                    if column.name not in existing:
+                        ddl = str(CreateColumn(column).compile(dialect=database.engine.dialect))
+                        connection.exec_driver_sql(f'ALTER TABLE {table.name} ADD COLUMN {ddl}')
         harden_tables(database, metadata.sorted_tables)
         insert = (__import__('sqlalchemy.dialects.sqlite', fromlist=['insert']).insert if database.is_sqlite else
                   __import__('sqlalchemy.dialects.postgresql', fromlist=['insert']).insert)
@@ -167,7 +196,7 @@ class GoogleAccess:
             return connection.scalar(sa.select(identities.c.key).where(identities.c.key == key, identities.c.active.is_(True),
                                                                      identities.c.subject.is_not(None))) is not None
 
-    def issue(self, key):
+    def issue(self, key, user_agent=None, client_ip=None):
         # Share the block lock so a concurrent callback cannot leave a session
         # which becomes usable again after an unblock.
         with self.lock, self.database.engine.begin() as connection:
@@ -175,24 +204,37 @@ class GoogleAccess:
                                                                       identities.c.subject.is_not(None))):
                 raise LoginError()
             token = token_urlsafe(48)
+            now = now_utc()
+            details = connection_details(user_agent, client_ip)
             connection.execute(sessions.delete().where(sa.or_(sessions.c.expires_at <= now_utc(), sessions.c.version != self.version)))
             connection.execute(sessions.insert().values(token_hash=hashlib.sha256(token.encode()).hexdigest(), key=key,
-                version=self.version, expires_at=now_utc() + timedelta(seconds=SESSION_SECONDS)))
+                version=self.version, expires_at=now + timedelta(seconds=SESSION_SECONDS), created_at=now, last_seen=now, **details))
+            connection.execute(identities.update().where(identities.c.key == key).values(last_seen=now, **details))
         return token
 
     def people(self):
         valid_sessions = sa.select(sessions.c.key, sa.func.count().label('count')).where(
             sessions.c.expires_at > now_utc(), sessions.c.version == self.version).group_by(sessions.c.key).subquery()
         with self.database.engine.connect() as connection:
-            rows = connection.execute(sa.select(identities.c.key, identities.c.email, identities.c.owner_email,
+            rows = list(connection.execute(sa.select(identities.c.key, identities.c.email, identities.c.owner_email,
                 identities.c.active, identities.c.joined_at, identities.c.last_sign_in,
+                identities.c.last_seen, identities.c.user_agent, identities.c.client_ip,
                 sa.func.coalesce(valid_sessions.c.count, 0).label('sessions')).outerjoin(
-                    valid_sessions, valid_sessions.c.key == identities.c.key).order_by(identities.c.joined_at, identities.c.key)).mappings()
+                    valid_sessions, valid_sessions.c.key == identities.c.key).order_by(identities.c.joined_at, identities.c.key)).mappings())
+            live = list(connection.execute(sa.select(sessions.c.key, sessions.c.created_at, sessions.c.last_seen,
+                sessions.c.expires_at, sessions.c.user_agent, sessions.c.client_ip).where(sessions.c.expires_at > now_utc(),
+                    sessions.c.version == self.version).order_by(sessions.c.last_seen.desc())).mappings())
             def stamp(value):
                 return value.isoformat() + 'Z' if value else None
+            def activity(row):
+                return {'last_seen': stamp(row['last_seen']), 'user_agent': row['user_agent'], 'client_ip': row['client_ip'],
+                    **device_details(row['user_agent'])}
             return [{'id': row['key'], 'email': row['email'] or row['owner_email'], 'owner': row['key'] == 'owner',
                      'allowed': row['active'], 'joined_at': stamp(row['joined_at']), 'last_sign_in': stamp(row['last_sign_in']),
-                     'signed_in_sessions': row['sessions'] if row['active'] else 0} for row in rows]
+                     'signed_in_sessions': row['sessions'] if row['active'] else 0, **activity(row),
+                     'recently_active': bool(row['active'] and row['sessions'] and row['last_seen'] and row['last_seen'] > now_utc() - timedelta(minutes=2)),
+                     'sessions': [dict(activity(item), started_at=stamp(item['created_at']), expires_at=stamp(item['expires_at']))
+                         for item in live if item['key'] == row['key'] and row['active']]} for row in rows]
 
     def set_allowed(self, key, allowed):
         if key == 'owner':
@@ -205,15 +247,21 @@ class GoogleAccess:
             if not allowed:
                 connection.execute(sessions.delete().where(sessions.c.key == key))
 
-    def member(self, token):
+    def member(self, token, user_agent=None, client_ip=None):
         if not isinstance(token, str) or not 40 <= len(token) <= 100:
             raise LoginError()
-        with self.database.engine.connect() as connection:
-            key = connection.scalar(sa.select(sessions.c.key).join(identities).where(
+        with self.database.engine.begin() as connection:
+            row = connection.execute(sa.select(sessions.c.key, sessions.c.last_seen).join(identities).where(
                 sessions.c.token_hash == hashlib.sha256(token.encode()).hexdigest(),
-                sessions.c.version == self.version, sessions.c.expires_at > now_utc(), identities.c.active.is_(True)))
-        if not key:
-            raise LoginError()
+                sessions.c.version == self.version, sessions.c.expires_at > now_utc(), identities.c.active.is_(True))).mappings().first()
+            if not row:
+                raise LoginError()
+            key = row['key']
+            now = now_utc()
+            if row['last_seen'] is None or row['last_seen'] < now - timedelta(seconds=30):
+                details = connection_details(user_agent, client_ip)
+                connection.execute(sessions.update().where(sessions.c.token_hash == hashlib.sha256(token.encode()).hexdigest()).values(last_seen=now, **details))
+                connection.execute(identities.update().where(identities.c.key == key).values(last_seen=now, **details))
         return {'key': key, 'name': 'My journal', 'slot': 0, 'owner': key == 'owner'}
 
     def revoke(self, token):
