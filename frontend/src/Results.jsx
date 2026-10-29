@@ -392,7 +392,6 @@ export default function Results({
             comparison={comparison}
             onTrades={onTrades}
             palette={meta.palette[mode]}
-            configuredTargets={meta.target_rrs || []}
           />
           <Button
             className="detail-button"
@@ -424,16 +423,10 @@ function ResultSample({
   comparison,
   onTrades,
   palette,
-  configuredTargets,
 }) {
   const s = data?.stats;
   const model = data?.fixed_rr;
   const useFixed = model?.complete && data.r_count === 0;
-  const targets = model?.targets?.length
-    ? model.targets
-    : filters.target_rr !== "Any RR"
-      ? [filters.target_rr]
-      : configuredTargets;
   return (
     <section
       className="result-sample"
@@ -513,26 +506,6 @@ function ResultSample({
         <span className="lab-step">03 / UNDERSTAND</span>
         <span>Results for your selection</span>
       </div>
-      {!!targets?.length && (
-        <div className="lab-rr-model">
-          <strong>Target RR: {targets.join(" · ")}</strong>
-          <span>
-            {useFixed
-              ? "Full target / full stop · fixed backtest model before costs"
-              : model?.complete
-                ? "Recorded R is available and is shown below. The fixed model remains a separate comparison before costs."
-                : model?.count
-                  ? `${model.count} of ${s.trades} trades fit the fixed backtest model. Filter by Target RR to isolate a test.`
-                  : "Target label only until matching full-target/stop backtests are imported."}
-          </span>
-          {!useFixed && model?.count > 0 && (
-            <span>
-              Average R for the fixed-model subset: {rvalue(model.avg_r)}. The
-              card below uses recorded R.
-            </span>
-          )}
-        </div>
-      )}
       <div className={`stats card ${busy ? "updating" : ""}`}>
         <Stat
           label="Win rate"

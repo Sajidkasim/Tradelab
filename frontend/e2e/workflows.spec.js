@@ -990,11 +990,13 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
     );
   }
   await importCsv(modelCsv, 2);
-  await expect(page.locator(".lab-rr-model")).toContainText("Target RR: 1:3");
+  await expect(page.locator(".lab-rr-model")).toHaveCount(0);
   await expect(
     page.locator(".stat").filter({ hasText: "Average R · fixed test" }).first(),
   ).toContainText("1.00R");
-  await expect(page.locator(".lab-rr-model")).toContainText("before costs");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Average R · fixed test" }).first(),
+  ).toContainText("before costs");
   await expect(
     page.locator(".stat").filter({ hasText: "Trades analysed" }).first(),
   ).toContainText("2");
@@ -1012,9 +1014,7 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   await expect(
     page.locator(".stat").filter({ hasText: "Average R · fixed test" }),
   ).toHaveCount(0);
-  await expect(page.locator(".lab-rr-model")).toContainText(
-    "Recorded R is available",
-  );
+  await expect(page.locator(".lab-rr-model")).toHaveCount(0);
   await page
     .locator(".explorer")
     .getByLabel("Target RR", { exact: true })
