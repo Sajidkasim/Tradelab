@@ -76,6 +76,37 @@ core summary. Never save those model observations as recorded R or original risk
 Live/untagged/zero-result trades are excluded, recorded R takes priority in the
 headline, and every future ratio requires its own explicit full-exit confirmation.
 
+## Research workflow preview — 29 October 2026
+
+The owner requested My tests, specific review issues with original-risk entry,
+previewed tag cleanup and saved Explore setups. They explicitly require a
+working local preview **before any upload or deployment**. These research
+changes are not approved for publishing yet. Wait for their approval before
+pushing or deploying them; earlier release authorisations do not cover this draft.
+
+`services/research.py` keeps private test definitions and saved filters in the
+existing settings table. `lab:test:<uuid>` trade tags store membership, so JSON
+backups include the definitions, filters and membership together. Planned RR is
+descriptive and never generates recorded risk, R or a full-exit assumption.
+Rules are fixed once a test has trades; duplicate the definition for a different
+experiment. Duplicate protection stays journal-wide; re-imports never move
+existing trades between tests. Assignment is a separate explicit action.
+
+`services/review.py` reports missing strategy, unreviewed confirmations and
+missing original risk. Explicit original dollar risk on result-only trades goes
+through the unchanged `Database.update_trade` calculation. Price-derived stop
+risk is protected. `lab:risk-unavailable` explicitly leaves R blank while allowing
+a review to be completed. Target ratios never fill in missing risk.
+
+`services/tag_cleanup.py` previews label merges, signs the private workspace/
+settings/trade snapshot, then applies labels/settings in one transaction. It
+never updates financial columns. Approved aliases update CSV meanings, lab
+choices, test strategy labels and saved filters. Every API write bumps the
+private workspace cache. No changes to `core/`.
+
+Run `tools/run_research_preview.py` for the disposable example journal at
+http://127.0.0.1:8115/lab. It never reads real database settings or credentials.
+
 ## The one-page architecture
 
 ```

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { Modal, Field, Select, Button, Notice, Segments } from "./components";
+import TagCleanup from "./TagCleanup";
 
 export default function LabSettings({ meta, refresh, toast, onClose }) {
   const [settings, setSettings] = useState(() =>
@@ -68,17 +69,24 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         if (!busy) onClose();
       }}
     >
-      <form onSubmit={save} className="stack lab-settings-form">
+      <form
+        onSubmit={(event) =>
+          tab === "cleanup" ? event.preventDefault() : save(event)
+        }
+        className="stack lab-settings-form"
+      >
         <Segments
           label="Lab settings sections"
           values={[
             { value: "setup", label: "Setup labels" },
             { value: "sessions", label: "Session windows" },
             { value: "news", label: "News & market" },
+            { value: "cleanup", label: "Clean up tags" },
           ]}
           value={tab}
           onChange={setTab}
         />
+        {tab === "cleanup" && <TagCleanup refresh={refresh} toast={toast} />}
         {tab === "setup" && (
           <div className="stack">
             <div>
@@ -262,14 +270,16 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
           </div>
         )}
         {error && <Notice error>{error}</Notice>}
-        <div className="actions">
-          <Button type="button" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" busy={busy}>
-            Save lab settings
-          </Button>
-        </div>
+        {tab !== "cleanup" && (
+          <div className="actions">
+            <Button type="button" disabled={busy} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" busy={busy}>
+              Save lab settings
+            </Button>
+          </div>
+        )}
       </form>
     </Modal>
   );

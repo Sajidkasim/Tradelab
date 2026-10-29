@@ -1,5 +1,30 @@
 # PrimusLab Strategy Lab
 
+## Local research draft awaiting owner approval
+
+The 29 October draft adds **My tests**, specific trade-review issues and original
+risk completion, previewed **Clean up tags**, and saved Explore filter setups.
+The graph's interaction stays unchanged. The owner asked to see the working
+preview before any upload: do not push or deploy this draft until approved.
+
+Build with `cd frontend && npm run build`, then run
+`.venv/bin/python tools/run_research_preview.py` from the repository root. Open
+http://127.0.0.1:8115/lab. This uses a temporary SQLite journal and example trades,
+separate from both the existing local journal and the hosted private journals.
+
+Test definitions and saved setups are private settings; trade membership uses
+`lab:test:<id>` tags. Full JSON backups restore them together. A trade belongs
+to one test, and duplicate detection remains journal-wide. Re-imports update
+labels only when explicitly selected and never reassign an existing trade.
+Create a new experiment for a different target; planned RR does not create R.
+
+The HTTP service adds `/api/studies`, `/api/study-assignment`,
+`/api/saved-setups`, and `/api/label-cleanup`. All use the current private-session
+and CSRF checks. Tag-cleanup previews expire after ten minutes and reject a
+changed trade/settings snapshot. Merges update vocabulary, CSV meanings and
+saved filters atomically, with financial values and notes preserved. Import
+settings are read once per file rather than once per row.
+
 The personal React/FastAPI app runs alongside the legacy Streamlit app. The live
 service is https://primuslab-web.onrender.com. It uses the existing owner database
 and supports password mode or Google sign-in with independent private journals.

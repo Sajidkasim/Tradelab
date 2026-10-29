@@ -7,7 +7,7 @@ from sqlalchemy import select
 from core import edge
 from core.db import trades_t
 from core.models import Trade
-from services import trade_labels, fixed_rr
+from services import trade_labels, fixed_rr, research
 
 PROFILE_KEY = 'primuslab_import_profile'
 
@@ -47,6 +47,9 @@ def plan(database, parsed, notes):
         rr_changed = supplied_rr['target_rr'] != edge.UNKNOWN and supplied_rr != fixed_rr.read(existing.tags)
         label_changes = merged != labels or strategy != existing.setup_name or rr_changed
         tags = edge.write_labels(fixed_rr.merge(existing.tags, incoming.tags), **merged)
+        # A re-import can update labels, but moving a trade between tests is a
+        # separate explicit action. Duplicate protection remains journal-wide.
+        tags = research.write_test(tags, research.test_id(existing.tags))
         if label_changes or not reviewed:
             tags = [tag for tag in tags if tag != 'edge:reviewed']
         text = existing.notes or ''

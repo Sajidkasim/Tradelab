@@ -19,9 +19,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from core import edge
 from core.models import Source
-from services import trade_labels, fixed_rr, strategy_catalog
+from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -262,7 +262,11 @@ def create_app(config: Settings | None = None):
             frame['target_rr'] = frame['tags'].map(lambda tags: fixed_rr.read(tags)['target_rr'])
             frame['fixed_exit'] = frame['tags'].map(lambda tags: fixed_rr.read(tags)['fixed_exit'])
             frame["needs_tagging"] = trade_labels.needs_tagging(frame)
-        return records(frame)
+        rows = records(frame)
+        for row in rows:
+            row['study_id'] = research.test_id(row.get('tags'))
+            row.update(trade_review.missing(row))
+        return rows
 
     @app.post("/api/results")
     def results(filters: Filters, request: Request, member=Depends(workspace)):
@@ -278,10 +282,13 @@ def create_app(config: Settings | None = None):
         labels = edge.write_labels(**payload.labels.model_dump())
         if not payload.confirmed:
             labels.remove("edge:reviewed")
-        values = payload.model_dump(exclude={"labels", "confirmed"})
+        values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable"})
         values['source'] = Source(values['source'])
         trade = edge.build_trade(instruments=database.instruments(), tags=labels, **values)
         with app.state.workspaces.lock:
+            fields = tag_cleanup.trade_fields(trade, database.get_setting(tag_cleanup.KEY, {}))
+            trade.tags, trade.setup_name = fields['tags'], fields['setup_name']
+            research.attach(database, trade, payload.study_id or '')
             result = database.insert_trades([trade])
             app.state.workspaces.bump(member["key"])
         return result
@@ -294,6 +301,18 @@ def create_app(config: Settings | None = None):
             if trade is None:
                 raise HTTPException(404, "This trade is no longer available.")
             fields = trade_labels.review_fields(trade, payload.strategy, payload.labels.model_dump(), payload.notes, payload.confirmed)
+            if payload.risk_amount is not None and payload.risk_unavailable:
+                raise ValueError('Enter the original risk or mark it unavailable, not both.')
+            fields.update(trade_review.risk_fields(trade, payload.risk_amount, payload.risk_unavailable))
+            if payload.risk_unavailable is not None or payload.risk_amount is not None:
+                fields['tags'] = [tag for tag in fields['tags'] if tag != trade_review.UNAVAILABLE]
+                if payload.risk_unavailable:
+                    fields['tags'].append(trade_review.UNAVAILABLE)
+            trade.tags, trade.setup_name = fields['tags'], fields['setup_name']
+            fields.update(tag_cleanup.trade_fields(trade, database.get_setting(tag_cleanup.KEY, {})))
+            if payload.study_id is not None and payload.study_id != research.test_id(trade.tags):
+                research.attach(database, trade, payload.study_id)
+                fields['tags'] = trade.tags
             database.update_trade(trade_id, **fields)
             app.state.workspaces.bump(member["key"])
             return serialise_trade(database.get_trade(trade_id))
@@ -335,14 +354,93 @@ def create_app(config: Settings | None = None):
     @app.post("/api/trades/strategy")
     def bulk_strategy(payload: BulkStrategy, request: Request, member=Depends(workspace)):
         with app.state.workspaces.lock:
-            count = trade_labels.apply_strategy(db(request, member), payload.ids, payload.strategy)
+            database = db(request, member)
+            strategy = tag_cleanup.canonical(payload.strategy, 'strategy', database.get_setting(tag_cleanup.KEY, {}))
+            count = trade_labels.apply_strategy(database, payload.ids, strategy)
             app.state.workspaces.bump(member["key"])
         return {"updated": count}
+
+    @app.post('/api/studies')
+    def create_study(payload: Study, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            values = payload.model_dump()
+            values['strategy'] = tag_cleanup.canonical(values['strategy'], 'strategy', database.get_setting(tag_cleanup.KEY, {}))
+            result = research.save_test(database, values)
+            app.state.workspaces.bump(member['key'])
+        return result
+
+    @app.put('/api/studies/{study_id}')
+    def update_study(study_id: str, payload: Study, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            result = research.save_test(db(request, member), payload.model_dump(), study_id)
+            app.state.workspaces.bump(member['key'])
+        return result
+
+    @app.post('/api/study-assignment')
+    def assign_study(payload: StudyAssignment, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            count = research.assign(db(request, member), payload.ids, payload.study_id)
+            app.state.workspaces.bump(member['key'])
+        return {'updated': count}
+
+    @app.post('/api/saved-setups')
+    def create_saved_setup(payload: SavedSetup, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            if payload.filters.account_id is not None and payload.filters.account_id not in {a.id for a in database.accounts()}:
+                raise ValueError('Choose an account in your journal.')
+            filters = payload.filters.model_dump(mode='json', exclude={'mode', 'detail', 'comparison', 'study_id'})
+            result = research.save_setup(database, payload.name, filters)
+            app.state.workspaces.bump(member['key'])
+        return result
+
+    @app.delete('/api/saved-setups/{setup_id}')
+    def remove_saved_setup(setup_id: str, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            research.remove_setup(db(request, member), setup_id)
+            app.state.workspaces.bump(member['key'])
+        return {'ok': True}
+
+    @app.get('/api/label-cleanup')
+    def cleanup_options(request: Request, member=Depends(workspace)):
+        return tag_cleanup.options(db(request, member), app.state.workspaces.trades(member['key']))
+
+    @app.post('/api/label-cleanup/{action}')
+    def cleanup_labels(action: str, payload: LabelMerge, request: Request, member=Depends(workspace)):
+        if action not in ('preview', 'apply'):
+            raise HTTPException(404)
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            frame = app.state.workspaces.trades(member['key'])
+            plan = tag_cleanup.plan(database, frame, payload.field, payload.source, payload.target)
+            signature = {'purpose': 'label-cleanup', 'workspace': member['key'], 'csrf': request.session['csrf'],
+                         'fingerprint': plan['fingerprint'], 'field': payload.field, 'source': payload.source, 'target': payload.target}
+            if action == 'apply':
+                try:
+                    previous = signer.loads(payload.preview_token, max_age=600)
+                except (BadSignature, SignatureExpired):
+                    raise HTTPException(409, 'Preview the tag cleanup again before applying it.') from None
+                if previous != signature:
+                    raise HTTPException(409, 'Your labels or trades changed. Preview the cleanup again.')
+                tag_cleanup.write_changes(database, plan['changes'], plan['settings'])
+                app.state.workspaces.bump(member['key'])
+                return {'updated': plan['count']}
+            return {'count': plan['count'], 'source': plan['source'], 'target': plan['target'],
+                    'preview_token': signer.dumps(signature),
+                    'examples': [{'id': item['id'], 'strategy': item['setup_name'], 'labels': edge.read_labels(item['tags'])}
+                                 for item in plan['changes'][:5]]}
 
     @app.put("/api/lab-settings")
     def save_lab_settings(payload: LabSettings, request: Request, member=Depends(workspace)):
         with app.state.workspaces.lock:
-            values = lab_settings.save(db(request, member), app.state.workspaces.trades(member['key']), payload.model_dump(exclude_none=True))
+            database = db(request, member)
+            cleaned = payload.model_dump(exclude_none=True)
+            aliases = database.get_setting(tag_cleanup.KEY, {})
+            for field, key in tag_cleanup.LIST_FIELDS.items():
+                if key in cleaned:
+                    cleaned[key] = tag_cleanup.names(cleaned[key], field, aliases)
+            values = lab_settings.save(database, app.state.workspaces.trades(member['key']), cleaned)
             app.state.workspaces.bump(member["key"])
         return values
 
@@ -351,7 +449,11 @@ def create_app(config: Settings | None = None):
         if any(len(value) > 120 for value in payload.strategies + payload.levels):
             raise ValueError("Keep strategy and level names under 120 characters.")
         with app.state.workspaces.lock:
-            book = strategy_catalog.save(db(request, member), app.state.workspaces.trades(member['key']), payload.model_dump())
+            database = db(request, member)
+            aliases = database.get_setting(tag_cleanup.KEY, {})
+            values = {'strategies': tag_cleanup.names(payload.strategies, 'strategy', aliases),
+                      'levels': tag_cleanup.names(payload.levels, 'level', aliases)}
+            book = strategy_catalog.save(database, app.state.workspaces.trades(member['key']), values)
             app.state.workspaces.bump(member["key"])
         return book
 
@@ -361,6 +463,7 @@ def create_app(config: Settings | None = None):
             raise HTTPException(413, "Too many tag mappings.")
         payload = await request.json()
         trade_labels.validate_mappings(payload)
+        payload = tag_cleanup.mapping_values(payload, db(request, member).get_setting(tag_cleanup.KEY, {}))
         await run_in_threadpool(db(request, member).set_setting, trade_labels.MAPPING_KEY, payload)
         app.state.workspaces.bump(member["key"])
         return {"ok": True}
@@ -381,7 +484,7 @@ def create_app(config: Settings | None = None):
                           source: str = Form("fxreplay"), timezone: str = Form("UTC"), dayfirst: bool = Form(False),
                           mapping: str = Form("{}"), preview_token: str = Form(""), update_labels: bool = Form(False),
                           include_breakeven: bool = Form(True),
-                          remember_profile: bool = Form(False), member=Depends(workspace)):
+                          remember_profile: bool = Form(False), study_id: str = Form(''), member=Depends(workspace)):
         if action not in ("preview", "confirm"):
             raise HTTPException(404)
         content = await file.read(imports.MAX_UPLOAD + 1)
@@ -397,6 +500,12 @@ def create_app(config: Settings | None = None):
             with app.state.workspaces.lock:
                 database = db(request, member)
                 parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns, include_breakeven)
+                study = research.get_test(database, study_id, active=True)
+                for trade in parsed:
+                    research.attach(database, trade, study_id, study=study)
+                preview['study'] = {'id': study['id'], 'name': study['name']} if study else None
+                if study and study.get('symbol') and any(trade.symbol != study['symbol'] for trade in parsed):
+                    preview['issues'].append(f"Some trades use a different market from this test’s planned {study['symbol']}. Check the destination before importing.")
                 notes = preview.pop('_notes', {})
                 changes, issues = import_updates.plan(database, parsed, notes) if update_labels else ([], [])
                 preview['issues'].extend(issues)
@@ -405,6 +514,7 @@ def create_app(config: Settings | None = None):
                 preview['label_updates'] = [{'id':item['id'], **item['preview']} for item in changes][:200]
                 signature = [member['key'], fingerprint, import_updates.digest({
                     'mappings': database.get_setting(trade_labels.MAPPING_KEY, {}),
+                    'aliases': database.get_setting(tag_cleanup.KEY, {}), 'study_id': study_id,
                     'update_labels': update_labels, 'remember_profile': remember_profile,
                     'changes':changes if update_labels else None})]
                 if action == "confirm":

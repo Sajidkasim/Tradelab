@@ -23,6 +23,7 @@ class Labels(StrictModel):
 
 
 class Filters(StrictModel):
+    study_id: str = Field(default='', max_length=32, pattern=r'^([a-f0-9]{32}|unassigned)?$')
     scope: Literal["Backtesting", "Forward testing", "All"] = "Backtesting"
     sample: Literal["Backtesting", "Forward testing"] = "Backtesting"
     combined: bool = False
@@ -51,6 +52,9 @@ class Review(StrictModel):
     labels: Labels
     notes: str = Field(default="", max_length=20000)
     confirmed: bool = False
+    risk_amount: float | None = Field(default=None, gt=0)
+    risk_unavailable: bool | None = None
+    study_id: str | None = Field(default=None, max_length=32, pattern=r'^([a-f0-9]{32})?$')
 
 
 class NewTrade(Review):
@@ -121,3 +125,29 @@ class ImportPreferences(StrictModel):
     dayfirst: bool = False
     update_labels: bool = False
     include_breakeven: bool = True
+
+
+class Study(StrictModel):
+    name: str = Field(min_length=1, max_length=120)
+    strategy: str = Field(default='', max_length=120)
+    symbol: str = Field(default='', max_length=30)
+    target_rr: str = Field(default='', max_length=30)
+    rules: str = Field(default='', max_length=6000)
+    archived: bool = False
+
+
+class StudyAssignment(StrictModel):
+    ids: list[int] = Field(min_length=1, max_length=2000)
+    study_id: str = Field(default='', max_length=32, pattern=r'^([a-f0-9]{32})?$')
+
+
+class SavedSetup(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+    filters: Filters
+
+
+class LabelMerge(StrictModel):
+    field: Literal['strategy', 'level', 'timeframe', 'entry_timeframe', 'confirmation', 'condition', 'news']
+    source: str = Field(min_length=1, max_length=120)
+    target: str = Field(min_length=1, max_length=120)
+    preview_token: str = Field(default='', max_length=4096)

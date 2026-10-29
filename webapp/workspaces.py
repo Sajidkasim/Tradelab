@@ -12,7 +12,7 @@ import pandas as pd
 from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
-from services import trade_labels, fixed_rr, weekdays, strategy_catalog
+from services import trade_labels, fixed_rr, weekdays, strategy_catalog, research, review, tag_cleanup
 from . import lab_settings, import_updates
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
@@ -53,6 +53,8 @@ def serialise_trade(trade):
     row["labels"] = edge.read_labels(trade.tags)
     row.update(fixed_rr.read(trade.tags))
     row["needs_tagging"] = not trade.setup_name.strip() or not row["labels"]["reviewed"]
+    row['study_id'] = research.test_id(trade.tags)
+    row.update(review.missing(row))
     return clean(row)
 
 
@@ -118,6 +120,11 @@ class Workspaces:
         mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
         lab.update(lab_settings.choices(db, frame, mappings))
         book = strategy_catalog.read(db, frame, mappings)
+        aliases = db.get_setting(tag_cleanup.KEY, {})
+        for field, name in tag_cleanup.LIST_FIELDS.items():
+            target = book if name in book else lab
+            if name in target:
+                target[name] = tag_cleanup.names(target[name], field, aliases)
         return clean({"accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
@@ -130,7 +137,8 @@ class Workspaces:
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
                       "tag_mappings": mappings,
                       "target_rrs": sorted({fixed_rr.ratio(value)[0] for value in trade_labels.mapped_values(mappings, 'target_rr')}),
-                      "tag_suggestions": trade_labels.fx_tag_guide()})
+                      "tag_suggestions": tag_cleanup.mapping_values(trade_labels.fx_tag_guide(), aliases),
+                      **research.catalogue(db, frame)})
 
     def results(self, key, filters):
         frame = self.trades(key)
@@ -138,6 +146,11 @@ class Workspaces:
         # clients retain their separate samples unless they opt into combined All.
         scope = ("All" if filters.combined else filters.sample) if filters.scope == "All" else filters.scope
         base = frame[frame["source"].isin(SCOPES[scope])].copy()
+        if filters.study_id:
+            if filters.study_id != 'unassigned':
+                research.get_test(self.database(key), filters.study_id)
+            wanted = '' if filters.study_id == 'unassigned' else filters.study_id
+            base = base[base['tags'].map(research.test_id) == wanted]
         if filters.account_id is not None:
             base = base[base["account_id"] == filters.account_id]
         for name, bound, after in (("start", filters.start, True), ("end", filters.end, False)):

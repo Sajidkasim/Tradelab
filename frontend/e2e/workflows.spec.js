@@ -187,6 +187,11 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .getByLabel("Entry timeframe", { exact: true })
     .selectOption("15s");
   await dialog
+    .getByLabel("Original risk is not available — keep R unrecorded", {
+      exact: true,
+    })
+    .check();
+  await dialog
     .getByLabel("I have checked the confirmations for this trade")
     .check();
   await dialog.getByRole("button", { name: "Save & next" }).click();
@@ -198,6 +203,11 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   await expect(
     dialog.getByLabel("Entry timeframe", { exact: true }),
   ).toHaveValue("15s");
+  await dialog
+    .getByLabel("Original risk is not available — keep R unrecorded", {
+      exact: true,
+    })
+    .check();
   await dialog
     .getByLabel("I have checked the confirmations for this trade")
     .check();

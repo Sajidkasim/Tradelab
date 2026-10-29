@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { api } from "./api";
 import {
@@ -10,6 +10,7 @@ import {
   Notice,
 } from "./components";
 import Labels from "./Labels";
+import { testOptions, reviewIssues } from "./research";
 import {
   blankLabels,
   labelsOnly,
@@ -27,22 +28,52 @@ export default function TradeForm({
   onSaved,
   onClose,
   remaining = 0,
+  studyId = "",
+  focusField,
 }) {
+  const activeTest =
+    !trade &&
+    (meta.studies || []).find((test) => test.id === studyId && !test.archived);
+  const formRef = useRef();
+  const [testId, setTestId] = useState(
+    trade?.study_id || (studyId === "unassigned" ? "" : studyId),
+  );
+  const [originalRisk, setOriginalRisk] = useState(
+    trade?.initial_risk == null ? "" : String(trade.initial_risk),
+  );
+  const [riskUnavailable, setRiskUnavailable] = useState(
+    Boolean(trade?.risk_unavailable),
+  );
+  const issues = trade ? reviewIssues(trade) : [];
+  const firstField = focusField || issues[0]?.field;
+  const focus = (field) =>
+    formRef.current?.querySelector(`[data-review-focus="${field}"]`)?.focus();
+  useEffect(() => {
+    if (!trade || !firstField) return;
+    const frame = requestAnimationFrame(() => focus(firstField));
+    return () => cancelAnimationFrame(frame);
+  }, [trade?.id, firstField]);
   const [strategy, setStrategy] = useState(
-    trade ? trade.setup_name || "" : previous?.strategy || "",
+    trade
+      ? trade.setup_name || ""
+      : activeTest?.strategy || previous?.strategy || "",
   );
   const [labels, setLabels] = useState(
     labelsOnly(trade?.labels || previous?.labels || blankLabels()),
   );
   const [confirmed, setConfirmed] = useState(trade?.labels?.reviewed || false),
     [notes, setNotes] = useState(trade?.notes || "");
-  const [source, setSource] = useState(previous?.source || "backtest"),
+  const [source, setSource] = useState(
+      activeTest ? "backtest" : previous?.source || "backtest",
+    ),
     [account, setAccount] = useState(
       previous?.account_id || meta.accounts[0]?.id,
     );
   const [direction, setDirection] = useState(previous?.direction || "long"),
     [symbol, setSymbol] = useState(
-      previous?.symbol ||
+      (activeTest?.symbol && meta.instruments[activeTest.symbol]
+        ? activeTest.symbol
+        : previous?.symbol) ||
         (meta.instruments.NQ ? "NQ" : Object.keys(meta.instruments)[0]),
     );
   const [method, setMethod] = useState("Quick result"),
@@ -71,8 +102,15 @@ export default function TradeForm({
     setError("");
     setBusy(true);
     try {
-      const body = { strategy, labels, notes, confirmed };
+      const body = { strategy, labels, notes, confirmed, study_id: testId };
       if (trade) {
+        body.risk_unavailable = riskUnavailable;
+        if (
+          trade.stop_price == null &&
+          originalRisk !== "" &&
+          Number(originalRisk) !== trade.initial_risk
+        )
+          body.risk_amount = Number(originalRisk);
         const updated = await api(`/trades/${trade.id}`, {
           method: "PATCH",
           body,
@@ -136,7 +174,7 @@ export default function TradeForm({
     }
   }
   return (
-    <form onSubmit={(e) => save(e, false)} className="trade-form">
+    <form ref={formRef} onSubmit={(e) => save(e, false)} className="trade-form">
       {trade && (
         <div className="trade-result">
           <span>
@@ -146,6 +184,33 @@ export default function TradeForm({
           <span>{rvalue(trade.r_multiple)}</span>
           <span className="badge">{remaining} in queue</span>
         </div>
+      )}
+      {issues.length > 0 && (
+        <div className="review-issue-list">
+          <span>To finish this trade</span>
+          {issues.map((issue) => (
+            <Button
+              type="button"
+              key={issue.field}
+              onClick={() => focus(issue.field)}
+            >
+              {issue.label}
+            </Button>
+          ))}
+        </div>
+      )}
+      {(meta.studies || []).length > 0 && (
+        <Select
+          label="Research test"
+          value={testId}
+          disabled={
+            trade
+              ? !["backtest", "fxreplay"].includes(trade.source)
+              : source !== "backtest"
+          }
+          values={testOptions(meta.studies, testId)}
+          onChange={(e) => setTestId(e.target.value)}
+        />
       )}
       <div className="form-step">
         <div>
@@ -166,7 +231,10 @@ export default function TradeForm({
               { value: "manual", label: "Live trading" },
             ]}
             value={source}
-            onChange={(e) => setSource(e.target.value)}
+            onChange={(e) => {
+              setSource(e.target.value);
+              if (e.target.value !== "backtest") setTestId("");
+            }}
           />
           <Select
             label="Account"
@@ -178,6 +246,7 @@ export default function TradeForm({
       )}
       <Field label="Strategy">
         <input
+          data-review-focus="strategy"
           list="strategies"
           value={strategy}
           maxLength={120}
@@ -212,6 +281,7 @@ export default function TradeForm({
       <Labels value={labels} onChange={setLabels} meta={meta} />
       <label className="review-check">
         <input
+          data-review-focus="confirmations"
           type="checkbox"
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
@@ -221,6 +291,61 @@ export default function TradeForm({
       <small className="muted">
         Unchecked confirmations mean “not recorded” until you review them.
       </small>
+      {trade && (
+        <div className="review-risk-section stack">
+          <div>
+            <h3>Original risk & realised R</h3>
+            <p className="muted">
+              Use the dollars you actually risked at entry. A planned target
+              ratio cannot fill this in.
+            </p>
+          </div>
+          {trade.stop_price != null ? (
+            <p>
+              Original risk: {money(trade.initial_risk)} · calculated from the
+              saved stop.
+            </p>
+          ) : (
+            <Field
+              label="Original risk ($)"
+              hint="The recorded dollar result stays saved; R is updated using this risk."
+            >
+              <input
+                data-review-focus="risk"
+                type="number"
+                step="any"
+                min="0.000001"
+                required={Boolean(trade.initial_risk)}
+                disabled={riskUnavailable}
+                value={originalRisk}
+                onChange={(e) => {
+                  setOriginalRisk(e.target.value);
+                  setRiskUnavailable(false);
+                }}
+              />
+            </Field>
+          )}
+          {trade.r_multiple == null && (
+            <label className="review-check">
+              <input
+                type="checkbox"
+                checked={riskUnavailable}
+                onChange={(e) => {
+                  setRiskUnavailable(e.target.checked);
+                  if (e.target.checked) setOriginalRisk("");
+                }}
+              />
+              Original risk is not available — keep R unrecorded
+            </label>
+          )}
+          {riskUnavailable && (
+            <small className="muted">
+              This trade can be reviewed with R left blank. You can add its
+              original risk later.
+            </small>
+          )}
+        </div>
+      )}
       {!trade && (
         <>
           <div className="form-step">
@@ -335,7 +460,7 @@ export default function TradeForm({
         <Disclosure title="Original export tags">
           <p>
             {(trade.tags || [])
-              .filter((t) => !t.startsWith("edge:"))
+              .filter((t) => !t.startsWith("edge:") && !t.startsWith("lab:"))
               .join(", ") || "No export tags."}
           </p>
         </Disclosure>

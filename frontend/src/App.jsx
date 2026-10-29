@@ -18,12 +18,12 @@ import Tools from "./Tools";
 import Backup from "./Backup";
 import LabSettings from "./LabSettings";
 import Access from "./Access";
+import ResearchTests, { TestSelector } from "./ResearchTests";
 import icon from "../../assets/primuslab-icon.svg";
 import { labHref, journalPage } from "./paths";
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
-const pageFromLocation = () =>
-  journalPage(location.pathname, location.hash);
+const pageFromLocation = () => journalPage(location.pathname, location.hash);
 
 export default function App() {
   const [session, setSession] = useState(null),
@@ -40,6 +40,9 @@ export default function App() {
     [labSettings, setLabSettings] = useState(false),
     [access, setAccess] = useState(false),
     [message, setMessage] = useState("");
+  const [study, setStudy] = useState(""),
+    [testsOpen, setTestsOpen] = useState(false),
+    [assignmentTarget, setAssignmentTarget] = useState(null);
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
     const [metadata, rows] = await Promise.all([
@@ -67,6 +70,8 @@ export default function App() {
       setSession({ authenticated: false });
       setMeta(null);
       setTrades([]);
+      setStudy("");
+      setAssignmentTarget(null);
       setCsrf("");
       api("/session")
         .then((identity) => {
@@ -110,6 +115,11 @@ export default function App() {
       else window.scrollTo({ top: 0 });
     });
   }
+  function assignExisting(studyId) {
+    setStudy("");
+    setAssignmentTarget(studyId);
+    navigate("trades");
+  }
   async function logout() {
     try {
       await api("/logout", { method: "POST" });
@@ -137,7 +147,13 @@ export default function App() {
       </div>
     );
   if (!session.authenticated)
-    return <Unlock ready={Boolean(session.csrf)} onUnlocked={boot} authMode={session.auth_mode} />;
+    return (
+      <Unlock
+        ready={Boolean(session.csrf)}
+        onUnlocked={boot}
+        authMode={session.auth_mode}
+      />
+    );
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -179,9 +195,11 @@ export default function App() {
           <button onClick={() => setBackup(true)}>
             <Download size={16} /> Backup & restore
           </button>
-          {session.owner && session.auth_mode === "google" && <button onClick={() => setAccess(true)}>
-            <Users size={16} /> Manage access
-          </button>}
+          {session.owner && session.auth_mode === "google" && (
+            <button onClick={() => setAccess(true)}>
+              <Users size={16} /> Manage access
+            </button>
+          )}
           <button onClick={() => setMode(mode === "light" ? "dark" : "light")}>
             {mode === "light" ? <Moon size={16} /> : <Sun size={16} />}
             {mode === "light" ? "Dark mode" : "Light mode"}
@@ -191,13 +209,19 @@ export default function App() {
           </button>
           {session.can_lock && (
             <button onClick={logout}>
-              <LogOut size={16} /> {session.auth_mode === "google" ? "Sign out" : "Lock journal"}
+              <LogOut size={16} />{" "}
+              {session.auth_mode === "google" ? "Sign out" : "Lock journal"}
             </button>
           )}
         </Menu>
       </header>
       <div className="main-shell">
         <main className="content">
+          {session.local && (
+            <div className="preview-notice">
+              Local preview · data on this Mac
+            </div>
+          )}
           {error && <Notice error>{error}</Notice>}
           <div hidden={!journalPages.includes(page)} className="journal-page">
             <div className="journal-intro">
@@ -227,6 +251,13 @@ export default function App() {
                 </a>
               </nav>
             </div>
+            <TestSelector
+              studies={meta.studies || []}
+              value={study}
+              onChange={setStudy}
+              onManage={() => setTestsOpen(true)}
+              onAssign={assignExisting}
+            />
             <section id="results" aria-label="Results">
               <Results
                 meta={meta}
@@ -235,6 +266,9 @@ export default function App() {
                 mode={mode}
                 scope={scope}
                 setScope={setScope}
+                studyId={study}
+                refresh={refresh}
+                toast={toast}
                 onTrades={() => navigate("trades")}
               />
             </section>
@@ -244,6 +278,9 @@ export default function App() {
                 trades={trades}
                 refresh={refresh}
                 scope={scope}
+                studyId={study}
+                assignmentTarget={assignmentTarget}
+                onAssignmentHandled={() => setAssignmentTarget(null)}
                 onImport={() => navigate("import")}
                 toast={toast}
               />
@@ -255,6 +292,7 @@ export default function App() {
               refresh={refresh}
               onBack={() => navigate("trades")}
               toast={toast}
+              studyId={study === "unassigned" ? "" : study}
             />
           )}
           {page === "tools" && (
@@ -289,7 +327,19 @@ export default function App() {
           count={trades.length}
         />
       )}
-      {access && session.owner && session.auth_mode === "google" && <Access onClose={() => setAccess(false)} />}
+      {access && session.owner && session.auth_mode === "google" && (
+        <Access onClose={() => setAccess(false)} />
+      )}
+      {testsOpen && (
+        <ResearchTests
+          meta={meta}
+          refresh={refresh}
+          toast={toast}
+          onSelect={setStudy}
+          onAssign={assignExisting}
+          onClose={() => setTestsOpen(false)}
+        />
+      )}
     </div>
   );
 }

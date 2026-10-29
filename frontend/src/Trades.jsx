@@ -18,10 +18,12 @@ import {
   Notice,
   Field,
   Menu,
+  Select,
 } from "./components";
 import TradeForm from "./TradeForm";
 import DeleteAllTrades from "./DeleteAllTrades";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
+import { matchesTest, testOptions, reviewIssues } from "./research";
 
 const PAGE_SIZE = 8;
 
@@ -32,6 +34,9 @@ export default function Trades({
   onImport,
   toast,
   scope,
+  studyId = "",
+  assignmentTarget,
+  onAssignmentHandled,
 }) {
   const [pending, setPending] = useState(false),
     [page, setPage] = useState(0);
@@ -41,6 +46,9 @@ export default function Trades({
     [bulk, setBulk] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteAll, setDeleteAll] = useState(false);
+  const [bulkMode, setBulkMode] = useState("strategy"),
+    [studyTarget, setStudyTarget] = useState("");
+  const [focusField, setFocusField] = useState(null);
   const [selected, setSelected] = useState([]),
     [strategy, setStrategy] = useState(""),
     [busy, setBusy] = useState(false),
@@ -48,9 +56,12 @@ export default function Trades({
   const queue = useMemo(
     () =>
       trades.filter(
-        (t) => belongsTo(t, scope) && (!pending || t.needs_tagging),
+        (t) =>
+          belongsTo(t, scope) &&
+          matchesTest(t, studyId) &&
+          (!pending || (t.needs_review ?? t.needs_tagging)),
       ),
-    [trades, scope, pending],
+    [trades, scope, pending, studyId],
   );
   const currentPage = Math.min(
     page,
@@ -59,7 +70,15 @@ export default function Trades({
   useEffect(() => {
     setPage(0);
     setSelected([]);
-  }, [scope]);
+  }, [scope, studyId]);
+  useEffect(() => {
+    if (assignmentTarget == null) return;
+    setBulk(true);
+    setBulkMode("test");
+    setStudyTarget(assignmentTarget);
+    setPending(false);
+    setSelected([]);
+  }, [assignmentTarget]);
   async function removeTrade() {
     setBusy(true);
     setError("");
@@ -82,12 +101,16 @@ export default function Trades({
     }
   }
   const unfinished = trades.filter(
-    (t) => belongsTo(t, scope) && t.needs_tagging,
+    (t) =>
+      belongsTo(t, scope) &&
+      matchesTest(t, studyId) &&
+      (t.needs_review ?? t.needs_tagging),
   );
   const pendingCount = unfinished.length;
   const trade =
     typeof opened === "number" ? trades.find((t) => t.id === opened) : null;
   async function saved(updated, next) {
+    setFocusField(null);
     await refresh();
     toast(
       updated
@@ -104,14 +127,25 @@ export default function Trades({
     setBusy(true);
     setError("");
     try {
-      const result = await api("/trades/strategy", {
-        method: "POST",
-        body: { ids: selected, strategy },
-      });
+      const result = await api(
+        bulkMode === "test" ? "/study-assignment" : "/trades/strategy",
+        {
+          method: "POST",
+          body:
+            bulkMode === "test"
+              ? { ids: selected, study_id: studyTarget }
+              : { ids: selected, strategy },
+        },
+      );
       await refresh();
-      toast(`Strategy applied to ${result.updated} trades.`);
+      toast(
+        bulkMode === "test"
+          ? `${result.updated} trades assigned. Their recorded results are unchanged.`
+          : `Strategy applied to ${result.updated} trades.`,
+      );
       setBulk(false);
       setSelected([]);
+      onAssignmentHandled?.();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -148,7 +182,7 @@ export default function Trades({
             setSelected([]);
           }}
         />
-        <p>Open a trade to add its strategy and setup details.</p>
+        <p>Open a trade to see exactly what needs checking.</p>
       </div>
       <div className="card journal-card">
         <div className="section-title">
@@ -172,11 +206,24 @@ export default function Trades({
               disabled={!queue.length}
               onClick={() => {
                 setBulk(!bulk);
+                setBulkMode("strategy");
                 setSelected([]);
               }}
             >
               {bulk ? "Finish selecting" : "Tag several"}
             </button>
+            {(meta.studies || []).length > 0 && (
+              <button
+                onClick={() => {
+                  setBulk(true);
+                  setBulkMode("test");
+                  setStudyTarget(studyId === "unassigned" ? "" : studyId);
+                  setSelected([]);
+                }}
+              >
+                Assign to a test
+              </button>
+            )}
             <a href="/api/export/csv">
               <Download size={15} /> Download CSV
             </a>
@@ -193,14 +240,10 @@ export default function Trades({
           <div className="review-prompt">
             <ClipboardCheck size={20} />
             <div>
-              <strong>
-                {pendingCount}{" "}
-                {pendingCount === 1 ? "trade needs" : "trades need"} setup
-                details
-              </strong>
+              <strong>{pendingCount} trades to review</strong>
               <p>
-                Add a strategy and check the confirmations so you can explore
-                these trades in the lab.
+                Check the missing fields shown on each trade. Original risk can
+                be recorded or marked unavailable.
               </p>
             </div>
             <Button
@@ -238,11 +281,24 @@ export default function Trades({
                       currentPage * PAGE_SIZE + PAGE_SIZE,
                     )
                     .map((t) => (
-                      <tr key={t.id} onClick={() => !bulk && setOpened(t.id)}>
+                      <tr
+                        key={t.id}
+                        onClick={() => {
+                          if (!bulk) {
+                            setFocusField(null);
+                            setOpened(t.id);
+                          }
+                        }}
+                      >
                         {bulk && (
                           <td>
                             <input
                               type="checkbox"
+                              disabled={
+                                bulkMode === "test" &&
+                                Boolean(studyTarget) &&
+                                !["fxreplay", "backtest"].includes(t.source)
+                              }
                               aria-label={`Select trade ${t.id}`}
                               checked={selected.includes(t.id)}
                               onChange={(e) =>
@@ -267,7 +323,9 @@ export default function Trades({
                           </small>
                           <small className="mobile-trade-detail">
                             {t.setup_name || "Add strategy"}
-                            {t.needs_tagging ? " · To finish" : ""}
+                            {(t.needs_review ?? t.needs_tagging)
+                              ? " · To finish"
+                              : ""}
                           </small>
                         </td>
                         <td className="trade-strategy-cell">
@@ -289,12 +347,27 @@ export default function Trades({
                             {rvalue(t.r_multiple)}
                           </small>
                         </td>
-                        <td className="trade-r-cell">{rvalue(t.r_multiple)}</td>
+                        <td className="trade-r-cell">
+                          {t.r_multiple == null && !t.risk_unavailable ? (
+                            <button
+                              className="inline-action"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setFocusField("risk");
+                                setOpened(t.id);
+                              }}
+                            >
+                              Add original risk
+                            </button>
+                          ) : (
+                            rvalue(t.r_multiple)
+                          )}
+                        </td>
                         <td className="trade-status-cell">
                           <span
-                            className={`badge ${t.needs_tagging ? "pending" : ""}`}
+                            className={`badge ${(t.needs_review ?? t.needs_tagging) ? "pending" : ""}`}
                           >
-                            {t.needs_tagging ? "Add details" : "Complete"}
+                            {reviewIssues(t)[0]?.label || "Complete"}
                           </span>
                         </td>
                         <td>
@@ -303,6 +376,7 @@ export default function Trades({
                             className="icon-button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setFocusField(null);
                               setOpened(t.id);
                             }}
                           >
@@ -377,26 +451,70 @@ export default function Trades({
         )}
         {bulk && (
           <div className="bulk-panel">
-            <Field label={`${selected.length} selected · apply strategy`}>
-              <input
-                list="bulk-strategies"
-                value={strategy}
-                onChange={(e) => setStrategy(e.target.value)}
-                placeholder="Choose or type a strategy"
+            <Button
+              onClick={() => {
+                setBulk(false);
+                setSelected([]);
+                onAssignmentHandled?.();
+              }}
+            >
+              Cancel selection
+            </Button>
+            <Segments
+              label="Apply to selected trades"
+              values={[
+                { value: "strategy", label: "Strategy" },
+                { value: "test", label: "Test" },
+              ]}
+              value={bulkMode}
+              onChange={(value) => {
+                setBulkMode(value);
+                setSelected([]);
+              }}
+            />
+            {bulkMode === "test" ? (
+              <Select
+                label={`${selected.length} selected · research test`}
+                values={testOptions(meta.studies, studyTarget)}
+                value={studyTarget}
+                onChange={(e) => {
+                  setStudyTarget(e.target.value);
+                  setSelected([]);
+                }}
               />
-              <datalist id="bulk-strategies">
-                {meta.strategies.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-            </Field>
+            ) : (
+              <Field label={`${selected.length} selected · apply strategy`}>
+                <input
+                  list="bulk-strategies"
+                  value={strategy}
+                  onChange={(e) => setStrategy(e.target.value)}
+                  placeholder="Choose or type a strategy"
+                />
+                <datalist id="bulk-strategies">
+                  {meta.strategies.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              </Field>
+            )}
+            {bulkMode === "test" && (
+              <small className="muted">
+                Assigns selected backtests without duplicating them. Live trades
+                stay outside tests.
+              </small>
+            )}
             <Button
               variant="primary"
               busy={busy}
-              disabled={!selected.length || !strategy.trim()}
+              disabled={
+                !selected.length ||
+                (bulkMode === "strategy" && !strategy.trim())
+              }
               onClick={applyBulk}
             >
-              Apply strategy
+              {bulkMode === "test"
+                ? "Assign selected trades"
+                : "Apply strategy"}
             </Button>
             {error && <Notice error>{error}</Notice>}
           </div>
@@ -416,6 +534,8 @@ export default function Trades({
             onSaved={saved}
             onClose={() => setOpened(null)}
             remaining={queue.length}
+            studyId={studyId}
+            focusField={focusField}
           />
         </Modal>
       )}

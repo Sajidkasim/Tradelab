@@ -13,8 +13,9 @@ import { money, rvalue, tradeDate } from "./format";
 import ImportSettings from "./ImportSettings";
 import { sourceOptions } from "./importOptions";
 import { pendingTags } from "./importTags";
+import { testOptions } from "./research";
 
-export default function Import({ meta, refresh, onBack, toast }) {
+export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
     [detected, setDetected] = useState(null),
@@ -43,6 +44,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
     [confirm, setConfirm] = useState(false),
     [settings, setSettings] = useState(null);
   const ref = useRef();
+  const [destination, setDestination] = useState(studyId);
   const unrecognised = pendingTags(preview?.tags, meta.tag_mappings);
   function invalidate() {
     setPreview(null);
@@ -69,6 +71,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
     f.append("update_labels", updateLabels);
     f.append("include_breakeven", profile.include_breakeven);
     f.append("remember_profile", true);
+    f.append("study_id", destination);
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
   }
@@ -154,6 +157,23 @@ export default function Import({ meta, refresh, onBack, toast }) {
           </Button>
         }
       />
+      {(meta.studies || []).length > 0 && (
+        <div className="import-test-destination">
+          <Select
+            label="Import into test"
+            values={testOptions(meta.studies, destination)}
+            value={destination}
+            onChange={(e) => {
+              setDestination(e.target.value);
+              invalidate();
+            }}
+          />
+          <small className="muted">
+            Existing trade IDs are recognised across your journal. Re-importing
+            never moves a trade to another test.
+          </small>
+        </div>
+      )}
       <div className="card import-card">
         <p className="import-context">
           {meta.accounts.find((item) => item.id === account)?.name} ·{" "}
@@ -271,8 +291,8 @@ export default function Import({ meta, refresh, onBack, toast }) {
             {done.updated ? ` · ${done.updated} updated` : ""}
           </h2>
           <p>
-            {done.skipped} duplicates skipped. Give your trades a strategy and
-            review their confirmations next.
+            {done.skipped} duplicates skipped. Review any missing setup details
+            or original risk next.
           </p>
           {done.excluded_breakeven > 0 && (
             <p>{done.excluded_breakeven} break-even trades excluded.</p>
@@ -328,6 +348,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
           )}
           <div className="import-coverage">
             <strong>What came through</strong>
+            {preview.study && <p>Test: {preview.study.name}</p>}
             <p>
               Strategies: {preview.coverage.strategies}/{preview.coverage.total}{" "}
               · Confirmations: {preview.coverage.confirmations}/

@@ -3,6 +3,7 @@ import { RotateCcw, ArrowUpRight } from "lucide-react";
 import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import LabHistory from "./LabHistory";
+import SavedSetups from "./SavedSetups";
 import {
   Button,
   Select,
@@ -52,6 +53,9 @@ export default function Results({
   onTrades,
   scope,
   setScope,
+  studyId = "",
+  refresh,
+  toast,
 }) {
   const [setupFilters, setFilters] = useState(initial),
     [detail, setDetail] = useState(false),
@@ -60,8 +64,8 @@ export default function Results({
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   const filters = React.useMemo(
-    () => ({ ...setupFilters, scope }),
-    [setupFilters, scope],
+    () => ({ ...setupFilters, scope, study_id: studyId }),
+    [setupFilters, scope, studyId],
   );
   useEffect(() => {
     setFilters((current) => {
@@ -199,6 +203,16 @@ export default function Results({
               <RotateCcw size={16} />
             </button>
           </div>
+          <SavedSetups
+            items={meta.saved_setups || []}
+            filters={filters}
+            refresh={refresh}
+            toast={toast}
+            onApply={(saved) => {
+              setFilters({ ...initial, ...saved });
+              setScope(saved.scope || scope);
+            }}
+          />
           <Select
             label="Strategy"
             values={["All strategies", ...meta.strategies, "Unclassified"]}
@@ -520,11 +534,23 @@ function ResultSample({
           label={useFixed ? "Average R · fixed test" : "Average R"}
           value={s ? rvalue(useFixed ? model.avg_r : s.avg_r) : "—"}
           caption={
-            useFixed
-              ? `${model.count} tagged backtests · before costs`
-              : s
-                ? `R recorded on ${data.r_count} of ${s.trades} trades`
-                : "Realised return on risk"
+            useFixed ? (
+              `${model.count} tagged backtests · before costs`
+            ) : s ? (
+              <>
+                {`R recorded on ${data.r_count} of ${s.trades} trades`}
+                {data.r_count < s.trades && (
+                  <button
+                    className="inline-action risk-review-link"
+                    onClick={onTrades}
+                  >
+                    Review missing risk
+                  </button>
+                )}
+              </>
+            ) : (
+              "Realised return on risk"
+            )
           }
         />
         <Stat
