@@ -128,3 +128,17 @@
 :root[data-theme=dark] .pj-outcome button.loss[aria-pressed=true],:root[data-theme=dark] .pj-outcome-badge.loss{background:#4a302b;color:#f5c1b1;border-color:#895345}
 @media(prefers-reduced-motion:reduce){.pj-trade-body{animation:none}.pj-outcome button{transition:none}}
 @media(max-width:380px){.pj-outcome button{font-size:11px;padding-inline:10px}}
+/* Feedback belongs to the action, with no confetti or continuous motion. */
+.pj-trade-card.is-new{animation:pj-new-trade .4s cubic-bezier(.2,.8,.2,1) both}
+.pj-confirmations label:has(input:checked){animation:pj-choice-set .2s ease-out}
+.pj-outcome button[aria-pressed=true]>span{display:inline-block;animation:pj-tick-set .2s ease-out}
+.pj-day-feedback .pt-journal-success{animation:pj-saved-in .25s ease-out}
+.pj-screenshots .pt-image-grid>figure{animation:pj-saved-in .25s ease-out}
+.pj-trade-summary{transition:background .15s}.pj-trade-summary:active{background:var(--pt-paper)}
+.pj-trade-actions .pt-btn,.pj-trades-heading .pt-btn{transition:transform .15s,box-shadow .15s}
+.pj-trade-actions .pt-btn:not(:disabled):active,.pj-trades-heading .pt-btn:not(:disabled):active{transform:translateY(1px)}
+@keyframes pj-new-trade{from{opacity:.45;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pj-choice-set{from{box-shadow:0 0 0 2px color-mix(in srgb,var(--pt-focus) 25%,transparent)}to{box-shadow:0 0 0 0 transparent}}
+@keyframes pj-tick-set{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes pj-saved-in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.pj-trade-card.is-new,.pj-confirmations label,.pj-outcome button>span,.pj-day-feedback .pt-journal-success,.pj-screenshots .pt-image-grid>figure{animation:none!important}.pj-trade-summary,.pj-trade-actions .pt-btn,.pj-trades-heading .pt-btn{transition:none}}

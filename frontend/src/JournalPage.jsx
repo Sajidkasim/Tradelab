@@ -28,6 +28,7 @@ export default function JournalPage(){
   const [identity,setIdentity]=useState(null),[meta,setMeta]=useState(null),[rows,setRows]=useState([]),[day,setDay]=useState(initialDay);
   const [entry,setEntry]=useState(blank(initialDay)),[section,setSection]=useState('plan'),[month,setMonth]=useState(initialDay.slice(0,7));
   const [dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [freshTradeId,setFreshTradeId]=useState(null);
   const [expanded,setExpanded]=useState(new URLSearchParams(location.search).get('card')),[viewing,setViewing]=useState(null),[labDraft,setLabDraft]=useState(null);
   const [linking,setLinking]=useState(null),[labTrades,setLabTrades]=useState([]),[selectedLink,setSelectedLink]=useState('');
   const viewer=useRef();
@@ -39,6 +40,11 @@ export default function JournalPage(){
   useEffect(()=>{document.title='Your Journal — PrimusTrader';boot();const loggedOut=()=>{setRows([]);setEntry(blank(day));setIdentity({authenticated:false,auth_mode:'google'});setDirty(false)};window.addEventListener('primus:logout',loggedOut);return()=>window.removeEventListener('primus:logout',loggedOut)},[]);
   useEffect(()=>{if(!dirty)return;const leave=e=>{e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',leave);return()=>window.removeEventListener('beforeunload',leave)},[dirty]);
   useEffect(()=>{if(viewing)viewer.current?.showModal()},[viewing]);
+  useEffect(()=>{
+    if(!freshTradeId)return;
+    const frame=requestAnimationFrame(()=>document.querySelector('.pj-trade-card.is-new')?.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));
+    return()=>cancelAnimationFrame(frame);
+  },[freshTradeId]);
   const current=sections.find(item=>item.id===section);
   const timezone=meta?.journal_preferences?.timezone||'America/New_York';
   function upsert(value){const row=normalize(value);setRows(old=>[...old.filter(item=>item.day!==row.day),row].sort((a,b)=>b.day.localeCompare(a.day)));setEntry(row);setDirty(false)}
@@ -52,7 +58,7 @@ export default function JournalPage(){
   }
   async function removeImage(id){if(!window.confirm('Remove this screenshot from this entry?'))return;setBusy(true);setError('');try{const updated=await api(`/journal/${day}/images/${id}`,{method:'DELETE'});setEntry(old=>({...old,images:updated.images}));setRows(old=>old.map(row=>row.day===day?{...row,images:updated.images}:row));setNotice('Screenshot removed.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   function edit(field,value){setEntry(old=>({...old,[field]:value}));setDirty(true);setNotice('')}
-  function addTrade(){const trade={id:crypto.randomUUID().replaceAll('-',''),symbol:'',direction:'',strategy:'',time:'',source:'manual',notes:'',outcome:'not_recorded',confirmations:[],lab_trade_id:null};edit('trades',[...entry.trades,trade]);setExpanded(trade.id)}
+  function addTrade(){const trade={id:crypto.randomUUID().replaceAll('-',''),symbol:'',direction:'',strategy:'',time:'',source:'manual',notes:'',outcome:'not_recorded',confirmations:[],lab_trade_id:null};edit('trades',[...entry.trades,trade]);setExpanded(trade.id);setFreshTradeId(trade.id)}
   function editTrade(id,field,value){edit('trades',entry.trades.map(trade=>trade.id===id?{...trade,[field]:value}:trade))}
   function removeTrade(id){if(!window.confirm('Remove this card from the Journal? Its Lab trade stays saved. Screenshots will remain with the day.'))return;edit('trades',entry.trades.filter(trade=>trade.id!==id));edit('images',entry.images.map(image=>image.trade_id===id?{...image,trade_id:null}:image));setExpanded(null)}
   async function prepareLab(trade){setBusy(true);setError('');try{await persist();setLabDraft(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -87,7 +93,7 @@ export default function JournalPage(){
           {(error||notice)&&<div className="pj-day-feedback">{error&&<div className="pt-journal-error" role="alert">{error}</div>}{notice&&<div className="pt-journal-success" role="status">{notice}</div>}</div>}
           <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">{sections.map((item,index)=><button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section===item.id} onClick={()=>setSection(item.id)}><span>0{index+1}</span>{item.label}{entry[item.id]?.trim()&&<Check size={14}/>}</button>)}</div>
           <div className="pt-writing-area" role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}><span className="pt-overline">SESSION NOTES</span><h3>{current.title}</h3><p>{current.hint}</p><textarea aria-label={current.label} value={entry[section]} maxLength={section==='notes'?20000:12000} placeholder={current.placeholder} onChange={e=>edit(section,e.target.value)} disabled={busy}/><div className="pt-writing-footer"><span>{section==='lesson'?'Your review of the whole session. Trade-by-trade details go below.':'A few lines are enough. You can come back to this later.'}</span><span>{entry[section].length.toLocaleString()} characters</span></div></div>
-          <JournalTradeCards entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={localSitePreview()}/>
+          <JournalTradeCards entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={localSitePreview()} freshTradeId={freshTradeId}/>
           {localSitePreview()&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>
           <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Notes stay in your Journal. Only trades you add to the Lab affect results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>

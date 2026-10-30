@@ -10,6 +10,8 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await page.getByRole('textbox',{name:'Before the session',exact:true}).fill('Wait for a reaction at the level.');
   await page.getByRole('button',{name:'Add trade',exact:true}).click();
   const card=page.getByRole('article',{name:'Journal trade 1',exact:true});
+  await expect(card.getByRole('button',{name:'Not recorded',exact:true})).toHaveCount(0);
+  await expect(card.locator('.pj-outcome button[aria-pressed=true]')).toHaveCount(0);
   await card.getByRole('button',{name:'Win',exact:true}).click();
   await card.getByRole('checkbox',{name:'SMT',exact:true}).check();
   await choose(card,'Market','NQ');await choose(card,'Buy or sell','Buy');

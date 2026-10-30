@@ -512,3 +512,13 @@ trade's net result and reviewed labels into the Journal snapshot. Older clients
 omitting the added fields preserve them. Current preview: port 8123 (older
 previews remain intact). Full checks: 270 pytest, 53 Playwright, 22 Vitest passed;
 production build passed. Keep all of this local for the owner's review/deploy.
+
+Local motion pass: the outcome selector now shows Win/Loss/Break-even only. The
+internal not_recorded value remains for legacy/incomplete cards; no result is
+assumed before selection. Home tool-card hover/keyboard focus opens the paper
+preview and writes an illustrative note, while the Lab preview draws a setup,
+marks its reaction and reveals its steps. Navigation gets a short underline and
+arrow response. New Journal cards enter gently and scroll into view; selected
+confirmations/outcomes, saved notices and attached charts give brief feedback.
+All effects stop, preserve content, and respect reduced-motion preferences. No
+extra motion library or video was added. Keep this iteration local for review.
