@@ -29,7 +29,11 @@ test("one password unlocks the personal journal and Lock lab revokes access", as
   await expect(
     page.getByRole("navigation", { name: "Main navigation" }).getByRole("link"),
   ).toHaveCount(1);
+  // The existing personal lab also receives the guide once after rollout.
+  await expect(page.locator('.guided-tour')).toBeVisible();
+  await page.getByRole('button', {name:'Skip guide', exact:true}).click();
   await page.reload();
+  await expect(page.locator('.guided-tour')).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Results", exact: true }),
   ).toBeVisible();

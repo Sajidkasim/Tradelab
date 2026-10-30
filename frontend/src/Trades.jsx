@@ -130,10 +130,10 @@ export default function Trades({
         level={2}
         action={
           <div className="actions">
-            <Button onClick={onImport}>
+            <Button data-tour="import" onClick={onImport}>
               <Upload size={16} /> Import
             </Button>
-            <Button variant="primary" onClick={() => setOpened("new")}>
+            <Button variant="primary" data-tour="add-trade" onClick={() => setOpened("new")}>
               <Plus size={17} /> Add trade
             </Button>
           </div>

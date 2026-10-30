@@ -216,6 +216,7 @@ export default function Results({
             }}
           />
           <Select
+            data-tour="explore"
             label="Strategy"
             values={["All strategies", ...meta.strategies, "Unclassified"]}
             value={filters.strategy}
@@ -460,7 +461,7 @@ function ResultSample({
         </span>
       </div>
       <div className="card chart-card history-card">
-        <div className="section-title">
+        <div className="section-title" data-tour="results">
           <div>
             <span className="lab-step">02 / OBSERVE</span>
             <h2>Your trading history</h2>

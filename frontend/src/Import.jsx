@@ -15,7 +15,7 @@ import ImportSettings from "./ImportSettings";
 import { testingLabel } from "./importOptions";
 import { pendingTags } from "./importTags";
 
-export default function Import({ meta, refresh, onBack, toast }) {
+export default function Import({ meta, refresh, onBack, toast, settingsRequested = false, onSettingsOpened }) {
   const { timezone: journalZone, clockName } = useJournalClock();
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
@@ -44,6 +44,11 @@ export default function Import({ meta, refresh, onBack, toast }) {
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false),
     [settings, setSettings] = useState(null);
+  useEffect(() => {
+    if (!settingsRequested || busy) return;
+    setSettings({ section: "files" });
+    onSettingsOpened?.();
+  }, [settingsRequested, onSettingsOpened, busy]);
   const ref = useRef();
   const previewRef = useRef();
   const [previewPage, setPreviewPage] = useState(0);

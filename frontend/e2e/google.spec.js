@@ -15,6 +15,10 @@ async function login(page, who) {
     await page.getByRole('button', {name: 'Open my lab', exact: true}).click();
     await expect(page.getByRole('dialog', {name:'Welcome to your lab'})).toHaveCount(0);
   }
+  if (meta.journal_preferences?.tour_status === 'pending') {
+    await page.getByRole('button',{name:'Skip guide',exact:true}).click();
+    await expect(page.locator('.guided-tour')).toHaveCount(0);
+  }
 }
 
 test("Google opens separate journals, and signing out revokes the browser session", async ({ page, browser }) => {

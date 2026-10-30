@@ -16,7 +16,7 @@ from webapp.config import Settings
 def provider(request):
     if request.method == 'POST':
         who = json.loads(request.content)['auth_code']
-        assert who in ('owner', 'friend', 'newcomer')
+        assert who in ('owner', 'friend', 'newcomer', 'tour-user')
         return httpx.Response(200, json={'access_token': who})
     who = request.headers['authorization'].removeprefix('Bearer ')
     return httpx.Response(200, json={'email': f'{who}@example.com', 'email_confirmed_at': '2026-01-01T00:00:00Z',

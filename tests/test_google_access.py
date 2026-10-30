@@ -406,3 +406,57 @@ def test_new_journal_welcome_is_blank_private_persistent_and_does_not_reset_owne
     client.post('/api/logout')
     login(client, state)
     assert client.get('/api/metadata').json() == owner_before
+
+
+def test_optional_tour_progress_is_private_and_keeps_clock_and_trades(google):
+    client, _, state = google
+    login(client, state)
+    owner_before = client.get('/api/metadata').json()
+    assert owner_before['journal_preferences']['tour_status'] == 'pending'
+    client.post('/api/logout')
+    login(client, state, 'tour@example.com', 'tour-user')
+    preferences = client.get('/api/metadata').json()['journal_preferences']
+    assert preferences['welcome_pending'] and preferences['tour_status'] == 'pending'
+    assert client.put('/api/welcome', json={'timezone':'Europe/London'}).status_code == 200
+    assert client.post('/api/trades', json=trade_payload()).status_code == 200
+    trades_before = client.get('/api/trades').json()
+    assert client.put('/api/tour', json={'status':'invalid'}).status_code == 422
+    assert client.put('/api/tour', json={'status':'skipped'}).json() == {'status':'skipped'}
+    assert client.get('/api/metadata').json()['journal_preferences']['timezone'] == 'Europe/London'
+    assert client.put('/api/tour', json={'status':'completed'}).json() == {'status':'completed'}
+    # Skipping a later replay does not erase a completed tour.
+    assert client.put('/api/tour', json={'status':'skipped'}).json() == {'status':'completed'}
+    assert client.get('/api/trades').json() == trades_before
+    client.post('/api/logout')
+    login(client, state, 'tour@example.com', 'tour-user')
+    assert client.get('/api/metadata').json()['journal_preferences']['tour_status'] == 'completed'
+    client.post('/api/logout')
+    login(client, state)
+    assert client.get('/api/metadata').json() == owner_before
+    client.post('/api/logout')
+    assert client.put('/api/tour', json={'status':'completed'}).status_code == 401
+
+
+def test_existing_labs_receive_current_guide_once_without_resetting_settings(google):
+    from webapp import journal_preferences
+    client, app, state = google
+    database = app.state.workspaces.root
+    legacy = {'timezone':'Europe/London', 'welcome_pending':False, 'personal_setup':False, 'tour_status':'completed'}
+    database.set_setting(journal_preferences.KEY, legacy)
+    login(client, state)
+    preferences = client.get('/api/metadata').json()['journal_preferences']
+    assert preferences['tour_status'] == 'pending'
+    assert preferences['timezone'] == 'Europe/London'
+    assert preferences['welcome_pending'] is False
+    # Reading the rollout state does not rewrite existing settings.
+    assert database.get_setting(journal_preferences.KEY) == legacy
+    assert client.post('/api/trades', json=trade_payload()).status_code == 200
+    trades = client.get('/api/trades').json()
+    assert client.put('/api/tour', json={'status':'skipped'}).status_code == 200
+    client.post('/api/logout')
+    login(client, state)
+    preferences = client.get('/api/metadata').json()['journal_preferences']
+    assert preferences['tour_status'] == 'skipped'
+    assert preferences['tour_version'] == journal_preferences.TOUR_VERSION
+    assert preferences['timezone'] == 'Europe/London'
+    assert client.get('/api/trades').json() == trades

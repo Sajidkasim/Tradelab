@@ -348,3 +348,27 @@ rewrite/delete them. Saved Results filters are read with account_id=null so old
 hidden account filters cannot exclude trades. Google sign-in and owner access
 management remain; those are people, not trading accounts. Public wording and
 privacy help use lab/strategy tester, while internal keys stay compatible.
+
+My lab now includes Import settings. It opens the existing Import page dialog;
+when already importing it preserves the current file, mapping and signed preview.
+The opening request is consumed once, so later visits do not reopen the dialog.
+
+## Optional five-step tour — 30 October 2026
+
+All labs receive the current version of the guide once, including existing users.
+TOUR_VERSION in journal_preferences versions this rollout; completion/skip saves
+the version privately. Metadata reads never rewrite existing settings.
+Newly provisioned Google labs also have tour_status=pending. The welcome setup is
+followed by GuidedTour: Explore → Add trade → Import → Results → My lab. Existing
+labs with no current-version completion start with the optional guide. My lab → Quick guide
+replays it. A modal SVG spotlight blocks background edits and highlights one
+control, with Back/Next/Skip and Escape to skip. Completion shows a green Ready
+to test tick. Private /api/tour saves completed/skipped in journal preferences;
+skipping a replay does not erase completion. Clock, labels, trades and imports
+are not changed by the guide. Keep focus restoration, responsive positioning,
+resize/scroll cleanup and correct menu highlighting. The owner approved publishing this guide to all users on 30 October 2026.
+
+Tour visual revision: the owner disliked the large modal-style card. The tour
+now uses a 300px compact tooltip, one-sentence descriptions, 26% background shade,
+a thin palette-based highlight and side placement where desktop space permits.
+The first step highlights the actual Strategy selector; Back is hidden on step 1.

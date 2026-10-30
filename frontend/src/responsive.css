@@ -250,3 +250,22 @@
 .import-settings-modal .import-file-settings { gap: 14px; }
 .import-settings-modal .import-default-note { padding: 10px 12px; }
 @media (max-width: 700px) { .import-settings-modal { padding: 22px; } }
+
+/* A brief optional tour: one target and one small card at a time. */
+.guided-tour { position: fixed; inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; overflow: hidden; color: var(--tl-ink); }
+.guided-tour::backdrop { background: transparent; }
+.tour-shade { position: absolute; inset: 0; pointer-events: none; }
+.tour-highlight { fill: none; stroke: var(--lab-accent); stroke-width: 1.5; }
+.tour-card { position: fixed; width: min(300px, calc(100vw - 24px)); padding: 16px; border-radius: 12px; border: 1px solid var(--tl-border); background: var(--tl-surface); color: var(--tl-ink); box-shadow: 0 6px 24px rgba(0,0,0,.13); outline: none; max-height: calc(100dvh - 24px); overflow-y: auto; }
+.tour-topline, .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tour-topline { margin-bottom: 10px; }
+.tour-step { color: var(--tl-muted); font-size: 11px; font-weight: 500; letter-spacing: .2px; }
+.tour-card .tour-skip { padding: 4px 0; min-height: 32px; border: 0; background: transparent; box-shadow: none; font-size: 12px; color: var(--tl-ink2); }
+.tour-card h2 { font-size: 16px; line-height: 1.3; margin: 0 0 8px; }
+.tour-card p { font-size: 13px; line-height: 1.55; margin: 0 0 16px; color: var(--tl-ink2); }
+.tour-ready { top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+.tour-ready-icon { color: var(--tl-sage); margin-bottom: 14px; }
+:root[data-appearance="classic"] .tour-card { border-radius: 2px; border: 2px solid var(--classic-face); box-shadow: var(--classic-raised); }
+.tour-actions .button { min-height: 36px; padding: 7px 12px; font-size: 12px; border-radius: 8px; }
+.tour-actions .tour-back { padding-left: 0; border: 0; box-shadow: none; background: transparent; color: var(--tl-ink2); }
+@media (max-width: 700px) { .tour-actions .button { min-height: 44px; } }

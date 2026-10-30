@@ -17,6 +17,8 @@ test('new Google journal starts with a personal welcome, blank labels and UK clo
   await page.screenshot({path:testInfo.outputPath('welcome-first-visit.png')});
   await welcome.getByRole('button',{name:'Open my lab',exact:true}).click();
   await expect(welcome).toHaveCount(0);
+  await page.getByRole('button',{name:'Skip guide',exact:true}).click();
+  await expect(page.locator('.guided-tour')).toHaveCount(0);
   const meta = await (await page.request.get(`${origin}/api/metadata`)).json();
   expect(meta.strategies).toEqual([]);
   expect(meta.playbook.levels).toEqual([]);

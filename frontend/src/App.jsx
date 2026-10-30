@@ -7,10 +7,12 @@ import {
   Settings2,
   Users,
   ArrowDown,
+  HelpCircle,
 } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { Button, Notice, Menu } from "./components";
 import { JournalClock } from "./JournalClock";
+import GuidedTour from "./GuidedTour";
 import Welcome from "./Welcome";
 import Results from "./Results";
 import Trades from "./Trades";
@@ -46,6 +48,14 @@ export default function App() {
     [labSettings, setLabSettings] = useState(false),
     [access, setAccess] = useState(false),
     [message, setMessage] = useState("");
+  const [importSettingsRequested, setImportSettingsRequested] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (meta?.journal_preferences?.tour_status === "pending" && !meta.journal_preferences.welcome_pending) {
+      setPage("results");
+      setTourOpen(true);
+    }
+  }, [meta?.journal_preferences?.tour_status, meta?.journal_preferences?.welcome_pending]);
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
     const [metadata, rows] = await Promise.all([
@@ -73,6 +83,8 @@ export default function App() {
       setSession({ authenticated: false });
       setMeta(null);
       setTrades([]);
+      setTourOpen(false);
+      setImportSettingsRequested(false);
       setCsrf("");
       api("/session")
         .then((identity) => {
@@ -212,6 +224,15 @@ export default function App() {
               <button onClick={() => setLabSettings(true)}>
                 <Settings2 size={16} /> Lab settings
               </button>
+              <button onClick={() => {
+                setImportSettingsRequested(true);
+                if (page !== "import") navigate("import");
+              }}>
+                <Settings2 size={16} /> Import settings
+              </button>
+              <button onClick={() => { navigate("results"); setTourOpen(true); }}>
+                <HelpCircle size={16} /> Quick guide
+              </button>
               <button onClick={() => setBackup(true)}>
                 <Download size={16} /> Backup & restore
               </button>
@@ -301,6 +322,8 @@ export default function App() {
               </div>
               {page === "import" && (
                 <Import
+                  settingsRequested={importSettingsRequested}
+                  onSettingsOpened={() => setImportSettingsRequested(false)}
                   meta={meta}
                   refresh={refresh}
                   onBack={() => navigate("trades")}
@@ -340,6 +363,7 @@ export default function App() {
           {meta.journal_preferences?.welcome_pending && (
             <Welcome refresh={refresh} />
           )}
+          {tourOpen && !meta.journal_preferences?.welcome_pending && <GuidedTour refresh={refresh} onClose={() => setTourOpen(false)} />}
           {labSettings && (
             <LabSettings
               meta={meta}

@@ -161,3 +161,7 @@ class WelcomeSetup(JournalPreferences):
     strategies: list[str] = Field(default_factory=list, max_length=200)
     levels: list[str] = Field(default_factory=list, max_length=200)
     confirmations: list[str] = Field(default_factory=list, max_length=200)
+
+
+class TourProgress(StrictModel):
+    status: Literal['completed', 'skipped']

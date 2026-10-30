@@ -17,11 +17,7 @@ export default function Welcome({ refresh }) {
   return <Modal closable={false} title="Welcome to your lab" className="lab-settings-modal" onClose={() => {}}>
     <form className="stack" onSubmit={save}>
       <p>Your strategy tester is private and starts empty. Set up your own labels below, or leave them blank and add them later in My lab → Lab settings.</p>
-      <ol className="welcome-guide">
-        <li><strong>Set up your lab.</strong> Choose your clock, strategies, key levels and confirmations.</li>
-        <li><strong>Add your trades.</strong> Log a trade or import a CSV. Preview it before saving; duplicate trades are detected.</li>
-        <li><strong>Explore your results.</strong> Filter a setup beside the graph. Compare strategies, key levels and confirmations to see what works.</li>
-      </ol>
+      <p className="muted">After setup, an optional five-step guide will show you around.</p>
       <Select label="Tester clock" value={timezone} onChange={(e) => setTimezone(e.target.value)} values={[{value:'America/New_York',label:'New York · EST / EDT'},{value:'Europe/London',label:'UK · GMT / BST'}]} />
       <div className="form-grid two">
         <Field label="Your strategies" hint="Optional · one name per line"><textarea rows={4} value={strategies} onChange={(e) => setStrategies(e.target.value)} /></Field>

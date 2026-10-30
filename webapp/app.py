@@ -21,7 +21,7 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -448,6 +448,16 @@ def create_app(config: Settings | None = None):
             database.set_setting(journal_preferences.KEY, values)
             app.state.workspaces.bump(member['key'])
         return values
+
+    @app.put('/api/tour')
+    def save_tour_progress(payload: TourProgress, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            current = journal_preferences.read(database)
+            status = 'completed' if current['tour_status'] == 'completed' else payload.status
+            database.set_setting(journal_preferences.KEY, {**current, 'tour_status': status})
+            app.state.workspaces.bump(member['key'])
+        return {'status': status}
 
     @app.put('/api/welcome')
     def welcome_setup(payload: WelcomeSetup, request: Request, member=Depends(workspace)):
