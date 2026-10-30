@@ -522,3 +522,30 @@ arrow response. New Journal cards enter gently and scroll into view; selected
 confirmations/outcomes, saved notices and attached charts give brief feedback.
 All effects stop, preserve content, and respect reduced-motion preferences. No
 extra motion library or video was added. Keep this iteration local for review.
+
+
+## Private Journal screenshots and recoverable entry deletion — local pending review
+
+Supersedes the earlier notes saying R2 is unconnected. A bucket-limited Object
+Read & Write key for private `primuslab-images` was created with explicit user
+approval. The four PRIMUS_R2_* settings are saved in Render using Save only
+(no deployment), and in gitignored `data/private/r2.env` with mode 600. Never
+print these values. A synthetic write/read/delete against the real bucket passed;
+no trading records were uploaded. Public bucket access remains disabled.
+
+`webapp.image_storage` uses boto3 on the server. Browser image routes check the
+signed-in workspace and entry metadata before serving private bytes. Provider
+errors return a generic 503. Hosted uploads stay disabled without all four
+settings; local previews ignore cloud env keys and keep disposable local images.
+
+Daily Journal Delete entry asks for confirmation and archives the entry with its
+latest edits. Undo and Deleted entries can restore it. Restore refuses to replace
+an active entry for the same date. Lab trades remain untouched. Archived entries
+and detached images are retained; there is no permanent purge in this release.
+Existing JSON backup includes archived settings and screenshot references, not
+image bytes; download screenshots separately. This is not an image-inclusive backup.
+
+Removed the creative draft roles caption under the Home trader names.
+Validation: Python 273 passed (5 existing warnings), Vitest 22 passed, Playwright
+55 passed, frontend production build passed. All UI/code changes remain local;
+no commit, push, or deployment was performed.

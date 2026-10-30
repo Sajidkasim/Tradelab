@@ -142,3 +142,9 @@
 @keyframes pj-tick-set{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
 @keyframes pj-saved-in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.pj-trade-card.is-new,.pj-confirmations label,.pj-outcome button>span,.pj-day-feedback .pt-journal-success,.pj-screenshots .pt-image-grid>figure{animation:none!important}.pj-trade-summary,.pj-trade-actions .pt-btn,.pj-trades-heading .pt-btn{transition:none}}
+.pj-delete-entry{display:grid;place-items:center;padding:9px;border:1px solid var(--pt-line);background:transparent;color:var(--pt-muted);border-radius:3px;min-width:39px;min-height:39px}
+.pj-delete-entry:hover{color:var(--pt-rust);border-color:var(--pt-rust)}.pj-delete-entry:disabled{opacity:.35}
+.pj-trash-link{display:flex;align-items:center;gap:9px;padding:15px 0 0;border:0;background:transparent;color:var(--pt-muted);font-size:12px}
+.pj-undo{display:inline-flex;align-items:center;gap:6px;margin-left:14px;padding:4px 9px;border:1px solid currentColor;background:transparent;border-radius:3px;color:inherit;font-size:12px}
+.pj-workspace .pt-btn.pj-danger{background:#983f30;color:#fff;border-color:#983f30}.pj-trash-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--pt-line);font-size:14px}
+@media(max-width:650px){.pj-trash-link{grid-column:1/-1;padding-top:0}}

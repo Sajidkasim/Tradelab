@@ -62,3 +62,26 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await page.getByRole('button',{name:'Open entry 12 August 2026',exact:true}).click();
   await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
 });
+
+test('Journal entry deletion is confirmed, reversible and leaves Lab trades alone',async({page})=>{
+  await page.goto(`${origin}/journal?day=2026-09-15`);
+  await page.getByRole('textbox',{name:'Before the session',exact:true}).fill('An entry to restore.');
+  await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
+  await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
+  const before=await (await page.request.get(`${origin}/api/trades`)).json();
+  await page.getByRole('button',{name:'Delete journal entry',exact:true}).click();
+  await page.getByRole('button',{name:'Keep entry',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'Before the session',exact:true})).toHaveValue('An entry to restore.');
+  await page.getByRole('button',{name:'Delete journal entry',exact:true}).click();
+  await page.getByRole('dialog',{name:'Delete journal entry?',exact:true}).getByRole('button',{name:'Delete entry',exact:true}).click();
+  await expect(page.getByRole('button',{name:'15 September 2026',exact:true})).not.toHaveClass(/has-entry/);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'Before the session',exact:true})).toHaveValue('An entry to restore.');
+  await page.getByRole('button',{name:'Delete journal entry',exact:true}).click();
+  await page.getByRole('dialog',{name:'Delete journal entry?',exact:true}).getByRole('button',{name:'Delete entry',exact:true}).click();
+  await page.reload();
+  await page.getByRole('button',{name:'Deleted entries',exact:true}).click();
+  await page.getByRole('dialog',{name:'Deleted entries',exact:true}).getByRole('button',{name:'Restore',exact:true}).click();
+  await expect(page.getByRole('textbox',{name:'Before the session',exact:true})).toHaveValue('An entry to restore.');
+  expect(await (await page.request.get(`${origin}/api/trades`)).json()).toEqual(before);
+});

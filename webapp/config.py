@@ -26,6 +26,15 @@ class Settings:
     site_preview: bool = False
     site_enabled: bool = False
 
+    r2_account_id: str = ''
+    r2_bucket: str = ''
+    r2_access_key_id: str = field(default='', repr=False)
+    r2_secret_access_key: str = field(default='', repr=False)
+
+    @property
+    def r2_ready(self):
+        return all((self.r2_account_id, self.r2_bucket, self.r2_access_key_id, self.r2_secret_access_key))
+
     @property
     def google_required(self):
         return self.auth_mode == "google"
@@ -37,6 +46,13 @@ class Settings:
         return not self.google_required and (not self.local or bool(self.password_hash))
 
     def validate(self):
+        if any((self.r2_account_id, self.r2_bucket, self.r2_access_key_id, self.r2_secret_access_key)):
+            import re
+            if not self.r2_ready or not re.fullmatch(r'[a-f0-9]{32}', self.r2_account_id) or not re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', self.r2_bucket):
+                raise ValueError('Complete the private R2 image-storage configuration.')
+            if len(self.r2_access_key_id)<16 or len(self.r2_secret_access_key)<16:
+                raise ValueError('Use the R2 S3 access key and secret key.')
+
         if self.site_enabled and self.lab_path != '/lab':
             raise ValueError('The Primus website requires /lab routing.')
         if self.site_preview and (not self.local or self.lab_path != '/lab'):
@@ -101,6 +117,10 @@ def from_env():
         lab_path=os.getenv("PRIMUSLAB_LAB_PATH", ""),
         legacy_host=os.getenv("PRIMUSLAB_LEGACY_HOST", ""),
         custom_host=os.getenv("PRIMUSLAB_CUSTOM_HOST", ""),
+        r2_account_id='' if local else os.getenv('PRIMUS_R2_ACCOUNT_ID',''),
+        r2_bucket='' if local else os.getenv('PRIMUS_R2_BUCKET',''),
+        r2_access_key_id='' if local else os.getenv('PRIMUS_R2_ACCESS_KEY_ID',''),
+        r2_secret_access_key='' if local else os.getenv('PRIMUS_R2_SECRET_ACCESS_KEY',''),
         site_enabled=not local and os.getenv("PRIMUSLAB_LAB_PATH", "") == "/lab" and os.getenv("PRIMUSTRADER_SITE_ENABLED", "1") == "1")
     settings.validate()
     return settings

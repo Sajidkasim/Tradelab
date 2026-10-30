@@ -105,7 +105,6 @@ function HomePage(){
       <section className="pt-wrap pt-section" id="traders">
         <div className="pt-section-heading"><div><span className="pt-overline">01 / THE PEOPLE</span><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Primus starts with the people at the desk. Different perspectives, a shared place to study and a process that stays your own.</p></div>
         <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader"><div className="pt-profile-mark"><span>0{i+1}</span><Compass size={17} strokeWidth={1}/></div><div className="pt-monogram">{t.initials}<span>↗</span></div><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>
-        <p className="pt-caption">Desk roles and nicknames are creative draft labels for review.</p>
       </section>
       <section className="pt-wrap pt-section" id="briefing">
         <div className="pt-section-heading"><div><span className="pt-overline">02 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>

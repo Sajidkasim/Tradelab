@@ -20,6 +20,8 @@ MAX_IMAGES = 6
 
 def entry(database, day):
     stored = database.get_setting(PREFIX + day, {})
+    if stored.get('deleted_at'):
+        stored = {}
     return {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
             'images': [], 'trades': [], 'updated_at': None, **stored}
 
@@ -33,7 +35,7 @@ def save(database, day, values):
 
 def entries(database):
     return sorted((row for row in database.settings_with_prefix(PREFIX).values()
-                   if isinstance(row, dict) and row.get('day')), key=lambda row: row['day'], reverse=True)
+                   if isinstance(row, dict) and row.get('day') and not row.get('deleted_at')), key=lambda row: row['day'], reverse=True)
 
 
 def image_path(config, member, day, image_id):
@@ -62,7 +64,7 @@ def compress(content):
         raise ValueError('Choose a readable PNG, JPEG or WebP screenshot.') from None
 
 
-def add_image(database, config, member, day, content, trade_id=""):
+def add_image(database, config, member, day, content, trade_id="", storage=None):
     previous = entry(database, day)
     if trade_id and not any(t['id'] == trade_id for t in previous['trades']):
         raise ValueError('Save this trade before adding a screenshot.')
@@ -70,14 +72,15 @@ def add_image(database, config, member, day, content, trade_id=""):
         raise ValueError('Keep up to six screenshots per day in this preview.')
     data, width, height = compress(content)
     image_id = uuid4().hex
-    path = image_path(config, member, day, image_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
+    if storage is None:
+        from .image_storage import ImageStorage
+        storage = ImageStorage(config)
+    storage.put(member, day, image_id, data)
     item = {'id': image_id, 'trade_id': trade_id or None, 'width': width, 'height': height, 'size': len(data)}
     try:
         return save(database, day, {'images': [*previous['images'], item]})
     except Exception:
-        path.unlink(missing_ok=True)
+        storage.discard_unreferenced(member, day, image_id)
         raise
 
 
@@ -134,3 +137,35 @@ def linked_record(database, day, record_id):
         return None
     match = frame[frame['tags'].map(lambda tags: marker in (tags or []))]
     return int(match.iloc[0]['id']) if not match.empty else None
+
+
+TRASH_PREFIX = 'primus_deleted_entry:'
+
+
+def deleted_entries(database):
+    return sorted(({'id':row['archive_id'], 'day':row['day'], 'deleted_at':row['deleted_at']} for row in database.settings_with_prefix(TRASH_PREFIX).values()
+        if isinstance(row, dict) and row.get('archive_id')), key=lambda row:row['deleted_at'], reverse=True)
+
+
+def delete_entry(database, day):
+    stored = database.get_setting(PREFIX + day, {})
+    if not stored:
+        return None
+    archive_id = uuid4().hex
+    database.set_setting(TRASH_PREFIX + archive_id, {**stored, 'archive_id':archive_id, 'deleted_at':datetime.now(timezone.utc).isoformat()})
+    database.set_setting(PREFIX + day, {})
+    return archive_id
+
+
+def restore_entry(database, archive_id):
+    if not re.fullmatch(r'[a-f0-9]{32}', archive_id):
+        raise ValueError('Choose a deleted entry to restore.')
+    stored = database.get_setting(TRASH_PREFIX + archive_id, {})
+    if not stored:
+        raise ValueError('This entry is not in deleted entries.')
+    if database.get_setting(PREFIX + stored['day'], {}):
+        raise ValueError('An entry already exists for this day. Delete it before restoring this version.')
+    restored = {key:value for key,value in stored.items() if key not in ('deleted_at','archive_id')}
+    database.set_setting(PREFIX + stored['day'], restored)
+    database.set_setting(TRASH_PREFIX + archive_id, {})
+    return restored

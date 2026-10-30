@@ -22,6 +22,7 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
+from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal
@@ -35,11 +36,13 @@ def create_app(config: Settings | None = None):
 
     @asynccontextmanager
     async def lifespan(app):
+        app.state.image_storage = ImageStorage(config)
         app.state.workspaces = await run_in_threadpool(Workspaces, config)
         if config.password_required:
             app.state.personal_sessions = await run_in_threadpool(PersonalSessions, app.state.workspaces.root, auth_version(config.password_hash, config.secret))
         yield
         app.state.workspaces.close()
+        app.state.image_storage.close()
 
     app = FastAPI(title="PrimusLab", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.config = config
@@ -90,6 +93,10 @@ def create_app(config: Settings | None = None):
     async def validation_error(request, exc):
         # Validation responses must never echo submitted backup or credential values.
         return JSONResponse({"detail": "Check the submitted fields.", "fields": [".".join(map(str, e["loc"])) for e in exc.errors()]}, status_code=422)
+
+    @app.exception_handler(StorageUnavailable)
+    async def storage_error(request, exc):
+        return JSONResponse({'detail':'Screenshot storage is temporarily unavailable. Your saved notes are safe; please retry.'},status_code=503)
 
     @app.exception_handler(ValueError)
     async def value_error(request, exc):
@@ -151,10 +158,10 @@ def create_app(config: Settings | None = None):
         try:
             member = workspace(request)
         except (PermissionError, HTTPException):
-            return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf'], 'auth_mode': config.auth_mode}
+            return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf'], 'auth_mode': config.auth_mode, 'images_enabled': request.app.state.image_storage.enabled}
         return {'authenticated': True, 'name': member['name'], 'owner': member['key'] == 'owner', 'local': config.local,
                 'auth_mode': config.auth_mode, 'can_lock': config.password_required or config.google_required,
-                'csrf': request.session['csrf']}
+                'csrf': request.session['csrf'], 'images_enabled': request.app.state.image_storage.enabled}
 
     @app.post('/api/login/google')
     def start_google(request: Request, return_to: str = ""):
@@ -231,7 +238,7 @@ def create_app(config: Settings | None = None):
             raise HTTPException(404)
 
     def journal_images():
-        if not config.site_preview or not config.local:
+        if not app.state.image_storage.enabled:
             raise HTTPException(404)
 
     @app.get('/api/journal')
@@ -247,6 +254,27 @@ def create_app(config: Settings | None = None):
             content = json.dumps({'entries': daily_journal.entries(db(request, member)),
                                   'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
         return Response(content, media_type='application/json', headers={'Content-Disposition':'attachment; filename="primus-journal-notes.json"'})
+
+    @app.get('/api/journal/trash')
+    def journal_trash(request: Request, member=Depends(workspace)):
+        journal_preview()
+        return daily_journal.deleted_entries(db(request, member))
+
+    @app.delete('/api/journal/{day}')
+    def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            archive_id = daily_journal.delete_entry(db(request, member), day.isoformat())
+            app.state.workspaces.bump(member['key'])
+        return {'ok': True, 'archive_id': archive_id}
+
+    @app.post('/api/journal/trash/{archive_id}/restore')
+    def restore_journal_entry(archive_id: str, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            result = daily_journal.restore_entry(db(request, member), archive_id)
+            app.state.workspaces.bump(member['key'])
+            return result
 
     @app.put('/api/journal/{day}')
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
@@ -267,7 +295,7 @@ def create_app(config: Settings | None = None):
             raise HTTPException(413, 'Choose a screenshot smaller than 8 MB.')
         def operation():
             with app.state.workspaces.lock:
-                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content, trade_id)
+                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content, trade_id, app.state.image_storage)
                 app.state.workspaces.bump(member['key'])
                 return result
         return await run_in_threadpool(operation)
@@ -279,10 +307,10 @@ def create_app(config: Settings | None = None):
         stored = daily_journal.entry(database, day.isoformat())
         if not any(item['id'] == image_id for item in stored['images']):
             raise HTTPException(404)
-        path = daily_journal.image_path(config, member['key'], day.isoformat(), image_id)
-        if not path.is_file():
+        data = app.state.image_storage.read(member['key'], day.isoformat(), image_id)
+        if data is None:
             raise HTTPException(404)
-        return FileResponse(path, media_type='image/webp', filename='primus-screenshot.webp', content_disposition_type='inline')
+        return Response(data, media_type='image/webp', headers={'Content-Disposition':'inline; filename="primus-screenshot.webp"'})
 
     @app.delete('/api/journal/{day}/images/{image_id}')
     def remove_journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
