@@ -499,3 +499,16 @@ are plain plan/observation/review text. Local tools/run_site_preview.py now seed
 clearly labelled example cards. Latest new preview is http://127.0.0.1:8122/journal;
 its data is disposable. Existing previews were not restarted. Nothing from this
 iteration has been committed, pushed or deployed. Owner will deploy after review.
+
+Local follow-up: removed the signed-in My workspace header/mobile shortcut;
+Home/Journal navigation remains and Sign in appears only while signed out.
+Homepage section order is People (01), Market Briefing (02), Workspace (03).
+Section/card arrival animations run once, leave content visible without JS, and
+respect reduced motion. Journal trade cards now store an explicit outcome enum
+(not_recorded/win/loss/breakeven) and bounded confirmation strings from the Lab
+catalogue. These are narrative annotations and never manufacture P&L or R.
+Confirmation choices prefill Add to Strategy Lab; linking reads the actual core
+trade's net result and reviewed labels into the Journal snapshot. Older clients
+omitting the added fields preserve them. Current preview: port 8123 (older
+previews remain intact). Full checks: 270 pytest, 53 Playwright, 22 Vitest passed;
+production build passed. Keep all of this local for the owner's review/deploy.

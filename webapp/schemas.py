@@ -1,6 +1,6 @@
 """Only explicit journal fields can be submitted; identity comes from the session."""
 from datetime import datetime, date
-from typing import Literal
+from typing import Literal, Annotated
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from core import edge
 
@@ -170,6 +170,8 @@ class TourProgress(StrictModel):
 
 
 class JournalTrade(StrictModel):
+    outcome: Literal['not_recorded', 'win', 'loss', 'breakeven'] = 'not_recorded'
+    confirmations: list[Annotated[str, Field(min_length=1, max_length=120)]] = Field(default_factory=list, max_length=30)
     id: str = Field(pattern=r'^[a-f0-9]{32}$')
     symbol: str = Field(default='', max_length=30)
     direction: Literal['long', 'short', ''] = ''

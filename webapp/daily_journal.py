@@ -89,7 +89,7 @@ def save_day(database, day, values):
         if len(set(ids)) != len(ids):
             raise ValueError('Each journal trade needs its own reference.')
         old = {t['id']: t for t in previous['trades']}
-        values['trades'] = [{**t, 'lab_trade_id': old.get(t['id'], {}).get('lab_trade_id')} for t in incoming]
+        values['trades'] = [{ 'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'', 'outcome':'not_recorded', 'confirmations':[], **old.get(t['id'], {}), **t, 'lab_trade_id': old.get(t['id'], {}).get('lab_trade_id')} for t in incoming]
         # Removing a narrative card never removes its Lab trade or its screenshots.
         values['images'] = [{**image, 'trade_id': image.get('trade_id') if image.get('trade_id') in ids else None} for image in previous['images']]
     return save(database, day, values)
@@ -109,12 +109,15 @@ def link_trade(database, day, record_id, trade_id):
     if trade_id is not None:
         from . import journal_preferences
         from core.models import BACKTEST_SOURCES
+        from core import edge
         trade = database.get_trade(trade_id)
         clock = trade.entry_time
         if clock.tzinfo is None:
             clock = clock.replace(tzinfo=timezone.utc)
         snapshot = {'symbol': trade.symbol, 'direction': trade.direction, 'strategy': trade.setup_name,
                     'source': 'backtest' if trade.source in BACKTEST_SOURCES else 'manual',
+                    'outcome': 'not_recorded' if trade.net_pnl is None else 'win' if trade.net_pnl > 0 else 'loss' if trade.net_pnl < 0 else 'breakeven',
+                    'confirmations': edge.read_labels(trade.tags)['confirmations'],
                     'time': clock.astimezone(ZoneInfo(journal_preferences.read(database)['timezone'])).strftime('%H:%M')}
     return save(database, day, {'trades': [{**t, **snapshot, 'lab_trade_id': trade_id} if t['id'] == record_id else t for t in current['trades']]})
 

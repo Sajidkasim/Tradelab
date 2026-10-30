@@ -193,3 +193,18 @@ def test_existing_lab_link_never_creates_or_deletes_a_trade(draft):
     assert client.get('/api/trades').json()==[trade]
     client.headers['X-Primus-CSRF']='wrong'
     assert client.put(url,json={'trade_id':trade['id']}).status_code==403
+
+
+def test_journal_outcome_and_confirmations_persist_without_generating_lab_results(draft):
+    client,app,state=draft;login(client,state)
+    day='2026-10-20';record=journal_card()
+    selected={**record,'outcome':'win','confirmations':['SMT','CISD','Macro']}
+    saved=client.put(f'/api/journal/{day}',json={'trades':[selected]}).json()
+    assert saved['trades'][0]['outcome']=='win'
+    assert saved['trades'][0]['confirmations']==['SMT','CISD','Macro']
+    # An earlier client saving only its known fields cannot erase these choices.
+    saved=client.put(f'/api/journal/{day}',json={'trades':[record]}).json()
+    assert saved['trades'][0]['outcome']=='win' and saved['trades'][0]['confirmations']==['SMT','CISD','Macro']
+    assert client.get('/api/trades').json()==[]
+    assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'outcome':'3R'}]}).status_code==422
+    assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'confirmations':['x'*121]}]}).status_code==422

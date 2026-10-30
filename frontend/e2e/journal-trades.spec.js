@@ -10,6 +10,8 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await page.getByRole('textbox',{name:'Before the session',exact:true}).fill('Wait for a reaction at the level.');
   await page.getByRole('button',{name:'Add trade',exact:true}).click();
   const card=page.getByRole('article',{name:'Journal trade 1',exact:true});
+  await card.getByRole('button',{name:'Win',exact:true}).click();
+  await card.getByRole('checkbox',{name:'SMT',exact:true}).check();
   await choose(card,'Market','NQ');await choose(card,'Buy or sell','Buy');
   await choose(card,'Strategy','Displacement continuation');
   await card.getByRole('textbox',{name:'Trade notes',exact:true}).fill('Took the long after confirmation.');
@@ -27,6 +29,8 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await page.reload();
   await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
   await card.locator('.pj-trade-summary').click();
+  await expect(card.getByRole('button',{name:'Win',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(card.getByRole('checkbox',{name:'SMT',exact:true})).toBeChecked();
   await expect(card.getByRole('textbox',{name:'Trade notes',exact:true})).toHaveValue('Took the long after confirmation.');
   await expect(card.getByRole('button',{name:'Open screenshot 1',exact:true})).toBeVisible();
   for(const width of [1440,768,390,320]){
@@ -39,6 +43,7 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await card.getByRole('button',{name:'Add to Strategy Lab',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Add Journal trade to Strategy Lab',exact:true});
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('checkbox',{name:'SMT',exact:true})).toBeChecked();
   await dialog.getByRole('spinbutton',{name:'Net result ($)',exact:true}).fill('150');
   await dialog.getByRole('spinbutton',{name:'Original risk ($)',exact:true}).fill('50');
   await dialog.getByRole('button',{name:'Save to Strategy Lab',exact:true}).click();

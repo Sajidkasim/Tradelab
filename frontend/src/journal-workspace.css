@@ -110,3 +110,21 @@
 @media(max-width:650px){.pj-workspace .pt-journal-sidebar>.pt-calendar{display:block}}
 .pj-trade-fields .picker-trigger>span{white-space:normal;overflow:visible;line-height:1.5;overflow-wrap:anywhere}
 .pj-workspace .pt-btn:not(.pt-btn-dark){background:var(--pt-paper);color:var(--pt-ink)}
+.pj-outcome,.pj-confirmations{padding:0;border:0;margin:0 0 24px;min-width:0}
+.pj-outcome legend,.pj-confirmations legend{font-size:13px;font-weight:500;color:var(--pt-ink);padding:0;margin-bottom:10px}
+.pj-outcome>div{display:flex;flex-wrap:wrap;gap:8px}.pj-outcome button{padding:9px 14px;min-height:40px;font:12px Inter,Arial,sans-serif;background:var(--pt-white);border:1px solid var(--pt-line);border-radius:4px;color:var(--pt-muted);transition:background .15s,border-color .15s}
+.pj-outcome button[aria-pressed=true]{border-color:var(--pt-focus);color:var(--pt-ink);background:var(--pt-paper)}
+.pj-outcome button.win[aria-pressed=true]{background:#dfeadd;color:#25543d;border-color:#9cb99a}
+.pj-outcome button.loss[aria-pressed=true]{background:#fae8e2;color:#963f2c;border-color:#d9a393}
+.pj-outcome-badge{font-size:11px;padding:4px 9px;border:1px solid var(--pt-line);border-radius:3px;color:var(--pt-muted);white-space:nowrap}
+.pj-outcome-badge.win{background:#dfeadd;color:#25543d;border-color:#9cb99a}.pj-outcome-badge.loss{background:#fae8e2;color:#963f2c;border-color:#d9a393}
+.pj-confirmations>p{font-size:12px;color:var(--pt-muted);margin:0 0 12px}.pj-confirmations>div{display:flex;flex-wrap:wrap;gap:8px}
+.pj-confirmations label{display:flex;align-items:center;gap:8px;min-height:39px;padding:9px 11px;border:1px solid var(--pt-line);border-radius:4px;font-size:12px;color:var(--pt-muted);cursor:pointer}
+.pj-confirmations label:has(input:checked){background:var(--pt-paper);border-color:var(--pt-focus);color:var(--pt-ink)}
+.pj-confirmations input{accent-color:var(--pt-focus);width:15px;height:15px;margin:0}
+.pj-trade-body{animation:pj-card-in .2s ease-out}
+@keyframes pj-card-in{from{opacity:.55;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+:root[data-theme=dark] .pj-outcome button.win[aria-pressed=true],:root[data-theme=dark] .pj-outcome-badge.win{background:#324b3b;color:#d3e9c9;border-color:#526e57}
+:root[data-theme=dark] .pj-outcome button.loss[aria-pressed=true],:root[data-theme=dark] .pj-outcome-badge.loss{background:#4a302b;color:#f5c1b1;border-color:#895345}
+@media(prefers-reduced-motion:reduce){.pj-trade-body{animation:none}.pj-outcome button{transition:none}}
+@media(max-width:380px){.pj-outcome button{font-size:11px;padding-inline:10px}}

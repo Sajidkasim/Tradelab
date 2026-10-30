@@ -317,3 +317,7 @@
 @media(max-width:520px){.pt-private-entrance{padding:20px 12px;min-height:calc(100dvh - 70px)}.pt-entrance-paper{margin:10px 0 20px;padding:18px}}
 .pt-header nav .pt-mobile-workspace{display:none}
 @media(max-width:520px){.pt-header nav.is-open{flex-wrap:wrap}.pt-header nav .pt-mobile-workspace{display:inline-flex;color:#d3e6af;background:transparent;border:0;padding:8px 0;font:inherit}}
+.pt-revealed{animation:pt-section-arrive .55s ease-out both}
+.pt-tools .pt-tool:nth-child(2){animation-delay:.08s}
+@keyframes pt-section-arrive{from{opacity:.6;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.pt-revealed{animation:none}}

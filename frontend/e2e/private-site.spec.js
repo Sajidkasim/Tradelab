@@ -14,7 +14,7 @@ test('one private sign-in connects Journal, Lab and Home, and preserves the chos
   await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Skip guide',exact:true}).click();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Home',exact:true}).click();
-  await expect(page.locator('.pt-header-action')).toHaveText(/My workspace/);
+  await expect(page.locator('.pt-header-action')).toHaveCount(0);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(page.locator('.pt-header-action')).toHaveText(/Sign in/);
   await page.goto(`${origin}/lab`);

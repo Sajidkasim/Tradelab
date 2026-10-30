@@ -252,7 +252,7 @@ def create_app(config: Settings | None = None):
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.lock:
-            result = daily_journal.save_day(db(request, member), day.isoformat(), payload.model_dump(exclude_none=True))
+            result = daily_journal.save_day(db(request, member), day.isoformat(), payload.model_dump(exclude_none=True, exclude_unset=True))
             app.state.workspaces.bump(member['key'])
             return result
 

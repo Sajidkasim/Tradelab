@@ -56,6 +56,9 @@ test('Primus home shows the actual five traders and responsive private-tool link
   await page.route('https://s3.tradingview.com/**',route=>route.fulfill({contentType:'application/javascript',body:'document.body.dataset.widgetLoaded="yes";'}));
   await page.goto(origin);
   await expect(page.getByRole('heading',{name:'Less noise. More perspective.',exact:true})).toBeVisible();
+  expect(await page.locator('#briefing').evaluate(el=>el.compareDocumentPosition(document.querySelector('.pt-tools-section'))&Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+  await expect(page.getByText('02 / THE MARKET BRIEFING',{exact:true})).toBeVisible();
+  await expect(page.getByText('03 / YOUR WORKSPACE',{exact:true})).toBeVisible();
   for(const name of ['Sajid Kasim','Safwaan Alad','Mubeen Patel','Mustafa Dal','Amir Patel'])await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});

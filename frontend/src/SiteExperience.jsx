@@ -27,10 +27,9 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/" aria-current={active==='home'?'page':undefined}>Home</a>
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
-      {member?.authenticated&&<a className="pt-mobile-workspace" href="/journal">My workspace</a>}
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
-    {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}<a className="pt-header-action" href={member?.authenticated?"/journal":"/lab"}>{member?.authenticated?"My workspace":"Sign in"} <ArrowUpRight size={15}/></a>{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
+    {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
   </header>;
 }
 
@@ -79,6 +78,12 @@ function HeroStudy(){
 function HomePage(){
   const {theme} = useContext(SiteThemeContext);
   const [marketTab,setMarketTab]=useState('news');
+  useEffect(()=>{
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('pt-revealed');observer.unobserve(entry.target)}}),{threshold:.12});
+    document.querySelectorAll('.pt-site .pt-section-heading,.pt-site .pt-trader,.pt-site .pt-tool').forEach(el=>observer.observe(el));
+    return()=>observer.disconnect();
+  },[]);
   const [clock,setClock]=useState(new Date());
   useEffect(()=>{document.title='PrimusTrader — Study. Trade. Reflect.';const timer=setInterval(()=>setClock(new Date()),60000);return()=>clearInterval(timer)},[]);
   return <div className="pt-site">
@@ -100,17 +105,17 @@ function HomePage(){
         <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader"><div className="pt-profile-mark"><span>0{i+1}</span><Compass size={17} strokeWidth={1}/></div><div className="pt-monogram">{t.initials}<span>↗</span></div><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>
         <p className="pt-caption">Desk roles and nicknames are creative draft labels for review.</p>
       </section>
+      <section className="pt-wrap pt-section" id="briefing">
+        <div className="pt-section-heading"><div><span className="pt-overline">02 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>
+        <div className="pt-briefing"><div className="pt-briefing-sidebar"><span className="pt-overline">AT YOUR DESK</span><h3>One less tab<br/>to keep open.</h3><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div>
+      </section>
       <section className="pt-tools-section"><div className="pt-wrap pt-section">
-        <div className="pt-section-heading"><div><span className="pt-overline">02 / YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Two tools, one trading process.</p></div>
+        <div className="pt-section-heading"><div><span className="pt-overline">03 / YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Two tools, one trading process.</p></div>
         <div className="pt-tools">
           <a className="pt-tool pt-tool-journal" href="/journal"><div className="pt-tool-top"><NotebookPen size={24}/><span>THE DAILY PRACTICE</span><ArrowUpRight/></div><h3>Your trades have<br/>a story. <em>Keep it.</em></h3><p>Plan your session. Add your screenshots. Write down the lesson while it’s still fresh.</p><div className="pt-paper-preview"><span>FRIDAY / SESSION NOTES</span><strong>What did the market teach you?</strong><div/><div/><span className="pt-paper-tag">One lesson to take forward ↗</span></div><span className="pt-tool-bottom">Open Journal <ArrowRight size={18}/></span></a>
           <a className="pt-tool pt-tool-lab" href="/lab"><div className="pt-tool-top"><FlaskConical size={24}/><span>THE RESEARCH PROCESS</span><ArrowUpRight/></div><h3>An idea is a start.<br/><em>Test the setup.</em></h3><p>Explore strategies, levels and confirmations. Let your own recorded results shape the questions.</p><div className="pt-lab-preview"><span>STRATEGY → LEVEL → CONFIRMATION</span><MarketDrawing/></div><span className="pt-tool-bottom">Enter Strategy Lab <ArrowRight size={18}/></span></a>
         </div>
       </div></section>
-      <section className="pt-wrap pt-section" id="briefing">
-        <div className="pt-section-heading"><div><span className="pt-overline">03 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>
-        <div className="pt-briefing"><div className="pt-briefing-sidebar"><span className="pt-overline">AT YOUR DESK</span><h3>One less tab<br/>to keep open.</h3><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div>
-      </section>
       <section className="pt-closing pt-wrap"><Compass size={42} strokeWidth={1}/><span className="pt-overline">A PROCESS WORTH RETURNING TO.</span><h2>Study. Trade.<br/><em>Reflect. Repeat.</em></h2><a className="pt-btn pt-btn-lime" href="/journal">Make room for the next lesson <ArrowUpRight size={18}/></a></section>
     </main>
     <footer className="pt-footer pt-wrap"><a className="pt-wordmark" href="/"><Compass size={23}/><span>PRIMUS<span>TRADER</span></span></a><p>Independent trading research. Personal tools. Shared curiosity.</p><a href="/privacy">Privacy</a><span>© {clock.getFullYear()} PrimusTrader</span></footer>
