@@ -372,3 +372,64 @@ Tour visual revision: the owner disliked the large modal-style card. The tour
 now uses a 300px compact tooltip, one-sentence descriptions, 26% background shade,
 a thin palette-based highlight and side placement where desktop space permits.
 The first step highlights the actual Strategy selector; Back is hidden on step 1.
+
+## Home + separate Journal concept — 30 October 2026
+
+The owner requested a local-only PrimusTrader Home and daily Journal beside the
+existing Lab. **Do not commit, push or deploy this draft until it is reviewed.**
+Run `.venv/bin/python tools/run_site_preview.py` and open
+http://127.0.0.1:8118/. It uses a disposable directory, example Lab trades and
+clearly labelled example Journal entries; it never reads real secrets or data.
+The files disappear when this preview process stops. Other previews and the
+live website retain their existing routes and behavior.
+
+Settings.site_preview is deliberately false by default and validates only with
+local=True and lab_path='/lab'. The server injects an opt-in meta tag; only that
+preview serves Home at / and the new Journal at /journal. Existing /lab remains
+the strategy tester. The normal root redirect is unchanged. No R2 keys were
+created or copied, and no cloud image uploads were enabled.
+
+Home includes the owner's five supplied names: Sajid Kasim, Safwaan Alad,
+Mubeen Patel, Mustafa Dal and Amir Patel. Suggested desk roles/nicknames are
+explicitly draft labels, not verified professional credentials. The price-action
+illustration is labelled illustrative, not live performance. The news and calendar
+are official free branded TradingView widgets, lazy-loaded inside sandboxed
+iframes without same-origin access to private Primus content. Keep attribution
+and fallback provider links. No paid APIs or fabricated news/prices.
+
+The Journal has a per-day plan, session notes, lesson, mindset and up to six
+screenshots. webapp.daily_journal stores notes/metadata in private workspace
+settings, so existing JSON backups retain the text. Local preview screenshots
+are decoded/limited/re-encoded to WebP, with no original metadata, and stored
+only under the disposable directory, segregated by authenticated workspace.
+Files are served only through authenticated image routes; no public static
+mount. Removal detaches references; detached files remain inaccessible until
+preview cleanup removes the temp directory. Export notes and individual image
+downloads are separate. Saving drafts/photos never modifies Lab trades or stats.
+The entire new Journal API is disabled outside the explicit local concept.
+Production Google return-to-Journal, R2 integration, permanent storage and a
+complete image-inclusive backup need a separately reviewed implementation before
+publishing this Journal. Authentication/isolation are already exercised with
+fake Google identities in tests; no real user records are used.
+
+Local Lab visual alignment: the concept Lab now shares Home/Journal's PrimusTrader
+header, centered navigation, cream/green palette, typography and sharper controls.
+Modern/Classic appearance is inside My lab in this preview. Scoped lab-preview.css
+and data-site-lab styling apply only with the preview opt-in; normal headers and
+Classic's retro controls retain their existing behavior. Filters, statistics and
+trade workflows are unchanged. Browser coverage checks shared header alignment,
+320–1440px layouts, settings, dark mode, Classic switching and the phone guide.
+
+Homepage visual revision: HeroStudy replaces the large faded logo/chart overlay
+with an original SVG candle study, key-level reaction callout and three process
+labels. CSS entrance/drawing animations finish within about 2 seconds and are
+disabled for prefers-reduced-motion. No video, image service or live prices are
+used. This remains local-only; build and the three concept browser tests pass.
+
+Dark mode audit: Home/Journal now follow primus-theme rather than resetting the
+Journal to light. Their shared header has an accessible sun/moon toggle, also on
+phones. The Lab's existing menu keeps the same preference. Scoped dark tokens
+and component overrides cover cards, writing surfaces, calendar, selected states
+and messages; TradingView embeds receive the selected colorTheme. Four concept
+browser checks pass, including theme persistence, contrast, mobile widths and
+dark Journal saving. All changes remain local for review.

@@ -1,0 +1,108 @@
+/* Local concept only: shared Primus shell, unchanged Lab data and behaviour. */
+:root[data-site-lab="true"]:not([data-appearance="classic"]){
+  --tl-page:var(--pt-paper);--tl-surface:var(--pt-white);--tl-ink:var(--pt-ink);--tl-ink2:var(--pt-muted);--tl-muted:#788071;--tl-border:var(--pt-line);
+  --tl-accent:var(--pt-dark);--tl-positive:#4f7042;--tl-negative:var(--pt-rust);--tl-sage:var(--pt-focus);
+  --lab-accent:var(--pt-focus);--lab-canvas:var(--pt-paper);--lab-tint:#e9eedf;color-scheme:light;
+}
+:root[data-site-lab="true"][data-theme="dark"]:not([data-appearance="classic"]){
+  --tl-page:var(--pt-deep);--tl-surface:#152b21;--tl-ink:#edf0e5;--tl-ink2:#c0cab9;--tl-muted:#99ac98;--tl-border:#344b3b;
+  --tl-accent:var(--pt-lime);--tl-positive:#bed995;--tl-negative:#ec9e8c;--tl-sage:#b6cf96;
+  --lab-accent:var(--pt-lime);--lab-canvas:var(--pt-deep);--lab-tint:#263b2a;color-scheme:dark;
+}
+.pt-lab .pt-header{font-family:Inter,Arial,sans-serif;position:relative;top:0;grid-template-columns:1fr auto 1fr}
+.pt-header-tools{justify-self:end;min-width:0}
+.pt-lab .pt-header .workspace-menu>summary{color:var(--pt-paper);background:transparent;border:1px solid #78908466;border-radius:3px;font-size:12px;min-height:43px;min-width:115px;padding:11px 16px;gap:22px}
+.pt-lab .pt-header .workspace-menu>summary:hover{border-color:var(--pt-lime)}
+.pt-lab .pt-header .menu-panel{width:255px;border-radius:4px;top:calc(100% + 12px);z-index:50;color:var(--tl-ink)}
+.pt-lab-appearance{padding:12px 10px 17px;border-bottom:1px solid var(--tl-border);margin-bottom:5px}
+.pt-lab-appearance>span{display:block;font-size:9px;letter-spacing:1.4px;color:var(--tl-muted);margin-bottom:11px}
+.pt-lab-appearance .appearance-switch{width:100%;border-radius:3px}
+.pt-lab-appearance .appearance-switch button{flex:1;min-height:34px;font-size:12px;border-radius:2px}
+.pt-lab .content{width:min(1320px,calc(100% - 96px));max-width:none;padding:30px 0 65px}
+.pt-lab:not(:has(.classic-nav)) .preview-notice{border:0;border-bottom:1px solid var(--tl-border);border-radius:0;padding:0 0 15px;margin-bottom:27px;font-size:10px;letter-spacing:.4px}
+.pt-lab-page{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:24px}
+.pt-lab-page>.journal-intro{grid-column:1;grid-row:1;margin:0 0 35px}
+.pt-lab-page>.research-toolbar{grid-column:2;grid-row:1;border:0;padding:0;margin:0 0 37px;align-items:end;align-self:stretch}
+.pt-lab-page>section{grid-column:1/-1;min-width:0}
+:root:not([data-appearance="classic"]) .pt-lab .journal-intro .eyebrow{font-size:9px;font-weight:600;letter-spacing:2px;color:var(--lab-accent)}
+:root:not([data-appearance="classic"]) .pt-lab .journal-intro h1{font-size:43px;line-height:1.1;letter-spacing:-2px;margin-top:14px;font-weight:500}
+:root:not([data-appearance="classic"]) .pt-lab .journal-intro h1 em{font-family:Georgia,'Times New Roman',serif;font-weight:400;letter-spacing:-1.5px}
+.pt-lab .journal-intro p{font-size:14px;margin-top:13px}
+:root:not([data-appearance="classic"]) .pt-lab .button{border-radius:3px;min-height:42px;padding:10px 15px;font-size:12px}
+:root:not([data-appearance="classic"]) .pt-lab .button.primary{background:var(--pt-dark);border-color:var(--pt-dark);color:var(--pt-paper)}
+:root[data-theme="dark"]:not([data-appearance="classic"]) .pt-lab .button.primary{background:var(--pt-lime);border-color:var(--pt-lime);color:var(--pt-dark)}
+:root:not([data-appearance="classic"]) .pt-lab .card,
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .card,
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat,
+:root:not([data-appearance="classic"]) .pt-lab .modal,
+:root:not([data-appearance="classic"]) .pt-lab .picker-panel,
+:root:not([data-appearance="classic"]) .pt-lab .notice{border-radius:5px;box-shadow:none}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .history-card{background:var(--tl-surface);border-color:var(--tl-border)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer{border-radius:5px;padding:24px;background:var(--tl-surface)}
+:root:not([data-appearance="classic"]) .pt-lab .explorer .section-title h2{font-size:21px;font-weight:500;letter-spacing:-.7px;line-height:1.2;margin-top:10px}
+.pt-lab .lab-step{font-size:9px;letter-spacing:1.7px;font-weight:500}
+.pt-lab .lab-section-heading .section-heading{font-size:18px;font-weight:500;letter-spacing:-.5px;margin-bottom:18px}
+:root:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments{border:1px solid var(--tl-border);padding:4px;background:var(--tl-surface);border-radius:4px}
+:root:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments button{border-radius:2px;padding:10px 19px;min-height:39px;font-size:12px}
+:root:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments .selected{background:var(--pt-dark);color:var(--pt-paper)}
+:root[data-theme="dark"]:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments .selected{background:var(--pt-lime);color:var(--pt-dark)}
+:root:not([data-appearance="classic"]) .pt-lab .picker-trigger,
+:root:not([data-appearance="classic"]) .pt-lab .field input:not([type="checkbox"]):not([type="radio"]),
+:root:not([data-appearance="classic"]) .pt-lab .field textarea{border-radius:3px;border-color:var(--tl-border);box-shadow:none;background:var(--tl-surface)}
+:root:not([data-appearance="classic"]) .pt-lab .picker-options button{border-radius:2px}
+:root:not([data-appearance="classic"]) .pt-lab .picker-options button[aria-selected="true"]{color:var(--tl-ink);background:var(--lab-tint)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .field>span{font-size:12px;font-weight:500;color:var(--tl-ink2)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .segments{border-radius:3px;background:var(--tl-page);border-color:var(--tl-border)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .segments button{border-radius:2px;font-size:12px;min-height:36px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .segments .selected{background:var(--tl-accent);color:var(--tl-entry-ink)}
+:root[data-theme="dark"]:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .segments .selected{color:var(--pt-dark)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .checks label{border-radius:3px;font-size:12px;padding:8px 9px;min-height:35px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .checks label.checked{background:var(--lab-tint);border-color:var(--lab-accent);color:var(--tl-ink)}
+:root:not([data-appearance="classic"]) .pt-lab .history-source{border-radius:3px;background:var(--lab-tint);color:var(--tl-ink2);font-size:11px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .chart-card .section-title{padding-bottom:20px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .chart-card h2{font-family:Georgia,'Times New Roman',serif;font-size:28px;letter-spacing:-.6px;font-weight:400;line-height:1.2}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat{padding:22px;border-radius:4px;gap:13px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat:first-child{background:var(--lab-tint)}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat strong{font-size:32px;font-weight:500;letter-spacing:-1px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-summary-label{font-size:11px;margin-top:24px}
+:root:not([data-appearance="classic"]) .pt-lab .filter-chip{border-radius:3px;background:var(--lab-tint)}
+.pt-lab #trades{border-top:1px solid var(--tl-border);padding-top:30px;margin-top:38px}
+.pt-lab #trades>.page-heading h2{font-size:27px;letter-spacing:-1px;font-weight:500}
+:root:not([data-appearance="classic"]) .pt-lab .trade-review-toolbar .segments,
+:root:not([data-appearance="classic"]) .pt-lab .trade-review-toolbar .segments button,
+:root:not([data-appearance="classic"]) .pt-lab .review-prompt,
+:root:not([data-appearance="classic"]) .pt-lab .review-pill{border-radius:3px}
+:root:not([data-appearance="classic"]) .pt-lab .journal-card{border-radius:5px}
+:root:not([data-appearance="classic"]) .pt-lab .journal-card>.section-title{padding-block:23px}
+.pt-lab .trade-table th{font-size:11px;letter-spacing:.25px;font-weight:500}
+.pt-lab .lab-source-note,.pt-lab .history-footer,.pt-lab .history-hint{font-size:11px}
+@media(min-width:801px){.pt-lab .pt-header nav{justify-self:center}}
+@media(max-width:1100px){.pt-lab .content{width:calc(100% - 64px)}.pt-lab .lab-grid .stat{padding:18px 14px}}
+@media(min-width:521px) and (max-width:800px){.pt-lab .pt-header{grid-template-columns:minmax(0,1fr) auto auto;gap:18px}.pt-lab .pt-header nav{gap:18px;font-size:12px}.pt-lab .pt-header .workspace-menu>summary{min-width:98px;gap:12px;padding-inline:12px}.pt-lab .pt-wordmark{font-size:14px}}
+@media(max-width:700px){
+  .pt-lab .content{width:calc(100% - 36px);padding-top:23px}
+  .pt-lab-page{display:block}
+  .pt-lab-page>.journal-intro{margin-bottom:21px}
+  .pt-lab-page>.research-toolbar{margin:0 0 28px;padding:0}
+  .pt-lab-page>.research-toolbar>.jump-to-trades{width:auto;margin-left:0}
+  :root:not([data-appearance="classic"]) .pt-lab .journal-intro h1{font-size:36px}
+  .pt-lab .journal-intro p{font-size:13px}
+  :root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer{padding:20px}
+  :root:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments{width:100%}
+  :root:not([data-appearance="classic"]) .pt-lab #results>.toolbar .segments button{flex:1;font-size:12px;padding-inline:12px;min-height:42px}
+  .pt-lab .lab-source-note{margin-left:0}
+  :root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat{padding:17px;gap:10px}
+  :root:not([data-appearance="classic"]) .pt-lab .lab-grid .chart-card h2{font-size:25px}
+  :root:not([data-appearance="classic"]) .pt-lab .lab-grid .stat strong{font-size:29px}
+  .pt-lab #trades>.page-heading{gap:16px;flex-wrap:wrap}
+}
+@media(max-width:520px){
+  .pt-lab .pt-header{grid-template-columns:minmax(0,1fr) auto;position:relative}
+  .pt-lab .pt-header-tools{display:none;position:absolute;right:18px;top:124px;z-index:30}
+  .pt-lab .pt-header nav.is-open{padding-bottom:69px}
+  .pt-lab .pt-header:has(nav.is-open)>.pt-header-tools,
+  .pt-lab .pt-header:has(.workspace-menu[open])>.pt-header-tools{display:block}
+  .pt-lab .pt-header .workspace-menu>summary{min-height:40px;background:var(--pt-dark);font-size:12px}
+  .pt-lab .pt-header .menu-panel{right:0;max-width:calc(100vw - 36px)}
+  .pt-lab .pt-header:has(.workspace-menu[open]){z-index:50}
+}

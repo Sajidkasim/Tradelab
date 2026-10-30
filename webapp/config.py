@@ -23,6 +23,7 @@ class Settings:
     lab_path: str = ""
     legacy_host: str = ""
     custom_host: str = ""
+    site_preview: bool = False
 
     @property
     def google_required(self):
@@ -35,6 +36,8 @@ class Settings:
         return not self.google_required and (not self.local or bool(self.password_hash))
 
     def validate(self):
+        if self.site_preview and (not self.local or self.lab_path != '/lab'):
+            raise ValueError('The new Home and Journal draft requires a separate local /lab preview.')
         if self.lab_path not in ('', '/lab'):
             raise ValueError('PRIMUSLAB_LAB_PATH must be empty or /lab.')
         if self.legacy_host:

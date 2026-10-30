@@ -1,5 +1,6 @@
 """Same-origin React application and private Python API. No broker write endpoints."""
 from contextlib import asynccontextmanager
+from datetime import date
 import hmac
 import ipaddress
 import json
@@ -21,9 +22,9 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences
+from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 from .google_access import LoginError, AccountBlocked
 
@@ -217,6 +218,75 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump('owner')
         request.session.clear()
         return {"ok": True}
+
+    def journal_preview():
+        if not config.site_preview or not config.local:
+            raise HTTPException(404)
+
+    @app.get('/api/journal')
+    def list_journal(request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            return daily_journal.entries(db(request, member))
+
+    @app.get('/api/journal/export')
+    def export_journal(request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            content = json.dumps({'entries': daily_journal.entries(db(request, member)),
+                                  'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
+        return Response(content, media_type='application/json', headers={'Content-Disposition':'attachment; filename="primus-journal-notes.json"'})
+
+    @app.put('/api/journal/{day}')
+    def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            result = daily_journal.save(db(request, member), day.isoformat(), payload.model_dump())
+            app.state.workspaces.bump(member['key'])
+            return result
+
+    @app.post('/api/journal/{day}/images')
+    async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), member=Depends(workspace)):
+        journal_preview()
+        try:
+            content = await file.read(daily_journal.MAX_UPLOAD + 1)
+        finally:
+            await file.close()
+        if len(content) > daily_journal.MAX_UPLOAD:
+            raise HTTPException(413, 'Choose a screenshot smaller than 8 MB.')
+        def operation():
+            with app.state.workspaces.lock:
+                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content)
+                app.state.workspaces.bump(member['key'])
+                return result
+        return await run_in_threadpool(operation)
+
+    @app.get('/api/journal/{day}/images/{image_id}')
+    def journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
+        journal_preview()
+        database = db(request, member)
+        stored = daily_journal.entry(database, day.isoformat())
+        if not any(item['id'] == image_id for item in stored['images']):
+            raise HTTPException(404)
+        path = daily_journal.image_path(config, member['key'], day.isoformat(), image_id)
+        if not path.is_file():
+            raise HTTPException(404)
+        return FileResponse(path, media_type='image/webp', filename='primus-screenshot.webp', content_disposition_type='inline')
+
+    @app.delete('/api/journal/{day}/images/{image_id}')
+    def remove_journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            stored = daily_journal.entry(database, day.isoformat())
+            images = [item for item in stored['images'] if item['id'] != image_id]
+            if len(images) == len(stored['images']):
+                raise HTTPException(404)
+            result = daily_journal.save(database, day.isoformat(), {'images': images})
+            app.state.workspaces.bump(member['key'])
+        # Detached preview files are no longer accessible and disappear with the
+        # disposable preview directory. No real cloud objects are deleted.
+        return result
 
     @app.get("/api/metadata")
     def metadata(request: Request, member=Depends(workspace)):
@@ -618,20 +688,22 @@ def create_app(config: Settings | None = None):
         if path.startswith(("api/", "auth/")) or path == "team":
             raise HTTPException(404)
         if config.lab_path:
-            if not path:
+            if not path and not config.site_preview:
                 return RedirectResponse(config.lab_path, status_code=307)
-            if path in ('trades', 'journal', 'overview', 'import', 'tools'):
+            if path in ('trades', 'journal', 'overview', 'import', 'tools') and not (config.site_preview and path == 'journal'):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools'):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (config.site_preview and path in ('', 'journal')):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():
             raise HTTPException(503, "Build the frontend before starting PrimusLab.")
         if config.lab_path:
-            return HTMLResponse(index.read_text().replace('name="primus-lab-path" content=""',
-                                                         'name="primus-lab-path" content="/lab"'))
+            content = index.read_text().replace('name="primus-lab-path" content=""', 'name="primus-lab-path" content="/lab"')
+            if config.site_preview:
+                content = content.replace('</head>', '<meta name="primus-site-preview" content="true" /></head>')
+            return HTMLResponse(content)
         return FileResponse(index)
 
     return app

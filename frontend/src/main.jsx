@@ -1,10 +1,12 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import SiteExperience, { sitePreview } from './SiteExperience';
 import "./theme.css";
 import "./styles.css";
 import "./classic.css";
 import "./responsive.css";
+import "./lab-preview.css";
 
 class ErrorBoundary extends React.Component {
   state = { failed: false };
@@ -27,6 +29,6 @@ class ErrorBoundary extends React.Component {
 }
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
-    <App />
+    {sitePreview() && ['/', '/journal', '/journal/'].includes(location.pathname) ? <SiteExperience/> : <App />}
   </ErrorBoundary>,
 );

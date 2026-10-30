@@ -13,6 +13,12 @@ export default defineConfig({
   },
   webServer: [
     {
+      command: `${process.env.PRIMUSLAB_TEST_PYTHON || "../.venv/bin/python"} ../tools/run_site_preview.py 8119`,
+      url: "http://127.0.0.1:8119/health",
+      reuseExistingServer: false,
+      timeout: 30000,
+    },
+    {
       command: `${process.env.PRIMUSLAB_TEST_PYTHON || "../.venv/bin/python"} ../tools/run_web_google_tests.py`,
       url: "http://127.0.0.1:8114/health",
       reuseExistingServer: false,

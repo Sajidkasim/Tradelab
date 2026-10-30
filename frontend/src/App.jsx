@@ -24,6 +24,7 @@ import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
 import { labHref, journalPage } from "./paths";
 import { AppearanceContext, AppearanceSwitch } from "./Appearance";
+import { sitePreview, PrimusHeader } from './SiteExperience';
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () => journalPage(location.pathname, location.hash);
@@ -153,65 +154,7 @@ export default function App() {
       setError(e.message);
     }
   }
-  if (!session || (session.authenticated && !meta))
-    return (
-      <div className="loading-screen">
-        <img src={icon} alt="" />
-        <h1>PrimusLab</h1>
-        {error ? (
-          <>
-            <Notice error>{error}</Notice>
-            <Button onClick={boot}>Retry</Button>
-          </>
-        ) : (
-          <>
-            <span className="spinner" />
-            <p>Opening your workspace…</p>
-          </>
-        )}
-      </div>
-    );
-  if (!session.authenticated)
-    return (
-      <Unlock
-        appearance={appearance}
-        onAppearanceChange={setAppearance}
-        ready={Boolean(session.csrf)}
-        onUnlocked={boot}
-        authMode={session.auth_mode}
-      />
-    );
-  return (
-    <AppearanceContext.Provider value={appearance}>
-      <JournalClock.Provider
-        value={meta.journal_preferences?.timezone || "America/New_York"}
-      >
-        <div className="app-shell">
-          <header className="site-header">
-            <a
-              href={labHref()}
-              className="brand"
-              onClick={(event) => {
-                event.preventDefault();
-                navigate("results");
-              }}
-            >
-              <img src={icon} alt="" />
-              <span>PrimusLab</span>
-            </a>
-            <nav className="main-nav" aria-label="Main navigation">
-              <a
-                href={labHref()}
-                aria-current={journalPages.includes(page) ? "page" : undefined}
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate("results");
-                }}
-              >
-                Strategy Lab
-              </a>
-            </nav>
-            <AppearanceSwitch value={appearance} onChange={setAppearance} />
+  const workspaceMenu = session && (
             <Menu label="My lab" className="workspace-menu">
               <div className="menu-account">
                 <strong>{session.local ? "My lab" : session.name}</strong>
@@ -221,6 +164,7 @@ export default function App() {
                     : "Private workspace"}
                 </small>
               </div>
+              {sitePreview() && <div className="pt-lab-appearance"><span>LAB APPEARANCE</span><AppearanceSwitch value={appearance} onChange={setAppearance}/></div>}
               <button onClick={() => setLabSettings(true)}>
                 <Settings2 size={16} /> Lab settings
               </button>
@@ -257,7 +201,75 @@ export default function App() {
                 </button>
               )}
             </Menu>
-          </header>
+  );
+  useEffect(() => {
+    if (!sitePreview()) return;
+    document.documentElement.dataset.siteLab = 'true';
+    document.title = 'Strategy Lab — PrimusTrader';
+    return () => { delete document.documentElement.dataset.siteLab; };
+  }, []);
+  if (!session || (session.authenticated && !meta))
+    return (
+      <div className="loading-screen">
+        <img src={icon} alt="" />
+        <h1>PrimusLab</h1>
+        {error ? (
+          <>
+            <Notice error>{error}</Notice>
+            <Button onClick={boot}>Retry</Button>
+          </>
+        ) : (
+          <>
+            <span className="spinner" />
+            <p>Opening your workspace…</p>
+          </>
+        )}
+      </div>
+    );
+  if (!session.authenticated)
+    return (
+      <Unlock
+        appearance={appearance}
+        onAppearanceChange={setAppearance}
+        ready={Boolean(session.csrf)}
+        onUnlocked={boot}
+        authMode={session.auth_mode}
+      />
+    );
+  return (
+    <AppearanceContext.Provider value={appearance}>
+      <JournalClock.Provider
+        value={meta.journal_preferences?.timezone || "America/New_York"}
+      >
+        <div className={`app-shell ${sitePreview() ? "pt-lab" : ""}`}>
+          {sitePreview() ? <PrimusHeader active="lab" actions={workspaceMenu}/> : <header className="site-header">
+            <a
+              href={labHref()}
+              className="brand"
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("results");
+              }}
+            >
+              <img src={icon} alt="" />
+              <span>PrimusLab</span>
+            </a>
+            <nav className="main-nav" aria-label="Main navigation">
+              {sitePreview() && <><a href="/">Home</a><a href="/journal">Journal</a></>}
+              <a
+                href={labHref()}
+                aria-current={journalPages.includes(page) ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  navigate("results");
+                }}
+              >
+                Strategy Lab
+              </a>
+            </nav>
+            <AppearanceSwitch value={appearance} onChange={setAppearance} />
+            {workspaceMenu}
+          </header>}
           {appearance === "classic" && (
             <nav className="classic-nav" aria-label="Classic navigation">
               <strong>RESEARCH DESK</strong>
@@ -272,18 +284,18 @@ export default function App() {
             <main className="content">
               {session.local && (
                 <div className="preview-notice">
-                  Local preview · data on this Mac
+                  {sitePreview() ? "Local concept preview · sample data · not published" : "Local preview · data on this Mac"}
                 </div>
               )}
               {error && <Notice error>{error}</Notice>}
               <div
                 hidden={!journalPages.includes(page)}
-                className="journal-page"
+                className={`journal-page ${sitePreview() ? "pt-lab-page" : ""}`}
               >
                 <div className="journal-intro">
                   <div>
-                    <span className="eyebrow">PRIMUSLAB</span>
-                    <h1>Strategy Lab</h1>
+                    <span className="eyebrow">{sitePreview() ? "THE RESEARCH PROCESS" : "PRIMUSLAB"}</span>
+                    <h1>{sitePreview() ? <>Strategy <em>Lab.</em></> : "Strategy Lab"}</h1>
                     <p>Find the setups worth repeating.</p>
                   </div>
                 </div>

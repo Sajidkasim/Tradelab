@@ -165,3 +165,10 @@ class WelcomeSetup(JournalPreferences):
 
 class TourProgress(StrictModel):
     status: Literal['completed', 'skipped']
+
+
+class DailyEntry(StrictModel):
+    plan: str = Field(default='', max_length=12000)
+    notes: str = Field(default='', max_length=20000)
+    lesson: str = Field(default='', max_length=12000)
+    mindset: Literal['Not set', 'Focused', 'Patient', 'Distracted', 'Frustrated'] = 'Not set'
