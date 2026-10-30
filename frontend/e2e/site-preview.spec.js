@@ -151,3 +151,22 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await expect(page.getByRole('button',{name:'Switch to dark mode',exact:true})).toBeVisible();
 });
+
+test('Lab uses the Primus loading logo and exposes its theme button on desktop and phone',async({page},info)=>{
+  let release;const gate=new Promise(resolve=>release=resolve);
+  await page.route('**/api/session',async route=>{await gate;await route.continue()});
+  await page.goto(`${origin}/lab`);
+  await expect(page.getByRole('heading',{name:'Your Strategy Lab',exact:true})).toBeVisible();
+  await expect(page.getByAltText('Primus compass',{exact:true})).toBeVisible();
+  await page.screenshot({path:info.outputPath('lab-loading.png')});
+  release();
+  await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
+  for(const width of [1440,768,390,320]){
+    await page.setViewportSize({width,height:950});
+    await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  }
+});

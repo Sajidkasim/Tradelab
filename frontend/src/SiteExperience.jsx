@@ -11,9 +11,12 @@ export const sitePreview = () => localSitePreview() || document.querySelector('m
 
 const SiteThemeContext = createContext(null);
 
-export function PrimusHeader({ active = 'home', actions }) {
+export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle }) {
   const [open, setOpen] = useState(false);
   const siteTheme = useContext(SiteThemeContext);
+  const currentTheme=theme||siteTheme?.theme;
+  const toggleTheme=onThemeToggle||siteTheme?.toggle;
+  const themeControl=toggleTheme&&<button className="pt-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${currentTheme==='dark'?'light':'dark'} mode`}>{currentTheme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>;
   const [member,setMember]=useState(null);
   useEffect(()=>{if(actions)return;let active=true;api('/session').then(value=>{if(active){setMember(value);setCsrf(value.csrf)}}).catch(()=>{});return()=>{active=false}},[Boolean(actions)]);
   async function signOut(){try{await api('/logout',{method:'POST'});location.assign('/')}catch{location.assign('/lab')}}
@@ -27,7 +30,7 @@ export function PrimusHeader({ active = 'home', actions }) {
       {member?.authenticated&&<a className="pt-mobile-workspace" href="/journal">My workspace</a>}
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
-    {actions ? <div className="pt-header-tools">{actions}</div> : <div className="pt-header-controls">{siteTheme&&<button className="pt-theme-toggle" onClick={siteTheme.toggle} aria-label={`Switch to ${siteTheme.theme==='dark'?'light':'dark'} mode`}>{siteTheme.theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>}<a className="pt-header-action" href={member?.authenticated?"/journal":"/lab"}>{member?.authenticated?"My workspace":"Sign in"} <ArrowUpRight size={15}/></a>{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
+    {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}<a className="pt-header-action" href={member?.authenticated?"/journal":"/lab"}>{member?.authenticated?"My workspace":"Sign in"} <ArrowUpRight size={15}/></a>{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
   </header>;
 }
 

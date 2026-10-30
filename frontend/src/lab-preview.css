@@ -107,3 +107,28 @@
   .pt-lab .pt-header:has(.workspace-menu[open]){z-index:50}
 }
 :root[data-site-lab="true"][data-theme="dark"]:not([data-appearance="classic"]){--tl-page:#202225;--tl-surface:#2a2d30;--tl-ink:#f3f1eb;--tl-ink2:#d0cfc8;--tl-muted:#b8b8b1;--tl-border:#45484b;--lab-canvas:#202225;--lab-tint:#363c35}
+/* Readable research controls and the same visible theme switch as other pages. */
+.pt-lab .pt-header-tools{display:flex;align-items:center;gap:12px}
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .field>span,
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .checks label,
+:root:not([data-appearance="classic"]) .pt-lab .lab-grid .explorer .segments button{font-size:14px}
+.pt-lab .lab-source-note,.pt-lab .history-footer,.pt-lab .history-hint,.pt-lab .lab-summary-label,.pt-lab .history-source{font-size:13px!important;line-height:1.65}
+.pt-lab .trade-table th{font-size:13px}.pt-lab .trade-table td small{font-size:12px;line-height:1.6}
+.pt-lab .lab-step{font-size:11px;letter-spacing:1.4px}
+.pt-lab .lab-grid .stat p,.pt-lab .lab-grid .stat small,.pt-lab .explorer small{font-size:13px;line-height:1.6}
+.pt-loading{background:var(--tl-page);color:var(--tl-ink);gap:18px;padding:30px;text-align:center}
+.pt-loading-logo{position:relative;width:116px;height:116px;border-radius:50%;background:#25272a;padding:13px;margin-bottom:8px}
+.pt-loading .pt-loading-logo img{width:100%;height:100%;object-fit:contain;mix-blend-mode:screen}
+.pt-loading-logo>span{position:absolute;inset:-7px;border-radius:50%;border:1px solid #8e997850;border-top:2px solid #a7b889;animation:pt-loading-orbit 2s linear infinite}
+.pt-loading h1{font:500 clamp(25px,4vw,32px) Inter,Arial,sans-serif;letter-spacing:-1px;margin:0}
+.pt-loading p{font-size:16px;line-height:1.6;max-width:340px;margin:0;color:var(--tl-ink2)}
+@keyframes pt-loading-orbit{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.pt-loading-logo>span{animation:none}}
+@media(max-width:520px){
+.pt-lab .pt-header{grid-template-columns:minmax(0,1fr) auto auto;gap:10px}
+.pt-lab .pt-header>.pt-mobile-toggle{grid-column:3;grid-row:1}
+.pt-lab .pt-header-tools{display:flex;position:static;grid-column:2;grid-row:1}
+.pt-lab .pt-header-tools>.workspace-menu{display:none;position:absolute;right:18px;top:124px}
+.pt-lab .pt-header:has(nav.is-open) .pt-header-tools>.workspace-menu,.pt-lab .pt-header-tools>.workspace-menu[open]{display:block}
+.pt-lab .pt-header:has(nav.is-open)>.pt-header-tools,.pt-lab .pt-header:has(.workspace-menu[open])>.pt-header-tools{display:flex}
+}

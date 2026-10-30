@@ -22,6 +22,7 @@ import Backup from "./Backup";
 import LabSettings from "./LabSettings";
 import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
+import compassLogo from "../../assets/primus-compass.png";
 import { labHref, journalPage } from "./paths";
 import { AppearanceContext, AppearanceSwitch } from "./Appearance";
 import { sitePreview, localSitePreview, PrimusHeader } from './SiteExperience';
@@ -210,9 +211,9 @@ export default function App() {
   }, []);
   if (!session || (session.authenticated && !meta))
     return (
-      <div className="loading-screen">
-        <img src={icon} alt="" />
-        <h1>PrimusLab</h1>
+      <div className={`loading-screen ${sitePreview()?"pt-loading":""}`} role="status" aria-live="polite">
+        {sitePreview()?<div className="pt-loading-logo"><img src={compassLogo} alt="Primus compass"/><span aria-hidden="true"/></div>:<img src={icon} alt=""/>}
+        <h1>{sitePreview()?"Your Strategy Lab":"PrimusLab"}</h1>
         {error ? (
           <>
             <Notice error>{error}</Notice>
@@ -220,8 +221,8 @@ export default function App() {
           </>
         ) : (
           <>
-            <span className="spinner" />
-            <p>Opening your workspace…</p>
+            {!sitePreview()&&<span className="spinner" />}
+            <p>{sitePreview()?"Bringing your setups and results together…":"Opening your workspace…"}</p>
           </>
         )}
       </div>
@@ -229,7 +230,7 @@ export default function App() {
   const entrancePreview=localSitePreview() && new URLSearchParams(location.search).get('preview')==='signin';
   if (!session.authenticated || entrancePreview)
     return (
-      <>{sitePreview()&&<PrimusHeader active="lab"/>}<Unlock
+      <>{sitePreview()&&<PrimusHeader active="lab" theme={appearance==='classic'?'light':mode} onThemeToggle={()=>{setAppearance("modern");setMode(appearance==='classic'||mode!=='dark'?'dark':'light')}}/>}<Unlock
         workspace={sitePreview()?"lab":undefined}
         appearance={appearance}
         onAppearanceChange={setAppearance}
@@ -244,7 +245,7 @@ export default function App() {
         value={meta.journal_preferences?.timezone || "America/New_York"}
       >
         <div className={`app-shell ${sitePreview() ? "pt-lab" : ""}`}>
-          {sitePreview() ? <PrimusHeader active="lab" actions={workspaceMenu}/> : <header className="site-header">
+          {sitePreview() ? <PrimusHeader active="lab" actions={workspaceMenu} theme={appearance==='classic'?'light':mode} onThemeToggle={()=>{setAppearance("modern");setMode(appearance==='classic'||mode!=='dark'?'dark':'light')}}/> : <header className="site-header">
             <a
               href={labHref()}
               className="brand"

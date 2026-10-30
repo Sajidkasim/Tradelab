@@ -460,3 +460,11 @@ model is introduced. Local-only ?preview=signin at /journal or /lab lets the
 owner review entrance designs; its Google button is disabled. Normal preview
 navigation continues to use disposable sample data. Nothing in this revision
 has been committed, pushed or deployed; owner will deploy after review.
+
+Local Lab polish: loading uses the existing Primus compass with a restrained
+orbit (reduced-motion supported), clearer loading copy and larger supporting
+Lab text. PrimusHeader accepts the Lab's theme/toggle so the sun/moon control is
+visible beside My lab on desktop and outside the mobile menu. Classic switches
+to Modern when selecting dark mode. Journal-to-trade linking was discussed as
+an explicit linked trade form (several trades per daily entry); it is not yet
+implemented. Saving Journal notes must never create financial observations.
