@@ -220,6 +220,10 @@ def create_app(config: Settings | None = None):
         return {"ok": True}
 
     def journal_preview():
+        if not config.site_enabled and not (config.site_preview and config.local):
+            raise HTTPException(404)
+
+    def journal_images():
         if not config.site_preview or not config.local:
             raise HTTPException(404)
 
@@ -247,7 +251,7 @@ def create_app(config: Settings | None = None):
 
     @app.post('/api/journal/{day}/images')
     async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), member=Depends(workspace)):
-        journal_preview()
+        journal_images()
         try:
             content = await file.read(daily_journal.MAX_UPLOAD + 1)
         finally:
@@ -263,7 +267,7 @@ def create_app(config: Settings | None = None):
 
     @app.get('/api/journal/{day}/images/{image_id}')
     def journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
-        journal_preview()
+        journal_images()
         database = db(request, member)
         stored = daily_journal.entry(database, day.isoformat())
         if not any(item['id'] == image_id for item in stored['images']):
@@ -275,7 +279,7 @@ def create_app(config: Settings | None = None):
 
     @app.delete('/api/journal/{day}/images/{image_id}')
     def remove_journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
-        journal_preview()
+        journal_images()
         with app.state.workspaces.lock:
             database = db(request, member)
             stored = daily_journal.entry(database, day.isoformat())
@@ -687,20 +691,23 @@ def create_app(config: Settings | None = None):
     def frontend(path: str):
         if path.startswith(("api/", "auth/")) or path == "team":
             raise HTTPException(404)
+        website = config.site_preview or config.site_enabled
         if config.lab_path:
-            if not path and not config.site_preview:
+            if not path and not website:
                 return RedirectResponse(config.lab_path, status_code=307)
-            if path in ('trades', 'journal', 'overview', 'import', 'tools') and not (config.site_preview and path == 'journal'):
+            if path in ('trades', 'journal', 'overview', 'import', 'tools') and not (website and path == 'journal'):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (config.site_preview and path in ('', 'journal')):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and path in ('', 'journal', 'journal/')):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():
             raise HTTPException(503, "Build the frontend before starting PrimusLab.")
         if config.lab_path:
             content = index.read_text().replace('name="primus-lab-path" content=""', 'name="primus-lab-path" content="/lab"')
+            if config.site_enabled:
+                content = content.replace('</head>', '<meta name="primus-site-enabled" content="true" /></head>')
             if config.site_preview:
                 content = content.replace('</head>', '<meta name="primus-site-preview" content="true" /></head>')
             return HTMLResponse(content)

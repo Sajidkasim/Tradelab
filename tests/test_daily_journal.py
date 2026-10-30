@@ -98,3 +98,26 @@ def test_preview_image_limits_and_production_guard(draft):
         assert other.get('/',follow_redirects=False).headers['location']=='/lab'
     with pytest.raises(ValueError,match='local'):
         replace(app.state.config,local=False).validate()
+
+
+def test_live_website_routes_and_private_notes_without_temporary_image_uploads(draft):
+    _, preview, state = draft
+    config = replace(preview.state.config, site_preview=False, site_enabled=True)
+    with TestClient(create_app(config),base_url=config.public_url,client=('127.0.0.1',12345)) as client:
+        access = client.app.state.workspaces.google
+        access.client.close()
+        access.client=httpx.Client(transport=httpx.MockTransport(lambda request:
+            httpx.Response(200,json={'access_token':'synthetic'} if request.method=='POST' else state['user'])))
+        for path in ['/', '/journal', '/lab']:
+            response=client.get(path,follow_redirects=False)
+            assert response.status_code == 200
+            assert 'primus-site-enabled' in response.text and 'primus-site-preview' not in response.text
+        assert client.get('/api/journal').status_code == 401
+        login(client,state)
+        day='2026-10-30'
+        assert client.put(f'/api/journal/{day}',json={'plan':'Private live notes'}).status_code == 200
+        assert client.get('/api/journal').json()[0]['plan']=='Private live notes'
+        assert client.post(f'/api/journal/{day}/images',files={'file':('chart.png',picture(),'image/png')}).status_code==404
+        client.post('/api/logout')
+        login(client,state,'another@example.com','another-user')
+        assert client.get('/api/journal').json()==[]

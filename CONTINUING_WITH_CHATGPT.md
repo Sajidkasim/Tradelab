@@ -433,3 +433,16 @@ and component overrides cover cards, writing surfaces, calendar, selected states
 and messages; TradingView embeds receive the selected colorTheme. Four concept
 browser checks pass, including theme persistence, contrast, mobile widths and
 dark Journal saving. All changes remain local for review.
+
+## Production Home and notes Journal routing — 30 October 2026
+
+The owner manually deployed the draft, then requested the missing Home/Journal.
+Production from_env now enables site_enabled by default when /lab routing is
+configured (PRIMUSTRADER_SITE_ENABLED=0 rolls back to the old Lab-only entry).
+site_preview remains restricted to local data. The enabled website injects a
+separate primus-site-enabled marker, serves /, /journal and /lab, and applies the
+shared header/theme. Home has no sample/live-preview banners. Sign in uses /lab.
+Daily notes use the existing authenticated private workspace database and backup;
+no sample data is seeded. Every write retains CSRF and isolation checks. Image
+routes remain local-preview-only and the hosted Journal hides uploads until
+permanent storage is configured. Do not enable local-only mode on Render.

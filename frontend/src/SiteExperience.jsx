@@ -5,7 +5,8 @@ import JournalPage from './JournalPage';
 import TradingViewWidget from './TradingViewWidget';
 import './site-preview.css';
 
-export const sitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
+export const localSitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
+export const sitePreview = () => localSitePreview() || document.querySelector('meta[name="primus-site-enabled"]')?.content === 'true';
 
 const SiteThemeContext = createContext(null);
 
@@ -20,7 +21,7 @@ export function PrimusHeader({ active = 'home', actions }) {
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
     </nav>
-    {actions ? <div className="pt-header-tools">{actions}</div> : <div className="pt-header-controls">{siteTheme&&<button className="pt-theme-toggle" onClick={siteTheme.toggle} aria-label={`Switch to ${siteTheme.theme==='dark'?'light':'dark'} mode`}>{siteTheme.theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>}<a className="pt-header-action" href="https://primustrader.co.uk/lab" target="_blank" rel="noopener noreferrer" aria-label="Sign in with Google">Sign in <ArrowUpRight size={15}/></a></div>}
+    {actions ? <div className="pt-header-tools">{actions}</div> : <div className="pt-header-controls">{siteTheme&&<button className="pt-theme-toggle" onClick={siteTheme.toggle} aria-label={`Switch to ${siteTheme.theme==='dark'?'light':'dark'} mode`}>{siteTheme.theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>}<a className="pt-header-action" href={localSitePreview()?"https://primustrader.co.uk/lab":"/lab"} target="_blank" rel="noopener noreferrer" aria-label="Sign in with Google">Sign in <ArrowUpRight size={15}/></a></div>}
   </header>;
 }
 
@@ -104,7 +105,7 @@ function HomePage(){
       <section className="pt-closing pt-wrap"><Compass size={42} strokeWidth={1}/><span className="pt-overline">A PROCESS WORTH RETURNING TO.</span><h2>Study. Trade.<br/><em>Reflect. Repeat.</em></h2><a className="pt-btn pt-btn-lime" href="/journal">Make room for the next lesson <ArrowUpRight size={18}/></a></section>
     </main>
     <footer className="pt-footer pt-wrap"><a className="pt-wordmark" href="/"><Compass size={23}/><span>PRIMUS<span>TRADER</span></span></a><p>Independent trading research. Personal tools. Shared curiosity.</p><a href="/privacy">Privacy</a><span>© {clock.getFullYear()} PrimusTrader</span></footer>
-    <div className="pt-preview-label">LOCAL CONCEPT PREVIEW · NOT PUBLISHED</div>
+    {localSitePreview()&&<div className="pt-preview-label">LOCAL CONCEPT PREVIEW · NOT PUBLISHED</div>}
   </div>;
 }
 function ArrowDownSmall(){return <ChevronDown size={13}/>}
