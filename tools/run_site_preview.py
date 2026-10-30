@@ -26,7 +26,11 @@ if __name__ == '__main__':
             daily_journal.save(database, (date.today()-timedelta(days=offset)).isoformat(), {
                 'plan':'Example entry — local design preview. Mark the higher-timeframe levels first. Wait for a clear reaction before considering a trade.',
                 'notes':'Example observation: price returned to the level. I waited for confirmation rather than entering on the first move.',
-                'lesson':'Patience is part of the setup. Keep the next session simple.', 'mindset':'Patient'})
+                'lesson':'I waited for the reaction before entering. Tomorrow I want to keep the same patience.', 'mindset':'Patient',
+                'trades': [{'id': f'{offset:032x}', 'symbol':'NQ', 'direction':'long', 'strategy':'Displacement continuation',
+                    'time':'09:45', 'source':'manual', 'notes':'Example trade — local preview. Waited for confirmation at the level before entering.', 'lab_trade_id':None},
+                    {'id':f'{offset+10:032x}', 'symbol':'NQ', 'direction':'short', 'strategy':'Range reversal', 'time':'10:20',
+                     'source':'manual','notes':'Example trade — local preview. Recorded the reaction at the session high.', 'lab_trade_id':None}]})
         database.engine.dispose()
         config = Settings(target, 'local@primuslab.invalid', token_urlsafe(48), f'http://127.0.0.1:{port}',
             local=True, lab_path='/lab', site_preview=True)

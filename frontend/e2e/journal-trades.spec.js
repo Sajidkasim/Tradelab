@@ -1,0 +1,57 @@
+import {test,expect} from '@playwright/test';
+const origin='http://127.0.0.1:8119';
+const day='2026-08-12';
+async function choose(card,label,value){await card.getByRole('combobox',{name:label,exact:true}).click();await card.getByRole('option',{name:value,exact:true}).click()}
+
+test('daily Journal saves trade cards and charts, marks the calendar, browses history and adds one linked Lab trade',async({page},info)=>{
+  await page.goto(`${origin}/journal?day=${day}`);
+  await expect(page.getByRole('heading',{name:'12 August 2026',exact:true})).toBeVisible();
+  const before=await (await page.request.get(`${origin}/api/trades`)).json();
+  await page.getByRole('textbox',{name:'Before the session',exact:true}).fill('Wait for a reaction at the level.');
+  await page.getByRole('button',{name:'Add trade',exact:true}).click();
+  const card=page.getByRole('article',{name:'Journal trade 1',exact:true});
+  await choose(card,'Market','NQ');await choose(card,'Buy or sell','Buy');
+  await choose(card,'Strategy','Displacement continuation');
+  await card.getByRole('textbox',{name:'Trade notes',exact:true}).fill('Took the long after confirmation.');
+  await card.getByLabel('Entry time',{exact:true}).fill('09:45');
+  await card.getByLabel('Upload screenshot for trade 1',{exact:true}).setInputFiles('../assets/primus-compass.png');
+  await expect(card.getByRole('button',{name:'Open screenshot 1',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Add trade',exact:true}).click();
+  const second=page.getByRole('article',{name:'Journal trade 2',exact:true});
+  await choose(second,'Market','NQ');await choose(second,'Buy or sell','Sell');await choose(second,'Strategy','Range reversal');
+  await page.getByRole('tab',{name:/After the session/}).click();
+  await page.getByRole('textbox',{name:'After the session',exact:true}).fill('My entries were patient. Keep the same process.');
+  await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
+  await expect(page.getByRole('button',{name:'12 August 2026',exact:true})).toHaveClass(/has-entry/);
+  expect(await (await page.request.get(`${origin}/api/trades`)).json()).toEqual(before);
+  await page.reload();
+  await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
+  await card.locator('.pj-trade-summary').click();
+  await expect(card.getByRole('textbox',{name:'Trade notes',exact:true})).toHaveValue('Took the long after confirmation.');
+  await expect(card.getByRole('button',{name:'Open screenshot 1',exact:true})).toBeVisible();
+  for(const width of [1440,768,390,320]){
+    await page.setViewportSize({width,height:1000});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect(page.getByRole('button',{name:'12 August 2026',exact:true})).toBeVisible();
+    await page.screenshot({path:info.outputPath(`journal-trades-${width}.png`),fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1000});
+  await card.getByRole('button',{name:'Add to Strategy Lab',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Add Journal trade to Strategy Lab',exact:true});
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('spinbutton',{name:'Net result ($)',exact:true}).fill('150');
+  await dialog.getByRole('spinbutton',{name:'Original risk ($)',exact:true}).fill('50');
+  await dialog.getByRole('button',{name:'Save to Strategy Lab',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(card.getByRole('link',{name:'Open in Lab',exact:true})).toBeVisible();
+  const after=await (await page.request.get(`${origin}/api/trades`)).json();
+  expect(after.length).toBe(before.length+1);
+  await card.getByRole('link',{name:'Open in Lab',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Open this trade’s Journal entry',exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Open this trade’s Journal entry',exact:true}).click();
+  await expect(card.getByRole('textbox',{name:'Trade notes',exact:true})).toHaveValue('Took the long after confirmation.');
+  await page.getByRole('button',{name:'13 August 2026',exact:true}).click();
+  await expect(page.getByRole('article',{name:'Journal trade 1',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Open entry 12 August 2026',exact:true}).click();
+  await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
+});

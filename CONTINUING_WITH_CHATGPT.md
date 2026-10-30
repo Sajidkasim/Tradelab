@@ -468,3 +468,34 @@ visible beside My lab on desktop and outside the mobile menu. Classic switches
 to Modern when selecting dark mode. Journal-to-trade linking was discussed as
 an explicit linked trade form (several trades per daily entry); it is not yet
 implemented. Saving Journal notes must never create financial observations.
+
+## Local Journal day/trade workspace — not approved for deployment
+
+The Journal now keeps Before/During/After session notes above expandable trade
+cards. Cards contain market, direction, strategy (same private Lab catalogue),
+entry time, live/backtesting, personal notes and per-trade screenshots. One day
+can contain up to 30 narrative cards. Save entry stores the day; it does not
+create Lab observations. Images retain the existing six-per-day local-preview
+limit. Screenshots attach to stable UUID cards, while older session screenshots
+remain accessible. Removing a card detaches its images to the day and never
+removes the associated Lab trade. Cloud image storage is still not connected.
+
+DailyEntry accepts validated narrative fields only; link IDs are server-owned.
+Older clients that omit cards preserve them. Notes and card/link metadata remain
+in private settings and the existing JSON export/backup. PUT /api/journal/{day}/
+trades/{id}/link validates membership in the current private Lab. The explicit
+Add to Strategy Lab form reuses TradeForm and the existing trade builder with
+actual result and original risk. Its allowlisted journal_day/journal_trade_id
+create a server-only lab:journal:day:uuid tag and recoverable, retry-safe link.
+Unchanged core maths handles financial values. Repeated submission of the same
+card cannot create another observation. An already imported trade can be linked
+without changing financial fields. Journal-created Lab trades have a link back
+to /journal?day=YYYY-MM-DD&card=uuid; Open in Lab uses /lab?trade=id#trades.
+
+Calendar saved days have a filled green state in both themes. Month browsing,
+calendar and the month's saved entry list are grouped in one rail; the calendar
+also stays visible on phones. Long strategy choices wrap. The writing prompts
+are plain plan/observation/review text. Local tools/run_site_preview.py now seeds
+clearly labelled example cards. Latest new preview is http://127.0.0.1:8122/journal;
+its data is disposable. Existing previews were not restarted. Nothing from this
+iteration has been committed, pushed or deployed. Owner will deploy after review.

@@ -73,6 +73,8 @@ class NewTrade(Review):
     qty: float = Field(default=1, gt=0)
     fees: float = Field(default=0, ge=0)
     rules_followed: bool | None = None
+    journal_day: date | None = None
+    journal_trade_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
 
 
 class Playbook(StrictModel):
@@ -167,8 +169,23 @@ class TourProgress(StrictModel):
     status: Literal['completed', 'skipped']
 
 
+class JournalTrade(StrictModel):
+    id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    symbol: str = Field(default='', max_length=30)
+    direction: Literal['long', 'short', ''] = ''
+    strategy: str = Field(default='', max_length=120)
+    time: str = Field(default='', pattern=r'^([01][0-9]|2[0-3]):[0-5][0-9]$|^$')
+    source: Literal['manual', 'backtest'] = 'manual'
+    notes: str = Field(default='', max_length=6000)
+
+
+class JournalTradeLink(StrictModel):
+    trade_id: int | None = Field(default=None, gt=0)
+
+
 class DailyEntry(StrictModel):
     plan: str = Field(default='', max_length=12000)
     notes: str = Field(default='', max_length=20000)
     lesson: str = Field(default='', max_length=12000)
     mindset: Literal['Not set', 'Focused', 'Patient', 'Distracted', 'Frustrated'] = 'Not set'
+    trades: list[JournalTrade] | None = Field(default=None, max_length=30)

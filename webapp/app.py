@@ -22,7 +22,7 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -252,12 +252,12 @@ def create_app(config: Settings | None = None):
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.lock:
-            result = daily_journal.save(db(request, member), day.isoformat(), payload.model_dump())
+            result = daily_journal.save_day(db(request, member), day.isoformat(), payload.model_dump(exclude_none=True))
             app.state.workspaces.bump(member['key'])
             return result
 
     @app.post('/api/journal/{day}/images')
-    async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), member=Depends(workspace)):
+    async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), trade_id: str = "", member=Depends(workspace)):
         journal_images()
         try:
             content = await file.read(daily_journal.MAX_UPLOAD + 1)
@@ -267,7 +267,7 @@ def create_app(config: Settings | None = None):
             raise HTTPException(413, 'Choose a screenshot smaller than 8 MB.')
         def operation():
             with app.state.workspaces.lock:
-                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content)
+                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content, trade_id)
                 app.state.workspaces.bump(member['key'])
                 return result
         return await run_in_threadpool(operation)
@@ -298,6 +298,14 @@ def create_app(config: Settings | None = None):
         # Detached preview files are no longer accessible and disappear with the
         # disposable preview directory. No real cloud objects are deleted.
         return result
+
+    @app.put('/api/journal/{day}/trades/{record_id}/link')
+    def link_journal_trade(day: date, record_id: str, payload: JournalTradeLink, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.lock:
+            result = daily_journal.link_trade(db(request, member), day.isoformat(), record_id, payload.trade_id)
+            app.state.workspaces.bump(member['key'])
+            return result
 
     @app.get("/api/metadata")
     def metadata(request: Request, member=Depends(workspace)):
@@ -368,14 +376,32 @@ def create_app(config: Settings | None = None):
         labels = edge.write_labels(**payload.labels.model_dump())
         if not payload.confirmed:
             labels.remove("edge:reviewed")
-        values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable"})
+        values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable", "journal_day", "journal_trade_id"})
         values['source'] = Source(values['source'])
         trade = edge.build_trade(instruments=database.instruments(), tags=labels, **values)
         with app.state.workspaces.lock:
+            journal_day = payload.journal_day.isoformat() if payload.journal_day else None
+            if bool(journal_day) != bool(payload.journal_trade_id):
+                raise ValueError('Choose a saved journal trade and day.')
+            if journal_day:
+                journal_preview()
+                record = daily_journal.trade_entry(database, journal_day, payload.journal_trade_id)
+                if record is None:
+                    raise ValueError('Save the journal trade before adding it to the Lab.')
+                linked = record.get('lab_trade_id') or daily_journal.linked_record(database, journal_day, payload.journal_trade_id)
+                if linked and database.get_trade(linked) is not None:
+                    entry = daily_journal.link_trade(database, journal_day, payload.journal_trade_id, linked)
+                    app.state.workspaces.bump(member['key'])
+                    return {'inserted': 0, 'skipped': 1, 'journal_entry': entry}
+                trade.tags.append(daily_journal.journal_tag(journal_day, payload.journal_trade_id))
             fields = tag_cleanup.trade_fields(trade, database.get_setting(tag_cleanup.KEY, {}))
             trade.tags, trade.setup_name = fields['tags'], fields['setup_name']
             research.attach(database, trade, payload.study_id or '')
             result = database.insert_trades([trade])
+            if journal_day:
+                linked = daily_journal.linked_record(database, journal_day, payload.journal_trade_id)
+                if linked:
+                    result['journal_entry'] = daily_journal.link_trade(database, journal_day, payload.journal_trade_id, linked)
             app.state.workspaces.bump(member["key"])
         return result
 

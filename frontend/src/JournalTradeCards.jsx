@@ -1,0 +1,40 @@
+import React, {useRef} from 'react';
+import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical} from 'lucide-react';
+import {Select} from './components';
+
+export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,onView,label='Upload screenshot',canUpload=true}){
+  const input=useRef();
+  return <div className="pj-screenshots">
+    {canUpload?<div className="pt-dropzone" tabIndex={0} aria-label={label==='Upload screenshot'?'Screenshot drop area':`${label} drop area`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onUpload(e.dataTransfer.files[0])}} onPaste={e=>{const file=e.clipboardData.files[0];if(file){e.preventDefault();onUpload(file)}}} onKeyDown={e=>{if(e.key==='Enter')input.current?.click()}}>
+      <ImagePlus size={23}/><div><strong>Drop or paste a chart, or <button type="button" disabled={busy||allImages.length>=6} onClick={()=>input.current?.click()}>choose an image</button></strong><small>PNG, JPEG, WebP · up to 8 MB · six screenshots per day</small></div>
+      <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" aria-label={label} hidden disabled={busy||allImages.length>=6} onChange={e=>{onUpload(e.target.files[0]);e.target.value=''}}/>
+    </div>:<p className="pj-image-pending">Screenshot uploads will be available once private cloud storage is connected.</p>}
+    {!!images.length&&<div className="pt-image-grid">{images.map(item=>{const n=allImages.findIndex(i=>i.id===item.id)+1,url=`/api/journal/${day}/images/${item.id}`;return <figure key={item.id}><button type="button" className="pt-image-open" aria-label={`Open screenshot ${n}`} onClick={()=>onView(url)}><img src={url} alt={`Trading screenshot ${n}`} loading="lazy"/></button><figcaption><span>Chart {n}</span><a href={url} download="primus-screenshot.webp" aria-label={`Download screenshot ${n}`}><Download size={16}/></a><button type="button" disabled={busy} aria-label={`Remove screenshot ${n}`} onClick={()=>onRemove(item.id)}><Trash2 size={16}/></button></figcaption></figure>})}</div>}
+  </div>;
+}
+
+export default function JournalTradeCards({entry,meta,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload}){
+  const choices=meta?.strategies||[];
+  const markets=Object.keys(meta?.instruments||{});
+  return <section className="pj-trades" aria-label="Trades taken today">
+    <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{entry.trades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone==='Europe/London'?'UK time':meta?.journal_preferences?.timezone==='Etc/GMT+4'?'fixed UTC−4':'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy||entry.trades.length>=30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
+    {!entry.trades.length&&<div className="pj-trades-empty"><FlaskConical size={24}/><div><strong>What did you trade?</strong><p>Add the trades you took, or leave this empty for a no-trade day.</p></div></div>}
+    <div className="pj-trade-list">{entry.trades.map((trade,index)=>{const open=expanded===trade.id;return <article key={trade.id} className={`pj-trade-card ${open?'is-open':''}`} aria-label={`Journal trade ${index+1}`}>
+      <button type="button" className="pj-trade-summary" aria-expanded={open} onClick={()=>setExpanded(open?null:trade.id)}><span className="pj-trade-index">{String(index+1).padStart(2,'0')}</span><span className="pj-trade-name"><strong>{trade.symbol||'New trade'} <em>{trade.direction==='long'?'Buy':trade.direction==='short'?'Sell':''}</em></strong><small>{trade.strategy||'Choose a strategy'}{trade.time?` · ${trade.time}`:''}</small></span><span className={`pj-trade-state ${trade.lab_trade_id?'linked':''}`}>{trade.lab_trade_id?'In Strategy Lab':`${entry.images.filter(i=>i.trade_id===trade.id).length} charts`}</span><ChevronDown size={18}/></button>
+      {open&&<div className="pj-trade-body">
+        <div className="pj-trade-fields">
+          <Select label="Market" value={trade.symbol} onChange={e=>onChange(trade.id,'symbol',e.target.value)} values={[{value:'',label:'Choose market'},...Array.from(new Set([...markets,trade.symbol].filter(Boolean))).map(value=>({value,label:value}))]} disabled={busy||!!trade.lab_trade_id}/>
+          <Select label="Buy or sell" value={trade.direction} onChange={e=>onChange(trade.id,'direction',e.target.value)} values={[{value:'',label:'Choose direction'},{value:'long',label:'Buy'},{value:'short',label:'Sell'}]} disabled={busy||!!trade.lab_trade_id}/>
+          <Select label="Strategy" value={choices.includes(trade.strategy)?trade.strategy:trade.strategy?'__custom':''} onChange={e=>onChange(trade.id,'strategy',e.target.value==='__custom'?'New strategy':e.target.value)} values={[{value:'',label:'Choose strategy'},...choices.map(value=>({value,label:value})),{value:'__custom',label:'Other strategy…'}]} disabled={busy||!!trade.lab_trade_id}/>
+          <label className="pj-field">Entry time <input type="time" aria-label="Entry time" value={trade.time} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'time',e.target.value)}/></label>
+          {trade.strategy&&!choices.includes(trade.strategy)&&<label className="pj-field pj-wide">Strategy name<input aria-label="Strategy name" maxLength={120} value={trade.strategy} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'strategy',e.target.value)}/></label>}
+          <Select label="Trade type" value={trade.source} onChange={e=>onChange(trade.id,'source',e.target.value)} values={[{value:'manual',label:'Live'},{value:'backtest',label:'Backtesting'}]} disabled={busy||!!trade.lab_trade_id}/>
+        </div>
+        <label className="pj-field">Trade notes<textarea aria-label="Trade notes" maxLength={6000} placeholder="Why I entered, how I managed it, and what happened…" value={trade.notes} disabled={busy} onChange={e=>onChange(trade.id,'notes',e.target.value)}/></label>
+        <JournalScreenshots images={entry.images.filter(i=>i.trade_id===trade.id)} allImages={entry.images} day={entry.day} busy={busy} onUpload={file=>onUpload(file,trade.id)} onRemove={onRemoveImage} onView={onView} label={`Upload screenshot for trade ${index+1}`} canUpload={canUpload}/>
+        <div className="pj-trade-actions"><button type="button" className="pj-remove" disabled={busy} onClick={()=>onRemove(trade.id)}><Trash2 size={15}/> Remove card</button><div>{trade.lab_trade_id?<><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}>Change link</button></>:<><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy||!trade.symbol||!trade.direction||!trade.strategy.trim()} onClick={()=>onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div></div>
+        <p className="pj-trade-help">{trade.lab_trade_id?'Linked to your Lab record. Keep personal notes here; edit results and setup labels in the Lab.':'Save entry keeps this card in your Journal. Add to Strategy Lab asks for the result and original risk before it affects your statistics.'}</p>
+      </div>}
+    </article>})}</div>
+  </section>;
+}

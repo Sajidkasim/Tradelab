@@ -30,6 +30,8 @@ export default function TradeForm({
   onClose,
   remaining = 0,
   focusField,
+  journalOrigin,
+  initialEntryTime,
 }) {
   const { timezone: journalZone, clockName } = useJournalClock();
   const formRef = useRef();
@@ -39,6 +41,8 @@ export default function TradeForm({
   const [riskUnavailable, setRiskUnavailable] = useState(
     Boolean(trade?.risk_unavailable),
   );
+  const journalTag=trade?.tags?.find(tag=>/^lab:journal:\d{4}-\d{2}-\d{2}:[a-f0-9]{32}$/.test(tag));
+  const journalParts=journalTag?.split(':');
   const issues = trade ? reviewIssues(trade) : [];
   const firstField = focusField || issues[0]?.field;
   const focus = (field) =>
@@ -55,7 +59,7 @@ export default function TradeForm({
     labelsOnly(trade?.labels || previous?.labels || blankLabels()),
   );
   const [confirmed, setConfirmed] = useState(trade?.labels?.reviewed || false),
-    [notes, setNotes] = useState(trade?.notes || "");
+    [notes, setNotes] = useState(trade?.notes || previous?.notes || "");
   const [source, setSource] = useState(previous?.source || "backtest"),
     [account] = useState(
       previous?.account_id || meta.accounts[0]?.id,
@@ -66,7 +70,7 @@ export default function TradeForm({
         (meta.instruments.NQ ? "NQ" : Object.keys(meta.instruments)[0]),
     );
   const [method, setMethod] = useState("Quick result"),
-    [start, setStart] = useState(`${nyToday(journalZone)}T09:30`),
+    [start, setStart] = useState(initialEntryTime || `${nyToday(journalZone)}T09:30`),
     [exit, setExit] = useState("");
   const [fields, setFields] = useState({
     net_pnl: "",
@@ -134,8 +138,9 @@ export default function TradeForm({
           : [...required, "fees", "target_price"]) {
           if (fields[key] !== "") body[key] = Number(fields[key]);
         }
+        if(journalOrigin)Object.assign(body,{journal_day:journalOrigin.day,journal_trade_id:journalOrigin.id});
         const result = await api("/trades", { method: "POST", body });
-        if (!result.inserted)
+        if (!result.inserted && !result.journal_entry)
           throw new Error(
             "This exact trade is already saved. Use a different entry time for a different trade.",
           );
@@ -160,7 +165,7 @@ export default function TradeForm({
         setNotes("");
         setExit("");
         setConfirmed(false);
-        await onSaved(null, next);
+        await onSaved(null, next, result);
       }
     } catch (e) {
       setError(e.message);
@@ -170,6 +175,7 @@ export default function TradeForm({
   }
   return (
     <form ref={formRef} onSubmit={(e) => save(e, false)} className="trade-form">
+      {journalParts&&<a className="pj-back-to-entry" href={`/journal?day=${journalParts[2]}&card=${journalParts[3]}`}>Open this trade’s Journal entry <ArrowRight size={15}/></a>}
       {trade && (
         <div className="trade-result">
           <span>
@@ -457,10 +463,10 @@ export default function TradeForm({
             busy={busy}
             onClick={(e) => {
               const form = e.currentTarget.form;
-              if (form.reportValidity()) save(e, true);
+              if (form.reportValidity()) save(e, !journalOrigin);
             }}
           >
-            {trade ? "Save & next" : "Save & log next"}
+            {journalOrigin ? "Save to Strategy Lab" : trade ? "Save & next" : "Save & log next"}
             <ArrowRight size={16} />
           </Button>
         </div>

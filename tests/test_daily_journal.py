@@ -134,3 +134,62 @@ def test_google_returns_to_selected_private_page_and_rejects_external_redirect(d
     csrf(client)
     assert client.get('/api/journal').status_code==200
     assert client.get('/api/trades').status_code==200
+
+
+def journal_card(record_id='a'*32):
+    return {'id':record_id,'symbol':'NQ','direction':'long','strategy':'Reversal at key level','time':'09:45','source':'manual','notes':'Waited for the reaction.'}
+
+
+def test_daily_trade_cards_images_and_lab_transfer_are_private_and_idempotent(draft):
+    from tests.test_webapp import trade_payload
+    client,app,state=draft
+    login(client,state)
+    day='2026-07-01';record=journal_card()
+    before=client.get('/api/trades').json()
+    saved=client.put(f'/api/journal/{day}',json={'notes':'Session observations','trades':[record]}).json()
+    assert saved['trades'][0]['strategy']==record['strategy']
+    assert client.get('/api/trades').json()==before  # Narrative alone is not a financial trade.
+    assert client.put(f'/api/journal/{day}',json={'trades':[record,record]}).status_code==422
+    assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'lab_trade_id':999}]}).status_code==422
+    assert client.post(f'/api/journal/{day}/images?trade_id={"b"*32}',files={'file':('chart.png',picture(),'image/png')}).status_code==422
+    image=client.post(f'/api/journal/{day}/images?trade_id={record["id"]}',files={'file':('chart.png',picture(),'image/png')}).json()['images'][0]
+    assert image['trade_id']==record['id']
+    # The financial values still pass through the normal tested trade builder.
+    payload={**trade_payload(source='manual'), 'journal_day':day,'journal_trade_id':record['id']}
+    response=client.post('/api/trades',json=payload)
+    assert response.status_code==200,response.text
+    assert response.json()['inserted']==1
+    linked=response.json()['journal_entry']['trades'][0]['lab_trade_id']
+    assert linked is not None
+    again=client.post('/api/trades',json=payload)
+    assert again.status_code==200 and again.json()['inserted']==0
+    assert len(client.get('/api/trades').json())==len(before)+1
+    trade=next(t for t in client.get('/api/trades').json() if t['id']==linked)
+    assert trade['net_pnl']==100 and trade['initial_risk']==50 and trade['r_multiple']==2
+    # Notes and links survive old clients and later narrative saves.
+    assert client.put(f'/api/journal/{day}',json={'plan':'Changed plan'}).json()['trades'][0]['lab_trade_id']==linked
+    assert client.put(f'/api/journal/{day}',json={'trades':[record]}).json()['trades'][0]['lab_trade_id']==linked
+    client.post('/api/logout');login(client,state,'stranger@example.com','stranger')
+    assert client.get('/api/journal').json()==[]
+    assert client.put(f'/api/journal/{day}/trades/{record["id"]}/link',json={'trade_id':linked}).status_code==422
+    assert client.post('/api/trades',json=payload).status_code==422
+    client.post('/api/logout');login(client,state)
+    removed=client.put(f'/api/journal/{day}',json={'trades':[]}).json()
+    assert removed['images'][0]['trade_id'] is None  # Chart retained as a session screenshot.
+    assert client.get(f'/api/journal/{day}/images/{image["id"]}').status_code==200
+    assert next(t for t in client.get('/api/trades').json() if t['id']==linked)['net_pnl']==100
+
+
+def test_existing_lab_link_never_creates_or_deletes_a_trade(draft):
+    from tests.test_webapp import trade_payload
+    client,app,state=draft;login(client,state)
+    assert client.post('/api/trades',json=trade_payload()).json()['inserted']==1
+    trade=client.get('/api/trades').json()[0];day='2026-07-01';record=journal_card()
+    client.put(f'/api/journal/{day}',json={'trades':[record]})
+    url=f'/api/journal/{day}/trades/{record["id"]}/link'
+    assert client.put(url,json={'trade_id':999999}).status_code==422
+    assert client.put(url,json={'trade_id':trade['id']}).json()['trades'][0]['lab_trade_id']==trade['id']
+    assert client.put(url,json={'trade_id':None}).json()['trades'][0]['lab_trade_id'] is None
+    assert client.get('/api/trades').json()==[trade]
+    client.headers['X-Primus-CSRF']='wrong'
+    assert client.put(url,json={'trade_id':trade['id']}).status_code==403

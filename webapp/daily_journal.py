@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 import re
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 import warnings
 
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -20,7 +21,7 @@ MAX_IMAGES = 6
 def entry(database, day):
     stored = database.get_setting(PREFIX + day, {})
     return {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
-            'images': [], 'updated_at': None, **stored}
+            'images': [], 'trades': [], 'updated_at': None, **stored}
 
 
 def save(database, day, values):
@@ -61,8 +62,10 @@ def compress(content):
         raise ValueError('Choose a readable PNG, JPEG or WebP screenshot.') from None
 
 
-def add_image(database, config, member, day, content):
+def add_image(database, config, member, day, content, trade_id=""):
     previous = entry(database, day)
+    if trade_id and not any(t['id'] == trade_id for t in previous['trades']):
+        raise ValueError('Save this trade before adding a screenshot.')
     if len(previous['images']) >= MAX_IMAGES:
         raise ValueError('Keep up to six screenshots per day in this preview.')
     data, width, height = compress(content)
@@ -70,9 +73,61 @@ def add_image(database, config, member, day, content):
     path = image_path(config, member, day, image_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
-    item = {'id': image_id, 'width': width, 'height': height, 'size': len(data)}
+    item = {'id': image_id, 'trade_id': trade_id or None, 'width': width, 'height': height, 'size': len(data)}
     try:
         return save(database, day, {'images': [*previous['images'], item]})
     except Exception:
         path.unlink(missing_ok=True)
         raise
+
+
+def save_day(database, day, values):
+    previous = entry(database, day)
+    incoming = values.get('trades')
+    if incoming is not None:
+        ids = [t['id'] for t in incoming]
+        if len(set(ids)) != len(ids):
+            raise ValueError('Each journal trade needs its own reference.')
+        old = {t['id']: t for t in previous['trades']}
+        values['trades'] = [{**t, 'lab_trade_id': old.get(t['id'], {}).get('lab_trade_id')} for t in incoming]
+        # Removing a narrative card never removes its Lab trade or its screenshots.
+        values['images'] = [{**image, 'trade_id': image.get('trade_id') if image.get('trade_id') in ids else None} for image in previous['images']]
+    return save(database, day, values)
+
+
+def trade_entry(database, day, record_id):
+    return next((t for t in entry(database, day)['trades'] if t['id'] == record_id), None)
+
+
+def link_trade(database, day, record_id, trade_id):
+    current = entry(database, day)
+    if not any(t['id'] == record_id for t in current['trades']):
+        raise ValueError('Save this journal trade first.')
+    if trade_id is not None and database.get_trade(trade_id) is None:
+        raise ValueError('Choose a trade from your own Strategy Lab.')
+    snapshot = {}
+    if trade_id is not None:
+        from . import journal_preferences
+        from core.models import BACKTEST_SOURCES
+        trade = database.get_trade(trade_id)
+        clock = trade.entry_time
+        if clock.tzinfo is None:
+            clock = clock.replace(tzinfo=timezone.utc)
+        snapshot = {'symbol': trade.symbol, 'direction': trade.direction, 'strategy': trade.setup_name,
+                    'source': 'backtest' if trade.source in BACKTEST_SOURCES else 'manual',
+                    'time': clock.astimezone(ZoneInfo(journal_preferences.read(database)['timezone'])).strftime('%H:%M')}
+    return save(database, day, {'trades': [{**t, **snapshot, 'lab_trade_id': trade_id} if t['id'] == record_id else t for t in current['trades']]})
+
+
+def journal_tag(day, record_id):
+    return f'lab:journal:{day}:{record_id}'
+
+
+def linked_record(database, day, record_id):
+    # Recover the link if an earlier insert succeeded but the response/link save failed.
+    marker = journal_tag(day, record_id)
+    frame = database.trades_df()
+    if frame.empty:
+        return None
+    match = frame[frame['tags'].map(lambda tags: marker in (tags or []))]
+    return int(match.iloc[0]['id']) if not match.empty else None

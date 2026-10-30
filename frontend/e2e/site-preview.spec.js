@@ -104,7 +104,7 @@ test('private daily notes and screenshots persist across reload and image remova
   await expect(page.getByRole('textbox',{name:'Before the session',exact:true})).toHaveValue('Unsaved writing must survive image removal.');
   await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
   const download=page.waitForEvent('download');
-  await page.getByRole('link',{name:'Download your notes',exact:true}).click();
+  await page.getByRole('link',{name:'Download your Journal',exact:true}).click();
   expect((await download).suggestedFilename()).toBe('primus-journal-notes.json');
 });
 

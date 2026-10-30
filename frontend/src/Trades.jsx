@@ -1,5 +1,5 @@
 import { useJournalClock } from "./JournalClock";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -35,6 +35,13 @@ export default function Trades({
   scope,
 }) {
   const { timezone: journalZone, clockName } = useJournalClock();
+  const journalLinkOpened=useRef(false);
+  useEffect(()=>{
+    const id=Number(new URLSearchParams(location.search).get('trade'));
+    if(!id||journalLinkOpened.current||!trades.length)return;
+    journalLinkOpened.current=true;
+    if(trades.some(trade=>trade.id===id))setOpened(id);
+  },[trades]);
   const [pending, setPending] = useState(false),
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
