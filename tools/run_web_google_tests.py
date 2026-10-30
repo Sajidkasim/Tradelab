@@ -23,10 +23,13 @@ def provider(request):
         'identities': [{'provider': 'google', 'identity_data': {'sub': who, 'email': f'{who}@example.com', 'email_verified': True}}]})
 
 
+port = int(sys.argv[1]) if len(sys.argv)>1 else 8114
+website = '--site' in sys.argv
+
 with TemporaryDirectory(prefix='primus-google-tests-') as folder:
-    config = Settings(str(Path(folder) / 'test.db'), 'owner@example.com', token_urlsafe(48), 'http://127.0.0.1:8114',
+    config = Settings(str(Path(folder) / 'test.db'), 'owner@example.com', token_urlsafe(48), f'http://127.0.0.1:{port}',
                       local=True, auth_mode='google', supabase_url='https://abcdefghijklmnopqrst.supabase.co',
-                      supabase_key='synthetic-browser-test-key', lab_path='/lab')
+                      supabase_key='synthetic-browser-test-key', lab_path='/lab', site_enabled=website)
     app = create_app(config)
     original = app.router.lifespan_context
     @asynccontextmanager
@@ -37,4 +40,4 @@ with TemporaryDirectory(prefix='primus-google-tests-') as folder:
             access.client = httpx.Client(transport=httpx.MockTransport(provider))
             yield
     app.router.lifespan_context = testing
-    uvicorn.run(app, host='127.0.0.1', port=8114, proxy_headers=False, access_log=False)
+    uvicorn.run(app, host='127.0.0.1', port=port, proxy_headers=False, access_log=False)

@@ -157,14 +157,18 @@ def create_app(config: Settings | None = None):
                 'csrf': request.session['csrf']}
 
     @app.post('/api/login/google')
-    def start_google(request: Request):
+    def start_google(request: Request, return_to: str = ""):
         if not config.google_required:
             raise HTTPException(404)
         check_write(request)
+        allowed_returns = ('/lab', '/journal') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
+        if return_to and return_to not in allowed_returns:
+            raise HTTPException(422, 'Choose Journal or Strategy Lab.')
         try:
             attempt, url = app.state.workspaces.google.start(request.session.get('google_attempt'))
         except LoginError:
             raise HTTPException(429, 'Sign-in is busy. Please try again in a few minutes.') from None
+        request.session['google_return_to'] = return_to or config.lab_path or '/'
         request.session['google_attempt'] = attempt
         return {'url': url}
 
@@ -174,6 +178,9 @@ def create_app(config: Settings | None = None):
             raise HTTPException(404)
         access = app.state.workspaces.google
         attempt = request.session.pop('google_attempt', None)
+        destination = request.session.pop('google_return_to', config.lab_path or '/')
+        if destination not in ('/lab', '/journal', '/'):
+            destination = config.lab_path or '/'
         try:
             email, subject = access.exchange(attempt, request.query_params.get('code'))
             key = access.join(email, subject)
@@ -181,13 +188,13 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.database(key)
             token = access.issue(key, user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
         except AccountBlocked:
-            return RedirectResponse((config.lab_path or '/') + '?login=blocked', status_code=303)
+            return RedirectResponse(destination + '?login=blocked', status_code=303)
         except LoginError:
-            return RedirectResponse((config.lab_path or '/') + '?login=retry', status_code=303)
+            return RedirectResponse(destination + '?login=retry', status_code=303)
         access.revoke(request.session.get('google_token'))
         request.session.clear()
         request.session.update(google_token=token, csrf=token_urlsafe(32))
-        return RedirectResponse(config.lab_path or '/', status_code=303)
+        return RedirectResponse(destination, status_code=303)
 
     @app.post('/api/unlock')
     async def unlock(payload: Unlock, request: Request):

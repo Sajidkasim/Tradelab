@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
 import JournalPage from './JournalPage';
+import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
 import './site-preview.css';
 
@@ -13,6 +14,9 @@ const SiteThemeContext = createContext(null);
 export function PrimusHeader({ active = 'home', actions }) {
   const [open, setOpen] = useState(false);
   const siteTheme = useContext(SiteThemeContext);
+  const [member,setMember]=useState(null);
+  useEffect(()=>{if(actions)return;let active=true;api('/session').then(value=>{if(active){setMember(value);setCsrf(value.csrf)}}).catch(()=>{});return()=>{active=false}},[Boolean(actions)]);
+  async function signOut(){try{await api('/logout',{method:'POST'});location.assign('/')}catch{location.assign('/lab')}}
   return <header className={`pt-header ${actions ? "has-tools" : ""}`}>
     <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={29} strokeWidth={1.2}/><span>PRIMUS<span>TRADER</span></span></a>
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
@@ -20,8 +24,10 @@ export function PrimusHeader({ active = 'home', actions }) {
       <a href="/" aria-current={active==='home'?'page':undefined}>Home</a>
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
+      {member?.authenticated&&<a className="pt-mobile-workspace" href="/journal">My workspace</a>}
+      {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
-    {actions ? <div className="pt-header-tools">{actions}</div> : <div className="pt-header-controls">{siteTheme&&<button className="pt-theme-toggle" onClick={siteTheme.toggle} aria-label={`Switch to ${siteTheme.theme==='dark'?'light':'dark'} mode`}>{siteTheme.theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>}<a className="pt-header-action" href={localSitePreview()?"https://primustrader.co.uk/lab":"/lab"} target="_blank" rel="noopener noreferrer" aria-label="Sign in with Google">Sign in <ArrowUpRight size={15}/></a></div>}
+    {actions ? <div className="pt-header-tools">{actions}</div> : <div className="pt-header-controls">{siteTheme&&<button className="pt-theme-toggle" onClick={siteTheme.toggle} aria-label={`Switch to ${siteTheme.theme==='dark'?'light':'dark'} mode`}>{siteTheme.theme==='dark'?<Sun size={18}/>:<Moon size={18}/>}</button>}<a className="pt-header-action" href={member?.authenticated?"/journal":"/lab"}>{member?.authenticated?"My workspace":"Sign in"} <ArrowUpRight size={15}/></a>{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
   </header>;
 }
 

@@ -121,3 +121,16 @@ def test_live_website_routes_and_private_notes_without_temporary_image_uploads(d
         client.post('/api/logout')
         login(client,state,'another@example.com','another-user')
         assert client.get('/api/journal').json()==[]
+
+
+def test_google_returns_to_selected_private_page_and_rejects_external_redirect(draft):
+    client, app, state = draft
+    csrf(client)
+    assert client.post('/api/login/google?return_to=https://example.com').status_code == 422
+    assert client.post('/api/login/google?return_to=//example.com').status_code == 422
+    assert client.post('/api/login/google?return_to=/journal').status_code == 200
+    response=client.get('/auth/callback?code=synthetic',follow_redirects=False)
+    assert response.status_code == 303 and response.headers['location']=='/journal'
+    csrf(client)
+    assert client.get('/api/journal').status_code==200
+    assert client.get('/api/trades').status_code==200

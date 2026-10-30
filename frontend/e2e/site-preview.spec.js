@@ -32,7 +32,7 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Dark mode',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(21, 43, 33)');
+  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(42, 45, 48)');
   await page.screenshot({path:info.outputPath('primus-lab-dark.png'),fullPage:true});
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Classic',exact:true}).click();
@@ -113,7 +113,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await page.goto(origin);
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  expect(await page.locator('.pt-site').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(11, 25, 20)');
+  expect(await page.locator('.pt-site').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(32, 34, 37)');
   for(const selector of ['.pt-trader','.pt-section-heading>p','.pt-tool-journal','.pt-widget-source']){
     await expect.poll(()=>page.locator(selector).first().evaluate(el=>{
       const rgb=s=>(s.match(/[\d.]+/g)||[]).slice(0,3).map(Number);
@@ -129,7 +129,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  expect(await page.locator('.pt-day-editor').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(21, 43, 33)');
+  expect(await page.locator('.pt-day-editor').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(42, 45, 48)');
   await page.getByRole('button',{name:'Patient',exact:true}).click();
   await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
   await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();

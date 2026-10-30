@@ -446,3 +446,17 @@ Daily notes use the existing authenticated private workspace database and backup
 no sample data is seeded. Every write retains CSRF and isolation checks. Image
 routes remain local-preview-only and the hosted Journal hides uploads until
 permanent storage is configured. Do not enable local-only mode on Render.
+
+## Local personal-workspace revision — do not deploy until owner does
+
+Owner requested a charcoal dark palette (light design retained), page-specific
+Journal/Lab sign-in entrances and one shared private account across both tools.
+Unlock accepts optional workspace copy and a Journal paper preview. Google start
+accepts only allowlisted return_to paths, stored in the signed session, then
+returns to the selected page after callback. Existing sign-in calls still default
+to Lab. Header reads the current session, shows My workspace when signed in,
+and signs out through the existing endpoint. No new identity or data-sharing
+model is introduced. Local-only ?preview=signin at /journal or /lab lets the
+owner review entrance designs; its Google button is disabled. Normal preview
+navigation continues to use disposable sample data. Nothing in this revision
+has been committed, pushed or deployed; owner will deploy after review.

@@ -42,7 +42,8 @@ export default function JournalPage(){
   const startOffset=(new Date(month.getFullYear(),month.getMonth(),1).getDay()+6)%7;
   const monthDays=new Date(month.getFullYear(),month.getMonth()+1,0).getDate();
   if(!identity)return <div className="pt-journal"><PrimusHeader active="journal"/><main className="pt-journal-loading">{error?<><p role="alert">{error}</p><button className="pt-btn" onClick={boot}>Try again</button></>:'Opening your private Journal…'}</main></div>;
-  if(!identity.authenticated)return <><PrimusHeader active="journal"/><Unlock ready={Boolean(identity.csrf)} authMode={identity.auth_mode} appearance="modern" onAppearanceChange={()=>{}} onUnlocked={boot}/></>;
+  const entrancePreview=localSitePreview()&&new URLSearchParams(location.search).get('preview')==='signin';
+  if(!identity.authenticated||entrancePreview)return <><PrimusHeader active="journal"/><Unlock workspace="journal" ready={!entrancePreview&&Boolean(identity.csrf)} authMode={entrancePreview?"google":identity.auth_mode} appearance="modern" onAppearanceChange={()=>{}} onUnlocked={boot}/></>;
   return <div className="pt-journal">
     <PrimusHeader active="journal"/>
     <main className="pt-wrap pt-journal-main">

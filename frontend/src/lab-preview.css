@@ -106,3 +106,4 @@
   .pt-lab .pt-header .menu-panel{right:0;max-width:calc(100vw - 36px)}
   .pt-lab .pt-header:has(.workspace-menu[open]){z-index:50}
 }
+:root[data-site-lab="true"][data-theme="dark"]:not([data-appearance="classic"]){--tl-page:#202225;--tl-surface:#2a2d30;--tl-ink:#f3f1eb;--tl-ink2:#d0cfc8;--tl-muted:#b8b8b1;--tl-border:#45484b;--lab-canvas:#202225;--lab-tint:#363c35}

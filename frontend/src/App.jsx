@@ -24,7 +24,7 @@ import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
 import { labHref, journalPage } from "./paths";
 import { AppearanceContext, AppearanceSwitch } from "./Appearance";
-import { sitePreview, PrimusHeader } from './SiteExperience';
+import { sitePreview, localSitePreview, PrimusHeader } from './SiteExperience';
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () => journalPage(location.pathname, location.hash);
@@ -226,15 +226,17 @@ export default function App() {
         )}
       </div>
     );
-  if (!session.authenticated)
+  const entrancePreview=localSitePreview() && new URLSearchParams(location.search).get('preview')==='signin';
+  if (!session.authenticated || entrancePreview)
     return (
-      <Unlock
+      <>{sitePreview()&&<PrimusHeader active="lab"/>}<Unlock
+        workspace={sitePreview()?"lab":undefined}
         appearance={appearance}
         onAppearanceChange={setAppearance}
-        ready={Boolean(session.csrf)}
+        ready={!entrancePreview&&Boolean(session.csrf)}
         onUnlocked={boot}
-        authMode={session.auth_mode}
-      />
+        authMode={entrancePreview?"google":session.auth_mode}
+      /></>
     );
   return (
     <AppearanceContext.Provider value={appearance}>

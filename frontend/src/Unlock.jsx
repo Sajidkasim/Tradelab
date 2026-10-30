@@ -86,7 +86,7 @@ function MarketStudy() {
   );
 }
 
-export default function Unlock({ ready, onUnlocked, authMode = "password", appearance, onAppearanceChange }) {
+export default function Unlock({ ready, onUnlocked, authMode = "password", appearance, onAppearanceChange, workspace }) {
   const google = authMode === "google";
   const loginStatus = new URLSearchParams(window.location.search).get("login");
   const [password, setPassword] = useState("");
@@ -101,7 +101,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
     setError("");
     try {
       if (google) {
-        const result = await api("/login/google", { method: "POST" });
+        const result = await api(`/login/google${workspace ? `?return_to=${encodeURIComponent(workspace==='journal'?'/journal':'/lab')}` : ''}`, { method: "POST" });
         window.location.assign(result.url);
         return;
       }
@@ -119,26 +119,24 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
     }
   }
   return (
-    <main className="login">
+    <main className={`login ${workspace ? "pt-private-entrance" : ""}`}>
       <div className="login-appearance"><AppearanceSwitch value={appearance} onChange={onAppearanceChange} /></div>
       <div className="login-shell">
         <section className="login-story" aria-labelledby="login-story-title">
           <header className="login-brand">
             <img src={compass} alt="Primus" width="116" height="116" />
-            <span>THE TRADING LAB</span>
+            <span>{workspace==='journal'?"THE DAILY PRACTICE":"THE TRADING LAB"}</span>
           </header>
           <div className="login-story-copy">
             <span className="login-kicker">OBSERVE. RECORD. REFINE.</span>
             <h2 id="login-story-title">
-              Every trade.
-              <br />A clearer direction.
+              {workspace==='journal'?<>Your session.<br/>Your perspective.</>:<>Every trade.<br/>A clearer direction.</>}
             </h2>
             <p>
-              A place to study your setups, understand your results and build
-              your own trading edge.
+              {workspace==='journal'?'Plan the session, capture what happened and keep the lesson. Your writing belongs to your own private workspace.':'A place to study your setups, understand your results and build your own trading edge.'}
             </p>
           </div>
-          <MarketStudy />
+          {workspace==='journal'?<div className="pt-entrance-paper" aria-label="Journal preview"><span>YOUR SESSION, IN THREE MOMENTS</span>{['Before · Set your intention','During · Capture the decision','After · Take a lesson forward'].map(text=><div key={text}>{text}<i/><i/></div>)}<small>Preview · your entries start with you.</small></div>:<MarketStudy />}
           <footer className="login-story-footer">
             <span>Built around your process.</span>
             <MoveUpRight size={18} />
@@ -151,8 +149,8 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
           </div>
           <form className="login-form" onSubmit={submit}>
             <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
-            <h1 id="login-title">Welcome back.</h1>
-            <p>Your trades. Your research. Your next discovery.</p>
+            <h1 id="login-title">{workspace?`Sign in to your ${workspace==='journal'?'Journal':'Strategy Lab'}.`:"Welcome back."}</h1>
+            <p>{workspace?"One Google sign-in. Your Journal and Strategy Lab, together and private.":"Your trades. Your research. Your next discovery."}</p>
             {!google && <div className="login-password-field">
               <label htmlFor="journal-password">Lab password</label>
               <div className="login-password-control">
@@ -192,7 +190,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
             </Button>
             <div className="login-form-note">
               <LockKeyhole size={13} aria-hidden="true" />
-              <span>{google ? "New here? Your first sign-in creates your private strategy tester. Other members cannot see your trades." : "A quiet space for your trading research."}</span>
+              <span>{google ? "New here? Your first sign-in creates your private workspace. Other members cannot see your trades or notes." : "A quiet space for your trading research."}</span>
             </div>
             {google && <p className="login-activity-note">For sign-in security, the owner can see sign-in activity, browser/device hints and connection addresses. <a href="/privacy">Privacy details</a></p>}
           </form>
