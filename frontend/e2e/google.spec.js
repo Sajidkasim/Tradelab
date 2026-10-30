@@ -6,10 +6,15 @@ async function login(page, who) {
     await route.fulfill({ status: 302, headers: { location: `${origin}/auth/callback?code=${who}` }, body: "" });
   });
   await page.goto(origin);
-  await expect(page.getByLabel("Journal password", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Lab password", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("heading", { name: "Results", exact: true })).toBeVisible();
   await expect(page).toHaveURL(`${origin}/lab`);
+  const meta = await (await page.request.get(`${origin}/api/metadata`)).json();
+  if (meta.journal_preferences?.welcome_pending) {
+    await page.getByRole('button', {name: 'Open my lab', exact: true}).click();
+    await expect(page.getByRole('dialog', {name:'Welcome to your lab'})).toHaveCount(0);
+  }
 }
 
 test("Google opens separate journals, and signing out revokes the browser session", async ({ page, browser }) => {
@@ -28,7 +33,7 @@ test("Google opens separate journals, and signing out revokes the browser sessio
   await login(friend, "friend");
   expect(await friend.evaluate(async () => (await fetch('/api/trades')).json())).toEqual([]);
   expect(await page.evaluate(async () => (await (await fetch('/api/trades')).json()).length)).toBe(1);
-  await friend.getByRole("button", { name: "My journal", exact: true }).click();
+  await friend.getByRole("button", { name: "My lab", exact: true }).click();
   await friend.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(friend.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   expect(await friend.evaluate(async () => (await fetch('/api/trades')).status)).toBe(401);
@@ -45,10 +50,10 @@ test("only the owner can manage access; blocking revokes sessions and unblocking
   const context = await browser.newContext();
   const friend = await context.newPage();
   await login(friend, "friend");
-  await friend.getByRole("button", { name: "My journal", exact: true }).click();
+  await friend.getByRole("button", { name: "My lab", exact: true }).click();
   await expect(friend.getByRole("button", { name: "Manage access", exact: true })).toHaveCount(0);
   expect(await friend.evaluate(async () => (await fetch('/api/access')).status)).toBe(403);
-  await friend.getByRole("button", { name: "My journal", exact: true }).click();
+  await friend.getByRole("button", { name: "My lab", exact: true }).click();
   const privateTrade = await friend.evaluate(async () => {
     const session = await (await fetch('/api/session')).json();
     const response = await fetch('/api/trades', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Primus-CSRF': session.csrf },
@@ -58,7 +63,7 @@ test("only the owner can manage access; blocking revokes sessions and unblocking
     return response.status;
   });
   expect(privateTrade).toBe(200);
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Manage access', exact: true });
   const person = dialog.getByRole('article', { name: 'friend@example.com', exact: true });
@@ -94,13 +99,13 @@ test('Lab navigation, reloads and backup links work inside the website section',
   await expect(page).toHaveURL(`${origin}/lab/import`);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Import trades', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'My journal', exact: true }).click();
+  await page.getByRole('button', { name: 'My lab', exact: true }).click();
   await page.getByRole('button', { name: 'Backup & restore', exact: true }).click();
   await expect(page.getByRole('link', { name: 'Download full JSON backup', exact: true })).toHaveAttribute('href', '/api/export/backup');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.getByRole('button', { name: 'My journal', exact: true }).click();
+  await page.getByRole('button', { name: 'My lab', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Advanced tools', exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'My journal', exact: true }).press('Escape');
+  await page.getByRole('button', { name: 'My lab', exact: true }).press('Escape');
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Strategy Lab', exact: true }).click();
   await expect(page).toHaveURL(`${origin}/lab#results`);
   await expect(page.getByRole('heading', { name: 'Results', exact: true })).toBeVisible();
@@ -112,14 +117,14 @@ test("Manage access refreshes session details after another person signs out", a
   const friend = await context.newPage();
   await login(friend, "friend");
   const before = (await (await page.request.get(`${origin}/api/access`)).json()).find((p) => !p.owner).signed_in_sessions;
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manage access", exact: true });
   const person = dialog.getByRole("article", { name: "friend@example.com", exact: true });
   await person.getByText("Account & device details", { exact: true }).click();
   await expect(person.locator(".access-facts dd").nth(1)).toHaveText(String(before));
   await expect(person.locator(".access-facts")).toContainText("Phone · iOS · Safari");
-  await friend.getByRole("button", { name: "My journal", exact: true }).click();
+  await friend.getByRole("button", { name: "My lab", exact: true }).click();
   await friend.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(friend.getByRole("button", { name: "Continue with Google" })).toBeVisible();
   await dialog.getByRole("button", { name: "Refresh list", exact: true }).click();

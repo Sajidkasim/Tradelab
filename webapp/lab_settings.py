@@ -28,8 +28,8 @@ RESERVED = {'All sessions', 'New York', 'Other', 'Outside configured sessions', 
 
 
 def validate(payload):
-    if payload.get('timezone') not in ('Etc/GMT+4', 'America/New_York'):
-        raise ValueError('Choose fixed UTC−4 or the New York clock.')
+    if payload.get('timezone') not in ('Etc/GMT+4', 'America/New_York', 'Europe/London'):
+        raise ValueError('Choose fixed UTC−4, New York or UK time.')
     sessions = payload.get('sessions')
     if not isinstance(sessions, list) or not 1 <= len(sessions) <= 16:
         raise ValueError('Add between 1 and 16 session windows.')

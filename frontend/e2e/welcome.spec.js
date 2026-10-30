@@ -1,0 +1,36 @@
+import { test, expect } from '@playwright/test';
+import { pick } from './select-helpers';
+
+test('new Google journal starts with a personal welcome, blank labels and UK clock', async ({page}, testInfo) => {
+  const origin = 'http://127.0.0.1:8114';
+  await page.setViewportSize({width:390,height:844});
+  await page.route('https://abcdefghijklmnopqrst.supabase.co/auth/v1/authorize?**', async route => route.fulfill({status:302,headers:{location:`${origin}/auth/callback?code=newcomer`},body:''}));
+  await page.goto(origin);
+  await page.getByRole('button',{name:'Continue with Google',exact:true}).click();
+  const welcome = page.getByRole('dialog',{name:'Welcome to your lab',exact:true});
+  await expect(welcome).toBeVisible();
+  await expect(welcome.getByLabel('Your strategies',{exact:true})).toHaveValue('');
+  await expect(welcome.getByLabel('Your key levels / PDA',{exact:true})).toHaveValue('');
+  await expect(welcome.getByLabel('Your confirmations',{exact:true})).toHaveValue('');
+  await pick(welcome.getByRole('combobox',{name:'Tester clock',exact:true}), 'Europe/London');
+  expect(await welcome.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('welcome-first-visit.png')});
+  await welcome.getByRole('button',{name:'Open my lab',exact:true}).click();
+  await expect(welcome).toHaveCount(0);
+  const meta = await (await page.request.get(`${origin}/api/metadata`)).json();
+  expect(meta.strategies).toEqual([]);
+  expect(meta.playbook.levels).toEqual([]);
+  expect(meta.confirmations).toEqual([]);
+  expect(meta.journal_preferences.timezone).toBe('Europe/London');
+  await page.getByRole('button',{name:'Add trade',exact:true}).click();
+  await expect(page.getByLabel('Entry time · UK',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.reload();
+  await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
+  await expect(welcome).toHaveCount(0);
+  await page.getByRole('button',{name:'My lab',exact:true}).click();
+  await page.locator('.workspace-menu').getByRole('button',{name:'Lab settings',exact:true}).click();
+  await page.getByRole('button',{name:'Tester clock',exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'Tester clock',exact:true})).toHaveText('UK · GMT / BST');
+  await page.screenshot({path:testInfo.outputPath('personal-uk-settings.png')});
+});

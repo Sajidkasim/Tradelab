@@ -6,7 +6,7 @@ for (const theme of ['light', 'dark']) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     if (theme === 'dark') {
-      await page.getByRole('button', { name: 'My journal', exact: true }).click();
+      await page.getByRole('button', { name: 'My lab', exact: true }).click();
       await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
     }
     await page.getByRole('button', { name: 'Add trade', exact: true }).click();

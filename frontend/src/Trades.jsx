@@ -1,3 +1,4 @@
+import { useJournalClock } from "./JournalClock";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Plus,
@@ -37,6 +38,7 @@ export default function Trades({
   assignmentTarget,
   onAssignmentHandled,
 }) {
+  const { timezone: journalZone, clockName } = useJournalClock();
   const [pending, setPending] = useState(false),
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
@@ -193,7 +195,7 @@ export default function Trades({
                 : scope === "Forward testing"
                   ? "Live trading"
                   : scope}{" "}
-              · New York time
+              · {clockName} time
             </p>
           </div>
           <Menu label="Manage trades">
@@ -314,7 +316,7 @@ export default function Trades({
                             </span>
                           </strong>
                           <small className="table-caption">
-                            {tradeDate(t.entry_time)} · {sourceNames[t.source]}
+                            {tradeDate(t.entry_time, journalZone)} · {sourceNames[t.source]}
                           </small>
                           <small className="mobile-trade-detail">
                             {t.setup_name || "Add strategy"}
@@ -440,7 +442,7 @@ export default function Trades({
             }
           >
             {pending
-              ? "These trades have their strategy and confirmations checked. Choose All trades to view your journal."
+              ? "These trades have their strategy and confirmations checked. Choose All trades to view your trades."
               : "Use Add trade or Import above to get started."}
           </Empty>
         )}
@@ -547,12 +549,12 @@ export default function Trades({
                 {deleting.symbol} ·{" "}
                 {deleting.direction === "long" ? "Buy" : "Sell"}
               </strong>
-              <span>{tradeDate(deleting.entry_time)}</span>
+              <span>{tradeDate(deleting.entry_time, journalZone)}</span>
               <span>{money(deleting.net_pnl)}</span>
               <span>{sourceNames[deleting.source]}</span>
             </div>
             <p>
-              This removes this trade and its notes from your journal and
+              This removes this trade and its notes from your lab and
               results. This cannot be undone.
             </p>
             {error && <Notice error>{error}</Notice>}

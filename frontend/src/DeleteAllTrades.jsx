@@ -67,7 +67,7 @@ export default function DeleteAllTrades({
       );
     } catch {
       toast(
-        `${result.deleted} trades deleted. Reload the page to update your journal.`,
+        `${result.deleted} trades deleted. Reload the page to update your lab.`,
       );
     } finally {
       setBusy(false);
@@ -84,13 +84,13 @@ export default function DeleteAllTrades({
       <div className="stack">
         {loading && <p>Checking the total number of trades…</p>}
         {snapshot && snapshot.count === 0 && (
-          <p>Your journal has no trades to delete.</p>
+          <p>Your lab has no trades to delete.</p>
         )}
         {snapshot?.count > 0 && (
           <>
             <div className="delete-total">
               <strong>{snapshot.count}</strong>
-              <span>trades in your whole journal</span>
+              <span>trades in your whole lab</span>
             </div>
             {step === 1 ? (
               <>

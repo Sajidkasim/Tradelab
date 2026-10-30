@@ -22,3 +22,14 @@ it("keeps explicit confirmation review separate from submitted label fields", ()
     "reviewed",
   );
 });
+
+describe('UK journal times', () => {
+  it('converts GMT and BST entries to UTC', () => {
+    expect(nyToUtc('2026-01-15T09:30', 'Europe/London')).toBe('2026-01-15T09:30:00.000Z');
+    expect(nyToUtc('2026-07-15T09:30', 'Europe/London')).toBe('2026-07-15T08:30:00.000Z');
+  });
+  it('rejects UK spring gaps and autumn repeated clocks', () => {
+    expect(() => nyToUtc('2026-03-29T01:30', 'Europe/London')).toThrow(/daylight saving/);
+    expect(() => nyToUtc('2026-10-25T01:30', 'Europe/London')).toThrow(/daylight saving/);
+  });
+});

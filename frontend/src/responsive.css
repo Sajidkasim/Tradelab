@@ -192,3 +192,46 @@
   :root:not([data-appearance="classic"]) .styled-select-panel,
   :root:not([data-appearance="classic"]) .picker-options button { font-size: 16px; }
 }
+
+.research-toolbar > .jump-to-trades { margin-left: auto; }
+@media (max-width: 700px) {
+  .research-toolbar > .jump-to-trades { width: 100%; margin-left: 0; }
+}
+
+/* Keep header controls anchored when changing appearance. */
+:root[data-appearance="classic"] .app-shell { max-width: none; margin: 0; border: 0; box-shadow: none; }
+.site-header, :root[data-appearance="classic"] .site-header {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr) 168px 120px;
+  align-items: center;
+  justify-content: normal;
+  gap: 24px;
+  height: 76px;
+  min-height: 0;
+  padding: 0 max(24px, calc((100% - 1180px) / 2));
+  position: sticky;
+  border-bottom-width: 1px;
+}
+.site-header .brand, :root[data-appearance="classic"] .site-header .brand {
+  align-self: center; height: 52px; padding: 0 10px; margin: 0;
+  font-size: 21px; letter-spacing: -.8px; line-height: 1; gap: 10px;
+}
+.site-header .brand img, :root[data-appearance="classic"] .site-header .brand img { width: 30px; height: 30px; }
+.site-header .main-nav, :root[data-appearance="classic"] .site-header .main-nav { margin: 0; min-width: 0; }
+.site-header .main-nav a, :root[data-appearance="classic"] .site-header .main-nav a { padding: 10px 12px; font-size: 13px; white-space: nowrap; }
+.site-header .appearance-switch, :root[data-appearance="classic"] .site-header .appearance-switch { width: 168px; height: 40px; margin: 0; padding: 3px; gap: 2px; }
+.site-header .appearance-switch button { flex: 1; min-width: 0; padding: 0; font-size: 13px; }
+.site-header .workspace-menu, :root[data-appearance="classic"] .site-header .workspace-menu { margin: 0; width: 120px; }
+.site-header .workspace-menu > summary, :root[data-appearance="classic"] .site-header .workspace-menu > summary { width: 120px; height: 40px; padding: 0 12px; font-size: 13px; justify-content: space-between; }
+@media (min-width: 701px) and (max-width: 850px) {
+  .site-header, :root[data-appearance="classic"] .site-header { grid-template-columns: 170px minmax(0, 1fr) 168px 120px; gap: 12px; }
+  .site-header .main-nav a, :root[data-appearance="classic"] .site-header .main-nav a { padding: 10px 0; font-size: 12px; }
+}
+@media (max-width: 700px) {
+  .site-header, :root[data-appearance="classic"] .site-header { grid-template-columns: minmax(0, 1fr) 110px; grid-template-rows: 40px 40px; gap: 8px 12px; height: 113px; padding: 12px 16px; }
+  .site-header .brand, :root[data-appearance="classic"] .site-header .brand { height: 40px; padding: 0; font-size: 20px; background: transparent; }
+  .site-header .brand img, :root[data-appearance="classic"] .site-header .brand img { width: 24px; height: 24px; }
+  .site-header .appearance-switch, :root[data-appearance="classic"] .site-header .appearance-switch { grid-row: 2; grid-column: 1 / -1; justify-self: end; margin: 0; }
+  .site-header .workspace-menu, :root[data-appearance="classic"] .site-header .workspace-menu,
+  .site-header .workspace-menu > summary, :root[data-appearance="classic"] .site-header .workspace-menu > summary { width: 110px; }
+}

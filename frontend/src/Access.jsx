@@ -43,7 +43,7 @@ export default function Access({ onClose }) {
   }
   return <Modal title="Manage access" onClose={onClose}>
     <div className="stack access-list">
-      <p>See who has joined PrimusLab and control who can enter. Everyone keeps their own private journal.</p>
+      <p>See who has joined PrimusLab and control who can enter. Everyone keeps their own private lab.</p>
       <small>Updates every 15 seconds while this page is visible. “Active recently” means the website was seen within two minutes; it does not prove someone is currently at their device. Times use your device clock.</small>
       <div className="access-refresh"><Button onClick={load} disabled={busy || refreshing} busy={refreshing}>Refresh list</Button><small role="status">{refreshing ? "Checking accounts…" : updated ? `Updated ${updated.toLocaleTimeString()}` : ""}</small></div>
       {error && <Notice error>{error}</Notice>}
@@ -74,7 +74,7 @@ export default function Access({ onClose }) {
           {!person.sessions?.length && <small>No current signed-in sessions. Older device details become available when that person next uses the updated website.</small>}
         </details>
         {!person.owner && (pending === person.id ? <div className="stack">
-          <p>{person.allowed ? "Block this account? Their signed-in sessions will end and they cannot sign in again until you unblock them. Their journal stays saved." : "Allow this account to sign in again? They will need to sign in with Google."}</p>
+          <p>{person.allowed ? "Block this account? Their signed-in sessions will end and they cannot sign in again until you unblock them. Their lab data stays saved." : "Allow this account to sign in again? They will need to sign in with Google."}</p>
           <div className="access-actions">
             <Button onClick={() => setPending(null)} disabled={busy}>Cancel</Button>
             <Button variant={person.allowed ? "danger" : "primary"} onClick={() => change(person)} busy={busy}>

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlaskConical, Plus, Copy, Pencil, Archive } from "lucide-react";
+import { FlaskConical, Plus, Copy, Pencil, Archive, ArrowDown } from "lucide-react";
 import { api } from "./api";
 import { Button, Modal, Field, Select, Notice } from "./components";
 import { testOptions } from "./research";
@@ -17,7 +17,7 @@ const editable = (test) =>
     Object.keys(blank).map((key) => [key, test[key] ?? blank[key]]),
   );
 
-export function TestSelector({ studies, value, onChange, onManage, onAssign }) {
+export function TestSelector({ studies, value, onChange, onManage, onAssign, onTrades }) {
   const current = studies.find((test) => test.id === value);
   return (
     <section className="research-toolbar" aria-label="Research controls">
@@ -41,6 +41,9 @@ export function TestSelector({ studies, value, onChange, onManage, onAssign }) {
           </Button>
         </div>
       )}
+      <Button variant="primary" className="jump-to-trades" onClick={onTrades}>
+        Go to trades <ArrowDown size={16} aria-hidden="true" />
+      </Button>
     </section>
   );
 }

@@ -25,11 +25,11 @@ export default function Backup({ onClose, refresh, toast, count }) {
     }
   }
   return (
-    <Modal title="Back up your journal" onClose={onClose}>
+    <Modal title="Back up your lab" onClose={onClose}>
       <div className="stack">
         <p>
           Keep dated downloads on your computer. You can use the full backup to
-          move your journal or recover if the website is unavailable.
+          move your lab data or recover if the website is unavailable.
         </p>
         <a className="button primary" href="/api/export/backup">
           <Download size={16} /> Download full JSON backup
@@ -42,16 +42,16 @@ export default function Backup({ onClose, refresh, toast, count }) {
           image files need separate backups. Your login is stored separately.
         </small>
         <details className="disclosure">
-          <summary>Restore an empty journal</summary>
+          <summary>Restore an empty lab</summary>
           <div className="stack">
             <p>
               Restoring replaces the empty workspace’s default settings and
-              account list with your backup. Existing journals cannot be
+              account list with your backup. Existing labs cannot be
               replaced here.
             </p>
             {count > 0 ? (
               <Notice>
-                Your journal already contains trades. Download a backup before
+                Your lab already contains trades. Download a backup before
                 arranging a migration.
               </Notice>
             ) : (

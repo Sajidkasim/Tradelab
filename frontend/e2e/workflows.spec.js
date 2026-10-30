@@ -44,7 +44,8 @@ test("manual entry, setup exploration and combined or separate source results", 
     window.primusTestMarker = "same-document";
     return window.primusTestMarker;
   });
-  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
+  await page.getByRole("button", { name: "Go to trades", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Trades", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Browser setup");
@@ -82,7 +83,7 @@ test("manual entry, setup exploration and combined or separate source results", 
   await dialog.getByRole("button", { name: "Save & log next" }).click();
   await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("link", { name: "Results", exact: true }).click();
+  await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(
     page.locator(".stat").filter({ hasText: "Win rate" }).first(),
   ).toContainText("50.0%");
@@ -145,7 +146,8 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
   page,
 }) => {
   await open(page);
-  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
+  await page.getByRole("button", { name: "Go to trades", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Trades", exact: true })).toBeInViewport();
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByLabel("Choose a trade export")).toBeEnabled();
   await page.getByLabel("Choose a trade export").setInputFiles({
@@ -232,8 +234,9 @@ test("backup download, playbook, themes and mobile layout", async ({
   page,
 }) => {
   await open(page);
-  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "Go to trades", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Trades", exact: true })).toBeInViewport();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page
     .locator(".workspace-menu")
     .getByRole("button", { name: "Lab settings", exact: true })
@@ -249,7 +252,7 @@ test("backup download, playbook, themes and mobile layout", async ({
     .getByRole("button", { name: "Save strategies & levels" })
     .click();
   await expect(dialog).not.toBeVisible();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Backup & restore" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download full JSON backup" }).click();
@@ -258,16 +261,16 @@ test("backup download, playbook, themes and mobile layout", async ({
     .getByRole("dialog")
     .getByRole("button", { name: "Close", exact: true })
     .click();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
     path: "test-results/primuslab-trades-dark.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
-  await page.getByRole("link", { name: "Results", exact: true }).click();
+  await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await page.screenshot({
     path: "test-results/primuslab-results-light.png",
@@ -300,7 +303,7 @@ test("journal menu keeps settings and backups without Advanced tools", async ({
   page,
 }) => {
   await open(page);
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Advanced tools", exact: true }),
   ).toHaveCount(0);
@@ -323,22 +326,23 @@ test("compact navigation and workspace tools remain accessible on mobile", async
   ).toBeVisible();
   await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(page).toHaveURL(/#results$/);
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "My journal", exact: true })
+    .getByRole("button", { name: "My lab", exact: true })
     .press("Escape");
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).not.toBeVisible();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.locator(".chart").first().click();
   await expect(
     page.getByRole("button", { name: "Backup & restore" }),
   ).not.toBeVisible();
-  await page.getByRole("link", { name: "Trades ↓", exact: true }).click();
+  await page.getByRole("button", { name: "Go to trades", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Trades", exact: true })).toBeInViewport();
   await expect(
     page.getByRole("button", { name: "Add trade", exact: true }),
   ).toBeVisible();
@@ -582,7 +586,7 @@ test("Lab settings expose exactly the requested windows and save custom names", 
   const sessions = page.getByLabel("Session window", { exact: true });
   await expect(await options(sessions)).toHaveCount(7);
   await expectValue(sessions, "All sessions");
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Lab settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
@@ -924,7 +928,7 @@ test("import preferences save before upload and settings fit mobile in both them
     path: "test-results/primuslab-import-settings-mobile.png",
   });
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   dialog = await importSettings(page, "Tag meanings");
   await expect
@@ -936,7 +940,7 @@ test("import preferences save before upload and settings fit mobile in both them
     path: "test-results/primuslab-import-settings-dark-mobile.png",
   });
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "test-results/primuslab-simple-import.png" });
@@ -1241,7 +1245,7 @@ test("strategy editor matches Explore and removed choices do not return after re
   const available = (await (await options(strategy)).allTextContents()).filter(
     (name) => !["All strategies", "Unclassified"].includes(name),
   );
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page
     .locator(".workspace-menu")
     .getByRole("button", { name: "Lab settings", exact: true })
@@ -1274,7 +1278,7 @@ test("strategy editor matches Explore and removed choices do not return after re
     "Unclassified",
   ]);
   await pick(strategy, "Browser setup");
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page
     .locator(".workspace-menu")
     .getByRole("button", { name: "Lab settings", exact: true })
@@ -1306,7 +1310,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await open(page);
   const explorer = page.locator(".explorer");
   async function settings() {
-    await page.getByRole("button", { name: "My journal", exact: true }).click();
+    await page.getByRole("button", { name: "My lab", exact: true }).click();
     await page
       .getByRole("button", { name: "Lab settings", exact: true })
       .click();

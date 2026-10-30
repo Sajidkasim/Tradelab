@@ -47,7 +47,7 @@ test("Explore supports searchable levels, keyboard choices and removable filters
   await expect(
     page.getByRole("button", { name: "Remove level filter", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await picker.click();
   await expect(search).toBeVisible();
@@ -61,6 +61,6 @@ test("Explore supports searchable levels, keyboard choices and removable filters
   await picker.click();
   await expect(search).toBeVisible();
   await search.press("Escape");
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Light mode", exact: true }).click();
 });

@@ -1,3 +1,4 @@
+import { useJournalClock } from "./JournalClock";
 import React, { useState, useRef, useEffect } from "react";
 import { ArrowRight, Copy } from "lucide-react";
 import { api } from "./api";
@@ -31,6 +32,7 @@ export default function TradeForm({
   studyId = "",
   focusField,
 }) {
+  const { timezone: journalZone, clockName } = useJournalClock();
   const activeTest =
     !trade &&
     (meta.studies || []).find((test) => test.id === studyId && !test.archived);
@@ -77,7 +79,7 @@ export default function TradeForm({
         (meta.instruments.NQ ? "NQ" : Object.keys(meta.instruments)[0]),
     );
   const [method, setMethod] = useState("Quick result"),
-    [start, setStart] = useState(`${nyToday()}T09:30`),
+    [start, setStart] = useState(`${nyToday(journalZone)}T09:30`),
     [exit, setExit] = useState("");
   const [fields, setFields] = useState({
     net_pnl: "",
@@ -123,8 +125,8 @@ export default function TradeForm({
           direction,
           account_id: Number(account),
           source,
-          entry_time: nyToUtc(start),
-          exit_time: nyToUtc(exit || start),
+          entry_time: nyToUtc(start, journalZone),
+          exit_time: nyToUtc(exit || start, journalZone),
         });
         const required =
           method === "Quick result"
@@ -360,7 +362,7 @@ export default function TradeForm({
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
             />
-            <Field label="Entry time · New York">
+            <Field label={`Entry time · ${clockName}`}>
               <input
                 type="datetime-local"
                 value={start}
@@ -413,7 +415,7 @@ export default function TradeForm({
         <div className="stack">
           {!trade && (
             <Field
-              label="Exit time · New York (optional)"
+              label={`Exit time · ${clockName} (optional)`}
               hint="If omitted, exit is recorded at entry time and hold time is zero."
             >
               <input

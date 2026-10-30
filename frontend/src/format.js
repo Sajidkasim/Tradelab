@@ -17,10 +17,10 @@ export const number = (value) =>
     : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
         value,
       );
-export const tradeDate = (value) =>
+export const tradeDate = (value, timezone = "America/New_York") =>
   value
     ? new Intl.DateTimeFormat("en-GB", {
-        timeZone: "America/New_York",
+        timeZone: timezone,
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -59,14 +59,14 @@ export function belongsTo(trade, scope) {
   );
 }
 
-// Convert an explicit New York wall clock to UTC, rejecting DST gaps and ambiguous times.
+// Convert the selected journal wall clock to UTC, rejecting DST gaps and ambiguous times.
 // This is time interpretation only. All trade and strategy maths stays on the server.
-export function nyToUtc(wall) {
+export function nyToUtc(wall, timezone = "America/New_York") {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(wall))
     throw new Error("Enter the trade date and time.");
   const base = Date.parse(`${wall}:00Z`);
   const fmt = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "America/New_York",
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -74,19 +74,19 @@ export function nyToUtc(wall) {
     minute: "2-digit",
     hourCycle: "h23",
   });
-  const matches = [4, 5]
+  const matches = (timezone === "Europe/London" ? [-1, 0] : [4, 5])
     .map((offset) => new Date(base + offset * 3600000))
     .filter((d) => fmt.format(d).replace(" ", "T") === wall);
   if (matches.length !== 1)
     throw new Error(
-      "This New York time is ambiguous or does not exist because of daylight saving. Choose another time.",
+      "This time is ambiguous or does not exist because of daylight saving. Choose another time.",
     );
   return matches[0].toISOString();
 }
 
-export function nyToday() {
+export function nyToday(timezone = "America/New_York") {
   return new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "America/New_York",
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

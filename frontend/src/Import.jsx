@@ -1,3 +1,4 @@
+import { useJournalClock } from "./JournalClock";
 import React, { useEffect, useRef, useState } from "react";
 import {
   UploadCloud,
@@ -16,6 +17,7 @@ import { pendingTags } from "./importTags";
 import { testOptions } from "./research";
 
 export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
+  const { timezone: journalZone, clockName } = useJournalClock();
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
     [detected, setDetected] = useState(null),
@@ -178,7 +180,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
             }}
           />
           <small className="muted">
-            Existing trade IDs are recognised across your journal. Re-importing
+            Existing trade IDs are recognised across your lab. Re-importing
             never moves a trade to another test.
           </small>
         </div>
@@ -240,7 +242,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
         />
         <small className="muted">
           Break-even means exactly $0 realised net P&amp;L, after recorded fees.
-          Only incoming trades are affected; existing journal entries stay
+          Only incoming trades are affected; existing trades stay
           saved.
         </small>
         {updateLabels && (
@@ -368,12 +370,12 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
               {preview.coverage.total}
             </p>
             {!preview.coverage.notes && (
-              <p>No journal notes were found in this file.</p>
+              <p>No trade notes were found in this file.</p>
             )}
             <p>
               Export times interpreted as{" "}
               {timezone === "Etc/GMT+4" ? "fixed UTC−4" : timezone}. Preview
-              times below are shown in New York time.
+              times below are shown in {clockName} time.
             </p>
           </div>
           {preview.native && (
@@ -403,7 +405,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
                 <tr>
                   <th>Market</th>
                   <th>Side</th>
-                  <th>Entry · New York</th>
+                  <th>Entry · {clockName}</th>
                   <th>Net result</th>
                   <th>Realised R</th>
                   <th>Strategy</th>
@@ -416,7 +418,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
                   <tr key={i}>
                     <td data-label="Market">{row.symbol}</td>
                     <td data-label="Side">{row.direction}</td>
-                    <td data-label="Entry · New York">{tradeDate(row.entry_time)}</td>
+                    <td data-label={`Entry · ${clockName}`}>{tradeDate(row.entry_time, journalZone)}</td>
                     <td data-label="Net result">{money(row.net_pnl)}</td>
                     <td data-label="Realised R">{rvalue(row.r_multiple)}</td>
                     <td data-label="Strategy">{row.setup_name || "Unclassified"}</td>
@@ -487,7 +489,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
           <div className="import-action-summary" role="status">
             {error && <span role="alert">{error}</span>}
             <strong>{preview.counts.new || preview.counts.updates ? `${preview.counts.new} new trades · ${preview.counts.duplicates} duplicates skipped` : "Nothing new to import"}</strong>
-            <small>{preview.counts.updates ? `${preview.counts.updates} existing trades have label updates.` : preview.counts.new ? "Review the preview, then confirm to save." : `${preview.counts.duplicates} duplicates skipped · Your journal is unchanged.`}{preview.counts.errors ? ` ${preview.counts.errors} rows with errors — check the preview.` : ""}</small>
+            <small>{preview.counts.updates ? `${preview.counts.updates} existing trades have label updates.` : preview.counts.new ? "Review the preview, then confirm to save." : `${preview.counts.duplicates} duplicates skipped · Your lab is unchanged.`}{preview.counts.errors ? ` ${preview.counts.errors} rows with errors — check the preview.` : ""}</small>
           </div>
           <Button
             variant="primary"

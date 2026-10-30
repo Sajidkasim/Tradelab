@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("Classic persists across pages and reloads, while Modern retains its dark preference", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "My journal", exact: true }).click();
+  await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Dark mode", exact: true }).click();
   await page.getByRole("button", { name: "Classic", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-appearance", "classic");

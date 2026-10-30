@@ -763,3 +763,18 @@ def test_each_rr_needs_its_own_full_exit_confirmation_and_unknown_tags_are_not_g
     assert preview['rows'][2]['target_rr'] == 'Not recorded'  # Unsaved meaning needs review.
     assert preview['rows'][3]['target_rr'] == 'Not recorded'  # Conflicting ratios need review.
     assert all(row['r_multiple'] is None for row in preview['rows'])
+
+
+def test_uk_journal_clock_preserves_trades_and_filters_whole_dst_calendar_days(local):
+    client, _ = local
+    for index, stamp in enumerate(['2026-10-24T23:30:00Z', '2026-10-25T23:30:00Z', '2026-10-26T00:30:00Z']):
+        payload = {**trade_payload(), 'entry_time': stamp, 'exit_time': stamp, 'notes': str(index)}
+        assert client.post('/api/trades', json=payload).status_code == 200
+    before = client.get('/api/trades').json()
+    assert client.put('/api/journal-preferences', json={'timezone': 'Europe/London'}).status_code == 200
+    result = client.post('/api/results', json={'scope': 'All', 'combined': True, 'window': 'All sessions', 'start': '2026-10-25', 'end': '2026-10-25'}).json()
+    assert result['stats']['trades'] == 2  # A 25-hour UK day, both sides of the clock change.
+    assert result['chart_latest']['time'].startswith('2026-10-25T23:30')
+    assert client.get('/api/trades').json() == before
+    assert client.get('/api/metadata').json()['journal_preferences']['timezone'] == 'Europe/London'
+    assert client.put('/api/journal-preferences', json={'timezone': 'invalid'}).status_code == 422

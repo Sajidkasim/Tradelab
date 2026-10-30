@@ -30,7 +30,7 @@ test('large previews keep import reachable, paginate, and safely skip duplicates
     for (const appearance of ['Modern', 'Modern dark', 'Classic']) {
       await page.getByRole('button', { name: appearance === 'Modern dark' ? 'Modern' : appearance, exact: true }).click();
       if (appearance === 'Modern dark') {
-        await page.getByRole('button', { name: 'My journal', exact: true }).click();
+        await page.getByRole('button', { name: 'My lab', exact: true }).click();
         await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
       }
       for (const width of [1440, 390, 320]) {

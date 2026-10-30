@@ -34,7 +34,7 @@ for (const appearance of ["modern-light", "modern-dark", "classic"]) {
     await page.reload();
     if (appearance === "classic") await page.getByRole("button", { name: "Classic", exact: true }).click();
     if (appearance === "modern-dark") {
-      await page.getByRole("button", { name: "My journal", exact: true }).click();
+      await page.getByRole("button", { name: "My lab", exact: true }).click();
       await page.getByRole("button", { name: "Dark mode", exact: true }).click();
     }
     await expect(page.locator(".chart .main-svg").first()).toBeVisible();
@@ -62,7 +62,7 @@ for (const appearance of ["modern-light", "modern-dark", "classic"]) {
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(await page.getByRole("dialog").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.getByRole("button", { name: "Close", exact: true }).click();
-    await page.getByRole("button", { name: "My journal", exact: true }).click();
+    await page.getByRole("button", { name: "My lab", exact: true }).click();
     await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(await page.getByRole("dialog").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);

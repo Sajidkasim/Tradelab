@@ -151,6 +151,25 @@ Opening a non-searchable dropdown focuses its list, not a typing input.
 Keyboard and top-layer menu behaviour remain shared. Changes stay local for
 review before publishing.
 
+## Personal welcome and UK journal clock — 30 October 2026
+
+`webapp/journal_preferences.py` stores each journal's display/entry clock and
+first-visit state. UK uses Europe/London (GMT/BST); existing journals default to
+America/New_York. Trade entry converts the selected wall clock to UTC and rejects
+DST gaps/repeated times. The trade list, CSV preview and result chart use the
+journal clock. From/To filters use complete local calendar days, including DST
+changes. Session windows/weekday filters use their separate Session clock;
+CSV parsing uses its explicit export clock. Europe/London is also available as
+a Session clock. No core formulas were changed.
+
+Only newly provisioned non-owner Google journals start with blank strategies,
+levels and confirmations and no preset personal import guide. Shared generic
+timeframes/session windows remain editable. An automatic welcome dialog explains
+setup → input/import → Explore and offers optional personal labels and a clock.
+`/api/welcome` is private, can complete once, and never resets an existing journal.
+Existing accounts retain all saved settings and are not forced through onboarding.
+New settings travel with full JSON backups. These changes are local for review.
+
 ## The one-page architecture
 
 ### Classic appearance preview — 29 October 2026
@@ -283,3 +302,19 @@ Rules for working on this repository:
 - Any statistic on fewer than 30 trades carries a **small sample** badge. It's there for a reason.
 - The backtester's **plateau verdict** and **walk-forward OOS** are the anti-fooling-yourself tools. A single
   green backtest is not evidence.
+
+## Strategy tester wording — 30 October 2026
+
+The owner calls this a strategy tester, not a journal. Frontend copy uses
+My lab, Tester clock, lab backups and a private strategy tester welcome.
+Internal database keys and API paths keep their names for compatibility.
+This wording change remains local pending review.
+
+The Results/Trades text links above Research test are replaced by a clear Go to
+trades button at the right of the research controls. It scrolls to the existing
+Trades section using the same navigation handler and fills the row on phones.
+
+Header controls share a fixed responsive grid in both appearances. Classic no
+longer constrains the outer app frame, so its logo, appearance switch and My lab
+menu keep the same viewport positions when switching. Tested coordinate parity
+at 320, 390, 768, 1366 and 1920px; Classic retains its colours and control styling.

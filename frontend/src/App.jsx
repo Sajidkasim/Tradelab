@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { Button, Notice, Menu } from "./components";
+import { JournalClock } from "./JournalClock";
+import Welcome from "./Welcome";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
@@ -170,6 +172,7 @@ export default function App() {
     );
   return (
     <AppearanceContext.Provider value={appearance}>
+    <JournalClock.Provider value={meta.journal_preferences?.timezone || "America/New_York"}>
     <div className="app-shell">
       <header className="site-header">
         <a
@@ -196,12 +199,12 @@ export default function App() {
           </a>
         </nav>
         <AppearanceSwitch value={appearance} onChange={setAppearance} />
-        <Menu label="My journal" className="workspace-menu">
+        <Menu label="My lab" className="workspace-menu">
           <div className="menu-account">
             <strong>{session.name}</strong>
             <small>
               {session.local
-                ? "Local preview · separate journal"
+                ? "Local preview · separate lab"
                 : "Private workspace"}
             </small>
           </div>
@@ -223,7 +226,7 @@ export default function App() {
           {session.can_lock && (
             <button onClick={logout}>
               <LogOut size={16} />{" "}
-              {session.auth_mode === "google" ? "Sign out" : "Lock journal"}
+              {session.auth_mode === "google" ? "Sign out" : "Lock lab"}
             </button>
           )}
         </Menu>
@@ -236,7 +239,7 @@ export default function App() {
           <button onClick={() => navigate("import")}>Import</button>
           <button onClick={() => setTestsOpen(true)}>My tests</button>
           <button onClick={() => setLabSettings(true)}>Lab settings</button>
-          <span>PRIVATE JOURNAL · CLASSIC EDITION</span>
+          <span>PRIVATE STRATEGY TESTER · CLASSIC EDITION</span>
         </nav>
       )}
       <div className="main-shell">
@@ -254,31 +257,13 @@ export default function App() {
                 <h1>Strategy Lab</h1>
                 <p>Find the setups worth repeating.</p>
               </div>
-              <nav aria-label="Journal sections">
-                <a
-                  href="#results"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate("results");
-                  }}
-                >
-                  Results
-                </a>
-                <a
-                  href="#trades"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate("trades");
-                  }}
-                >
-                  Trades ↓
-                </a>
-              </nav>
+
             </div>
             <TestSelector
               studies={meta.studies || []}
               value={study}
               onChange={setStudy}
+              onTrades={() => navigate("trades")}
               onManage={() => setTestsOpen(true)}
               onAssign={assignExisting}
             />
@@ -339,6 +324,7 @@ export default function App() {
           {message}
         </div>
       )}
+      {meta.journal_preferences?.welcome_pending && <Welcome refresh={refresh} />}
       {labSettings && (
         <LabSettings
           meta={meta}
@@ -369,6 +355,7 @@ export default function App() {
         />
       )}
     </div>
+    </JournalClock.Provider>
     </AppearanceContext.Provider>
   );
 }

@@ -21,9 +21,9 @@ from core import edge
 from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, lab_settings, trade_deletion, import_updates
+from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 from .google_access import LoginError, AccountBlocked
 
@@ -418,14 +418,18 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             database = db(request, member)
             frame = app.state.workspaces.trades(member['key'])
-            plan = tag_cleanup.plan(database, frame, payload.field, payload.source, payload.target)
-            signature = {'purpose': 'label-cleanup', 'workspace': member['key'], 'csrf': request.session['csrf'],
-                         'fingerprint': plan['fingerprint'], 'field': payload.field, 'source': payload.source, 'target': payload.target}
             if action == 'apply':
                 try:
                     previous = signer.loads(payload.preview_token, max_age=600)
                 except (BadSignature, SignatureExpired):
                     raise HTTPException(409, 'Preview the tag cleanup again before applying it.') from None
+                if not isinstance(previous, dict) or any(previous.get(key) != value for key, value in {
+                    'purpose': 'label-cleanup', 'workspace': member['key'], 'csrf': request.session['csrf']}.items()):
+                    raise HTTPException(409, 'Preview the tag cleanup again before applying it.')
+            plan = tag_cleanup.plan(database, frame, payload.field, payload.source, payload.target)
+            signature = {'purpose': 'label-cleanup', 'workspace': member['key'], 'csrf': request.session['csrf'],
+                         'fingerprint': plan['fingerprint'], 'field': payload.field, 'source': payload.source, 'target': payload.target}
+            if action == 'apply':
                 if previous != signature:
                     raise HTTPException(409, 'Your labels or trades changed. Preview the cleanup again.')
                 tag_cleanup.write_changes(database, plan['changes'], plan['settings'])
@@ -435,6 +439,33 @@ def create_app(config: Settings | None = None):
                     'preview_token': signer.dumps(signature),
                     'examples': [{'id': item['id'], 'strategy': item['setup_name'], 'labels': edge.read_labels(item['tags'])}
                                  for item in plan['changes'][:5]]}
+
+    @app.put('/api/journal-preferences')
+    def save_journal_preferences(payload: JournalPreferences, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            values = {**journal_preferences.read(database), 'timezone': payload.timezone}
+            database.set_setting(journal_preferences.KEY, values)
+            app.state.workspaces.bump(member['key'])
+        return values
+
+    @app.put('/api/welcome')
+    def welcome_setup(payload: WelcomeSetup, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            database = db(request, member)
+            if not journal_preferences.read(database)['welcome_pending']:
+                raise HTTPException(409, 'Your journal is already set up. Use Lab settings to make changes.')
+            for value in payload.strategies + payload.levels + payload.confirmations:
+                if not value.strip() or len(value.strip()) > 120:
+                    raise ValueError('Use non-empty labels of up to 120 characters.')
+            labels = {**lab_settings.read(database), 'confirmations': payload.confirmations}
+            lab_settings.validate(labels)
+            frame = app.state.workspaces.trades(member['key'])
+            strategy_catalog.save(database, frame, {'strategies': payload.strategies, 'levels': payload.levels})
+            lab_settings.save(database, frame, labels)
+            database.set_setting(journal_preferences.KEY, {**journal_preferences.read(database), 'timezone': payload.timezone, 'welcome_pending': False})
+            app.state.workspaces.bump(member['key'])
+        return {'saved': True}
 
     @app.put("/api/lab-settings")
     def save_lab_settings(payload: LabSettings, request: Request, member=Depends(workspace)):

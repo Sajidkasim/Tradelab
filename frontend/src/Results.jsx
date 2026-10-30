@@ -1,3 +1,4 @@
+import { useJournalClock } from "./JournalClock";
 import React, { useEffect, useState } from "react";
 import { RotateCcw, ArrowUpRight } from "lucide-react";
 import { api } from "./api";
@@ -58,6 +59,7 @@ export default function Results({
   refresh,
   toast,
 }) {
+  const { timezone: journalZone, clockName } = useJournalClock();
   const [setupFilters, setFilters] = useState(initial),
     [detail, setDetail] = useState(false),
     [comparison, setComparison] = useState("setup_name");
@@ -294,7 +296,7 @@ export default function Results({
             Entry date ·{" "}
             {meta.lab_settings.timezone === "Etc/GMT+4"
               ? "fixed UTC−4"
-              : "New York time"}
+              : meta.lab_settings.timezone === "Europe/London" ? "UK time" : "New York time"}
             . No day tag needed.
           </small>
           <details className="disclosure">
@@ -315,7 +317,7 @@ export default function Results({
               <small>
                 {meta.lab_settings.timezone === "Etc/GMT+4"
                   ? "All session times use fixed UTC−4."
-                  : "All session times use New York's clock, including daylight saving."}{" "}
+                  : meta.lab_settings.timezone === "Europe/London" ? "All session times use the UK clock, including GMT/BST." : "All session times use New York's clock, including daylight saving."}{" "}
                 Entry time determines the session.
               </small>
               <Select
@@ -351,7 +353,7 @@ export default function Results({
               </small>
               <small className="muted">
                 Not recorded means a trade has not been labelled. Edit these
-                options in My journal → Lab settings.
+                options in My lab → Lab settings.
               </small>
             </div>
           </details>
@@ -375,14 +377,14 @@ export default function Results({
                   )
                 }
               />
-              <Field label="From · New York">
+              <Field label={`From · ${clockName}`}>
                 <input
                   type="date"
                   value={filters.start || ""}
                   onChange={(e) => change("start", e.target.value || null)}
                 />
               </Field>
-              <Field label="To · New York">
+              <Field label={`To · ${clockName}`}>
                 <input
                   type="date"
                   value={filters.end || ""}
@@ -448,6 +450,7 @@ function ResultSample({
   onTrades,
   palette,
 }) {
+  const { clockName } = useJournalClock();
   const s = data?.stats;
   const model = data?.fixed_rr;
   const useFixed = model?.complete && data.r_count === 0;
@@ -479,7 +482,7 @@ function ResultSample({
           <div>
             <span className="lab-step">02 / OBSERVE</span>
             <h2>Your trading history</h2>
-            <p>Closed trades · New York time</p>
+            <p>Closed trades · {clockName} time</p>
           </div>
         </div>
         {data?.chart ? (

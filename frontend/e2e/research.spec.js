@@ -149,7 +149,7 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await expect(
       page.locator(".explorer").getByLabel("SMT", { exact: true }),
     ).toBeChecked();
-    await page.getByRole("button", { name: "My journal", exact: true }).click();
+    await page.getByRole("button", { name: "My lab", exact: true }).click();
     await page
       .getByRole("button", { name: "Lab settings", exact: true })
       .click();

@@ -372,3 +372,37 @@ def test_connection_details_are_bounded_and_browser_hints_are_not_claimed_as_exa
     assert device_details(None) == {'device': 'Unknown', 'system': 'Unknown', 'browser': 'Unknown'}
     assert device_details('Android Chrome/142 Mobile')['device'] == 'Phone'
     assert device_details('Android Chrome/142')['device'] == 'Tablet'
+
+
+def test_new_journal_welcome_is_blank_private_persistent_and_does_not_reset_owner(google):
+    client, app, state = google
+    login(client, state)
+    owner = client.get('/api/metadata').json()
+    assert owner['journal_preferences']['welcome_pending'] is False
+    client.put('/api/playbook', json={'strategies': ['Owner only'], 'levels': ['Owner private level']})
+    owner_before = client.get('/api/metadata').json()
+    client.post('/api/logout')
+    login(client, state, 'new@example.com', 'new-user')
+    fresh = client.get('/api/metadata').json()
+    assert fresh['journal_preferences']['welcome_pending'] is True
+    assert fresh['strategies'] == [] and fresh['playbook']['levels'] == []
+    assert fresh['confirmations'] == [] and fresh['tag_mappings'] == {}
+    assert fresh['tag_suggestions'] == [] and client.get('/api/trades').json() == []
+    invalid = client.put('/api/welcome', json={'timezone': 'Europe/London', 'levels': ['x' * 121]})
+    assert invalid.status_code == 422
+    assert client.get('/api/metadata').json()['playbook']['levels'] == []
+    setup = {'timezone': 'Europe/London', 'strategies': ['My breakout'], 'levels': ['My level'], 'confirmations': ['My confirmation']}
+    assert client.put('/api/welcome', json=setup).status_code == 200
+    configured = client.get('/api/metadata').json()
+    assert configured['journal_preferences']['timezone'] == 'Europe/London'
+    assert configured['journal_preferences']['welcome_pending'] is False
+    assert configured['strategies'] == ['My breakout']
+    assert configured['playbook']['levels'] == ['My level']
+    assert configured['confirmations'] == ['My confirmation']
+    assert client.put('/api/welcome', json=setup).status_code == 409
+    client.post('/api/logout')
+    login(client, state, 'new@example.com', 'new-user')
+    assert client.get('/api/metadata').json()['journal_preferences'] == configured['journal_preferences']
+    client.post('/api/logout')
+    login(client, state)
+    assert client.get('/api/metadata').json() == owner_before

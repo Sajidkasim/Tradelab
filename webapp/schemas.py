@@ -104,7 +104,7 @@ class SessionWindow(StrictModel):
 
 
 class LabSettings(StrictModel):
-    timezone: Literal["Etc/GMT+4", "America/New_York"] = "Etc/GMT+4"
+    timezone: Literal["Etc/GMT+4", "America/New_York", "Europe/London"] = "Etc/GMT+4"
     sessions: list[SessionWindow] = Field(min_length=1, max_length=16)
     news: list[str] = Field(min_length=1, max_length=30)
     conditions: list[str] = Field(min_length=1, max_length=30)
@@ -151,3 +151,13 @@ class LabelMerge(StrictModel):
     source: str = Field(min_length=1, max_length=120)
     target: str = Field(min_length=1, max_length=120)
     preview_token: str = Field(default='', max_length=4096)
+
+
+class JournalPreferences(StrictModel):
+    timezone: Literal['America/New_York', 'Europe/London']
+
+
+class WelcomeSetup(JournalPreferences):
+    strategies: list[str] = Field(default_factory=list, max_length=200)
+    levels: list[str] = Field(default_factory=list, max_length=200)
+    confirmations: list[str] = Field(default_factory=list, max_length=200)

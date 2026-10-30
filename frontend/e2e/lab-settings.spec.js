@@ -7,7 +7,7 @@ for (const appearance of ["Modern", "Classic"]) {
     await page.getByRole("button", { name: "Manage trades", exact: true }).click();
     await expect(page.getByRole("button", { name: "Edit strategies & levels", exact: true })).toHaveCount(0);
     await page.getByRole("heading", { name: "Trades", exact: true }).click();
-    await page.getByRole("button", { name: "My journal", exact: true }).click();
+    await page.getByRole("button", { name: "My lab", exact: true }).click();
     await page.locator(".workspace-menu").getByRole("button", { name: "Lab settings", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Lab settings", exact: true });
     await dialog.getByRole("button", { name: "Strategies & levels", exact: true }).click();

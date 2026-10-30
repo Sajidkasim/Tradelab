@@ -5,6 +5,7 @@ import { Modal, Field, Select, Button, Notice, Segments } from "./components";
 import TagCleanup from "./TagCleanup";
 
 export default function LabSettings({ meta, refresh, toast, onClose }) {
+  const [journalClock, setJournalClock] = useState(meta.journal_preferences?.timezone || "America/New_York");
   const [settings, setSettings] = useState(() =>
     structuredClone(meta.lab_settings),
   );
@@ -32,6 +33,10 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
     setBusy(true);
     setError("");
     try {
+      if (tab === "clock") {
+        await api("/journal-preferences", { method: "PUT", body: { timezone: journalClock } });
+        await refresh(); toast("Tester clock saved."); onClose(); return;
+      }
       if (tab === "strategies") {
         await api("/playbook", { method: "PUT", body: { strategies: strategies.split("\n"), levels: levels.split("\n") } });
         await refresh();
@@ -88,6 +93,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         <Segments
           label="Lab settings sections"
           values={[
+            { value: "clock", label: "Tester clock" },
             { value: "strategies", label: "Strategies & levels" },
             { value: "setup", label: "Setup labels" },
             { value: "sessions", label: "Session windows" },
@@ -97,6 +103,12 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
           value={tab}
           onChange={setTab}
         />
+        {tab === "clock" && <div className="stack">
+          <h3>Your tester clock</h3>
+          <Select label="Tester clock" value={journalClock} onChange={(e) => setJournalClock(e.target.value)} values={[{value:"America/New_York",label:"New York · EST / EDT"},{value:"Europe/London",label:"UK · GMT / BST"}]} />
+          <p className="muted">Used for trade entry, trade dates, graph times and From/To date filters. UK time follows GMT and BST automatically. Stored trade timestamps stay in UTC.</p>
+          <p className="muted">Session windows and the Day filter use the Session clock. CSV files use the export time zone in Import settings.</p>
+        </div>}
         {tab === "strategies" && (
           <div className="stack">
             <div><h3>Strategies & key levels</h3><p className="muted">One name per line. These lists are shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
@@ -177,6 +189,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
                 setSettings({ ...settings, timezone: e.target.value })
               }
               values={[
+                { value: "Europe/London", label: "UK clock · GMT / BST" },
                 {
                   value: "Etc/GMT+4",
                   label: "Fixed UTC−4 · same offset all year",

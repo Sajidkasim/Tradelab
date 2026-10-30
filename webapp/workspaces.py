@@ -13,7 +13,7 @@ from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
 from services import trade_labels, fixed_rr, weekdays, strategy_catalog, research, review, tag_cleanup
-from . import lab_settings, import_updates
+from . import lab_settings, import_updates, journal_preferences
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
           "All": LIVE_SOURCES + BACKTEST_SOURCES}
@@ -88,6 +88,7 @@ class Workspaces:
                 database.init()
                 harden_tables(database, trading_metadata.sorted_tables)
                 if not database.accounts():
+                    journal_preferences.fresh(database)
                     database.upsert_account(Account('My account', 50000, 1000, 2000))
                 self.databases[key] = database
             return self.databases[key]
@@ -125,7 +126,7 @@ class Workspaces:
             target = book if name in book else lab
             if name in target:
                 target[name] = tag_cleanup.names(target[name], field, aliases)
-        return clean({"accounts": [asdict(a) for a in db.accounts()],
+        return clean({"journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
                       "timeframes": list(dict.fromkeys(lab['level_timeframes'] + lab['entry_timeframes'])),
@@ -137,7 +138,7 @@ class Workspaces:
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
                       "tag_mappings": mappings,
                       "target_rrs": sorted({fixed_rr.ratio(value)[0] for value in trade_labels.mapped_values(mappings, 'target_rr')}),
-                      "tag_suggestions": tag_cleanup.mapping_values(trade_labels.fx_tag_guide(), aliases),
+                      "tag_suggestions": ([] if journal_preferences.read(db)['personal_setup'] else tag_cleanup.mapping_values(trade_labels.fx_tag_guide(), aliases)),
                       **research.catalogue(db, frame)})
 
     def results(self, key, filters):
@@ -155,9 +156,10 @@ class Workspaces:
             base = base[base["account_id"] == filters.account_id]
         for name, bound, after in (("start", filters.start, True), ("end", filters.end, False)):
             if bound:
-                stamp = pd.Timestamp(bound).tz_localize("America/New_York").tz_convert("UTC").tz_localize(None)
+                local_bound = pd.Timestamp(bound) + (pd.Timedelta(days=1) if not after else pd.Timedelta(0))
+                stamp = local_bound.tz_localize(journal_preferences.read(self.database(key))["timezone"]).tz_convert("UTC").tz_localize(None)
                 times = pd.to_datetime(base["entry_time"], utc=True).dt.tz_localize(None)
-                base = base[times >= stamp] if after else base[times < stamp + pd.Timedelta(days=1)]
+                base = base[times >= stamp] if after else base[times < stamp]
         base = edge.prepare(base)
         if not base.empty:
             base["setup_name"] = base["setup_name"].fillna("").replace("", "Unclassified")
@@ -177,8 +179,8 @@ class Workspaces:
         closed = metrics.closed(matched)
         equity = metrics.equity_curve(matched)
         if not equity.empty:
-            # Display wall clocks in the same New York zone as the trade journal.
-            equity['time'] = pd.to_datetime(equity['time'], utc=True).dt.tz_convert('America/New_York').dt.tz_localize(None)
+            # Display wall clocks in the selected journal zone.
+            equity['time'] = pd.to_datetime(equity['time'], utc=True).dt.tz_convert(journal_preferences.read(self.database(key))['timezone']).dt.tz_localize(None)
         chart = charts.equity_chart(equity, filters.mode, title="") if stats["trades"] else None
         import json
         response = {"stats": clean(stats), "fixed_rr": clean(fixed_rr.summary(matched)), "sample": scope, "collection_count": len(metrics.closed(base)),

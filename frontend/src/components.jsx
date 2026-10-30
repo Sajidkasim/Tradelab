@@ -175,7 +175,7 @@ export function Disclosure({ title, children, open = false }) {
     </details>
   );
 }
-export function Modal({ title, children, onClose, className = "" }) {
+export function Modal({ title, children, onClose, className = "", closable = true }) {
   const ref = useRef();
   const titleId = useId();
   useEffect(() => {
@@ -198,9 +198,9 @@ export function Modal({ title, children, onClose, className = "" }) {
     >
       <div className="modal-header">
         <h2 id={titleId}>{title}</h2>
-        <button aria-label="Close" className="icon-button" onClick={onClose}>
+        {closable && <button aria-label="Close" className="icon-button" onClick={onClose}>
           <X size={20} />
-        </button>
+        </button>}
       </div>
       {children}
     </dialog>

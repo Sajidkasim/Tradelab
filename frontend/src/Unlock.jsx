@@ -154,7 +154,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
             <h1 id="login-title">Welcome back.</h1>
             <p>Your trades. Your research. Your next discovery.</p>
             {!google && <div className="login-password-field">
-              <label htmlFor="journal-password">Journal password</label>
+              <label htmlFor="journal-password">Lab password</label>
               <div className="login-password-control">
                 <input
                   id="journal-password"
@@ -188,11 +188,11 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", appea
               busy={busy}
               disabled={!ready}
             >
-              {google ? "Continue with Google" : "Open my journal"} <ArrowRight size={18} aria-hidden="true" />
+              {google ? "Continue with Google" : "Open my lab"} <ArrowRight size={18} aria-hidden="true" />
             </Button>
             <div className="login-form-note">
               <LockKeyhole size={13} aria-hidden="true" />
-              <span>{google ? "New here? Your first sign-in creates your private journal. Other members cannot see your trades." : "A quiet space for your trading research."}</span>
+              <span>{google ? "New here? Your first sign-in creates your private strategy tester. Other members cannot see your trades." : "A quiet space for your trading research."}</span>
             </div>
             {google && <p className="login-activity-note">For account security, the owner can see sign-in activity, browser/device hints and connection addresses. <a href="/privacy">Privacy details</a></p>}
           </form>
