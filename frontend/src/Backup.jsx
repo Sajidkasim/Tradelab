@@ -38,15 +38,14 @@ export default function Backup({ onClose, refresh, toast, count }) {
           <Download size={16} /> Download trades as CSV
         </a>
         <small className="muted">
-          JSON includes trades, labels, notes, accounts and settings. Screenshot
+          JSON includes your trades, labels, notes and lab settings. Screenshot
           image files need separate backups. Your login is stored separately.
         </small>
         <details className="disclosure">
           <summary>Restore an empty lab</summary>
           <div className="stack">
             <p>
-              Restoring replaces the empty workspace’s default settings and
-              account list with your backup. Existing labs cannot be
+              Restoring loads your saved data and settings into this empty lab. Existing labs cannot be
               replaced here.
             </p>
             {count > 0 ? (

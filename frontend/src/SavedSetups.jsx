@@ -75,8 +75,8 @@ export default function SavedSetups({
         <Modal title="Saved setups" onClose={() => !busy && setOpen(false)}>
           <form className="stack" onSubmit={save}>
             <p className="muted">
-              Save your current Explore filters. Restore them in whichever test
-              you are viewing.
+              Save your current Explore filters so you can return to this setup
+              later.
             </p>
             <div className="setup-filter-summary">
               <strong>{filters.strategy}</strong>

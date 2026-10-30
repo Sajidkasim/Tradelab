@@ -235,3 +235,18 @@
   .site-header .workspace-menu, :root[data-appearance="classic"] .site-header .workspace-menu,
   .site-header .workspace-menu > summary, :root[data-appearance="classic"] .site-header .workspace-menu > summary { width: 110px; }
 }
+
+/* Separate saved-filter actions from the Explore heading. */
+.lab-grid .explorer .saved-setup-toolbar { margin-top: 18px; gap: 12px; }
+.import-settings .import-account-summary { margin: 0; padding: 10px 12px; border: 1px solid var(--tl-border); border-radius: 8px; background: var(--tl-page); color: var(--tl-ink2); }
+.import-default-note { margin: 0; font-size: 12px; line-height: 1.6; }
+.import-extra-options { margin: 0; }
+.import-file-settings > .settings-actions { background: var(--tl-surface); padding: 12px 0 0; border-top: 1px solid var(--tl-border); }
+:root[data-appearance="classic"] .import-settings .import-account-summary { border-radius: 0; }
+@media (max-width: 700px) { .import-file-settings > .settings-actions { bottom: 0; } .import-file-settings > .settings-actions .button { flex: 1; } }
+
+.import-settings-modal { padding: 28px; }
+.import-settings-modal .import-settings { gap: 16px; padding-top: 16px; }
+.import-settings-modal .import-file-settings { gap: 14px; }
+.import-settings-modal .import-default-note { padding: 10px 12px; }
+@media (max-width: 700px) { .import-settings-modal { padding: 22px; } }

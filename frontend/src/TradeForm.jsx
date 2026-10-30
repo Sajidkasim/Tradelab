@@ -57,7 +57,7 @@ export default function TradeForm({
   const [confirmed, setConfirmed] = useState(trade?.labels?.reviewed || false),
     [notes, setNotes] = useState(trade?.notes || "");
   const [source, setSource] = useState(previous?.source || "backtest"),
-    [account, setAccount] = useState(
+    [account] = useState(
       previous?.account_id || meta.accounts[0]?.id,
     );
   const [direction, setDirection] = useState(previous?.direction || "long"),
@@ -205,23 +205,17 @@ export default function TradeForm({
         )}
       </div>
       {!trade && (
-        <div className="form-grid two">
+        <div>
           <Select
-            label="Save to"
+            label="Testing type"
             values={[
               { value: "backtest", label: "Backtesting" },
-              { value: "manual", label: "Live trading" },
+              { value: "manual", label: "Live" },
             ]}
             value={source}
             onChange={(e) => {
               setSource(e.target.value);
             }}
-          />
-          <Select
-            label="Account"
-            values={meta.accounts.map((a) => ({ value: a.id, label: a.name }))}
-            value={account}
-            onChange={(e) => setAccount(Number(e.target.value))}
           />
         </div>
       )}

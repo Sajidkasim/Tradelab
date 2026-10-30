@@ -39,12 +39,12 @@ test("Classic menus share retro styling, keyboard selection and viewport-safe pl
   await expect(level).toContainText("FVG");
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  const source = dialog.getByRole("combobox", { name: "Save to", exact: true });
+  const source = dialog.getByRole("combobox", { name: "Testing type", exact: true });
   await source.click();
-  await page.getByRole("option", { name: "Live trading", exact: true }).click();
-  await expect(source).toHaveText("Live trading");
+  await page.getByRole("option", { name: "Live", exact: true }).click();
+  await expect(source).toHaveText("Live");
   await source.click();
-  await page.getByRole("listbox", { name: "Save to", exact: true }).press("Escape");
+  await page.getByRole("listbox", { name: "Testing type", exact: true }).press("Escape");
   await expect(dialog).toBeVisible();
   await expect(source).toBeFocused();
   await page.getByRole("button", { name: "Close", exact: true }).click();

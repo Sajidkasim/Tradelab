@@ -15,7 +15,7 @@ async function open(page) {
   ).toBeVisible();
 }
 
-async function importSettings(page, section = "File preferences") {
+async function importSettings(page, section = "File setup") {
   await page
     .getByRole("button", { name: "Import settings", exact: true })
     .click();
@@ -25,6 +25,10 @@ async function importSettings(page, section = "File preferences") {
   });
   await dialog.getByRole("button", { name: section, exact: true }).click();
   return dialog;
+}
+async function moreImportOptions(dialog) {
+  if (await dialog.locator('.import-extra-options').getAttribute('open') === null)
+    await dialog.getByText('More options', {exact:true}).click();
 }
 async function saveSuggestedTag(page, tag) {
   await page
@@ -71,7 +75,7 @@ test("manual entry, setup exploration and combined or separate source results", 
     "Browser setup",
   );
   await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
-  await pick(dialog.getByLabel("Save to", { exact: true }), "manual");
+  await pick(dialog.getByLabel("Testing type", { exact: true }), "manual");
   await dialog
     .getByLabel("Entry time · New York", { exact: true })
     .fill("2026-07-01T10:30");
@@ -122,11 +126,11 @@ test("manual entry, setup exploration and combined or separate source results", 
       .filter({ hasText: "Win rate" }),
   ).toContainText("100.0%");
   await sources
-    .getByRole("button", { name: "Live trading", exact: true })
+    .getByRole("button", { name: "Live", exact: true })
     .click();
   await expect(
     page
-      .getByRole("region", { name: "Live trading results", exact: true })
+      .getByRole("region", { name: "Live results", exact: true })
       .locator(".stat")
       .filter({ hasText: "Win rate" }),
   ).toContainText("0.0%");
@@ -347,9 +351,9 @@ test("compact navigation and workspace tools remain accessible on mobile", async
     page.getByRole("button", { name: "Add trade", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await expect(page.getByLabel("These trades are…")).not.toBeVisible();
+  await expect(page.getByLabel("Testing type")).not.toBeVisible();
   const importDialog = await importSettings(page);
-  await expect(page.getByLabel("These trades are…")).toBeVisible();
+  await expect(page.getByLabel("Testing type")).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -401,7 +405,7 @@ test("one journal keeps exploration beside results and trades below, with All fi
     "false",
   );
   await sources
-    .getByRole("button", { name: "Live trading", exact: true })
+    .getByRole("button", { name: "Live", exact: true })
     .click();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(1);
   await sources.getByRole("button", { name: "All", exact: true }).click();
@@ -435,10 +439,8 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
   page,
 }) => {
   await open(page);
-  const row = page
-    .locator(".trade-table tbody tr")
-    .filter({ hasText: "FX Replay" })
-    .first();
+  const imported = (await (await page.request.get('/api/trades')).json()).find(trade => trade.source === 'fxreplay');
+  const row = page.locator('.trade-table tbody tr').filter({has: page.getByRole('button',{name:`Edit trade ${imported.id}`,exact:true})});
   const button = row.getByRole("button", { name: /Delete trade/ });
   await button.click();
   const dialog = page.getByRole("dialog");
@@ -469,7 +471,7 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(3);
   const manual = page
     .locator(".trade-table tbody tr")
-    .filter({ hasText: "Live trade" });
+    .filter({ hasText: "Live" });
   await manual.getByRole("button", { name: /Delete trade/ }).click();
   await page
     .getByRole("dialog")
@@ -479,11 +481,11 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
   await page
     .getByRole("group", { name: "Data source", exact: true })
-    .getByRole("button", { name: "Live trading", exact: true })
+    .getByRole("button", { name: "Live", exact: true })
     .click();
   await expect(
     page
-      .getByRole("region", { name: "Live trading results", exact: true })
+      .getByRole("region", { name: "Live results", exact: true })
       .locator(".stat")
       .filter({ hasText: "Trades analysed" }),
   ).toContainText("0");
@@ -540,11 +542,12 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
     .getByRole("button", { name: "Import another file", exact: true })
     .click();
   const updateDialog = await importSettings(page);
+  await moreImportOptions(updateDialog);
   await updateDialog
     .getByLabel("Update labels on existing trades", { exact: true })
     .check();
   await updateDialog
-    .getByRole("button", { name: "Save preferences", exact: true })
+    .getByRole("button", { name: "Save settings", exact: true })
     .click();
   await choose(
     tagged
@@ -881,15 +884,23 @@ test("import preferences save before upload and settings fit mobile in both them
 }) => {
   await open(page);
   await page.getByRole("button", { name: "Import", exact: true }).click();
-  await expect(page.getByLabel("These trades are…")).toHaveCount(0);
+  await expect(page.getByLabel("Testing type")).toHaveCount(0);
   await expect(page.getByText("Your tag guide", { exact: true })).toHaveCount(
     0,
   );
   let dialog = await importSettings(page);
+  await expect(dialog.getByLabel("Save into account", {exact:true})).toHaveCount(0);
+  await expect(dialog.getByLabel("Account", {exact:true})).toHaveCount(0);
+  const type = dialog.getByRole("combobox", {name:"Testing type",exact:true});
+  await expect(await options(type)).toHaveText(["Backtesting", "Live"]);
+  await pick(type, "live");
+  await expectValue(type, "live");
+  await pick(type, "backtesting");
   await pick(
-    dialog.getByLabel("Export time zone", { exact: true }),
+    dialog.getByLabel("File time zone", { exact: true }),
     "Etc/GMT+4",
   );
+  await moreImportOptions(dialog);
   await dialog
     .getByLabel("Day-first dates (31/12/2026)", { exact: true })
     .check();
@@ -897,13 +908,13 @@ test("import preferences save before upload and settings fit mobile in both them
     .getByLabel("Update labels on existing trades", { exact: true })
     .uncheck();
   await dialog
-    .getByRole("button", { name: "Save preferences", exact: true })
+    .getByRole("button", { name: "Save settings", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   dialog = await importSettings(page);
   await expectValue(
-    dialog.getByLabel("Export time zone", { exact: true }),
+    dialog.getByLabel("File time zone", { exact: true }),
     "Etc/GMT+4",
   );
   await expect(

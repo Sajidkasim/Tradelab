@@ -100,7 +100,7 @@ export default function DeleteAllTrades({
                   notes and setup labels are deleted too.
                 </p>
                 <Notice error>
-                  This cannot be undone. Your accounts and lab settings are
+                  This cannot be undone. Your lab settings are
                   kept.
                 </Notice>
                 <a className="button" href="/api/export/backup">

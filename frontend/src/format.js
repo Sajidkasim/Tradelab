@@ -42,12 +42,12 @@ export function labelsOnly(labels) {
   return values;
 }
 export const sourceNames = {
-  fxreplay: "FX Replay",
-  backtest: "Backtest",
-  manual: "Live trade",
-  csv: "Live CSV",
-  excel: "Live Excel",
-  api: "Broker",
+  fxreplay: "Backtesting",
+  backtest: "Backtesting",
+  manual: "Live",
+  csv: "Live",
+  excel: "Live",
+  api: "Live",
 };
 export const backtestSources = ["backtest", "fxreplay"];
 export function belongsTo(trade, scope) {

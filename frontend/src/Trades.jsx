@@ -164,7 +164,7 @@ export default function Trades({
               {scope === "All"
                 ? "All sources"
                 : scope === "Forward testing"
-                  ? "Live trading"
+                  ? "Live"
                   : scope}{" "}
               · {clockName} time
             </p>

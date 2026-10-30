@@ -1,6 +1,10 @@
+// Keep original import source IDs for duplicate matching; expose two testing types.
 export const sourceOptions = [
-  { value: "fxreplay", label: "FX Replay · Backtesting" },
-  { value: "backtest", label: "Other backtesting" },
-  { value: "csv", label: "Live trading · CSV" },
-  { value: "excel", label: "Live trading · Excel" },
+  { value: "backtesting", label: "Backtesting" },
+  { value: "live", label: "Live" },
 ];
+export const testingType = (source) => ["fxreplay", "backtest"].includes(source) ? "backtesting" : "live";
+export const testingLabel = (source) => testingType(source) === "backtesting" ? "Backtesting" : "Live";
+export function sourceForType(type, current) {
+  return testingType(current) === type ? current : type === "backtesting" ? "fxreplay" : "csv";
+}

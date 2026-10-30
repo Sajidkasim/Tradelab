@@ -329,3 +329,22 @@ with ordinary setup filters. Welcome explains those filters rather than My tests
 Stored experiments and membership tags remain in the database and full backups;
 reviewing a trade preserves its existing membership. Backend compatibility APIs
 remain available but are not linked in the interface. No trades are deleted.
+
+Import settings now starts with File setup: trade source and File time zone, plus
+a static destination when only one account exists. More options contains date
+format, duplicate label updates and manual column matching; it starts open when
+the saved day-first/update-label choice is enabled. File parsing and signed
+preview behaviour are unchanged. Time-zone help uses the selected tester clock.
+
+## Backtesting / Live only — 30 October 2026
+
+The owner wants a strategy tester with only Backtesting and Live. Import settings
+and manual entry expose those two choices. Original source IDs remain intact
+when staying in the same testing type, preserving duplicate identification.
+The All Results option remains the combined view. Trading-account controls,
+filters and names are removed from the interface, including import confirmation
+and backup help. Existing records retain their account IDs internally; do not
+rewrite/delete them. Saved Results filters are read with account_id=null so old
+hidden account filters cannot exclude trades. Google sign-in and owner access
+management remain; those are people, not trading accounts. Public wording and
+privacy help use lab/strategy tester, while internal keys stay compatible.

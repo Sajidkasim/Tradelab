@@ -12,7 +12,7 @@ import { api } from "./api";
 import { Button, Heading, Notice, Stat, Modal, Select } from "./components";
 import { money, rvalue, tradeDate } from "./format";
 import ImportSettings from "./ImportSettings";
-import { sourceOptions } from "./importOptions";
+import { testingLabel } from "./importOptions";
 import { pendingTags } from "./importTags";
 
 export default function Import({ meta, refresh, onBack, toast }) {
@@ -169,8 +169,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
       />
       <div className="card import-card">
         <p className="import-context">
-          {meta.accounts.find((item) => item.id === account)?.name} ·{" "}
-          {sourceOptions.find((item) => item.value === source)?.label} ·{" "}
+          {testingLabel(source)} ·{" "}
           {timezone === "Etc/GMT+4" ? "UTC−4" : timezone}
         </p>
         <button
@@ -313,7 +312,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
               <p>
                 {preview.native
                   ? "Recognised FX Replay Analytics · Backtesting"
-                  : sourceOptions.find((s) => s.value === source)?.label}
+                  : testingLabel(source)}
               </p>
             </div>
             <span className="badge">Not saved yet</span>
@@ -525,8 +524,7 @@ export default function Import({ meta, refresh, onBack, toast }) {
         >
           <div className="stack">
             <p>
-              Add {preview.counts.new} trades to{" "}
-              {meta.accounts.find((a) => a.id === account)?.name}? Duplicates
+              Add {preview.counts.new} trades to your lab? Duplicates
               and invalid rows will be skipped.{" "}
               {preview.excluded_breakeven > 0
                 ? `${preview.excluded_breakeven} break-even trades will also be excluded. `

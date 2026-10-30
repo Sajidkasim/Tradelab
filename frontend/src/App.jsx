@@ -202,7 +202,7 @@ export default function App() {
             <AppearanceSwitch value={appearance} onChange={setAppearance} />
             <Menu label="My lab" className="workspace-menu">
               <div className="menu-account">
-                <strong>{session.name}</strong>
+                <strong>{session.local ? "My lab" : session.name}</strong>
                 <small>
                   {session.local
                     ? "Local preview · separate lab"

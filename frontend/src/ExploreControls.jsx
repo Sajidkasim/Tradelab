@@ -19,7 +19,6 @@ export function FilterChips({ filters, defaults, onRemove, onClear }) {
     condition: "Market condition",
     window: "Session",
     symbol: "Market",
-    account_id: "Account",
     start: "From",
     end: "To",
   };

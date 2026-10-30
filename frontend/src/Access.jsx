@@ -45,10 +45,10 @@ export default function Access({ onClose }) {
     <div className="stack access-list">
       <p>See who has joined PrimusLab and control who can enter. Everyone keeps their own private lab.</p>
       <small>Updates every 15 seconds while this page is visible. “Active recently” means the website was seen within two minutes; it does not prove someone is currently at their device. Times use your device clock.</small>
-      <div className="access-refresh"><Button onClick={load} disabled={busy || refreshing} busy={refreshing}>Refresh list</Button><small role="status">{refreshing ? "Checking accounts…" : updated ? `Updated ${updated.toLocaleTimeString()}` : ""}</small></div>
+      <div className="access-refresh"><Button onClick={load} disabled={busy || refreshing} busy={refreshing}>Refresh list</Button><small role="status">{refreshing ? "Checking people…" : updated ? `Updated ${updated.toLocaleTimeString()}` : ""}</small></div>
       {error && <Notice error>{error}</Notice>}
-      {!people && !error && <p role="status">Loading accounts…</p>}
-      {people?.map(person => <article className="access-person" key={person.id} aria-label={person.email || "Account awaiting email"}>
+      {!people && !error && <p role="status">Loading people…</p>}
+      {people?.map(person => <article className="access-person" key={person.id} aria-label={person.email || "Person awaiting email"}>
         <div className="access-person-heading">
           <strong>{person.email || "Email recorded on next sign-in"}</strong>
           <span className="badge">{person.owner ? "Owner · you" : !person.allowed ? "Blocked" : person.signed_in_sessions ? "Signed in" : "Signed out"}</span>
@@ -56,7 +56,7 @@ export default function Access({ onClose }) {
         <small>Last sign-in: {dateLabel(person.last_sign_in)}</small>
         <small>Last activity: {dateLabel(person.last_seen)}{person.recently_active ? " · Active recently" : ""}</small>
         <details className="access-details">
-          <summary>Account & device details</summary>
+          <summary>Sign-in & device details</summary>
           <dl className="access-facts">
             <dt>Joined</dt><dd>{dateLabel(person.joined_at)}</dd>
             <dt>Signed-in sessions</dt><dd>{person.signed_in_sessions}</dd>
@@ -74,7 +74,7 @@ export default function Access({ onClose }) {
           {!person.sessions?.length && <small>No current signed-in sessions. Older device details become available when that person next uses the updated website.</small>}
         </details>
         {!person.owner && (pending === person.id ? <div className="stack">
-          <p>{person.allowed ? "Block this account? Their signed-in sessions will end and they cannot sign in again until you unblock them. Their lab data stays saved." : "Allow this account to sign in again? They will need to sign in with Google."}</p>
+          <p>{person.allowed ? "Block this person? Their signed-in sessions will end and they cannot sign in again until you unblock them. Their lab data stays saved." : "Allow this person to sign in again? They will need to sign in with Google."}</p>
           <div className="access-actions">
             <Button onClick={() => setPending(null)} disabled={busy}>Cancel</Button>
             <Button variant={person.allowed ? "danger" : "primary"} onClick={() => change(person)} busy={busy}>

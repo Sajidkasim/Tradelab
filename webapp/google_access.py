@@ -262,7 +262,7 @@ class GoogleAccess:
                 details = connection_details(user_agent, client_ip)
                 connection.execute(sessions.update().where(sessions.c.token_hash == hashlib.sha256(token.encode()).hexdigest()).values(last_seen=now, **details))
                 connection.execute(identities.update().where(identities.c.key == key).values(last_seen=now, **details))
-        return {'key': key, 'name': 'My journal', 'slot': 0, 'owner': key == 'owner'}
+        return {'key': key, 'name': 'My lab', 'slot': 0, 'owner': key == 'owner'}
 
     def revoke(self, token):
         if isinstance(token, str):

@@ -66,7 +66,7 @@ export default function Results({
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   const filters = React.useMemo(
-    () => ({ ...setupFilters, scope, study_id: "" }),
+    () => ({ ...setupFilters, scope, study_id: "", account_id: null }),
     [setupFilters, scope],
   );
   useEffect(() => {
@@ -171,7 +171,7 @@ export default function Results({
           values={[
             "All",
             "Backtesting",
-            { value: "Forward testing", label: "Live trading" },
+            { value: "Forward testing", label: "Live" },
           ]}
           value={filters.scope}
           onChange={setScope}
@@ -357,25 +357,8 @@ export default function Results({
             </div>
           </details>
           <details className="disclosure">
-            <summary>Account & period</summary>
+            <summary>Date range</summary>
             <div>
-              <Select
-                label="Account"
-                values={[
-                  { value: "", label: "All accounts" },
-                  ...meta.accounts.map((a) => ({
-                    value: a.id,
-                    label: a.name,
-                  })),
-                ]}
-                value={filters.account_id || ""}
-                onChange={(e) =>
-                  change(
-                    "account_id",
-                    e.target.value ? Number(e.target.value) : null,
-                  )
-                }
-              />
               <Field label={`From · ${clockName}`}>
                 <input
                   type="date"
@@ -456,14 +439,14 @@ function ResultSample({
   return (
     <section
       className="result-sample"
-      aria-label={`${sample === "All" ? "Combined" : sample === "Forward testing" ? "Live trading" : sample} results`}
+      aria-label={`${sample === "All" ? "Combined" : sample === "Forward testing" ? "Live" : sample} results`}
     >
       <div className="results-caption">
         <span className="lab-sample-label">
           {sample === "All"
             ? "Combined history"
             : sample === "Forward testing"
-              ? "Live trading"
+              ? "Live"
               : sample}
         </span>
         <span className="separator">/</span>
@@ -500,7 +483,7 @@ function ResultSample({
                 {sample === "All"
                   ? "Backtesting + live"
                   : sample === "Forward testing"
-                    ? "Live trading"
+                    ? "Live"
                     : "Backtesting"}
               </span>
             </div>

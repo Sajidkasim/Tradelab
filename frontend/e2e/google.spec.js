@@ -121,7 +121,7 @@ test("Manage access refreshes session details after another person signs out", a
   await page.getByRole("button", { name: "Manage access", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Manage access", exact: true });
   const person = dialog.getByRole("article", { name: "friend@example.com", exact: true });
-  await person.getByText("Account & device details", { exact: true }).click();
+  await person.getByText("Sign-in & device details", { exact: true }).click();
   await expect(person.locator(".access-facts dd").nth(1)).toHaveText(String(before));
   await expect(person.locator(".access-facts")).toContainText("Phone · iOS · Safari");
   await friend.getByRole("button", { name: "My lab", exact: true }).click();

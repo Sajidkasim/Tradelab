@@ -116,16 +116,16 @@ def create_app(config: Settings | None = None):
                 member = request.app.state.workspaces.google.member(request.session.get('google_token'),
                     user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
             except LoginError:
-                raise HTTPException(401, 'Sign in to your journal to continue.') from None
+                raise HTTPException(401, 'Sign in to your lab to continue.') from None
             if request.method not in ('GET', 'HEAD', 'OPTIONS'):
                 check_write(request)
             return member
         if config.password_required and not request.app.state.personal_sessions.valid(request.session.get('personal_token')):
-            raise HTTPException(401, 'Unlock your journal to continue.')
+            raise HTTPException(401, 'Unlock your lab to continue.')
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             check_write(request)
         # A single owner; neither request bodies nor cookies can select a trader.
-        return {'key': 'owner', 'name': 'My journal', 'slot': 0}
+        return {'key': 'owner', 'name': 'My lab', 'slot': 0}
 
     # Expose dependency to tests, never an impersonation route.
     app.state.workspace_dependency = workspace
@@ -199,7 +199,7 @@ def create_app(config: Settings | None = None):
             except Throttled as exc:
                 raise HTTPException(429, 'Too many attempts. Please wait a minute and try again.', headers={'Retry-After': str(exc.retry_after)}) from None
             if not accepted:
-                raise HTTPException(401, 'That password did not unlock your journal.')
+                raise HTTPException(401, 'That password did not unlock your lab.')
             token = await run_in_threadpool(app.state.personal_sessions.issue)
             request.session.clear()
             request.session['personal_token'] = token
@@ -250,7 +250,7 @@ def create_app(config: Settings | None = None):
         account = next((item for item in database.accounts() if item.id == payload.account_id), None)
         instrument = database.instruments().get(payload.symbol)
         if account is None or instrument is None:
-            raise ValueError('Choose an account and market from your journal.')
+            raise ValueError('Choose a valid market from your lab.')
         if payload.entry == payload.stop:
             raise ValueError('Entry and stop must be different prices.')
         return clean(risk.position_size(payload.entry, payload.stop, instrument.multiplier, instrument.tick_size,
@@ -394,7 +394,7 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             database = db(request, member)
             if payload.filters.account_id is not None and payload.filters.account_id not in {a.id for a in database.accounts()}:
-                raise ValueError('Choose an account in your journal.')
+                raise ValueError('Reload your lab and try again.')
             filters = payload.filters.model_dump(mode='json', exclude={'mode', 'detail', 'comparison', 'study_id'})
             result = research.save_setup(database, payload.name, filters)
             app.state.workspaces.bump(member['key'])
@@ -454,7 +454,7 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             database = db(request, member)
             if not journal_preferences.read(database)['welcome_pending']:
-                raise HTTPException(409, 'Your journal is already set up. Use Lab settings to make changes.')
+                raise HTTPException(409, 'Your lab is already set up. Use Lab settings to make changes.')
             for value in payload.strategies + payload.levels + payload.confirmations:
                 if not value.strip() or len(value.strip()) > 120:
                     raise ValueError('Use non-empty labels of up to 120 characters.')
@@ -509,7 +509,7 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             database = db(request, member)
             if payload.account_id not in {account.id for account in database.accounts()}:
-                raise ValueError('Choose an account in your journal.')
+                raise ValueError('Reload your lab and try again.')
             values = payload.model_dump()
             database.set_setting(import_updates.PROFILE_KEY, values)
             app.state.workspaces.bump(member['key'])
@@ -594,7 +594,7 @@ def create_app(config: Settings | None = None):
             with app.state.workspaces.lock:
                 database = db(request, member)
                 if database.count_trades():
-                    raise HTTPException(409, "Restore is available only in an empty journal. Download a backup before migrating an existing journal.")
+                    raise HTTPException(409, "Restore is available only in an empty lab. Download a backup before migrating an existing lab.")
                 result = database.import_json(backups.validate(content.decode("utf-8")), replace=True)
                 app.state.workspaces.bump(member["key"])
                 return result
