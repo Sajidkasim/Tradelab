@@ -14,9 +14,8 @@ import { money, rvalue, tradeDate } from "./format";
 import ImportSettings from "./ImportSettings";
 import { sourceOptions } from "./importOptions";
 import { pendingTags } from "./importTags";
-import { testOptions } from "./research";
 
-export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
+export default function Import({ meta, refresh, onBack, toast }) {
   const { timezone: journalZone, clockName } = useJournalClock();
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
@@ -53,7 +52,6 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
     setPreviewPage(0);
     if (preview) previewRef.current?.scrollIntoView({ block: "start" });
   }, [preview]);
-  const [destination, setDestination] = useState(studyId);
   const unrecognised = pendingTags(preview?.tags, meta.tag_mappings);
   function invalidate() {
     setPreview(null);
@@ -81,7 +79,6 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
     f.append("update_labels", updateLabels);
     f.append("include_breakeven", profile.include_breakeven);
     f.append("remember_profile", true);
-    f.append("study_id", destination);
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
   }
@@ -162,29 +159,14 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
       <Heading
         title="Import trades"
         action={
-          <Button disabled={busy} onClick={() => setSettings({ section: "files" })}>
+          <Button
+            disabled={busy}
+            onClick={() => setSettings({ section: "files" })}
+          >
             <Settings2 size={15} /> Import settings
           </Button>
         }
       />
-      {(meta.studies || []).length > 0 && (
-        <div className="import-test-destination">
-          <Select
-            disabled={busy}
-            label="Import into test"
-            values={testOptions(meta.studies, destination)}
-            value={destination}
-            onChange={(e) => {
-              setDestination(e.target.value);
-              invalidate();
-            }}
-          />
-          <small className="muted">
-            Existing trade IDs are recognised across your lab. Re-importing
-            never moves a trade to another test.
-          </small>
-        </div>
-      )}
       <div className="card import-card">
         <p className="import-context">
           {meta.accounts.find((item) => item.id === account)?.name} ·{" "}
@@ -242,8 +224,7 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
         />
         <small className="muted">
           Break-even means exactly $0 realised net P&amp;L, after recorded fees.
-          Only incoming trades are affected; existing trades stay
-          saved.
+          Only incoming trades are affected; existing trades stay saved.
         </small>
         {updateLabels && (
           <Notice>
@@ -362,7 +343,6 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
           )}
           <div className="import-coverage">
             <strong>What came through</strong>
-            {preview.study && <p>Test: {preview.study.name}</p>}
             <p>
               Strategies: {preview.coverage.strategies}/{preview.coverage.total}{" "}
               · Confirmations: {preview.coverage.confirmations}/
@@ -414,43 +394,63 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.slice(previewPage * pageSize, (previewPage + 1) * pageSize).map((row, i) => (
-                  <tr key={i}>
-                    <td data-label="Market">{row.symbol}</td>
-                    <td data-label="Side">{row.direction}</td>
-                    <td data-label={`Entry · ${clockName}`}>{tradeDate(row.entry_time, journalZone)}</td>
-                    <td data-label="Net result">{money(row.net_pnl)}</td>
-                    <td data-label="Realised R">{rvalue(row.r_multiple)}</td>
-                    <td data-label="Strategy">{row.setup_name || "Unclassified"}</td>
-                    <td data-label="Setup details">
-                      {[
-                        row.labels?.level,
-                        row.labels?.timeframe,
-                        row.labels?.entry_timeframe,
-                      ]
-                        .filter((v) => v && v !== "Not recorded")
-                        .join(" · ") || "Not recorded"}
-                      <small className="table-caption">
-                        {row.labels?.confirmations?.join(" + ") ||
-                          "Confirmations not recorded"}
-                        {row.has_note ? " · Note included" : ""}
-                        {row.target_rr && row.target_rr !== "Not recorded"
-                          ? ` · Target RR ${row.target_rr}${row.fixed_exit ? " · full target / stop" : ""}`
-                          : ""}
-                      </small>
-                    </td>
-                    <td data-label="Status">{row.status}</td>
-                  </tr>
-                ))}
+                {preview.rows
+                  .slice(previewPage * pageSize, (previewPage + 1) * pageSize)
+                  .map((row, i) => (
+                    <tr key={i}>
+                      <td data-label="Market">{row.symbol}</td>
+                      <td data-label="Side">{row.direction}</td>
+                      <td data-label={`Entry · ${clockName}`}>
+                        {tradeDate(row.entry_time, journalZone)}
+                      </td>
+                      <td data-label="Net result">{money(row.net_pnl)}</td>
+                      <td data-label="Realised R">{rvalue(row.r_multiple)}</td>
+                      <td data-label="Strategy">
+                        {row.setup_name || "Unclassified"}
+                      </td>
+                      <td data-label="Setup details">
+                        {[
+                          row.labels?.level,
+                          row.labels?.timeframe,
+                          row.labels?.entry_timeframe,
+                        ]
+                          .filter((v) => v && v !== "Not recorded")
+                          .join(" · ") || "Not recorded"}
+                        <small className="table-caption">
+                          {row.labels?.confirmations?.join(" + ") ||
+                            "Confirmations not recorded"}
+                          {row.has_note ? " · Note included" : ""}
+                          {row.target_rr && row.target_rr !== "Not recorded"
+                            ? ` · Target RR ${row.target_rr}${row.fixed_exit ? " · full target / stop" : ""}`
+                            : ""}
+                        </small>
+                      </td>
+                      <td data-label="Status">{row.status}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
           {preview.rows.length > pageSize && (
             <nav className="preview-pagination" aria-label="Preview pages">
-              <span>{previewPage * pageSize + 1}–{Math.min((previewPage + 1) * pageSize, preview.rows.length)} of {preview.rows.length} preview rows</span>
+              <span>
+                {previewPage * pageSize + 1}–
+                {Math.min((previewPage + 1) * pageSize, preview.rows.length)} of{" "}
+                {preview.rows.length} preview rows
+              </span>
               <div>
-                <Button disabled={previewPage === 0} onClick={() => setPreviewPage((value) => value - 1)}>Previous</Button>
-                <Button disabled={(previewPage + 1) * pageSize >= preview.rows.length} onClick={() => setPreviewPage((value) => value + 1)}>Next</Button>
+                <Button
+                  disabled={previewPage === 0}
+                  onClick={() => setPreviewPage((value) => value - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={(previewPage + 1) * pageSize >= preview.rows.length}
+                  onClick={() => setPreviewPage((value) => value + 1)}
+                >
+                  Next
+                </Button>
               </div>
             </nav>
           )}
@@ -488,8 +488,21 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
         <div className="import-action-bar" aria-label="Import actions">
           <div className="import-action-summary" role="status">
             {error && <span role="alert">{error}</span>}
-            <strong>{preview.counts.new || preview.counts.updates ? `${preview.counts.new} new trades · ${preview.counts.duplicates} duplicates skipped` : "Nothing new to import"}</strong>
-            <small>{preview.counts.updates ? `${preview.counts.updates} existing trades have label updates.` : preview.counts.new ? "Review the preview, then confirm to save." : `${preview.counts.duplicates} duplicates skipped · Your lab is unchanged.`}{preview.counts.errors ? ` ${preview.counts.errors} rows with errors — check the preview.` : ""}</small>
+            <strong>
+              {preview.counts.new || preview.counts.updates
+                ? `${preview.counts.new} new trades · ${preview.counts.duplicates} duplicates skipped`
+                : "Nothing new to import"}
+            </strong>
+            <small>
+              {preview.counts.updates
+                ? `${preview.counts.updates} existing trades have label updates.`
+                : preview.counts.new
+                  ? "Review the preview, then confirm to save."
+                  : `${preview.counts.duplicates} duplicates skipped · Your lab is unchanged.`}
+              {preview.counts.errors
+                ? ` ${preview.counts.errors} rows with errors — check the preview.`
+                : ""}
+            </small>
           </div>
           <Button
             variant="primary"
@@ -498,7 +511,10 @@ export default function Import({ meta, refresh, onBack, toast, studyId = "" }) {
             onClick={() => setConfirm(true)}
           >
             Import {preview.counts.new} trades
-            {preview.counts.updates ? ` · update ${preview.counts.updates}` : ""} <Check size={16} />
+            {preview.counts.updates
+              ? ` · update ${preview.counts.updates}`
+              : ""}{" "}
+            <Check size={16} />
           </Button>
         </div>
       )}

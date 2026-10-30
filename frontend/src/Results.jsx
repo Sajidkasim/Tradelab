@@ -55,7 +55,6 @@ export default function Results({
   onTrades,
   scope,
   setScope,
-  studyId = "",
   refresh,
   toast,
 }) {
@@ -67,8 +66,8 @@ export default function Results({
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   const filters = React.useMemo(
-    () => ({ ...setupFilters, scope, study_id: studyId }),
-    [setupFilters, scope, studyId],
+    () => ({ ...setupFilters, scope, study_id: "" }),
+    [setupFilters, scope],
   );
   useEffect(() => {
     setFilters((current) => {

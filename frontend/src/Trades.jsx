@@ -18,12 +18,11 @@ import {
   Notice,
   Field,
   Menu,
-  Select,
 } from "./components";
 import TradeForm from "./TradeForm";
 import DeleteAllTrades from "./DeleteAllTrades";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
-import { matchesTest, testOptions, reviewIssues } from "./research";
+import { reviewIssues } from "./research";
 
 const PAGE_SIZE = 8;
 
@@ -34,9 +33,6 @@ export default function Trades({
   onImport,
   toast,
   scope,
-  studyId = "",
-  assignmentTarget,
-  onAssignmentHandled,
 }) {
   const { timezone: journalZone, clockName } = useJournalClock();
   const [pending, setPending] = useState(false),
@@ -46,8 +42,6 @@ export default function Trades({
     [bulk, setBulk] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deleteAll, setDeleteAll] = useState(false);
-  const [bulkMode, setBulkMode] = useState("strategy"),
-    [studyTarget, setStudyTarget] = useState("");
   const [focusField, setFocusField] = useState(null);
   const [selected, setSelected] = useState([]),
     [strategy, setStrategy] = useState(""),
@@ -58,10 +52,9 @@ export default function Trades({
       trades.filter(
         (t) =>
           belongsTo(t, scope) &&
-          matchesTest(t, studyId) &&
           (!pending || (t.needs_review ?? t.needs_tagging)),
       ),
-    [trades, scope, pending, studyId],
+    [trades, scope, pending],
   );
   const currentPage = Math.min(
     page,
@@ -70,15 +63,7 @@ export default function Trades({
   useEffect(() => {
     setPage(0);
     setSelected([]);
-  }, [scope, studyId]);
-  useEffect(() => {
-    if (assignmentTarget == null) return;
-    setBulk(true);
-    setBulkMode("test");
-    setStudyTarget(assignmentTarget);
-    setPending(false);
-    setSelected([]);
-  }, [assignmentTarget]);
+  }, [scope]);
   async function removeTrade() {
     setBusy(true);
     setError("");
@@ -101,10 +86,7 @@ export default function Trades({
     }
   }
   const unfinished = trades.filter(
-    (t) =>
-      belongsTo(t, scope) &&
-      matchesTest(t, studyId) &&
-      (t.needs_review ?? t.needs_tagging),
+    (t) => belongsTo(t, scope) && (t.needs_review ?? t.needs_tagging),
   );
   const pendingCount = unfinished.length;
   const trade =
@@ -127,25 +109,14 @@ export default function Trades({
     setBusy(true);
     setError("");
     try {
-      const result = await api(
-        bulkMode === "test" ? "/study-assignment" : "/trades/strategy",
-        {
-          method: "POST",
-          body:
-            bulkMode === "test"
-              ? { ids: selected, study_id: studyTarget }
-              : { ids: selected, strategy },
-        },
-      );
+      const result = await api("/trades/strategy", {
+        method: "POST",
+        body: { ids: selected, strategy },
+      });
       await refresh();
-      toast(
-        bulkMode === "test"
-          ? `${result.updated} trades assigned. Their recorded results are unchanged.`
-          : `Strategy applied to ${result.updated} trades.`,
-      );
+      toast(`Strategy applied to ${result.updated} trades.`);
       setBulk(false);
       setSelected([]);
-      onAssignmentHandled?.();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -203,24 +174,11 @@ export default function Trades({
               disabled={!queue.length}
               onClick={() => {
                 setBulk(!bulk);
-                setBulkMode("strategy");
                 setSelected([]);
               }}
             >
               {bulk ? "Finish selecting" : "Tag several"}
             </button>
-            {(meta.studies || []).length > 0 && (
-              <button
-                onClick={() => {
-                  setBulk(true);
-                  setBulkMode("test");
-                  setStudyTarget(studyId === "unassigned" ? "" : studyId);
-                  setSelected([]);
-                }}
-              >
-                Assign to a test
-              </button>
-            )}
             <a href="/api/export/csv">
               <Download size={15} /> Download CSV
             </a>
@@ -291,11 +249,6 @@ export default function Trades({
                           <td>
                             <input
                               type="checkbox"
-                              disabled={
-                                bulkMode === "test" &&
-                                Boolean(studyTarget) &&
-                                !["fxreplay", "backtest"].includes(t.source)
-                              }
                               aria-label={`Select trade ${t.id}`}
                               checked={selected.includes(t.id)}
                               onChange={(e) =>
@@ -316,7 +269,8 @@ export default function Trades({
                             </span>
                           </strong>
                           <small className="table-caption">
-                            {tradeDate(t.entry_time, journalZone)} · {sourceNames[t.source]}
+                            {tradeDate(t.entry_time, journalZone)} ·{" "}
+                            {sourceNames[t.source]}
                           </small>
                           <small className="mobile-trade-detail">
                             {t.setup_name || "Add strategy"}
@@ -452,66 +406,30 @@ export default function Trades({
               onClick={() => {
                 setBulk(false);
                 setSelected([]);
-                onAssignmentHandled?.();
               }}
             >
               Cancel selection
             </Button>
-            <Segments
-              label="Apply to selected trades"
-              values={[
-                { value: "strategy", label: "Strategy" },
-                { value: "test", label: "Test" },
-              ]}
-              value={bulkMode}
-              onChange={(value) => {
-                setBulkMode(value);
-                setSelected([]);
-              }}
-            />
-            {bulkMode === "test" ? (
-              <Select
-                label={`${selected.length} selected · research test`}
-                values={testOptions(meta.studies, studyTarget)}
-                value={studyTarget}
-                onChange={(e) => {
-                  setStudyTarget(e.target.value);
-                  setSelected([]);
-                }}
+            <Field label={`${selected.length} selected · apply strategy`}>
+              <input
+                list="bulk-strategies"
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value)}
+                placeholder="Choose or type a strategy"
               />
-            ) : (
-              <Field label={`${selected.length} selected · apply strategy`}>
-                <input
-                  list="bulk-strategies"
-                  value={strategy}
-                  onChange={(e) => setStrategy(e.target.value)}
-                  placeholder="Choose or type a strategy"
-                />
-                <datalist id="bulk-strategies">
-                  {meta.strategies.map((s) => (
-                    <option key={s} value={s} />
-                  ))}
-                </datalist>
-              </Field>
-            )}
-            {bulkMode === "test" && (
-              <small className="muted">
-                Assigns selected backtests without duplicating them. Live trades
-                stay outside tests.
-              </small>
-            )}
+              <datalist id="bulk-strategies">
+                {meta.strategies.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </Field>
             <Button
               variant="primary"
               busy={busy}
-              disabled={
-                !selected.length ||
-                (bulkMode === "strategy" && !strategy.trim())
-              }
+              disabled={!selected.length || !strategy.trim()}
               onClick={applyBulk}
             >
-              {bulkMode === "test"
-                ? "Assign selected trades"
-                : "Apply strategy"}
+              Apply strategy
             </Button>
             {error && <Notice error>{error}</Notice>}
           </div>
@@ -531,7 +449,6 @@ export default function Trades({
             onSaved={saved}
             onClose={() => setOpened(null)}
             remaining={queue.length}
-            studyId={studyId}
             focusField={focusField}
           />
         </Modal>
@@ -554,8 +471,8 @@ export default function Trades({
               <span>{sourceNames[deleting.source]}</span>
             </div>
             <p>
-              This removes this trade and its notes from your lab and
-              results. This cannot be undone.
+              This removes this trade and its notes from your lab and results.
+              This cannot be undone.
             </p>
             {error && <Notice error>{error}</Notice>}
             <div className="actions">

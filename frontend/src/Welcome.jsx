@@ -20,7 +20,7 @@ export default function Welcome({ refresh }) {
       <ol className="welcome-guide">
         <li><strong>Set up your lab.</strong> Choose your clock, strategies, key levels and confirmations.</li>
         <li><strong>Add your trades.</strong> Log a trade or import a CSV. Preview it before saving; duplicate trades are detected.</li>
-        <li><strong>Explore your results.</strong> Filter a setup beside the graph. Use My tests to keep experiments organised.</li>
+        <li><strong>Explore your results.</strong> Filter a setup beside the graph. Compare strategies, key levels and confirmations to see what works.</li>
       </ol>
       <Select label="Tester clock" value={timezone} onChange={(e) => setTimezone(e.target.value)} values={[{value:'America/New_York',label:'New York · EST / EDT'},{value:'Europe/London',label:'UK · GMT / BST'}]} />
       <div className="form-grid two">

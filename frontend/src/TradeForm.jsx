@@ -11,7 +11,7 @@ import {
   Notice,
 } from "./components";
 import Labels from "./Labels";
-import { testOptions, reviewIssues } from "./research";
+import { reviewIssues } from "./research";
 import {
   blankLabels,
   labelsOnly,
@@ -29,17 +29,10 @@ export default function TradeForm({
   onSaved,
   onClose,
   remaining = 0,
-  studyId = "",
   focusField,
 }) {
   const { timezone: journalZone, clockName } = useJournalClock();
-  const activeTest =
-    !trade &&
-    (meta.studies || []).find((test) => test.id === studyId && !test.archived);
   const formRef = useRef();
-  const [testId, setTestId] = useState(
-    trade?.study_id || (studyId === "unassigned" ? "" : studyId),
-  );
   const [originalRisk, setOriginalRisk] = useState(
     trade?.initial_risk == null ? "" : String(trade.initial_risk),
   );
@@ -56,26 +49,20 @@ export default function TradeForm({
     return () => cancelAnimationFrame(frame);
   }, [trade?.id, firstField]);
   const [strategy, setStrategy] = useState(
-    trade
-      ? trade.setup_name || ""
-      : activeTest?.strategy || previous?.strategy || "",
+    trade ? trade.setup_name || "" : previous?.strategy || "",
   );
   const [labels, setLabels] = useState(
     labelsOnly(trade?.labels || previous?.labels || blankLabels()),
   );
   const [confirmed, setConfirmed] = useState(trade?.labels?.reviewed || false),
     [notes, setNotes] = useState(trade?.notes || "");
-  const [source, setSource] = useState(
-      activeTest ? "backtest" : previous?.source || "backtest",
-    ),
+  const [source, setSource] = useState(previous?.source || "backtest"),
     [account, setAccount] = useState(
       previous?.account_id || meta.accounts[0]?.id,
     );
   const [direction, setDirection] = useState(previous?.direction || "long"),
     [symbol, setSymbol] = useState(
-      (activeTest?.symbol && meta.instruments[activeTest.symbol]
-        ? activeTest.symbol
-        : previous?.symbol) ||
+      previous?.symbol ||
         (meta.instruments.NQ ? "NQ" : Object.keys(meta.instruments)[0]),
     );
   const [method, setMethod] = useState("Quick result"),
@@ -104,7 +91,13 @@ export default function TradeForm({
     setError("");
     setBusy(true);
     try {
-      const body = { strategy, labels, notes, confirmed, study_id: testId };
+      const body = {
+        strategy,
+        labels,
+        notes,
+        confirmed,
+        study_id: trade?.study_id || "",
+      };
       if (trade) {
         body.risk_unavailable = riskUnavailable;
         if (
@@ -201,19 +194,6 @@ export default function TradeForm({
           ))}
         </div>
       )}
-      {(meta.studies || []).length > 0 && (
-        <Select
-          label="Research test"
-          value={testId}
-          disabled={
-            trade
-              ? !["backtest", "fxreplay"].includes(trade.source)
-              : source !== "backtest"
-          }
-          values={testOptions(meta.studies, testId)}
-          onChange={(e) => setTestId(e.target.value)}
-        />
-      )}
       <div className="form-step">
         <div>
           <h3>Setup</h3>
@@ -235,7 +215,6 @@ export default function TradeForm({
             value={source}
             onChange={(e) => {
               setSource(e.target.value);
-              if (e.target.value !== "backtest") setTestId("");
             }}
           />
           <Select

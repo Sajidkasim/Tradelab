@@ -1,7 +1,7 @@
 import { pick, options, expectValue } from "./select-helpers";
 import { test, expect } from "@playwright/test";
 
-test("research tests, risk review, saved setups and previewed tag cleanup work together", async ({
+test("risk review and saved setups preserve existing experiment data without test controls", async ({
   page,
 }) => {
   await page.goto("/");
@@ -31,30 +31,29 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       },
     });
     await page.reload();
-    await page.getByRole("button", { name: "My tests", exact: true }).click();
-    let dialog = page.getByRole("dialog", { name: "My tests", exact: true });
-    await dialog
-      .getByLabel("Test name", { exact: true })
-      .fill("Research reversal · 1:3");
-    await dialog
-      .getByLabel("Planned target RR · optional", { exact: true })
-      .fill("1:3");
-    await dialog
-      .getByLabel("Test rules · optional", { exact: true })
-      .fill("Wait for a key level and entry confirmation.");
-    await dialog
-      .getByRole("button", { name: "Save test", exact: true })
-      .click();
-    await expect(dialog).toHaveCount(0);
-    const testId = await page
-      .getByLabel("Research test", { exact: true })
-      .getAttribute("data-value");
-    expect(testId).toHaveLength(32);
-    await page.getByRole("button", { name: "Import", exact: true }).click();
-    await expectValue(
-      page.getByLabel("Import into test", { exact: true }),
-      testId,
+    const experiment = await page.request.post("/api/studies", {
+      headers,
+      data: {
+        name: "Existing legacy experiment",
+        strategy: "Research reversal",
+        target_rr: "1:3",
+        rules: "Original saved rules",
+      },
+    });
+    expect(experiment.ok()).toBe(true);
+    const testId = (await experiment.json()).id;
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: "My tests", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Research test", { exact: true })).toHaveCount(
+      0,
     );
+    await page.getByRole("button", { name: "Import", exact: true }).click();
+    await expect(
+      page.getByLabel("Import into test", { exact: true }),
+    ).toHaveCount(0);
+    let dialog;
     const csv = `id,dateStart,dateEnd,pair,rPnL,side,status,strategy,tags\nresearch-a,2026-07-02 13:30,2026-07-02 13:45,NQ,300,buy,closed,Research reversal,SWEEP UPPER\nresearch-b,2026-07-01 13:30,2026-07-01 13:45,NQ,-100,sell,closed,Research reversal,SWEEP LOWER\n`;
     await page.getByLabel("Choose a trade export").setInputFiles({
       name: "research.csv",
@@ -64,9 +63,6 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
     await page
       .getByRole("button", { name: "Preview trades", exact: true })
       .click();
-    await expect(
-      page.getByText("Test: Research reversal · 1:3", { exact: true }),
-    ).toBeVisible();
     await page
       .getByRole("button", { name: "Import 2 trades", exact: true })
       .click();
@@ -76,6 +72,19 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       .click();
     await page
       .getByRole("button", { name: "Review & tag trades", exact: true })
+      .click();
+    const imported = await (await page.request.get("/api/trades")).json();
+    expect(
+      (
+        await page.request.post("/api/study-assignment", {
+          headers,
+          data: { ids: imported.map((row) => row.id), study_id: testId },
+        })
+      ).ok(),
+    ).toBe(true);
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Go to trades", exact: true })
       .click();
     await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
     await page
@@ -194,38 +203,6 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
       expect(row.labels.confirmations).toContain("Second sweep");
       expect(row.labels.confirmations).not.toContain("Second Sweep");
     }
-    await page.getByRole("button", { name: "My tests", exact: true }).click();
-    dialog = page.getByRole("dialog", { name: "My tests", exact: true });
-    await dialog.getByRole("button", { name: "New test", exact: true }).click();
-    await dialog
-      .getByLabel("Test name", { exact: true })
-      .fill("Research reversal · 1:2");
-    await dialog
-      .getByLabel("Planned target RR · optional", { exact: true })
-      .fill("1:2");
-    await dialog
-      .getByRole("button", { name: "Save test", exact: true })
-      .click();
-    await expect(dialog).toHaveCount(0);
-    const secondId = await page
-      .getByLabel("Research test", { exact: true })
-      .getAttribute("data-value");
-    await page
-      .getByRole("button", { name: "Add existing trades", exact: true })
-      .click();
-    await page
-      .locator(".trade-table tbody tr")
-      .first()
-      .getByRole("checkbox")
-      .check();
-    await page
-      .getByRole("button", { name: "Assign selected trades", exact: true })
-      .click();
-    await expect(
-      page.getByRole("button", { name: "Assign selected trades", exact: true }),
-    ).toHaveCount(0);
-    await pick(page.getByLabel("Research test", { exact: true }), secondId);
-    await expect(page.locator(".trade-table tbody tr")).toHaveCount(1);
     await page.reload();
     await expect(page.getByLabel("Saved setup", { exact: true })).toBeVisible();
     await page.screenshot({
@@ -238,9 +215,12 @@ test("research tests, risk review, saved setups and previewed tag cleanup work t
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
-    await page.getByRole("button", { name: "My tests", exact: true }).click();
+    await page.getByRole("button", { name: "My lab", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Lab settings", exact: true })
+      .click();
     await expect(
-      page.getByRole("dialog", { name: "My tests", exact: true }),
+      page.getByRole("dialog", { name: "Lab settings", exact: true }),
     ).toBeVisible();
     expect(
       await page

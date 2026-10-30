@@ -318,3 +318,14 @@ Header controls share a fixed responsive grid in both appearances. Classic no
 longer constrains the outer app frame, so its logo, appearance switch and My lab
 menu keep the same viewport positions when switching. Tested coordinate parity
 at 320, 390, 768, 1366 and 1920px; Classic retains its colours and control styling.
+
+## Simpler tester: My tests removed — 30 October 2026
+
+The owner removed My tests from the current interface. App no longer renders the
+research-test selector, experiment editor or Classic My tests link. Import,
+trade entry and bulk editing have no test-destination/assignment controls. The
+Go to trades shortcut stays, and Results/Trades show all source-matching trades
+with ordinary setup filters. Welcome explains those filters rather than My tests.
+Stored experiments and membership tags remain in the database and full backups;
+reviewing a trade preserves its existing membership. Backend compatibility APIs
+remain available but are not linked in the interface. No trades are deleted.
