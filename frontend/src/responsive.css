@@ -199,3 +199,8 @@
 .tour-actions .button { min-height: 36px; padding: 7px 12px; font-size: 12px; border-radius: 8px; }
 .tour-actions .tour-back { padding-left: 0; border: 0; box-shadow: none; background: transparent; color: var(--tl-ink2); }
 @media (max-width: 700px) { .tour-actions .button { min-height: 44px; } }
+
+.import-review-prompt { width: min(520px, calc(100vw - 32px)); }
+.import-review-prompt h3 { margin-top: 0; }
+.import-review-tag-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 160px; overflow-y: auto; }
+.import-review-reminder { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0; padding: 12px; border: 1px solid var(--tl-border); border-radius: 12px; }

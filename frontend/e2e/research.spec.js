@@ -70,9 +70,7 @@ test("risk review and saved setups preserve existing experiment data without tes
       .getByRole("dialog")
       .getByRole("button", { name: "Confirm import", exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "Review & tag trades", exact: true })
-      .click();
+    await expect(page).toHaveURL(/#trades$/);
     const imported = await (await page.request.get("/api/trades")).json();
     expect(
       (

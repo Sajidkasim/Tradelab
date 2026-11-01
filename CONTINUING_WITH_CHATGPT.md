@@ -631,3 +631,22 @@ Validation: 295 pytest tests passed (5 existing warnings), 23 frontend unit test
 51 existing browser checks plus the new archive restore check passed. Updated
 Journal dropdowns and retired-preference handling were also rechecked after the
 final build. No database records or financial core files were changed for rollout.
+
+## Local import review popup — 1 November 2026
+
+Owner explicitly requested local changes only: do not commit, push or deploy this
+revision until they approve. Unknown/ambiguous CSV tags now open a centred Review
+tags prompt after preview, with the tag names, a short explanation and Review /
+Cancel actions. Cancel preserves the preview and changes no tag meanings; raw
+unmatched tags remain on imported trades. A compact reminder inside the preview
+can reopen review. Tag review opens a dedicated view without file-setup tabs;
+meaning changes re-preview without interrupting with another prompt.
+Successful confirmation refreshes saved trades, keeps the success toast, and
+navigates directly to the Trades anchor. Failed imports remain on the import
+page. No backend, financial or privacy logic changed.
+Validation: production build and 23 Vitest tests passed. All 54 browser checks
+passed across regression runs (36 other flows, then the updated 18 workflow
+checks). Desktop and phone checks cover automatic prompting, cancellation,
+reopening review, preserving raw tags and redirecting to visible Trades after
+confirmation. Earlier browser expectations were updated for the requested flow.
+Nothing committed, pushed or deployed for this revision.

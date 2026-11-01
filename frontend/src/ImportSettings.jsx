@@ -56,9 +56,9 @@ export default function ImportSettings({
     }
   }
   return (
-    <Modal className="import-settings-modal" title="Import settings" onClose={() => !busy && onClose()}>
+    <Modal className="import-settings-modal" title={review ? "Review tags" : "Import settings"} onClose={() => !busy && onClose()}>
       <div className="import-settings">
-        <Segments
+        {!review && <Segments
           values={[
             { value: "files", label: "File setup" },
             { value: "tags", label: "Tag meanings" },
@@ -69,7 +69,7 @@ export default function ImportSettings({
             setError("");
           }}
           label="Import settings sections"
-        />
+        />}
         {tab === "files" ? (
           <form className="stack import-file-settings" onSubmit={save}>
             <div>
@@ -182,6 +182,7 @@ export default function ImportSettings({
             </div>
           </form>
         ) : (
+          <>
           <TagMeanings
             saved={meta.tag_mappings || {}}
             automatic={meta.automatic_tags || {}}
@@ -193,6 +194,8 @@ export default function ImportSettings({
             busy={busy}
             initialReview={review}
           />
+          {review && <div className="settings-actions"><Button disabled={busy} onClick={onClose}>Back to preview</Button><Button disabled={busy} onClick={onClose}>Cancel</Button></div>}
+          </>
         )}
       </div>
     </Modal>

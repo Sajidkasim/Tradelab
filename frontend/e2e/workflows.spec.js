@@ -172,10 +172,8 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "2 trades added" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Review & tag trades" }).click();
+  await expect(page).toHaveURL(/#trades$/);
+
   await page.getByRole("button", { name: /To finish/ }).click();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
   await page
@@ -535,11 +533,9 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "1 trades added", exact: true }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/#trades$/);
   await page
-    .getByRole("button", { name: "Import another file", exact: true })
+    .getByRole("button", { name: "Import", exact: true })
     .click();
   const updateDialog = await importSettings(page);
   await moreImportOptions(updateDialog);
@@ -564,15 +560,8 @@ test("composite CSV tags are approved once, notes survive, and re-import preview
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", {
-      name: "0 trades added · 1 updated",
-      exact: true,
-    }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Review & tag trades", exact: true })
-    .click();
+  await expect(page).toHaveURL(/#trades$/);
+
   await expect(
     page.locator(".trade-table tbody tr").filter({ hasText: "Continuation" }),
   ).toContainText("125.00");
@@ -770,6 +759,7 @@ new-guide-preview,2026-07-02 13:31:00,2026-07-02 13:45:00,CME_MINI:NQ1,125,buy,c
   await expect(
     page.getByRole("heading", { name: "Check the preview" }),
   ).toBeVisible();
+  await page.getByRole("dialog", { name: "Review tags", exact: true }).getByRole("button", { name: "Cancel", exact: true }).click();
   await page
     .getByRole("button", { name: "Back to trades", exact: true })
     .click();
@@ -838,7 +828,7 @@ test("new strategies, renamed CSV tags and keep-only choices work on later impor
   await page
     .getByRole("button", { name: "Review new tags", exact: true })
     .click();
-  dialog = page.getByRole("dialog", { name: "Import settings", exact: true });
+  dialog = page.getByRole("dialog", { name: "Review tags", exact: true });
   await dialog
     .getByRole("button", { name: "Review JOURNAL A", exact: true })
     .click();
@@ -861,10 +851,8 @@ test("new strategies, renamed CSV tags and keep-only choices work on later impor
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "1 trades added", exact: true }),
-  ).toBeVisible();
-  await page.reload();
+  await expect(page).toHaveURL(/#trades$/);
+  await page.goto("/import");
   await previewFile();
   await expect(
     page.getByRole("button", { name: "Review new tags", exact: true }),
@@ -1001,12 +989,8 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
       .getByRole("dialog")
       .getByRole("button", { name: "Confirm import", exact: true })
       .click();
-    await expect(
-      page.getByRole("heading", { name: `${count} trades added`, exact: true }),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "Review & tag trades", exact: true })
-      .click();
+    await expect(page).toHaveURL(/#trades$/);
+
     await pick(
       page.locator(".explorer").getByLabel("Target RR", { exact: true }),
       "1:3",
@@ -1071,12 +1055,8 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "1 trades added", exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Review & tag trades", exact: true })
-    .click();
+  await expect(page).toHaveURL(/#trades$/);
+
   const explorer = page.locator(".explorer");
   const day = explorer.getByLabel("Day", { exact: true });
   await expect(await options(day)).toHaveText([
@@ -1186,13 +1166,11 @@ test("break-even import choice excludes zero results, refreshes preview and is r
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "2 trades added", exact: true }),
-  ).toBeVisible();
-  await expect(page.locator(".import-success")).toContainText(
+  await expect(page).toHaveURL(/#trades$/);
+  await expect(page.locator(".toast")).toContainText(
     "1 break-even trades excluded",
   );
-  await page.reload();
+  await page.goto("/import");
   await expectValue(choice, "no");
   const onlyZero =
     "id,dateStart,dateEnd,pair,rPnL,side,status\nbe-browser-only-zero,2026-07-11T13:30:00Z,2026-07-11T13:40:00Z,NQ,0,buy,closed\n";
@@ -1241,9 +1219,7 @@ test("break-even import choice excludes zero results, refreshes preview and is r
     .getByRole("dialog")
     .getByRole("button", { name: "Confirm import", exact: true })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "1 trades added", exact: true }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/#trades$/);
 });
 
 test("strategy editor matches Explore and removed choices do not return after reload", async ({

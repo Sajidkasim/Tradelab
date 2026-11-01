@@ -44,8 +44,8 @@ test('large previews keep import reachable, paginate, and safely skip duplicates
     }
     await page.getByRole('button', { name: 'Import 45 trades', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm import', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '45 trades added', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Import another file', exact: true }).click();
+    await expect(page).toHaveURL(/#trades$/);
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
     await preview(45);
     await expect(page.locator('.import-action-bar')).toContainText('Nothing new to import');
     await expect(page.getByRole('button', { name: 'Import 0 trades', exact: true })).toBeDisabled();

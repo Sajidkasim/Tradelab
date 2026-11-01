@@ -38,13 +38,13 @@ test("new Lab choices import automatically with case, space and spelling variati
     await expect(page.getByText(/spelling matched/)).toBeVisible();
     await page.getByRole('button',{name:'Import 1 trades',exact:true}).click();
     await page.getByRole('dialog').getByRole('button',{name:'Confirm import',exact:true}).click();
-    await expect(page.getByRole('heading',{name:'1 trades added',exact:true})).toBeVisible();
+    await expect(page).toHaveURL(/#trades$/);
     const saved = (await (await page.request.get('/api/trades')).json()).find(t=>t.external_id==='auto-lab-import');
     importedId=saved.id;
     expect(saved.setup_name).toBe('Breakout and retest');
     expect(saved.net_pnl).toBe(125);expect(saved.r_multiple).toBe(null);
     expect(saved.tags).toContain('breakout and reetst');
-    await page.getByRole('button',{name:'Import another file',exact:true}).click();
+    await page.getByRole('button',{name:'Import',exact:true}).click();
     await page.getByLabel('Choose a trade export').setInputFiles({name:'automatic.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
     await page.getByRole('button',{name:'Preview trades',exact:true}).click();
     await expect(page.getByText('Nothing new to import',{exact:true})).toBeVisible();
@@ -73,7 +73,7 @@ test('ambiguous timeframe review explains why and remembers a one-click choice',
     await page.getByLabel('Choose a trade export').setInputFiles({name:'shared-timeframe.csv',mimeType:'text/csv',buffer:Buffer.from('id,dateStart,dateEnd,pair,rPnL,side,status,tags\nshared-timeframe,2026-07-01 13:30,2026-07-01 13:40,NQ,100,buy,closed,15m\n')});
     await page.getByRole('button',{name:'Preview trades',exact:true}).click();
     await page.getByRole('button',{name:'Review new tags',exact:true}).click();
-    const dialog=page.getByRole('dialog',{name:'Import settings',exact:true});
+    const dialog=page.getByRole('dialog',{name:'Review tags',exact:true});
     await dialog.getByText('How to tag your CSV · a quick guide',{exact:true}).click();
     await expect(dialog.getByText(/where you found the level, for example a 1H FVG/)).toBeVisible();
     await dialog.getByRole('button',{name:'Review 15m',exact:true}).click();

@@ -4,7 +4,6 @@ import {
   UploadCloud,
   ArrowLeft,
   ArrowRight,
-  FileCheck,
   Check,
   Settings2,
 } from "lucide-react";
@@ -20,7 +19,7 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
   const [file, setFile] = useState(null),
     [preview, setPreview] = useState(null),
     [detected, setDetected] = useState(null),
-    [done, setDone] = useState(null);
+    [reviewPrompt, setReviewPrompt] = useState(false);
   const [profile, setProfile] = useState({
     account_id: meta.accounts.some(
       (a) => a.id === meta.import_profile?.account_id,
@@ -60,7 +59,7 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
   const unrecognised = preview?.unresolved_tags ?? pendingTags(preview?.tags, meta.tag_mappings, meta.automatic_tags);
   function invalidate() {
     setPreview(null);
-    setDone(null);
+    setReviewPrompt(false);
     setError("");
     setConfirm(false);
   }
@@ -87,13 +86,14 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
     if (preview) f.append("preview_token", preview.preview_token);
     return f;
   }
-  async function previewFile() {
+  async function previewFile(askToReview = true) {
     const result = await api("/import/preview", {
       method: "POST",
       body: form(),
     });
     setPreview(result);
     setDetected(result);
+    if (askToReview) setReviewPrompt((result.unresolved_tags ?? pendingTags(result.tags, meta.tag_mappings, meta.automatic_tags)).length > 0);
   }
   async function upload(action) {
     if (!file) return;
@@ -106,13 +106,13 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           method: "POST",
           body: form(),
         });
-        setDone(result);
         setPreview(null);
         setConfirm(false);
         await refresh();
         toast(
           `${result.inserted} trades added. ${result.updated || 0} label updates. ${result.skipped} duplicates skipped.${result.excluded_breakeven ? ` ${result.excluded_breakeven} break-even trades excluded.` : ""}`,
         );
+        onBack();
       }
     } catch (e) {
       setError(e.message);
@@ -146,7 +146,7 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
       invalidate();
       if (file) {
         try {
-          await previewFile();
+          await previewFile(false);
         } catch (e) {
           setError(e.message);
         }
@@ -238,7 +238,7 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           </Notice>
         )}
         {error && <Notice error>{error}</Notice>}
-        {!preview && !done && (
+        {!preview && (
           <Button
             variant="primary"
             busy={busy}
@@ -249,24 +249,22 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           </Button>
         )}
       </div>
-      {preview && unrecognised.length > 0 && (
-        <div className="card import-attention">
-          <div>
-            <h3>
-              {unrecognised.length}{" "}
-              {unrecognised.length === 1 ? "new tag" : "new tags"} to review
-            </h3>
-            <p>
-              These tags are unfamiliar or could mean more than one thing. Choose
-              their meaning once, or keep the original tag only. Other tags are already matched.
-            </p>
+      {reviewPrompt && preview && unrecognised.length > 0 && (
+        <Modal title="Review tags" className="import-review-prompt" onClose={() => setReviewPrompt(false)}>
+          <div className="stack">
+            <div>
+              <h3>{unrecognised.length} {unrecognised.length === 1 ? "new tag" : "new tags"} to review</h3>
+              <p>We couldn’t match these CSV tags to your Lab choices, or their names could mean more than one thing.</p>
+            </div>
+            <div className="import-review-tag-list">{unrecognised.map(tag => <span className="badge" key={tag}>{tag}</span>)}</div>
+            <small className="muted">Choose where each tag belongs once and we’ll remember it. For example, “15m” could be a key level timeframe or an entry timeframe.</small>
+            <small className="muted">Cancel to return to your preview. Unmatched tags stay as text on the trade, but won’t filter your setup results.</small>
+            <div className="settings-actions">
+              <Button variant="primary" onClick={() => { setReviewPrompt(false); setSettings({ section: "tags", review: true }); }}>Review new tags <ArrowRight size={14}/></Button>
+              <Button onClick={() => setReviewPrompt(false)}>Cancel</Button>
+            </div>
           </div>
-          <Button
-            onClick={() => setSettings({ section: "tags", review: true })}
-          >
-            Review new tags <ArrowRight size={14} />
-          </Button>
-        </div>
+        </Modal>
       )}
       {settings && (
         <ImportSettings
@@ -282,34 +280,6 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           onClose={() => setSettings(null)}
         />
       )}
-      {done && (
-        <div className="card import-success">
-          <FileCheck size={36} />
-          <h2>
-            {done.inserted} trades added
-            {done.updated ? ` · ${done.updated} updated` : ""}
-          </h2>
-          <p>
-            {done.skipped} duplicates skipped. Review any missing setup details
-            or original risk next.
-          </p>
-          {done.excluded_breakeven > 0 && (
-            <p>{done.excluded_breakeven} break-even trades excluded.</p>
-          )}
-          <Button variant="primary" disabled={busy} onClick={onBack}>
-            Review & tag trades <ArrowRight size={16} />
-          </Button>
-          <Button
-            disabled={busy}
-            onClick={() => {
-              setDone(null);
-              setFile(null);
-            }}
-          >
-            Import another file
-          </Button>
-        </div>
-      )}
       {preview && (
         <section ref={previewRef} className="card preview-card">
           <div className="section-title">
@@ -323,6 +293,10 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
             </div>
             <span className="badge">Not saved yet</span>
           </div>
+          {unrecognised.length > 0 && <div className="import-review-reminder">
+            <small>{unrecognised.length} unmatched {unrecognised.length === 1 ? "tag" : "tags"} · kept as text until you choose a meaning.</small>
+            <Button onClick={() => setSettings({ section: "tags", review: true })}>Review tags</Button>
+          </div>}
           <div className="stats compact">
             <Stat label="Will be added" value={preview.counts.new} />
             <Stat
