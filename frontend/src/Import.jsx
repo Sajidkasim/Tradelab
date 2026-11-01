@@ -13,7 +13,7 @@ import { Button, Heading, Notice, Stat, Modal, Select } from "./components";
 import { money, rvalue, tradeDate } from "./format";
 import ImportSettings from "./ImportSettings";
 import { testingLabel } from "./importOptions";
-import { pendingTags } from "./importTags";
+import { pendingTags, meaningText } from "./importTags";
 
 export default function Import({ meta, refresh, onBack, toast, settingsRequested = false, onSettingsOpened }) {
   const { timezone: journalZone, clockName } = useJournalClock();
@@ -57,7 +57,7 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
     setPreviewPage(0);
     if (preview) previewRef.current?.scrollIntoView({ block: "start" });
   }, [preview]);
-  const unrecognised = pendingTags(preview?.tags, meta.tag_mappings);
+  const unrecognised = preview?.unresolved_tags ?? pendingTags(preview?.tags, meta.tag_mappings, meta.automatic_tags);
   function invalidate() {
     setPreview(null);
     setDone(null);
@@ -206,9 +206,10 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           onChange={(e) => choose(e.target.files[0])}
         />
         <p className="muted">
-          Saved tag meanings are applied automatically. Preview your trades
-          before saving.
+          Your Lab strategies, levels, timeframes and confirmations are recognised
+          automatically. Preview your trades before saving.
         </p>
+        <details className="disclosure"><summary>Why might a tag need review?</summary><div><p>Most tags match your Lab choices automatically. We only ask when a name is unfamiliar or could mean two things.</p><p><strong>Key level timeframe</strong> is the chart where you found the level. <strong>Entry timeframe</strong> is the chart where you entered the trade. If both use 15m, use separate tags: <strong>Key level timeframe: 15m</strong> and <strong>Entry timeframe: 15m</strong>. A CSV containing only “15m” cannot tell us which you meant.</p><p>Choose a meaning once in Import settings; we remember it for future imports. You can also keep a tag as a note without using it in Results.</p></div></details>
         <Select
           label="Include break-even trades?"
           values={[
@@ -256,8 +257,8 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
               {unrecognised.length === 1 ? "new tag" : "new tags"} to review
             </h3>
             <p>
-              Tell PrimusLab what they mean once, or keep them as original tags
-              only.
+              These tags are unfamiliar or could mean more than one thing. Choose
+              their meaning once, or keep the original tag only. Other tags are already matched.
             </p>
           </div>
           <Button
@@ -362,6 +363,13 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
               times below are shown in {clockName} time.
             </p>
           </div>
+          {!!preview.recognised_tags?.length && <details className="disclosure">
+            <summary>{preview.recognised_tags.length} tags recognised automatically</summary>
+            <div className="stack">
+              <p>Capitals and spaces are ignored. Clear spelling matches use your saved Lab names; the original CSV tags are kept.</p>
+              {preview.recognised_tags.map(item => <p key={item.tag}><strong>{item.tag}</strong> → {meaningText(item.meaning)}{item.match === "spelling" ? " · spelling matched" : ""}</p>)}
+            </div>
+          </details>}
           {preview.native && (
             <Notice>
               Realised P&L is preserved. Planned reward / risk is not realised

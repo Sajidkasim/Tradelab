@@ -134,8 +134,14 @@ Pick or type a strategy, add key level/timeframes and confirmations, then **Save
 **Use previous setup** copies labels only. **Tag several trades at once** applies one strategy
 to selected trades without replacing notes or other labels.
 
-During import, **Recognise strategy tags** lets you save a mapping from each FX Replay label
-to a strategy or structured field. Suggestions need saving before they affect the preview.
-Mappings are private to your workspace. Conflicting strategy tags are flagged rather than
-guessed. Missing tags mean not recorded; check the confirmation-review box only after reviewing.
-The imported dollar result is preserved, and unavailable realised R stays blank.
+Lab settings is also your import tag catalogue: saved strategies, key levels,
+key level timeframes, entry timeframes, confirmations, news and market labels are
+recognised automatically. Capitals, spacing and punctuation variations are ignored;
+small unambiguous word typos use the saved name. Preview shows the matched meanings
+and keeps original CSV wording. Different numbers and ambiguous names are not guessed.
+When the same name belongs to two fields, use **Key level timeframe: 15m** and
+**Entry timeframe: 15m**, or set its meaning once under Import settings → Tag meanings.
+Saved exceptions and Keep original tag only take precedence. All lists and mappings
+are private to the signed-in workspace. Missing tags mean not recorded; check the
+confirmation-review box only after reviewing. Financial results, original risk and
+recorded R are unchanged; new fixed-RR assumptions still require explicit approval.

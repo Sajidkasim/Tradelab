@@ -19,7 +19,7 @@ for (const theme of ['light', 'dark']) {
     const levelStyle = await page.getByRole('option', { name: 'FVG', exact: true }).evaluate((el) => ({ font: getComputedStyle(el).font, color: getComputedStyle(el).color }));
     await page.getByRole('option', { name: 'FVG', exact: true }).click();
     await expect(level).toHaveText('FVG');
-    const timeframe = dialog.getByRole('combobox', { name: 'Level timeframe', exact: true });
+    const timeframe = dialog.getByRole('combobox', { name: 'Key level timeframe', exact: true });
     await timeframe.click();
     const row = page.getByRole('option', { name: '4H', exact: true });
     expect(await row.evaluate((el) => ({ font: getComputedStyle(el).font, color: getComputedStyle(el).color }))).toEqual(levelStyle);

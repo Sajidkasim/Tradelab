@@ -5,7 +5,7 @@ test("Classic menus share retro styling, keyboard selection and viewport-safe pl
   await page.getByRole("button", { name: "Classic", exact: true }).click();
   await expect(page.locator(".content select")).toHaveCount(0);
   const explorer = page.locator(".explorer");
-  for (const label of ["Strategy", "Level timeframe", "Entry timeframe", "Target RR", "Day"]) {
+  for (const label of ["Strategy", "Key level timeframe", "Entry timeframe", "Target RR", "Day"]) {
     const control = explorer.getByRole("combobox", { name: label, exact: true });
     await control.click();
     const menu = page.locator(".styled-select-panel");
@@ -20,9 +20,9 @@ test("Classic menus share retro styling, keyboard selection and viewport-safe pl
     await page.getByRole("listbox", { name: label, exact: true }).press("Escape");
     await expect(control).toBeFocused();
   }
-  const timeframe = explorer.getByRole("combobox", { name: "Level timeframe", exact: true });
+  const timeframe = explorer.getByRole("combobox", { name: "Key level timeframe", exact: true });
   await timeframe.press("ArrowDown");
-  const list = page.getByRole("listbox", { name: "Level timeframe", exact: true });
+  const list = page.getByRole("listbox", { name: "Key level timeframe", exact: true });
   await list.press("1");
   await list.press("h");
   await list.press("Enter");

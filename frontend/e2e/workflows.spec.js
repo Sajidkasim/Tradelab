@@ -54,7 +54,7 @@ test("manual entry, setup exploration and combined or separate source results", 
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Browser setup");
   await pick(dialog.getByLabel("Key level / PDA", { exact: true }), "FVG");
-  await pick(dialog.getByLabel("Level timeframe", { exact: true }), "4H");
+  await pick(dialog.getByLabel("Key level timeframe", { exact: true }), "4H");
   await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "1m");
   await dialog.getByLabel("SMT", { exact: true }).check();
   await dialog.getByLabel("CISD", { exact: true }).check();
@@ -1335,7 +1335,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     .getByLabel("Confirmations / confluence", { exact: true })
     .fill("SMT\nMACRO\nMy confluence");
   await dialog
-    .getByLabel("Level timeframes", { exact: true })
+    .getByLabel("Key level timeframes", { exact: true })
     .fill("Daily\n2H");
   await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m\n30s");
   await dialog
@@ -1347,7 +1347,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   ).toBeVisible();
   await expect(explorer.getByLabel("CISD", { exact: true })).toHaveCount(0);
   await expect(
-    await options(explorer.getByLabel("Level timeframe", { exact: true })),
+    await options(explorer.getByLabel("Key level timeframe", { exact: true })),
   ).toHaveText(["Any", "Daily", "2H", "Not recorded"]);
   await expect(
     await options(explorer.getByLabel("Entry timeframe", { exact: true })),
@@ -1359,7 +1359,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     "SMT\nMACRO\nMy confluence",
   );
   await expectValue(
-    dialog.getByLabel("Level timeframes", { exact: true }),
+    dialog.getByLabel("Key level timeframes", { exact: true }),
     "Daily\n2H",
   );
   await page.screenshot({
@@ -1394,7 +1394,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Replay setup");
-  await pick(dialog.getByLabel("Level timeframe", { exact: true }), "2H");
+  await pick(dialog.getByLabel("Key level timeframe", { exact: true }), "2H");
   await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "30s");
   await dialog.getByLabel("My confluence", { exact: true }).check();
   await dialog
@@ -1409,19 +1409,19 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     page.getByText("Trade saved. Ready for the next.", { exact: true }),
   ).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await pick(explorer.getByLabel("Level timeframe", { exact: true }), "2H");
+  await pick(explorer.getByLabel("Key level timeframe", { exact: true }), "2H");
   await explorer.getByLabel("My confluence", { exact: true }).check();
   dialog = await settings();
   await dialog
     .getByLabel("Confirmations / confluence", { exact: true })
     .fill("SMT\nMACRO");
-  await dialog.getByLabel("Level timeframes", { exact: true }).fill("Daily");
+  await dialog.getByLabel("Key level timeframes", { exact: true }).fill("Daily");
   await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m");
   await dialog
     .getByRole("button", { name: "Save lab settings", exact: true })
     .click();
   await expectValue(
-    explorer.getByLabel("Level timeframe", { exact: true }),
+    explorer.getByLabel("Key level timeframe", { exact: true }),
     "Any timeframe",
   );
   await expect(
@@ -1433,7 +1433,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     .click();
   dialog = page.getByRole("dialog");
   await expectValue(
-    dialog.getByLabel("Level timeframe", { exact: true }),
+    dialog.getByLabel("Key level timeframe", { exact: true }),
     "2H",
   );
   await expectValue(

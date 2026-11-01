@@ -208,3 +208,49 @@ def test_journal_outcome_and_confirmations_persist_without_generating_lab_result
     assert client.get('/api/trades').json()==[]
     assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'outcome':'3R'}]}).status_code==422
     assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'confirmations':['x'*121]}]}).status_code==422
+
+
+def test_journal_setup_money_clear_legacy_clients_and_linked_results_are_safe(draft):
+    from tests.test_webapp import trade_payload
+    client,app,state=draft;login(client,state)
+    day='2026-11-01';record=journal_card()
+    selected={**record,'level':'FVG','timeframe':'4H','entry_timeframe':'1m','risk_amount':50,'net_pnl':-25,'outcome':'win'}
+    saved=client.put(f'/api/journal/{day}',json={'trades':[selected]}).json()['trades'][0]
+    assert saved['outcome']=='loss' and saved['risk_amount']==50 and saved['net_pnl']==-25
+    assert saved['level']=='FVG' and saved['timeframe']=='4H' and saved['entry_timeframe']=='1m'
+    assert client.get('/api/trades').json()==[]
+    assert client.put(f'/api/journal/{day}',json={'trades':[record]}).json()['trades'][0]['risk_amount']==50
+    cleared=client.put(f'/api/journal/{day}',json={'trades':[{**record,'risk_amount':None,'net_pnl':None}]}).json()['trades'][0]
+    assert cleared['risk_amount'] is None and cleared['net_pnl'] is None
+    for value in [0,-1]:
+        assert client.put(f'/api/journal/{day}',json={'trades':[{**record,'risk_amount':value}]}).status_code==422
+    response=client.post('/api/trades',json={**trade_payload(), 'journal_day':day,'journal_trade_id':record['id']})
+    assert response.status_code==200,response.text
+    linked=response.json()['journal_entry']['trades'][0]
+    assert linked['net_pnl']==100 and linked['risk_amount']==50 and linked['timeframe']=='4H'
+    before=client.get('/api/trades').json()
+    attempted=client.put(f'/api/journal/{day}',json={'trades':[{**record,'risk_amount':999,'net_pnl':999,'level':'Other','notes':'My personal note'}]}).json()['trades'][0]
+    assert attempted['net_pnl']==100 and attempted['risk_amount']==50 and attempted['level']=='FVG'
+    assert attempted['notes']=='My personal note' and attempted['lab_trade_id']==linked['lab_trade_id']
+    assert client.get('/api/trades').json()==before
+    client.post('/api/logout');login(client,state,'other@example.com','other-member')
+    assert client.get('/api/journal').json()==[]
+
+
+def test_existing_members_get_automatic_private_tags_without_migration(draft):
+    from tests.test_webapp import labelled_fx, upload
+    client,app,state=draft
+    for email,subject,strategy in [('owner@example.com','owner-sub','Owner breakout'),('friend@example.com','friend-sub','Friend reversal')]:
+        login(client,state,email,subject)
+        client.put('/api/playbook',json={'strategies':[strategy],'levels':['Private key level']})
+        client.post('/api/logout')
+    for email,subject,strategy,other in [('owner@example.com','owner-sub','Owner breakout','Friend reversal'),('friend@example.com','friend-sub','Friend reversal','Owner breakout')]:
+        login(client,state,email,subject)
+        meta=client.get('/api/metadata').json()
+        assert meta['tag_mappings']=={}
+        assert f'Strategy: {strategy}' in meta['automatic_tags']
+        assert f'Strategy: {other}' not in meta['automatic_tags']
+        result=upload(client,labelled_fx(tags=strategy.upper()),account_id=str(meta['accounts'][0]['id'])).json()
+        assert result['unresolved_tags']==[] and result['rows'][0]['setup_name']==strategy
+        assert client.get('/api/trades').json()==[]
+        client.post('/api/logout')

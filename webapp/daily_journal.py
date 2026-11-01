@@ -1,8 +1,4 @@
-"""Local-only Journal draft. Private notes reuse the existing settings backup.
-
-Images belong to the disposable preview directory, never a public static mount.
-Cloud uploads remain disabled until the separate Journal/R2 release is approved.
-"""
+"""Private daily Journal notes/cards; saving alone never creates Lab trades."""
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -92,7 +88,27 @@ def save_day(database, day, values):
         if len(set(ids)) != len(ids):
             raise ValueError('Each journal trade needs its own reference.')
         old = {t['id']: t for t in previous['trades']}
-        values['trades'] = [{ 'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'', 'outcome':'not_recorded', 'confirmations':[], **old.get(t['id'], {}), **t, 'lab_trade_id': old.get(t['id'], {}).get('lab_trade_id')} for t in incoming]
+        cards = []
+        for item in incoming:
+            linked_id = old.get(item['id'], {}).get('lab_trade_id')
+            card = {'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'',
+                    'outcome':'not_recorded', 'confirmations':[], 'level':'Not recorded',
+                    'timeframe':'Not recorded', 'entry_timeframe':'Not recorded',
+                    'risk_amount':None, 'net_pnl':None,
+                    **old.get(item['id'], {}), **item, 'lab_trade_id':linked_id}
+            if linked_id:
+                # Linked setup/results come from the user's own Lab, never a
+                # Journal payload. Personal notes remain independently editable.
+                snapshot = trade_snapshot(database, linked_id)
+                if not snapshot:
+                    snapshot = {key:old[item['id']].get(key, card[key]) for key in
+                                ('symbol','direction','strategy','time','source','outcome','confirmations',
+                                 'level','timeframe','entry_timeframe','risk_amount','net_pnl')}
+                card.update(snapshot)
+            elif card['net_pnl'] is not None:
+                card['outcome'] = outcome(card['net_pnl'])
+            cards.append(card)
+        values['trades'] = cards
         # Removing a narrative card never removes its Lab trade or its screenshots.
         values['images'] = [{**image, 'trade_id': image.get('trade_id') if image.get('trade_id') in ids else None} for image in previous['images']]
     return save(database, day, values)
@@ -102,26 +118,36 @@ def trade_entry(database, day, record_id):
     return next((t for t in entry(database, day)['trades'] if t['id'] == record_id), None)
 
 
+def outcome(net):
+    return 'not_recorded' if net is None else 'win' if net > 0 else 'loss' if net < 0 else 'breakeven'
+
+
+def trade_snapshot(database, trade_id):
+    from . import journal_preferences
+    from core.models import BACKTEST_SOURCES
+    from core import edge
+    trade = database.get_trade(trade_id)
+    if trade is None:
+        return {}
+    clock = trade.entry_time
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=timezone.utc)
+    labels = edge.read_labels(trade.tags)
+    return {'symbol':trade.symbol, 'direction':trade.direction, 'strategy':trade.setup_name,
+            'source':'backtest' if trade.source in BACKTEST_SOURCES else 'manual',
+            'outcome':outcome(trade.net_pnl), 'confirmations':labels['confirmations'],
+            'level':labels['level'], 'timeframe':labels['timeframe'], 'entry_timeframe':labels['entry_timeframe'],
+            'risk_amount':trade.initial_risk, 'net_pnl':trade.net_pnl,
+            'time':clock.astimezone(ZoneInfo(journal_preferences.read(database)['timezone'])).strftime('%H:%M')}
+
+
 def link_trade(database, day, record_id, trade_id):
     current = entry(database, day)
     if not any(t['id'] == record_id for t in current['trades']):
         raise ValueError('Save this journal trade first.')
     if trade_id is not None and database.get_trade(trade_id) is None:
         raise ValueError('Choose a trade from your own Strategy Lab.')
-    snapshot = {}
-    if trade_id is not None:
-        from . import journal_preferences
-        from core.models import BACKTEST_SOURCES
-        from core import edge
-        trade = database.get_trade(trade_id)
-        clock = trade.entry_time
-        if clock.tzinfo is None:
-            clock = clock.replace(tzinfo=timezone.utc)
-        snapshot = {'symbol': trade.symbol, 'direction': trade.direction, 'strategy': trade.setup_name,
-                    'source': 'backtest' if trade.source in BACKTEST_SOURCES else 'manual',
-                    'outcome': 'not_recorded' if trade.net_pnl is None else 'win' if trade.net_pnl > 0 else 'loss' if trade.net_pnl < 0 else 'breakeven',
-                    'confirmations': edge.read_labels(trade.tags)['confirmations'],
-                    'time': clock.astimezone(ZoneInfo(journal_preferences.read(database)['timezone'])).strftime('%H:%M')}
+    snapshot = trade_snapshot(database, trade_id) if trade_id is not None else {}
     return save(database, day, {'trades': [{**t, **snapshot, 'lab_trade_id': trade_id} if t['id'] == record_id else t for t in current['trades']]})
 
 

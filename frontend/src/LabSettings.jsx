@@ -111,7 +111,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         </div>}
         {tab === "strategies" && (
           <div className="stack">
-            <div><h3>Strategies & key levels</h3><p className="muted">One name per line. These lists are shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
+            <div><h3>Strategies & key levels</h3><p className="muted">One name per line. Each choice becomes an import tag automatically and is shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
             <div className="form-grid two">
               <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
               <Field label="Key levels / PDA" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
@@ -143,7 +143,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
             </Field>
             <div className="form-grid two">
               <Field
-                label="Level timeframes"
+                label="Key level timeframes"
                 hint="For example: Weekly, Daily, 4H, 1H — one per line."
               >
                 <textarea
@@ -168,8 +168,9 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
               </Field>
             </div>
             <small className="muted">
-              To recognise a different CSV tag name, use Import → Import
-              settings → Tag meanings. Not recorded is provided automatically.
+              Every saved choice is recognised on import automatically. If the same
+              timeframe is in both lists, use CSV tags such as Key level timeframe: 15m
+              and Entry timeframe: 15m. Not recorded is provided automatically.
             </small>
           </div>
         )}

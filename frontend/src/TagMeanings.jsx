@@ -13,6 +13,9 @@ import {
 
 export default function TagMeanings({
   saved,
+  automatic = {},
+  unresolvedTags,
+  questions = [],
   suggestions,
   fileTags,
   onSave,
@@ -24,7 +27,11 @@ export default function TagMeanings({
   const [editor, setEditor] = useState(null);
   const [error, setError] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const pending = pendingTags(fileTags, saved);
+  const pending = unresolvedTags ?? pendingTags(fileTags, saved, automatic);
+  const questionFor = tag => questions.find(item => item.tag === tag);
+  const reasonFor = tag => questionFor(tag)?.reason === 'ambiguous'
+    ? 'This name is used in more than one category. The CSV does not tell us which one you meant.'
+    : 'This name is not recognised yet. Choose its category once; we will remember it for your next import.';
   function edit(tag, alias = false) {
     const entry = saved[tag] || suggestions[tag];
     const rules = rulesOf(entry).filter((r) => r.field && r.value);
@@ -35,7 +42,7 @@ export default function TagMeanings({
       keepOnly: entry?.ignore || false,
       rules: rules.length
         ? rules.map((r) => ({ ...r }))
-        : [{ field: "", value: "" }],
+        : [{ field: "", value: tag.length <= 120 ? tag : "" }],
     });
     setError("");
   }
@@ -77,6 +84,14 @@ export default function TagMeanings({
       setError(e.message);
     }
   }
+  async function useChoice(tag, meaning) {
+    setError('');
+    try {
+      await onSave(addTagMeaning(saved, tag, meaning, Object.hasOwn(saved,tag) ? tag : null));
+      setEditor(null);
+      setFilter('new');
+    } catch(e) { setError(e.message); }
+  }
   if (editor)
     return (
       <form onSubmit={save} className="stack tag-meaning-editor">
@@ -95,12 +110,16 @@ export default function TagMeanings({
               ? "Set a tag meaning"
               : "Add a tag meaning"}
         </h3>
+        {editor.original && !Object.hasOwn(saved,editor.original) && <div className="notice stack">
+          <strong>Why are we asking?</strong><p>{reasonFor(editor.original)}</p>
+          {!!questionFor(editor.original)?.choices.length && <div className="actions">{questionFor(editor.original).choices.map((choice,index)=><Button type="button" key={index} disabled={busy} onClick={()=>useChoice(editor.original,choice)}>Use as {meaningText(choice)}</Button>)}</div>}
+        </div>}
         <Field
           label="Tag in your CSV"
           hint={
             editor.alias
-              ? "Enter the new spelling. The old name will keep working too."
-              : "Copy the exact tag name from FX Replay or your export."
+              ? "Enter a different name for the same meaning. Capitals, spaces and clear typos already match automatically."
+              : "Use the tag name from your export. Capitals and spaces do not need to match."
           }
         >
           <input
@@ -305,14 +324,35 @@ export default function TagMeanings({
         <div>
           <h3>Your tag guide</h3>
           <p>
-            Teach PrimusLab once. Recognised tags are applied automatically on
-            your next import.
+            Your Lab choices already work as import tags. Use this guide only for
+            unfamiliar names or tags with more than one possible meaning.
           </p>
         </div>
         <Button onClick={add}>
           <Plus size={14} /> Add a tag
         </Button>
       </div>
+      <details className="disclosure">
+        <summary>How to tag your CSV · a quick guide</summary>
+        <div className="stack">
+          <p><strong>1. Add your choices in Lab settings.</strong> Strategies, key levels, timeframes and confirmations become import tags automatically.</p>
+          <p><strong>2. Use those names in FX Replay.</strong> Capitals and spaces do not matter. Export and preview your CSV; recognised tags are already filled in.</p>
+          <p><strong>3. Give shared names a category.</strong> The key level timeframe is where you found the level, for example a 1H FVG. The entry timeframe is where you entered, for example a 1m CISD. They describe different things, even when both are 15m.</p>
+          <p>Use <strong>Key level timeframe: 15m</strong> and <strong>Entry timeframe: 15m</strong> as separate CSV tag names. If the export only says “15m”, we cannot see the FX Replay group, so we ask once instead of guessing.</p>
+          <p>For a completely new name, choose its meaning below. Your other tags and saved trades stay unchanged.</p>
+        </div>
+      </details>
+      <details className="disclosure">
+        <summary>Tags from your Lab settings · already connected</summary>
+        <div className="stack">
+          <p>Adding or changing a Lab choice updates these tags automatically. No extra Save meaning step is needed.</p>
+          <p>Use a category when names overlap: Key level: FVG, Confirmation: FVG, Key level timeframe: 15m or Entry timeframe: 15m.</p>
+          {tagFields.map(field => {
+            const values = [...new Set(Object.values(automatic).filter(entry => entry.field === field.value).map(entry => entry.value))];
+            return values.length ? <div key={field.value}><strong>{field.label}</strong><p className="muted">{values.join(" · ")}</p></div> : null;
+          })}
+        </div>
+      </details>
       <div className="tag-guide-tabs" role="group" aria-label="Tag list">
         <Button
           className={filter === "saved" ? "selected" : ""}
@@ -341,6 +381,7 @@ export default function TagMeanings({
             <div>
               <strong>{tag}</strong>
               <small>{meaningText(saved[tag] || suggestions[tag])}</small>
+              {filter === 'new' && <small>{reasonFor(tag)}</small>}
             </div>
             <Button
               onClick={() => edit(tag)}
@@ -370,6 +411,7 @@ export default function TagMeanings({
           </p>
         )}
       </div>
+      {error && <Notice error>{error}</Notice>}
       {!!offered.length && (
         <details
           className="disclosure"
@@ -398,8 +440,8 @@ export default function TagMeanings({
             new model name; it becomes available in your strategy list.
           </p>
           <p>
-            If a tag's wording changes, choose “Another CSV name” to link it to
-            the same meaning. Older exports will still work.
+            Capitals, spaces and clear word typos are matched automatically.
+            For a completely different name, use “Another CSV name”.
           </p>
           <p>
             If the same tag means different things in two groups, use distinct

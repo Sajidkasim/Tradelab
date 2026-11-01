@@ -18,6 +18,12 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await choose(card,'Strategy','Displacement continuation');
   await card.getByRole('textbox',{name:'Trade notes',exact:true}).fill('Took the long after confirmation.');
   await card.getByLabel('Entry time',{exact:true}).fill('09:45');
+  await card.getByText('Setup & result',{exact:false}).first().click();
+  await choose(card,'Key level / PDA','FVG');
+  await choose(card,'Key level timeframe','4H');
+  await choose(card,'Entry timeframe','1m');
+  await card.getByRole('spinbutton',{name:'Amount risked ($)',exact:true}).fill('50');
+  await card.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('150');
   await card.getByLabel('Upload screenshot for trade 1',{exact:true}).setInputFiles('../assets/primus-compass.png');
   await expect(card.getByRole('button',{name:'Open screenshot 1',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Add trade',exact:true}).click();
@@ -34,6 +40,8 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await expect(card.getByRole('button',{name:'Win',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(card.getByRole('checkbox',{name:'SMT',exact:true})).toBeChecked();
   await expect(card.getByRole('textbox',{name:'Trade notes',exact:true})).toHaveValue('Took the long after confirmation.');
+  await expect(card.getByRole('spinbutton',{name:'Amount risked ($)',exact:true})).toHaveValue('50');
+  await expect(card.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true})).toHaveValue('150');
   await expect(card.getByRole('button',{name:'Open screenshot 1',exact:true})).toBeVisible();
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
@@ -46,8 +54,8 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   const dialog=page.getByRole('dialog',{name:'Add Journal trade to Strategy Lab',exact:true});
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('checkbox',{name:'SMT',exact:true})).toBeChecked();
-  await dialog.getByRole('spinbutton',{name:'Net result ($)',exact:true}).fill('150');
-  await dialog.getByRole('spinbutton',{name:'Original risk ($)',exact:true}).fill('50');
+  await expect(dialog.getByRole('spinbutton',{name:'Net result ($)',exact:true})).toHaveValue('150');
+  await expect(dialog.getByRole('spinbutton',{name:'Original risk ($)',exact:true})).toHaveValue('50');
   await dialog.getByRole('button',{name:'Save to Strategy Lab',exact:true}).click();
   await expect(dialog).toHaveCount(0);
   await expect(card.getByRole('link',{name:'Open in Lab',exact:true})).toBeVisible();

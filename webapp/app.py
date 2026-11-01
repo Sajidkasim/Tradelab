@@ -280,7 +280,10 @@ def create_app(config: Settings | None = None):
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.lock:
-            result = daily_journal.save_day(db(request, member), day.isoformat(), payload.model_dump(exclude_none=True, exclude_unset=True))
+            values = payload.model_dump(exclude_unset=True)
+            if values.get('trades') is None:
+                values.pop('trades', None)
+            result = daily_journal.save_day(db(request, member), day.isoformat(), values)
             app.state.workspaces.bump(member['key'])
             return result
 
@@ -688,6 +691,7 @@ def create_app(config: Settings | None = None):
                 if study and study.get('symbol') and any(trade.symbol != study['symbol'] for trade in parsed):
                     preview['issues'].append(f"Some trades use a different market from this test’s planned {study['symbol']}. Check the destination before importing.")
                 notes = preview.pop('_notes', {})
+                tag_context = preview.pop('_tag_context', {})
                 changes, issues = import_updates.plan(database, parsed, notes) if update_labels else ([], [])
                 preview['issues'].extend(issues)
                 if update_labels:
@@ -695,6 +699,7 @@ def create_app(config: Settings | None = None):
                 preview['label_updates'] = [{'id':item['id'], **item['preview']} for item in changes][:200]
                 signature = [member['key'], fingerprint, import_updates.digest({
                     'mappings': database.get_setting(trade_labels.MAPPING_KEY, {}),
+                    'automatic_labels': tag_context,
                     'aliases': database.get_setting(tag_cleanup.KEY, {}), 'study_id': study_id,
                     'update_labels': update_labels, 'remember_profile': remember_profile,
                     'changes':changes if update_labels else None})]

@@ -184,6 +184,9 @@ export default function ImportSettings({
         ) : (
           <TagMeanings
             saved={meta.tag_mappings || {}}
+            automatic={meta.automatic_tags || {}}
+            unresolvedTags={detected?.unresolved_tags}
+            questions={detected?.tag_questions || []}
             suggestions={{ ...meta.tag_suggestions, ...detected?.suggestions }}
             fileTags={detected?.tags || []}
             onSave={onSaveMeanings}

@@ -73,8 +73,8 @@ export default function TradeForm({
     [start, setStart] = useState(initialEntryTime || `${nyToday(journalZone)}T09:30`),
     [exit, setExit] = useState("");
   const [fields, setFields] = useState({
-    net_pnl: "",
-    risk_amount: "",
+    net_pnl: journalOrigin ? String(previous?.net_pnl ?? "") : "",
+    risk_amount: journalOrigin ? String(previous?.risk_amount ?? "") : "",
     entry_price: "",
     exit_price: "",
     stop_price: "",

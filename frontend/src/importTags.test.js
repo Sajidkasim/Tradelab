@@ -28,6 +28,12 @@ it("only unfamiliar tags need attention; deliberately kept tags are remembered",
   ]);
   expect(meaningText(saved.Note)).toBe("Keep original tag only");
 });
+it("Lab tags and saved exceptions ignore capitals, spacing and punctuation", () => {
+  expect(pendingTags([" s m t ", "MY_NEW-SETUP", "unknown"],
+    { SMT: {field:"confirmation",value:"SMT"} },
+    { "My new setup": {field:"strategy",value:"My new setup"} })).toEqual(["unknown"]);
+  expect(meaningText({field:"timeframe",value:"2H"})).toBe("Key level timeframe: 2H");
+});
 it("new strategy aliases keep the old wording and every other meaning", () => {
   const old = {
     OLD: { field: "strategy", value: "Breakout" },

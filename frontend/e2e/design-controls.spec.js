@@ -31,7 +31,7 @@ test("Explore supports searchable levels, keyboard choices and removable filters
   await picker.click();
   await search.press("Escape");
   await expect(picker).toHaveAttribute("aria-expanded", "false");
-  const timeframe = explorer.getByLabel("Level timeframe", { exact: true });
+  const timeframe = explorer.getByLabel("Key level timeframe", { exact: true });
   await pick(timeframe, "1H");
   await expectValue(timeframe, "1H");
   await page

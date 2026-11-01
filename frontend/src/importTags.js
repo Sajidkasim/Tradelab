@@ -11,7 +11,7 @@ export const tagFields = [
   { value: "strategy", label: "Strategy", example: "e.g. Breakout and retest" },
   { value: "level", label: "Key level", example: "e.g. Previous day high" },
   { value: "confirmation", label: "Confirmation", example: "e.g. SMT" },
-  { value: "timeframe", label: "Level timeframe", example: "e.g. 1H" },
+  { value: "timeframe", label: "Key level timeframe", example: "e.g. 1H" },
   { value: "entry_timeframe", label: "Entry timeframe", example: "e.g. 1m" },
   { value: "target_rr", label: "Target RR", example: "e.g. 1:3" },
   { value: "weekday", label: "Day", example: "e.g. Monday" },
@@ -34,8 +34,10 @@ export function meaningText(entry) {
         .join(" · ")
     : "Choose what this tag means";
 }
-export function pendingTags(tags, saved) {
-  return (tags || []).filter((tag) => !Object.hasOwn(saved || {}, tag));
+export function pendingTags(tags, saved, automatic = {}) {
+  const normal = (value) => value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  const known = new Set([...Object.keys(saved || {}), ...Object.keys(automatic)].map(normal));
+  return (tags || []).filter((tag) => !known.has(normal(tag)));
 }
 export function cleanMeaning(rules, keepOnly) {
   if (keepOnly) return { ignore: true };
@@ -68,7 +70,7 @@ export function addTagMeaning(saved, tag, meaning, original = null) {
   const name = tag.trim();
   if (!name || name.length > 200)
     throw new Error(
-      "Enter the CSV tag exactly as exported (up to 200 characters).",
+      "Enter a CSV tag name (up to 200 characters). Capitals and spaces can differ.",
     );
   if (name !== original && Object.hasOwn(saved, name))
     throw new Error(

@@ -44,7 +44,7 @@ const dimensions = [
   { value: "edge_window", label: "Session" },
   { value: "edge_news", label: "News" },
   { value: "edge_entry_timeframe", label: "Entry timeframe" },
-  { value: "edge_timeframe", label: "Level timeframe" },
+  { value: "edge_timeframe", label: "Key level timeframe" },
 ];
 
 export default function Results({
@@ -244,7 +244,7 @@ export default function Results({
             onChange={(e) => change("level", e.target.value)}
           />
           <Select
-            label="Level timeframe"
+            label="Key level timeframe"
             values={[
               { value: "Any timeframe", label: "Any" },
               ...meta.level_timeframes,

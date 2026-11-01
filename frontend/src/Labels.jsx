@@ -17,7 +17,7 @@ export default function Labels({ value, onChange, meta }) {
           onChange={(e) => change("level", e.target.value)}
         />
         <Select
-          label="Level timeframe"
+          label="Key level timeframe"
           values={options(
             meta.level_timeframes || meta.timeframes,
             value.timeframe,

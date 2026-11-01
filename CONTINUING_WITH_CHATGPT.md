@@ -549,3 +549,58 @@ Removed the creative draft roles caption under the Home trader names.
 Validation: Python 273 passed (5 existing warnings), Vitest 22 passed, Playwright
 55 passed, frontend production build passed. All UI/code changes remain local;
 no commit, push, or deployment was performed.
+
+## Lab settings drive CSV tags automatically — 1 November 2026
+
+`services.import_tag_catalog` derives automatic import meanings from the same
+private effective strategy/level/setup/news/condition lists as Explore and Add
+trade. No second mapping save is needed after editing Lab settings. Category
+tags such as `Key level timeframe: 15m` disambiguate shared names; bare names
+only apply when one field/value is possible. Explicit saved mappings (including
+Keep original tag only) take precedence. Hidden choices are not regenerated.
+
+Unicode/case/space/punctuation normalisation and common numeric time units are
+supported. Minor unique word typos and four-letter acronym transpositions can
+match; different numbers, competing meanings and short acronym substitutions
+cannot. Fuzzy work is bounded to 200 distinct unfamiliar names per file; exact
+recognition still applies to all tags. Original CSV wording is preserved.
+Unresolved tags cannot activate the legacy bare-confirmation interpretation.
+No absence of a confirmation or reviewed status is inferred. Fixed-RR approvals
+and financial data/formulas are unchanged.
+
+Import preview exposes recognised meanings/spelling matches and unresolved names
+separately. Only unresolved names trigger Review new tags. Import settings shows
+its connected Lab tags in a collapsed section and keeps manual exceptions.
+The signed preview binds the effective vocabulary so changing Lab choices before
+confirmation requires a fresh preview. Preview does not save settings or trades.
+Public labels now say Key level timeframe; internal keys remain compatible.
+
+The owner approved publishing this revision for everyone on 1 November 2026.
+Validation: 291 pytest tests passed (5 existing deprecation warnings), 23 Vitest
+tests passed, all 56 Playwright checks passed, and the production build passed.
+After compacting the connected-tag list, the automatic-import and both menu
+appearance checks passed again. Fresh disposable review: http://127.0.0.1:8125/lab.
+
+## Import guidance and Journal setup/results — 1 November 2026 release
+
+The owner explicitly requested deployment to existing and new accounts. Automatic
+tags derive from each authenticated member's existing Lab lists at read time;
+there is no migration, owner-label copying or retroactive trade rewrite.
+Unknown/ambiguous tags show a reason, a short optional CSV guide, and quick
+meaning buttons when a saved name spans categories. The guide explains the
+key-level chart versus entry chart and qualified CSV timeframe names. Saved
+exceptions remain private; changing a meaning refreshes the signed preview.
+
+Journal trade cards have a compact optional Setup & result section: key level,
+key level timeframe, entry timeframe, original amount risked and signed net P&L.
+These optional narrative values do not create Lab trades or R. Explicitly
+clearing a number persists null; old clients omitting fields preserve them.
+Recorded P&L determines the narrative win/loss/break-even outcome on save.
+Add to Strategy Lab prefills these details for confirmation through the unchanged
+trade builder. Linked fields are server-controlled snapshots from that member's
+Lab record; personal notes stay editable and Journal saves cannot alter Lab
+money or labels. The existing auth/CSRF/cache/backup paths are retained.
+
+Validation: 293 pytest tests passed (5 existing deprecation warnings), 23 Vitest,
+56 full browser checks and production build passed. An added one-click review
+browser check is also run before publishing. No financial core files changed.

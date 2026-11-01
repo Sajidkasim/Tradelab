@@ -16,6 +16,7 @@ export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,
 export default function JournalTradeCards({entry,meta,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId}){
   const choices=meta?.strategies||[];
   const markets=Object.keys(meta?.instruments||{});
+  const labelChoices=(values,current)=>[...new Set(['Not recorded',...(values||[]),current].filter(Boolean))];
   const outcomes=[{value:'win',label:'Win'},{value:'loss',label:'Loss'},{value:'breakeven',label:'Break-even'}];
   return <section className="pj-trades" aria-label="Trades taken today">
     <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{entry.trades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone==='Europe/London'?'UK time':meta?.journal_preferences?.timezone==='Etc/GMT+4'?'fixed UTC−4':'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy||entry.trades.length>=30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
@@ -32,11 +33,22 @@ export default function JournalTradeCards({entry,meta,busy,expanded,setExpanded,
           {trade.strategy&&!choices.includes(trade.strategy)&&<label className="pj-field pj-wide">Strategy name<input aria-label="Strategy name" maxLength={120} value={trade.strategy} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'strategy',e.target.value)}/></label>}
           <Select label="Trade type" value={trade.source} onChange={e=>onChange(trade.id,'source',e.target.value)} values={[{value:'manual',label:'Live'},{value:'backtest',label:'Backtesting'}]} disabled={busy||!!trade.lab_trade_id}/>
         </div>
+        <details className="pj-setup-result" open={(trade.net_pnl!=null||trade.risk_amount!=null||(trade.level&&trade.level!=='Not recorded'))||undefined}>
+          <summary>Setup & result <span>Optional · key level, timeframes and money</span></summary>
+          <div className="pj-trade-fields">
+            <Select label="Key level / PDA" value={trade.level||'Not recorded'} values={labelChoices(meta?.playbook?.levels,trade.level)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'level',e.target.value)}/>
+            <Select label="Key level timeframe" value={trade.timeframe||'Not recorded'} values={labelChoices(meta?.level_timeframes,trade.timeframe)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'timeframe',e.target.value)}/>
+            <Select label="Entry timeframe" value={trade.entry_timeframe||'Not recorded'} values={labelChoices(meta?.entry_timeframes,trade.entry_timeframe)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'entry_timeframe',e.target.value)}/>
+            <label className="pj-field">Amount risked ($)<input type="number" inputMode="decimal" min="0.01" step="any" aria-label="Amount risked ($)" placeholder="e.g. 50" value={trade.risk_amount??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'risk_amount',e.target.value===''?null:Number(e.target.value))}/></label>
+            <label className="pj-field">Profit / loss ($)<input type="number" inputMode="decimal" step="any" aria-label="Profit / loss ($)" placeholder="e.g. 150 or -50" value={trade.net_pnl??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'net_pnl',e.target.value===''?null:Number(e.target.value))}/></label>
+          </div>
+          <p>Key level timeframe is where you found the level; entry timeframe is where you entered. Enter a loss with a minus sign. A recorded result sets Win, Loss or Break-even when saved.</p>
+        </details>
         <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><p>Tick what you saw at entry.</p><div>{Array.from(new Set([...(meta?.confirmations||[]),...(trade.confirmations||[])])).map(value=><label key={value}><input type="checkbox" checked={(trade.confirmations||[]).includes(value)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'confirmations',e.target.checked?[...(trade.confirmations||[]),value]:(trade.confirmations||[]).filter(item=>item!==value))}/>{value}</label>)}</div></fieldset>
         <label className="pj-field">Trade notes<textarea aria-label="Trade notes" maxLength={6000} placeholder="Why I entered, how I managed it, and what happened…" value={trade.notes} disabled={busy} onChange={e=>onChange(trade.id,'notes',e.target.value)}/></label>
         <JournalScreenshots images={entry.images.filter(i=>i.trade_id===trade.id)} allImages={entry.images} day={entry.day} busy={busy} onUpload={file=>onUpload(file,trade.id)} onRemove={onRemoveImage} onView={onView} label={`Upload screenshot for trade ${index+1}`} canUpload={canUpload}/>
         <div className="pj-trade-actions"><button type="button" className="pj-remove" disabled={busy} onClick={()=>onRemove(trade.id)}><Trash2 size={15}/> Remove card</button><div>{trade.lab_trade_id?<><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}>Change link</button></>:<><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy||!trade.symbol||!trade.direction||!trade.strategy.trim()} onClick={()=>onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div></div>
-        <p className="pj-trade-help">{trade.lab_trade_id?'Linked to your Lab record. Keep personal notes here; edit results and setup labels in the Lab.':'Save entry keeps this card in your Journal. Add to Strategy Lab asks for the result and original risk before it affects your statistics.'}</p>
+        <p className="pj-trade-help">{trade.lab_trade_id?'Linked to your Lab record. Keep personal notes here; edit results and setup labels in the Lab.':'Save entry keeps this card in your Journal. Add to Strategy Lab carries your setup, risk and result across for you to check before saving to statistics.'}</p>
       </div>}
     </article>})}</div>
   </section>;

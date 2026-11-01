@@ -8,7 +8,7 @@ import pandas as pd
 from core import importers
 from core.models import Source
 from core.fills_to_trades import pair_fills, root_symbol
-from services import import_flow, trade_labels, fixed_rr, tag_cleanup
+from services import import_flow, trade_labels, fixed_rr, tag_cleanup, import_tag_catalog
 from .workspaces import records
 from . import lab_settings
 from core import edge
@@ -102,7 +102,14 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                 trade.setup_name = str(strategy).strip()
         elif trade.notes.strip():
             original_notes[trade.external_id] = trade.notes
-    mappings = db.get_setting(trade_labels.MAPPING_KEY, {})
+    source_tags = sorted({trade_labels.original_tag(tag) for trade in trades for tag in trade.tags
+                          if not tag.startswith(("edge:", "lab:")) and not fixed_rr.is_internal(tag) and tag != "pnl-only"})
+    catalog = import_tag_catalog.for_database(db)
+    mappings, recognised, unresolved = catalog.resolve_all(source_tags)
+    # Do not let core's legacy bare-confirmation reader silently classify a
+    # cross-category collision such as FVG. Keep the raw tag for review instead.
+    for tag in unresolved:
+        mappings[tag] = {'ignore': True}
     aliases = db.get_setting(tag_cleanup.KEY, {})
     issues = []
     lab_timezone = lab_settings.read(db)['timezone']
@@ -113,10 +120,8 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
         trade.tags, trade.setup_name = canonical['tags'], canonical['setup_name']
         issues.extend(warnings)
         issues.extend(trade_labels.weekday_warnings(trade.tags, mappings, trade.entry_time, lab_timezone))
-    source_tags = sorted({trade_labels.original_tag(tag) for trade in trades for tag in trade.tags
-                          if not tag.startswith(("edge:", "lab:")) and not fixed_rr.is_internal(tag) and tag != "pnl-only"})
-    if any(tag.strip().upper() == '15M' and tag not in mappings for tag in source_tags):
-        issues.append('15M appears in both of your FX Replay timeframe groups. Use Level TF: 15M and Entry TF: 15M to keep them separate; bare 15M remains unassigned.')
+    if any(import_tag_catalog.normal(tag) == '15m' and tag in unresolved for tag in source_tags):
+        issues.append('15M appears in both timeframe lists. Use Key level timeframe: 15m and Entry timeframe: 15m, or choose its meaning once in Import settings.')
     preview = importers.preview(trades, db.existing_external_ids())
     seen = set(db.existing_external_ids())
     for index, trade in enumerate(trades):
@@ -142,6 +147,9 @@ def parse(content, filename, db, account_id, source, timezone, dayfirst, mapping
                     "counts": import_flow.preview_counts(preview, errors),
                     "rows": rows, "coverage": coverage, "_notes": original_notes, "total_rows": len(preview), "errors": errors,
                     "issues": list(dict.fromkeys(issues)),
+                    "recognised_tags": recognised, "unresolved_tags": unresolved,
+                    "tag_questions": [catalog.explain(tag) for tag in unresolved],
+                    "_tag_context": catalog.vocabulary,
                     "suggestions": tag_cleanup.mapping_values({tag: trade_labels.suggested_mapping(tag) for tag in source_tags}, aliases),
                     "tags": source_tags}
 

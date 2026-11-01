@@ -6,7 +6,7 @@ from core import edge
 from . import fixed_rr, weekdays
 
 MAPPING_KEY = 'fx_tag_mappings'
-FIELDS = {'strategy': 'Strategy', 'level': 'Key level / PDA', 'timeframe': 'Level timeframe',
+FIELDS = {'strategy': 'Strategy', 'level': 'Key level / PDA', 'timeframe': 'Key level timeframe',
           'entry_timeframe': 'Entry timeframe', 'confirmation': 'Confirmation',
           'condition': 'Market condition', 'news': 'News', 'target_rr': 'Target RR', 'weekday': 'Day'}
 ORIGINAL_TAG_PREFIX = 'fx-original:'

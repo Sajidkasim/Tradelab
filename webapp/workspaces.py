@@ -115,6 +115,7 @@ class Workspaces:
             db.engine.dispose()
 
     def metadata(self, key):
+        from services import import_tag_catalog
         db = self.database(key)
         frame = self.trades(key)
         lab = lab_settings.read(db)
@@ -137,6 +138,7 @@ class Workspaces:
                       "windows": [item["name"] for item in lab["sessions"]], "lab_settings": lab, "palette": charts.PALETTE,
                       "import_profile": db.get_setting(import_updates.PROFILE_KEY, {}),
                       "tag_mappings": mappings,
+                      "automatic_tags": import_tag_catalog.for_database(db, frame).automatic,
                       "target_rrs": sorted({fixed_rr.ratio(value)[0] for value in trade_labels.mapped_values(mappings, 'target_rr')}),
                       "tag_suggestions": ([] if journal_preferences.read(db)['personal_setup'] else tag_cleanup.mapping_values(trade_labels.fx_tag_guide(), aliases)),
                       **research.catalogue(db, frame)})

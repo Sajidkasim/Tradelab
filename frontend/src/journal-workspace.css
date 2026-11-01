@@ -143,6 +143,8 @@
 @keyframes pj-saved-in{from{opacity:.5;transform:translateY(4px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.pj-trade-card.is-new,.pj-confirmations label,.pj-outcome button>span,.pj-day-feedback .pt-journal-success,.pj-screenshots .pt-image-grid>figure{animation:none!important}.pj-trade-summary,.pj-trade-actions .pt-btn,.pj-trades-heading .pt-btn{transition:none}}
 .pj-delete-entry{display:grid;place-items:center;padding:9px;border:1px solid var(--pt-line);background:transparent;color:var(--pt-muted);border-radius:3px;min-width:39px;min-height:39px}
+.pj-setup-result{margin:0 0 24px;border-block:1px solid var(--pt-line);padding:16px 0}.pj-setup-result>summary{font-size:13px;font-weight:500;cursor:pointer;line-height:1.7}.pj-setup-result>summary>span{font-size:11px;font-weight:400;color:var(--pt-muted);margin-left:8px}.pj-setup-result[open]>summary{margin-bottom:18px}.pj-setup-result>p{font-size:12px;color:var(--pt-muted);line-height:1.7;margin:0}.pj-setup-result .pj-trade-fields{margin-bottom:14px}
+@media(max-width:650px){.pj-setup-result>summary>span{display:block;margin:5px 0 0 15px}}
 .pj-delete-entry:hover{color:var(--pt-rust);border-color:var(--pt-rust)}.pj-delete-entry:disabled{opacity:.35}
 .pj-trash-link{display:flex;align-items:center;gap:9px;padding:15px 0 0;border:0;background:transparent;color:var(--pt-muted);font-size:12px}
 .pj-undo{display:inline-flex;align-items:center;gap:6px;margin-left:14px;padding:4px 9px;border:1px solid currentColor;background:transparent;border-radius:3px;color:inherit;font-size:12px}
