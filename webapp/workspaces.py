@@ -13,7 +13,7 @@ from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
 from services import trade_labels, fixed_rr, weekdays, strategy_catalog, research, review, tag_cleanup
-from . import lab_settings, import_updates, journal_preferences
+from . import lab_settings, import_updates, journal_preferences, release_notes
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
           "All": LIVE_SOURCES + BACKTEST_SOURCES}
@@ -127,7 +127,7 @@ class Workspaces:
             target = book if name in book else lab
             if name in target:
                 target[name] = tag_cleanup.names(target[name], field, aliases)
-        return clean({"journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
+        return clean({"release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
                       "archived_choices": {**strategy_catalog.archived(db, frame), **lab_settings.archived(db, frame)},

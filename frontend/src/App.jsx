@@ -14,6 +14,7 @@ import { Button, Notice, Menu } from "./components";
 import { JournalClock } from "./JournalClock";
 import GuidedTour from "./GuidedTour";
 import Welcome from "./Welcome";
+import ReleaseNotes from "./ReleaseNotes";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
@@ -46,6 +47,11 @@ export default function App() {
     [message, setMessage] = useState("");
   const [importSettingsRequested, setImportSettingsRequested] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [dismissedRelease, setDismissedRelease] = useState(null);
+  useEffect(() => {
+    if (meta?.release_notes && !meta.release_notes.seen && dismissedRelease !== meta.release_notes.version && !meta.journal_preferences?.welcome_pending && meta.journal_preferences?.tour_status !== "pending" && !tourOpen && journalPages.includes(page)) setReleaseOpen(true);
+  }, [meta, dismissedRelease, tourOpen, page]);
   useEffect(() => {
     if (meta?.journal_preferences?.tour_status === "pending" && !meta.journal_preferences.welcome_pending) {
       setPage("results");
@@ -80,6 +86,8 @@ export default function App() {
       setMeta(null);
       setTrades([]);
       setTourOpen(false);
+      setReleaseOpen(false);
+      setDismissedRelease(null);
       setImportSettingsRequested(false);
       setCsrf("");
       api("/session")
@@ -169,6 +177,9 @@ export default function App() {
               </button>
               <button onClick={() => { navigate("results"); setTourOpen(true); }}>
                 <HelpCircle size={16} /> Quick guide
+              </button>
+              <button onClick={() => setReleaseOpen(true)}>
+                <HelpCircle size={16} /> What’s new
               </button>
               <button onClick={() => setBackup(true)}>
                 <Download size={16} /> Backup & restore
@@ -340,6 +351,7 @@ export default function App() {
           {meta.journal_preferences?.welcome_pending && (
             <Welcome refresh={refresh} />
           )}
+          {releaseOpen && !tourOpen && !meta.journal_preferences?.welcome_pending && <ReleaseNotes notes={meta.release_notes} onClose={() => { setReleaseOpen(false); setDismissedRelease(meta.release_notes.version); }} onSeen={async () => { await api("/release-notes/seen", {method:"POST"}); setDismissedRelease(meta.release_notes.version); setReleaseOpen(false); await refresh(); }} />}
           {tourOpen && !meta.journal_preferences?.welcome_pending && <GuidedTour refresh={refresh} onClose={() => setTourOpen(false)} />}
           {labSettings && (
             <LabSettings

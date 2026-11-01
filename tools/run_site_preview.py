@@ -20,6 +20,9 @@ if __name__ == '__main__':
         target = str(Path(folder) / 'preview.db')
         database = Database(target)
         seed(database)
+        from webapp import release_notes
+        if "--release-notes" not in sys.argv:
+            database.set_setting(release_notes.KEY, release_notes.VERSION)
         database.set_setting(journal_preferences.KEY, {'timezone':'Europe/London', 'tour_status':'skipped',
             'tour_version':journal_preferences.TOUR_VERSION})
         for offset in (1, 2, 3):

@@ -14,6 +14,9 @@ with TemporaryDirectory(prefix="primus-browser-tests-") as folder:
     os.environ["PRIMUSLAB_WEB_PREVIEW_DB"] = str(Path(folder) / "test.db")
     database = Database(os.environ["PRIMUSLAB_WEB_PREVIEW_DB"])
     database.init()
+    from webapp import release_notes
+    if not os.environ.get("PRIMUSLAB_TEST_SHOW_RELEASE_NOTES"):
+        database.set_setting(release_notes.KEY, release_notes.VERSION)
     database.set_setting(journal_preferences.KEY, {'tour_status':'skipped', 'tour_version':journal_preferences.TOUR_VERSION})
     database.engine.dispose()
     os.environ["PRIMUSLAB_PUBLIC_URL"] = "http://127.0.0.1:8111"

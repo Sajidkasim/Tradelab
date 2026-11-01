@@ -25,7 +25,7 @@ from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal
+from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 from .google_access import LoginError, AccountBlocked
 
@@ -586,6 +586,13 @@ def create_app(config: Settings | None = None):
             database.set_setting(journal_preferences.KEY, values)
             app.state.workspaces.bump(member['key'])
         return values
+
+    @app.post('/api/release-notes/seen')
+    def acknowledge_release(request: Request, member=Depends(workspace)):
+        with app.state.workspaces.lock:
+            db(request, member).set_setting(release_notes.KEY, release_notes.VERSION)
+            app.state.workspaces.bump(member['key'])
+        return {'version': release_notes.VERSION}
 
     @app.put('/api/tour')
     def save_tour_progress(payload: TourProgress, request: Request, member=Depends(workspace)):

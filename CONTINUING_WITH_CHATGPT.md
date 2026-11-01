@@ -650,3 +650,18 @@ checks). Desktop and phone checks cover automatic prompting, cancellation,
 reopening review, preserving raw tags and redirecting to visible Trades after
 confirmation. Earlier browser expectations were updated for the requested flow.
 Nothing committed, pushed or deployed for this revision.
+
+## Local release announcement — 1 November 2026
+
+Owner requested local only; they will push and deploy. Strategy Lab now shows
+What’s new for the 1 November release to existing members once their welcome /
+tour is finished. Each private workspace records acknowledgement independently
+through a CSRF-protected POST /api/release-notes/seen and cache bump. It is stored
+separately from clock/tour settings. New accounts start with this version already
+acknowledged because their welcome guide introduces the current experience.
+My lab → What’s new always reopens the notes. Content covers automatic import
+tags, review popup/cancel, return to Trades, archives, removal of Classic/missing
+label choices and Journal setup/result detail. No existing trades are modified.
+Local sample preview: tools/run_site_preview.py 8130 --release-notes.
+Validation: 296 pytest passed (5 existing warnings), 23 Vitest passed, production
+build passed; release-note desktop/phone and dismissal/reopen browser checks pass.

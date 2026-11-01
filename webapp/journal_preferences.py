@@ -1,7 +1,7 @@
 """Per-journal clock and first-visit setup. Never changes stored trade times."""
 from copy import deepcopy
 from core import edge
-from . import lab_settings
+from . import lab_settings, release_notes
 
 KEY = 'primuslab_journal_preferences'
 TOUR_VERSION = 1
@@ -21,6 +21,8 @@ def read(database):
 
 
 def fresh(database):
+    # New members already start on this release; the welcome guide introduces it.
+    database.set_setting(release_notes.KEY, release_notes.VERSION)
     database.set_setting(edge.PLAYBOOK_KEY, {'strategies': [], 'levels': []})
     settings = deepcopy(lab_settings.DEFAULTS)
     settings['confirmations'] = []
