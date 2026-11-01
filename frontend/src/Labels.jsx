@@ -1,6 +1,7 @@
 import React from "react";
 import { Select, Checkboxes, Disclosure } from "./components";
 import { unknown } from "./format";
+import VocabularySelect from './VocabularySelect';
 
 export default function Labels({ value, onChange, meta }) {
   const change = (key, next) => onChange({ ...value, [key]: next });
@@ -10,29 +11,26 @@ export default function Labels({ value, onChange, meta }) {
   return (
     <>
       <div className="form-grid">
-        <Select
+        <VocabularySelect
           label="Key level / PDA"
-          values={options(meta.playbook.levels, value.level)}
-          value={value.level || unknown}
-          onChange={(e) => change("level", e.target.value)}
+          values={[{value:'',label:'Choose a key level'},...meta.playbook.levels]}
+          archived={[...(meta.archived_choices?.levels||[]),...(!meta.playbook.levels.includes(value.level)?[value.level]:[])]}
+          value={value.level === unknown ? '' : value.level || ''}
+          onChange={(e) => change("level", e.target.value || unknown)}
         />
-        <Select
+        <VocabularySelect
           label="Key level timeframe"
-          values={options(
-            meta.level_timeframes || meta.timeframes,
-            value.timeframe,
-          )}
-          value={value.timeframe}
-          onChange={(e) => change("timeframe", e.target.value)}
+          values={[{value:'',label:'Choose a timeframe'},...(meta.level_timeframes || meta.timeframes)]}
+          archived={[...(meta.archived_choices?.level_timeframes||[]),value.timeframe]}
+          value={value.timeframe === unknown ? '' : value.timeframe || ''}
+          onChange={(e) => change("timeframe", e.target.value || unknown)}
         />
-        <Select
+        <VocabularySelect
           label="Entry timeframe"
-          values={options(
-            meta.entry_timeframes || meta.timeframes,
-            value.entry_timeframe,
-          )}
-          value={value.entry_timeframe}
-          onChange={(e) => change("entry_timeframe", e.target.value)}
+          values={[{value:'',label:'Choose a timeframe'},...(meta.entry_timeframes || meta.timeframes)]}
+          archived={[...(meta.archived_choices?.entry_timeframes||[]),value.entry_timeframe]}
+          value={value.entry_timeframe === unknown ? '' : value.entry_timeframe || ''}
+          onChange={(e) => change("entry_timeframe", e.target.value || unknown)}
         />
       </div>
       <div className="field">

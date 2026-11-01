@@ -35,12 +35,6 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(42, 45, 48)');
   await page.screenshot({path:info.outputPath('primus-lab-dark.png'),fullPage:true});
   await page.getByRole('button',{name:'My lab',exact:true}).click();
-  await page.getByRole('button',{name:'Classic',exact:true}).click();
-  await expect(page.locator('html')).toHaveAttribute('data-appearance','classic');
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-  await page.getByRole('button',{name:'My lab',exact:true}).click();
-  await page.getByRole('button',{name:'Modern',exact:true}).click();
-  await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'Open navigation',exact:true}).click();

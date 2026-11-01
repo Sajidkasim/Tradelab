@@ -46,10 +46,9 @@ test('a new user gets an optional five-step tour after welcome and can replay it
   await expect(tour).toHaveCount(0);
 });
 
-for(const appearance of ['Modern','Classic']){
+for(const appearance of ['Modern']){
   test(`${appearance}: guide fits narrow phones and desktops and can be skipped`,async({page},testInfo)=>{
     await page.goto('/');
-    await page.getByRole('button',{name:appearance,exact:true}).click();
     for(const width of [320,1440]){
       await page.setViewportSize({width,height:900});
       await page.getByRole('button',{name:'My lab',exact:true}).click();

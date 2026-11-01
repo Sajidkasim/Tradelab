@@ -127,6 +127,6 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
-  useEffect(()=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.appearance='modern';localStorage.setItem('primus-theme',theme)},[theme]);
+  useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
   return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname.startsWith('/journal')?<JournalPage/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

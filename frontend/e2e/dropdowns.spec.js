@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-test("Classic menus share retro styling, keyboard selection and viewport-safe placement", async ({ page }, testInfo) => {
+test("Menus share theme styling, keyboard selection and viewport-safe placement", async ({ page }, testInfo) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Classic", exact: true }).click();
   await expect(page.locator(".content select")).toHaveCount(0);
   const explorer = page.locator(".explorer");
   for (const label of ["Strategy", "Key level timeframe", "Entry timeframe", "Target RR", "Day"]) {
@@ -12,7 +11,7 @@ test("Classic menus share retro styling, keyboard selection and viewport-safe pl
     await expect(menu).toBeVisible();
     const triggerBox = await control.boundingBox();
     await expect.poll(async () => Math.abs((await menu.boundingBox()).width - Math.max(180, triggerBox.width))).toBeLessThan(2);
-    expect(await menu.evaluate((el) => getComputedStyle(el).borderRadius)).toBe("0px");
+    expect(await menu.evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Inter");
     const box = await menu.boundingBox();
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.y + box.height).toBeLessThanOrEqual(1000);

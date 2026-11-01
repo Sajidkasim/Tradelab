@@ -28,6 +28,12 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         i === index ? { ...session, [key]: value } : session,
       ),
     }));
+  function archiveList(key,current,onRestore) {
+    const title={strategies:'strategies',levels:'key levels',confirmations:'confirmations',level_timeframes:'key level timeframes',entry_timeframes:'entry timeframes'}[key];
+    const active=current.split('\n').map(value=>value.trim());
+    const removed=(meta.archived_choices?.[key]||[]).filter(value=>!active.includes(value));
+    return removed.length ? <details className="disclosure"><summary>Archived {title} · {removed.length}</summary><div className="stack"><p>These stay on older trades. Restore a choice to add it back to the active list, then save your settings.</p>{removed.map(value=><div className="archive-row" key={value}><span>{value}</span><Button type="button" onClick={()=>onRestore([...active.filter(Boolean),value].join('\n'))}>Restore {value}</Button></div>)}</div></details> : null;
+  }
   async function save(event) {
     event.preventDefault();
     setBusy(true);
@@ -116,6 +122,8 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
               <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
               <Field label="Key levels / PDA" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
             </div>
+            {archiveList('strategies',strategies,setStrategies)}
+            {archiveList('levels',levels,setLevels)}
             <small className="muted">Changing a list keeps existing trade labels. Use Clean up tags when you want to merge or rename labels already saved on trades.</small>
           </div>
         )}
@@ -141,6 +149,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
                 }
               />
             </Field>
+            {archiveList('confirmations',labels.confirmations,value=>setLabels({...labels,confirmations:value}))}
             <div className="form-grid two">
               <Field
                 label="Key level timeframes"
@@ -167,10 +176,12 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
                 />
               </Field>
             </div>
+            {archiveList('level_timeframes',labels.level_timeframes,value=>setLabels({...labels,level_timeframes:value}))}
+            {archiveList('entry_timeframes',labels.entry_timeframes,value=>setLabels({...labels,entry_timeframes:value}))}
             <small className="muted">
               Every saved choice is recognised on import automatically. If the same
               timeframe is in both lists, use CSV tags such as Key level timeframe: 15m
-              and Entry timeframe: 15m. Not recorded is provided automatically.
+              and Entry timeframe: 15m. Missing labels can be left blank.
             </small>
           </div>
         )}

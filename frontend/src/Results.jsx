@@ -5,7 +5,8 @@ import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import LabHistory from "./LabHistory";
 import SavedSetups from "./SavedSetups";
-import { SearchSelect, FilterChips } from "./ExploreControls";
+import { FilterChips } from "./ExploreControls";
+import VocabularySelect from './VocabularySelect';
 import {
   Button,
   Select,
@@ -72,15 +73,15 @@ export default function Results({
   useEffect(() => {
     setFilters((current) => {
       const next = { ...current };
+      if (current.level !== 'Any level' && !meta.playbook.levels.includes(current.level))
+        next.level = 'Any level';
       if (
         current.timeframe !== "Any timeframe" &&
-        current.timeframe !== unknown &&
         !meta.level_timeframes.includes(current.timeframe)
       )
         next.timeframe = "Any timeframe";
       if (
         current.entry_timeframe !== "Any timeframe" &&
-        current.entry_timeframe !== unknown &&
         !meta.entry_timeframes.includes(current.entry_timeframe)
       )
         next.entry_timeframe = "Any timeframe";
@@ -89,7 +90,6 @@ export default function Results({
       );
       if (
         current.strategy !== "All strategies" &&
-        current.strategy !== "Unclassified" &&
         !meta.strategies.includes(current.strategy)
       )
         next.strategy = "All strategies";
@@ -105,7 +105,7 @@ export default function Results({
         next.symbol = "All markets";
       return next.window === current.window &&
         next.symbol === current.symbol &&
-        next.strategy === current.strategy &&
+        next.strategy === current.strategy && next.level === current.level &&
         next.timeframe === current.timeframe &&
         next.entry_timeframe === current.entry_timeframe &&
         next.confirmations.length === current.confirmations.length
@@ -115,6 +115,8 @@ export default function Results({
   }, [
     meta.windows,
     meta.strategies,
+    meta.playbook.levels,
+    meta.archived_choices,
     meta.confirmations,
     meta.level_timeframes,
     meta.entry_timeframes,
@@ -215,10 +217,11 @@ export default function Results({
               setScope(saved.scope || scope);
             }}
           />
-          <Select
+          <VocabularySelect
             data-tour="explore"
             label="Strategy"
-            values={["All strategies", ...meta.strategies, "Unclassified"]}
+            values={["All strategies", ...meta.strategies]}
+            archived={meta.archived_choices?.strategies}
             value={filters.strategy}
             onChange={(e) => change("strategy", e.target.value)}
           />
@@ -234,31 +237,29 @@ export default function Results({
               onChange={(v) => change("direction", v)}
             />
           </div>
-          <SearchSelect
+          <VocabularySelect searchable
             label="Key level / PDA"
-            values={values(
-              ["Any level", ...meta.playbook.levels, unknown],
-              "level",
-            )}
+            values={["Any level", ...meta.playbook.levels]}
+            archived={meta.archived_choices?.levels}
             value={filters.level}
             onChange={(e) => change("level", e.target.value)}
           />
-          <Select
+          <VocabularySelect
             label="Key level timeframe"
+            archived={meta.archived_choices?.level_timeframes}
             values={[
               { value: "Any timeframe", label: "Any" },
               ...meta.level_timeframes,
-              unknown,
             ]}
             value={filters.timeframe}
             onChange={(e) => change("timeframe", e.target.value)}
           />
-          <Select
+          <VocabularySelect
             label="Entry timeframe"
+            archived={meta.archived_choices?.entry_timeframes}
             values={[
               { value: "Any timeframe", label: "Any" },
               ...meta.entry_timeframes,
-              unknown,
             ]}
             value={filters.entry_timeframe}
             onChange={(e) => change("entry_timeframe", e.target.value)}

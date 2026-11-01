@@ -1,9 +1,8 @@
 import {test, expect} from '@playwright/test';
 
-for(const appearance of ['Modern','Classic']) {
+for(const appearance of ['Modern']) {
   test(`${appearance}: My lab opens Import settings and preserves an active CSV preview`, async({page})=>{
     await page.goto('/');
-    await page.getByRole('button',{name:appearance,exact:true}).click();
     async function openFromMenu(){
       await page.getByRole('button',{name:'My lab',exact:true}).click();
       await page.locator('.workspace-menu').getByRole('button',{name:'Import settings',exact:true}).click();

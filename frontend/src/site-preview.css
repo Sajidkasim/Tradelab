@@ -305,7 +305,7 @@
 .pt-header-signout:hover{text-decoration:underline}
 .pt-private-entrance{min-height:calc(100dvh - 90px);padding-block:48px}
 .pt-private-entrance .login-shell{max-width:1100px}
-.pt-private-entrance .login-appearance{display:none}
+
 .pt-private-entrance .login-form h1{font-size:clamp(28px,3vw,39px);line-height:1.15}
 .pt-entrance-paper{margin:10px 28px 20px;padding:24px;background:#fffef9;color:#26352c;border-radius:3px;transform:rotate(-1deg)}
 .pt-entrance-paper>span{font-size:9px;letter-spacing:1.5px}.pt-entrance-paper>div{margin-top:22px;font:17px Georgia,serif}.pt-entrance-paper i{display:block;border-bottom:1px solid #dedfd3;margin-top:12px}.pt-entrance-paper i:last-child{width:75%}.pt-entrance-paper small{display:block;font-size:9px;color:#69766b;margin-top:20px}

@@ -76,7 +76,7 @@ export default function JournalPage(){
   const linkChoices=[...dayLabTrades,...labTrades.filter(trade=>!dayLabTrades.some(other=>other.id===trade.id))];
   if(!identity||(identity.authenticated&&!meta))return <div className="pt-journal"><PrimusHeader active="journal"/><main className="pt-journal-loading">{error?<><p role="alert">{error}</p><button className="pt-btn" onClick={boot}>Try again</button></>:'Opening your private Journal…'}</main></div>;
   const entrancePreview=localSitePreview()&&new URLSearchParams(location.search).get('preview')==='signin';
-  if(!identity.authenticated||entrancePreview)return <><PrimusHeader active="journal"/><Unlock workspace="journal" ready={!entrancePreview&&Boolean(identity.csrf)} authMode={entrancePreview?'google':identity.auth_mode} appearance="modern" onAppearanceChange={()=>{}} onUnlocked={boot}/></>;
+  if(!identity.authenticated||entrancePreview)return <><PrimusHeader active="journal"/><Unlock workspace="journal" ready={!entrancePreview&&Boolean(identity.csrf)} authMode={entrancePreview?'google':identity.auth_mode} onUnlocked={boot}/></>;
   return <div className="pt-journal pj-workspace">
     <PrimusHeader active="journal"/>
     <main className="pt-wrap pt-journal-main">

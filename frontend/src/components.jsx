@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState, useId, useContext } from "react";
-import { AppearanceContext } from "./Appearance";
+import React, { useEffect, useRef, useState, useId } from "react";
 import StyledSelect from "./StyledSelect";
 import { X, ArrowRight, ChevronDown, Check } from "lucide-react";
 
@@ -208,7 +207,6 @@ export function Modal({ title, children, onClose, className = "", closable = tru
 }
 
 export function Chart({ figure, height = 380 }) {
-  const appearance = useContext(AppearanceContext);
   const ref = useRef();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -237,17 +235,6 @@ export function Chart({ figure, height = 380 }) {
               }
             : trace,
         );
-        const classic = appearance === "classic";
-        const classicStyle = getComputedStyle(document.documentElement);
-        const classicLine = classicStyle.getPropertyValue("--classic-burgundy").trim();
-        const classicGrid = classicStyle.getPropertyValue("--classic-grid").trim();
-        if (classic) displayData = displayData.map((trace, index) => ({
-          ...trace,
-          line: { ...trace.line, color: index === 0 ? classicLine : classicGrid, width: 2 },
-          fill: "none",
-          fillgradient: undefined,
-          marker: { ...trace.marker, color: classicLine },
-        }));
         const dateAxes = singleDate
           ? Object.fromEntries(
               Object.entries(figure.layout)
@@ -271,14 +258,6 @@ export function Chart({ figure, height = 380 }) {
               {
                 ...figure.layout,
                 ...dateAxes,
-                ...(classic ? {
-                  font: { family: "Arial, Helvetica, sans-serif", color: classicStyle.getPropertyValue("--tl-ink").trim(), size: 11 },
-                  paper_bgcolor: "rgba(0,0,0,0)",
-                  plot_bgcolor: classicStyle.getPropertyValue("--classic-market").trim(),
-                  ...Object.fromEntries(Object.entries({...figure.layout, ...dateAxes})
-                    .filter(([name]) => /^[xy]axis\d*$/.test(name))
-                    .map(([name, axis]) => [name, {...axis, showgrid: true, gridcolor: classicGrid, tickfont: {family: "Arial", color: classicStyle.getPropertyValue("--tl-ink").trim(), size: 11}}])),
-                } : {}),
                 autosize: false,
                 width: Math.max(1, ref.current.clientWidth),
                 height,
@@ -303,7 +282,7 @@ export function Chart({ figure, height = 380 }) {
       observer.disconnect();
       if (plotly && element) plotly.purge(element);
     };
-  }, [figure, height, appearance]);
+  }, [figure, height]);
   return (
     <>
       {error && <Notice error>{error}</Notice>}

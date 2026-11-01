@@ -1,9 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-for (const appearance of ["Modern", "Classic"]) {
+for (const appearance of ["Modern"]) {
   test(`${appearance}: strategy lists live in the larger Lab settings window`, async ({ page }, testInfo) => {
     await page.goto("/");
-    await page.getByRole("button", { name: appearance, exact: true }).click();
     await page.getByRole("button", { name: "Manage trades", exact: true }).click();
     await expect(page.getByRole("button", { name: "Edit strategies & levels", exact: true })).toHaveCount(0);
     await page.getByRole("heading", { name: "Trades", exact: true }).click();

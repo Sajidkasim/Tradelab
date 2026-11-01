@@ -130,6 +130,7 @@ class Workspaces:
         return clean({"journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
+                      "archived_choices": {**strategy_catalog.archived(db, frame), **lab_settings.archived(db, frame)},
                       "timeframes": list(dict.fromkeys(lab['level_timeframes'] + lab['entry_timeframes'])),
                       "level_timeframes": lab['level_timeframes'], "entry_timeframes": lab['entry_timeframes'],
                       "confirmations": lab['confirmations'],

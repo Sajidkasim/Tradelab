@@ -33,6 +33,7 @@ export default function TradeForm({
   journalOrigin,
   initialEntryTime,
 }) {
+  const [showArchivedStrategies,setShowArchivedStrategies]=useState(false);
   const { timezone: journalZone, clockName } = useJournalClock();
   const formRef = useRef();
   const [originalRisk, setOriginalRisk] = useState(
@@ -236,11 +237,12 @@ export default function TradeForm({
           required={!trade}
         />
         <datalist id="strategies">
-          {meta.strategies.map((v) => (
+          {[...new Set([...meta.strategies,...(showArchivedStrategies ? meta.archived_choices?.strategies||[] : [])])].map((v) => (
             <option key={v} value={v} />
           ))}
         </datalist>
       </Field>
+      {!!meta.archived_choices?.strategies?.length&&<button type="button" className="archive-toggle" onClick={()=>setShowArchivedStrategies(!showArchivedStrategies)}>{showArchivedStrategies?'Hide archived':'Show archived'} strategies · {meta.archived_choices.strategies.length}</button>}
       {!trade && (
         <div className="field">
           <span>Direction</span>

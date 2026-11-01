@@ -1280,13 +1280,11 @@ test("strategy editor matches Explore and removed choices do not return after re
   await expect(await options(strategy)).toHaveText([
     "All strategies",
     ...active,
-    "Unclassified",
   ]);
   await page.reload();
   await expect(await options(strategy)).toHaveText([
     "All strategies",
     ...active,
-    "Unclassified",
   ]);
   await pick(strategy, "Browser setup");
   await page.getByRole("button", { name: "My lab", exact: true }).click();
@@ -1348,10 +1346,10 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await expect(explorer.getByLabel("CISD", { exact: true })).toHaveCount(0);
   await expect(
     await options(explorer.getByLabel("Key level timeframe", { exact: true })),
-  ).toHaveText(["Any", "Daily", "2H", "Not recorded"]);
+  ).toHaveText(["Any", "Daily", "2H"]);
   await expect(
     await options(explorer.getByLabel("Entry timeframe", { exact: true })),
-  ).toHaveText(["Any", "1m", "30s", "Not recorded"]);
+  ).toHaveText(["Any", "1m", "30s"]);
   await page.reload();
   dialog = await settings();
   await expectValue(

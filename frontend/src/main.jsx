@@ -4,7 +4,6 @@ import App from "./App";
 import SiteExperience, { sitePreview } from './SiteExperience';
 import "./theme.css";
 import "./styles.css";
-import "./classic.css";
 import "./responsive.css";
 import "./lab-preview.css";
 

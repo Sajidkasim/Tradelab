@@ -97,7 +97,7 @@ def choices(database, frame, mappings=None):
         removed = hidden.get(key, [])
         removed = {value for value in removed if isinstance(value, str)} if isinstance(removed, list) else set()
         candidates = settings[key] + trade_labels.mapped_values(mappings, field) + used
-        result[key] = list(dict.fromkeys(value for value in candidates if value and value != edge.UNKNOWN and value not in removed))
+        result[key] = list(dict.fromkeys(value for value in candidates if value and value.strip().casefold() not in ('not recorded','unclassified') and value not in removed))
     return result
 
 
@@ -117,6 +117,17 @@ def save(database, frame, payload):
         hidden[key] = sorted(removed)
     database.set_setting(KEY, {**values, 'hidden_choices': hidden})
     return values
+
+
+def archived(database, frame):
+    from services.strategy_catalog import real_choice
+    settings = database.get_setting(KEY, {}) or {}
+    settings = settings if isinstance(settings, dict) else {}
+    hidden = settings.get('hidden_choices', {})
+    hidden = hidden if isinstance(hidden, dict) else {}
+    active = choices(database, frame)
+    return {key:sorted({value for value in hidden.get(key, []) if real_choice(value)} - set(active[key]))
+            for key in CHOICE_FIELDS}
 
 
 def session_of(stamp, settings):

@@ -61,8 +61,7 @@ test("Primus entrance stays usable on mobile and with either journal theme", asy
   ).toBeVisible();
   const openJournal = page.getByRole("button", { name: "Open my lab" });
   await expect(openJournal).toBeEnabled();
-  await page.getByRole("button", { name: "Classic", exact: true }).focus();
-  await page.keyboard.press("Tab");
+  await page.getByLabel("Lab password", {exact:true}).focus();
   await expect(
     page.getByLabel("Lab password", { exact: true }),
   ).toBeFocused();

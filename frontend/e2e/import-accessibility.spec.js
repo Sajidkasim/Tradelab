@@ -27,8 +27,7 @@ test('large previews keep import reachable, paginate, and safely skip duplicates
     await reachable();
     await page.getByRole('navigation', { name: 'Preview pages' }).getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByRole('navigation', { name: 'Preview pages' })).toContainText('21–40');
-    for (const appearance of ['Modern', 'Modern dark', 'Classic']) {
-      await page.getByRole('button', { name: appearance === 'Modern dark' ? 'Modern' : appearance, exact: true }).click();
+    for (const appearance of ['Modern', 'Modern dark']) {
       if (appearance === 'Modern dark') {
         await page.getByRole('button', { name: 'My lab', exact: true }).click();
         await page.getByRole('button', { name: 'Dark mode', exact: true }).click();
@@ -43,7 +42,6 @@ test('large previews keep import reachable, paginate, and safely skip duplicates
         await page.screenshot({ path: testInfo.outputPath(`${appearance}-${width}-import.png`) });
       }
     }
-    await expect(page.getByRole('navigation', { name: 'Classic navigation' }).getByRole('button', { name: 'Trades', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Import 45 trades', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Confirm import', exact: true }).click();
     await expect(page.getByRole('heading', { name: '45 trades added', exact: true })).toBeVisible();

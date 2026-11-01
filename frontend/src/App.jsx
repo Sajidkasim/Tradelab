@@ -24,18 +24,12 @@ import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
 import compassLogo from "../../assets/primus-compass.png";
 import { labHref, journalPage } from "./paths";
-import { AppearanceContext, AppearanceSwitch } from "./Appearance";
 import { sitePreview, localSitePreview, PrimusHeader } from './SiteExperience';
 
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () => journalPage(location.pathname, location.hash);
 
 export default function App() {
-  const [appearance, setAppearance] = useState(() =>
-    localStorage.getItem("primus-appearance") === "classic"
-      ? "classic"
-      : "modern",
-  );
   const [session, setSession] = useState(null),
     [meta, setMeta] = useState(null),
     [trades, setTrades] = useState([]),
@@ -99,12 +93,11 @@ export default function App() {
     return () => window.removeEventListener("primus:logout", clear);
   }, []);
   useEffect(() => {
-    document.documentElement.dataset.theme =
-      appearance === "classic" ? "light" : mode;
-    document.documentElement.dataset.appearance = appearance;
+    document.documentElement.dataset.theme = mode;
+    delete document.documentElement.dataset.appearance;
     localStorage.setItem("primus-theme", mode);
-    localStorage.setItem("primus-appearance", appearance);
-  }, [mode, appearance]);
+    localStorage.removeItem("primus-appearance");
+  }, [mode]);
   useEffect(() => {
     if (!session?.authenticated || session.auth_mode !== "google") return;
     const report = () => {
@@ -165,7 +158,6 @@ export default function App() {
                     : "Private workspace"}
                 </small>
               </div>
-              {sitePreview() && <div className="pt-lab-appearance"><span>LAB APPEARANCE</span><AppearanceSwitch value={appearance} onChange={setAppearance}/></div>}
               <button onClick={() => setLabSettings(true)}>
                 <Settings2 size={16} /> Lab settings
               </button>
@@ -188,7 +180,6 @@ export default function App() {
               )}
               <button
                 onClick={() => {
-                  setAppearance("modern");
                   setMode(mode === "light" ? "dark" : "light");
                 }}
               >
@@ -230,22 +221,19 @@ export default function App() {
   const entrancePreview=localSitePreview() && new URLSearchParams(location.search).get('preview')==='signin';
   if (!session.authenticated || entrancePreview)
     return (
-      <>{sitePreview()&&<PrimusHeader active="lab" theme={appearance==='classic'?'light':mode} onThemeToggle={()=>{setAppearance("modern");setMode(appearance==='classic'||mode!=='dark'?'dark':'light')}}/>}<Unlock
+      <>{sitePreview()&&<PrimusHeader active="lab" theme={mode} onThemeToggle={()=>setMode(mode==='dark'?'light':'dark')}/>}<Unlock
         workspace={sitePreview()?"lab":undefined}
-        appearance={appearance}
-        onAppearanceChange={setAppearance}
         ready={!entrancePreview&&Boolean(session.csrf)}
         onUnlocked={boot}
         authMode={entrancePreview?"google":session.auth_mode}
       /></>
     );
   return (
-    <AppearanceContext.Provider value={appearance}>
       <JournalClock.Provider
         value={meta.journal_preferences?.timezone || "America/New_York"}
       >
         <div className={`app-shell ${sitePreview() ? "pt-lab" : ""}`}>
-          {sitePreview() ? <PrimusHeader active="lab" actions={workspaceMenu} theme={appearance==='classic'?'light':mode} onThemeToggle={()=>{setAppearance("modern");setMode(appearance==='classic'||mode!=='dark'?'dark':'light')}}/> : <header className="site-header">
+          {sitePreview() ? <PrimusHeader active="lab" actions={workspaceMenu} theme={mode} onThemeToggle={()=>setMode(mode==='dark'?'light':'dark')}/> : <header className="site-header">
             <a
               href={labHref()}
               className="brand"
@@ -270,19 +258,8 @@ export default function App() {
                 Strategy Lab
               </a>
             </nav>
-            <AppearanceSwitch value={appearance} onChange={setAppearance} />
             {workspaceMenu}
           </header>}
-          {appearance === "classic" && (
-            <nav className="classic-nav" aria-label="Classic navigation">
-              <strong>RESEARCH DESK</strong>
-              <button onClick={() => navigate("results")}>Results</button>
-              <button onClick={() => navigate("trades")}>Trades</button>
-              <button onClick={() => navigate("import")}>Import</button>
-              <button onClick={() => setLabSettings(true)}>Lab settings</button>
-              <span>PRIVATE STRATEGY TESTER · CLASSIC EDITION</span>
-            </nav>
-          )}
           <div className="main-shell">
             <main className="content">
               {session.local && (
@@ -316,7 +293,7 @@ export default function App() {
                     meta={meta}
                     trades={trades}
                     revision={revision}
-                    mode={appearance === "classic" ? "light" : mode}
+                    mode={mode}
                     scope={scope}
                     setScope={setScope}
                     refresh={refresh}
@@ -355,21 +332,6 @@ export default function App() {
               )}
             </main>
           </div>
-          {appearance === "classic" && (
-            <footer className="classic-footer">
-              <span>PrimusLab · Personal trading research</span>
-              <span>Classic edition</span>
-              <a
-                href="#"
-                onClick={(event) => {
-                  event.preventDefault();
-                  window.scrollTo({ top: 0 });
-                }}
-              >
-                Back to top ↑
-              </a>
-            </footer>
-          )}
           {message && (
             <div className="toast" role="status">
               {message}
@@ -400,6 +362,5 @@ export default function App() {
           )}
         </div>
       </JournalClock.Provider>
-    </AppearanceContext.Provider>
   );
 }

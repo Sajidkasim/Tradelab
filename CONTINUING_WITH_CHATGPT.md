@@ -604,3 +604,30 @@ money or labels. The existing auth/CSRF/cache/backup paths are retained.
 Validation: 293 pytest tests passed (5 existing deprecation warnings), 23 Vitest,
 56 full browser checks and production build passed. An added one-click review
 browser check is also run before publishing. No financial core files changed.
+
+## One appearance and archived vocabulary — 1 November 2026
+
+Owner requested removal of Classic from the code. Its stylesheet, cursor assets,
+appearance component, header/footer and chart branches are removed. Only the
+existing light/dark interface remains; old appearance preferences are cleared.
+The raw stylesheet is about 28 KB smaller (about 4 KB smaller gzipped); this is
+a bundle-size measurement, not evidence that backend latency was caused by Classic.
+
+Removed strategies, key levels and timeframe choices are returned separately in
+private metadata.archived_choices. Strategies retain hidden_strategies; levels
+now retain hidden_levels, and timeframes use existing hidden_choices. Legacy
+levels still present only on historical trades are discoverable in the archive.
+Default dropdowns exclude archived choices and the missing-label sentinels
+Unclassified/Not recorded. Optional fields have a blank Choose placeholder; their
+internal annotation keys/defaults are unchanged. All results still include
+unlabelled trades. Historical trades and financial formulas are never rewritten.
+
+Show archived beside a dropdown makes old labels selectable for exploration;
+it does not reactivate them. Lab settings exposes named archives with Restore,
+which adds a choice back to the editor for its normal explicit Save. Existing
+trade reviews retain their saved values. Removing an active filter's choice
+resets that filter to All/Any. The owner requested continuation of the live release.
+Validation: 295 pytest tests passed (5 existing warnings), 23 frontend unit tests,
+51 existing browser checks plus the new archive restore check passed. Updated
+Journal dropdowns and retired-preference handling were also rechecked after the
+final build. No database records or financial core files were changed for rollout.

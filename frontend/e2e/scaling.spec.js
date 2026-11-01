@@ -13,7 +13,7 @@ test.afterEach(async ({ page }) => {
   }
 });
 
-for (const appearance of ["modern-light", "modern-dark", "classic"]) {
+for (const appearance of ["modern-light", "modern-dark"]) {
   test(`${appearance}: readable layouts from small phones to wide desktops`, async ({ page }, testInfo) => {
     test.setTimeout(60000);
     const failures = [];
@@ -32,7 +32,6 @@ for (const appearance of ["modern-light", "modern-dark", "classic"]) {
     });
     expect(inserted.ok()).toBe(true);
     await page.reload();
-    if (appearance === "classic") await page.getByRole("button", { name: "Classic", exact: true }).click();
     if (appearance === "modern-dark") {
       await page.getByRole("button", { name: "My lab", exact: true }).click();
       await page.getByRole("button", { name: "Dark mode", exact: true }).click();
@@ -70,10 +69,9 @@ for (const appearance of ["modern-light", "modern-dark", "classic"]) {
   });
 }
 
-for (const appearance of ["Modern", "Classic"]) {
+for (const appearance of ["Modern"]) {
   test(`${appearance}: Google entrance fits phones and desktops`, async ({ page }) => {
     await page.goto("http://127.0.0.1:8114/");
-    await page.getByRole("button", { name: appearance, exact: true }).click();
     for (const width of [320, 390, 768, 1440, 2560]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

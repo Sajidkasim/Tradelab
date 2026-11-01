@@ -1,6 +1,7 @@
 import React, {useRef} from 'react';
 import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical} from 'lucide-react';
 import {Select} from './components';
+import VocabularySelect from './VocabularySelect';
 
 export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,onView,label='Upload screenshot',canUpload=true}){
   const input=useRef();
@@ -16,7 +17,6 @@ export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,
 export default function JournalTradeCards({entry,meta,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId}){
   const choices=meta?.strategies||[];
   const markets=Object.keys(meta?.instruments||{});
-  const labelChoices=(values,current)=>[...new Set(['Not recorded',...(values||[]),current].filter(Boolean))];
   const outcomes=[{value:'win',label:'Win'},{value:'loss',label:'Loss'},{value:'breakeven',label:'Break-even'}];
   return <section className="pj-trades" aria-label="Trades taken today">
     <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{entry.trades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone==='Europe/London'?'UK time':meta?.journal_preferences?.timezone==='Etc/GMT+4'?'fixed UTC−4':'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy||entry.trades.length>=30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
@@ -28,17 +28,17 @@ export default function JournalTradeCards({entry,meta,busy,expanded,setExpanded,
         <div className="pj-trade-fields">
           <Select label="Market" value={trade.symbol} onChange={e=>onChange(trade.id,'symbol',e.target.value)} values={[{value:'',label:'Choose market'},...Array.from(new Set([...markets,trade.symbol].filter(Boolean))).map(value=>({value,label:value}))]} disabled={busy||!!trade.lab_trade_id}/>
           <Select label="Buy or sell" value={trade.direction} onChange={e=>onChange(trade.id,'direction',e.target.value)} values={[{value:'',label:'Choose direction'},{value:'long',label:'Buy'},{value:'short',label:'Sell'}]} disabled={busy||!!trade.lab_trade_id}/>
-          <Select label="Strategy" value={choices.includes(trade.strategy)?trade.strategy:trade.strategy?'__custom':''} onChange={e=>onChange(trade.id,'strategy',e.target.value==='__custom'?'New strategy':e.target.value)} values={[{value:'',label:'Choose strategy'},...choices.map(value=>({value,label:value})),{value:'__custom',label:'Other strategy…'}]} disabled={busy||!!trade.lab_trade_id}/>
+          <VocabularySelect archived={meta?.archived_choices?.strategies} label="Strategy" value={[...choices,...(meta?.archived_choices?.strategies||[])].includes(trade.strategy)?trade.strategy:trade.strategy?'__custom':''} onChange={e=>onChange(trade.id,'strategy',e.target.value==='__custom'?'New strategy':e.target.value)} values={[{value:'',label:'Choose strategy'},...choices.map(value=>({value,label:value})),{value:'__custom',label:'Other strategy…'}]} disabled={busy||!!trade.lab_trade_id}/>
           <label className="pj-field">Entry time <input type="time" aria-label="Entry time" value={trade.time} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'time',e.target.value)}/></label>
-          {trade.strategy&&!choices.includes(trade.strategy)&&<label className="pj-field pj-wide">Strategy name<input aria-label="Strategy name" maxLength={120} value={trade.strategy} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'strategy',e.target.value)}/></label>}
+          {trade.strategy&&![...choices,...(meta?.archived_choices?.strategies||[])].includes(trade.strategy)&&<label className="pj-field pj-wide">Strategy name<input aria-label="Strategy name" maxLength={120} value={trade.strategy} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'strategy',e.target.value)}/></label>}
           <Select label="Trade type" value={trade.source} onChange={e=>onChange(trade.id,'source',e.target.value)} values={[{value:'manual',label:'Live'},{value:'backtest',label:'Backtesting'}]} disabled={busy||!!trade.lab_trade_id}/>
         </div>
         <details className="pj-setup-result" open={(trade.net_pnl!=null||trade.risk_amount!=null||(trade.level&&trade.level!=='Not recorded'))||undefined}>
           <summary>Setup & result <span>Optional · key level, timeframes and money</span></summary>
           <div className="pj-trade-fields">
-            <Select label="Key level / PDA" value={trade.level||'Not recorded'} values={labelChoices(meta?.playbook?.levels,trade.level)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'level',e.target.value)}/>
-            <Select label="Key level timeframe" value={trade.timeframe||'Not recorded'} values={labelChoices(meta?.level_timeframes,trade.timeframe)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'timeframe',e.target.value)}/>
-            <Select label="Entry timeframe" value={trade.entry_timeframe||'Not recorded'} values={labelChoices(meta?.entry_timeframes,trade.entry_timeframe)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'entry_timeframe',e.target.value)}/>
+            <VocabularySelect label="Key level / PDA" value={trade.level==='Not recorded'?'':trade.level||''} values={[{value:'',label:'Choose…'},...(meta?.playbook?.levels||[])]} archived={[...(meta?.archived_choices?.levels||[]),trade.level]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'level',e.target.value||'Not recorded')}/>
+            <VocabularySelect label="Key level timeframe" value={trade.timeframe==='Not recorded'?'':trade.timeframe||''} values={[{value:'',label:'Choose…'},...(meta?.level_timeframes||[])]} archived={[...(meta?.archived_choices?.level_timeframes||[]),trade.timeframe]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'timeframe',e.target.value||'Not recorded')}/>
+            <VocabularySelect label="Entry timeframe" value={trade.entry_timeframe==='Not recorded'?'':trade.entry_timeframe||''} values={[{value:'',label:'Choose…'},...(meta?.entry_timeframes||[])]} archived={[...(meta?.archived_choices?.entry_timeframes||[]),trade.entry_timeframe]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'entry_timeframe',e.target.value||'Not recorded')}/>
             <label className="pj-field">Amount risked ($)<input type="number" inputMode="decimal" min="0.01" step="any" aria-label="Amount risked ($)" placeholder="e.g. 50" value={trade.risk_amount??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'risk_amount',e.target.value===''?null:Number(e.target.value))}/></label>
             <label className="pj-field">Profit / loss ($)<input type="number" inputMode="decimal" step="any" aria-label="Profit / loss ($)" placeholder="e.g. 150 or -50" value={trade.net_pnl??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'net_pnl',e.target.value===''?null:Number(e.target.value))}/></label>
           </div>
