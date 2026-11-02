@@ -30,6 +30,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const frame=projection.frames[cursor-session.spec.start_cursor];
   const finished=cursor===session.last_cursor;
   const lastRendered=useRef(null);
+  const jumpToLatest=useRef(false);
   const [shortcuts,setShortcuts]=useState(()=>savedTimeframes(localStorage.getItem('primus-replay-timeframes')));
   const [timeframeEditor,setTimeframeEditor]=useState(null),[customInterval,setCustomInterval]=useState('3'),[customUnit,setCustomUnit]=useState('minutes'),[timeframeError,setTimeframeError]=useState('');
   const [timeframe, setTimeframe] = useState(()=>validTimeframe(layout.timeframe)?layout.timeframe:shortcuts[0]), [ready, setReady] = useState(false);
@@ -108,10 +109,11 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     lastRendered.current=bars;
     if(same&&previousBars){
       // Streaming updates retain candle spacing, horizontal pan and manual price scale.
-      const restoreView=!follow?holdReplayViewport(chart,bars.length-previousBars.length):()=>{};
+      const restoreView=!follow&&!jumpToLatest.current?holdReplayViewport(chart,bars.length-previousBars.length):()=>{};
       const last=previousBars.at(-1)?.time??-Infinity;
       for(const bar of bars)if(bar.time>=last)for(const cb of feed.current||[])cb(bar);
       restoreView();
+      if(jumpToLatest.current){chart.panBy(10000);jumpToLatest.current=false}
       setBusy(false);return;
     }
     if(previousSymbol!==wanted){
@@ -185,7 +187,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={onAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
-    <ReplayTrading qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} bars={timeline} onCursor={onCursor} onAction={onAction} onSave={()=>saveLayout().then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>
+    <ReplayTrading qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={onAction} onSave={()=>saveLayout().then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>
     <footer className="bt-statusbar">
       <div><strong title={sample.selection}>{market?.contract || symbol}</strong><span>{timeframeName}</span><span className="bt-bar-count">{bars.length.toLocaleString('en-GB')} bars</span></div>
       <time className="bt-sample" aria-label="Replay time" dateTime={new Date(replayTime+60000).toISOString()}>{clockParts(replayTime+60000,clockZone).day} · {clockParts(replayTime+60000,clockZone).time}</time>
