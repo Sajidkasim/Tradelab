@@ -169,6 +169,7 @@ def create_app(config: Settings | None = None):
             raise HTTPException(404)
         check_write(request)
         allowed_returns = ('/lab', '/journal') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
+        if config.local or config.replay_enabled:allowed_returns=(*allowed_returns,'/backtesting')
         if return_to and return_to not in allowed_returns:
             raise HTTPException(422, 'Choose Journal or Strategy Lab.')
         try:
@@ -232,6 +233,18 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump('owner')
         request.session.clear()
         return {"ok": True}
+
+    from . import replay_sessions
+    replay_sessions.mount(app, config, workspace)
+
+    @app.get('/api/backtesting/sample')
+    def local_chart_sample(member=Depends(workspace)):
+        if not config.local:
+            raise HTTPException(404)
+        sample = Path(__file__).resolve().parents[1] / 'data/private/backtesting-preview.json'
+        if not sample.is_file():
+            raise HTTPException(404, 'Prepare the local candle sample first.')
+        return FileResponse(sample, media_type='application/json', headers={'Cache-Control':'private, no-store'})
 
     def journal_preview():
         if not config.site_enabled and not (config.site_preview and config.local):
@@ -772,7 +785,7 @@ def create_app(config: Settings | None = None):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and path in ('', 'journal', 'journal/')):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'journal', 'journal/') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():
@@ -781,6 +794,8 @@ def create_app(config: Settings | None = None):
             content = index.read_text().replace('name="primus-lab-path" content=""', 'name="primus-lab-path" content="/lab"')
             if config.site_enabled:
                 content = content.replace('</head>', '<meta name="primus-site-enabled" content="true" /></head>')
+            if config.replay_enabled:
+                content = content.replace('</head>', '<meta name="primus-replay-enabled" content="true" /></head>')
             if config.site_preview:
                 content = content.replace('</head>', '<meta name="primus-site-preview" content="true" /></head>')
             return HTMLResponse(content)

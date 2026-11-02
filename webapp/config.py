@@ -26,6 +26,8 @@ class Settings:
     site_preview: bool = False
     site_enabled: bool = False
 
+    replay_enabled: bool = False
+    replay_manifest: str = ''
     r2_account_id: str = ''
     r2_bucket: str = ''
     r2_access_key_id: str = field(default='', repr=False)
@@ -46,6 +48,10 @@ class Settings:
         return not self.google_required and (not self.local or bool(self.password_hash))
 
     def validate(self):
+        if self.replay_enabled and not self.local:
+            if not self.r2_ready or not self.replay_manifest or not Path(self.replay_manifest).is_file():
+                raise ValueError('Replay requires a prepared history manifest and private R2 storage.')
+
         if any((self.r2_account_id, self.r2_bucket, self.r2_access_key_id, self.r2_secret_access_key)):
             import re
             if not self.r2_ready or not re.fullmatch(r'[a-f0-9]{32}', self.r2_account_id) or not re.fullmatch(r'[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]', self.r2_bucket):
@@ -121,6 +127,7 @@ def from_env():
         r2_bucket='' if local else os.getenv('PRIMUS_R2_BUCKET',''),
         r2_access_key_id='' if local else os.getenv('PRIMUS_R2_ACCESS_KEY_ID',''),
         r2_secret_access_key='' if local else os.getenv('PRIMUS_R2_SECRET_ACCESS_KEY',''),
+        replay_enabled=os.getenv('PRIMUS_REPLAY_ENABLED','0')=='1',replay_manifest=os.getenv('PRIMUS_REPLAY_MANIFEST',''),
         site_enabled=not local and os.getenv("PRIMUSLAB_LAB_PATH", "") == "/lab" and os.getenv("PRIMUSTRADER_SITE_ENABLED", "1") == "1")
     settings.validate()
     return settings

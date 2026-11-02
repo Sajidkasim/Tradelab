@@ -665,3 +665,284 @@ label choices and Journal setup/result detail. No existing trades are modified.
 Local sample preview: tools/run_site_preview.py 8130 --release-notes.
 Validation: 296 pytest passed (5 existing warnings), 23 Vitest passed, production
 build passed; release-note desktop/phone and dismissal/reopen browser checks pass.
+
+## Local Backtesting chart prototype — 2 November 2026
+
+Owner wants a new backtesting page built in small local stages, using their
+Databento archive in /Users/sajidkasim/Documents/Primus Backtesting and LuxAlgo
+Vela. No push, upload or deployment is authorised for this prototype.
+@luxalgo/vela is pinned to 0.9.3 and loaded dynamically only on the new page.
+Visible Vela attribution stays present; its LICENSE and NOTICE are copied into
+docs/licenses/vela. No PineTS / Pine scripting addon is installed.
+
+Install optional offline tools with .venv/bin/python -m pip install -r
+requirements-replay.txt. tools/prepare_replay_sample.py streams 10,000-record
+chunks from the DBN archive, selects the highest-volume outright NQ and ES
+contract for one UTC sample day, validates OHLC bounds and duplicate timestamps,
+and writes data/private/backtesting-preview.json (ignored, never bundled).
+This contract selection is just for a static chart, not an approved rollover or
+look-ahead-safe simulation rule. No synthetic gap bars are inserted.
+
+Sample: 7 June 2010 UTC; NQM0 1,341 bars, ESM0 1,393 bars; JSON 256,456 bytes.
+The existing authenticated API serves it only when config.local is true.
+The new /backtesting SPA path and navigation are local-site-preview only.
+The chart uses offline bars, no live provider, explicit UTC axis, no API keys.
+It displays the available full day: replay, order simulation, timeframe controls,
+rollovers and progress saving are deliberately later stages, not implemented.
+No core trading/statistical formulas or stored trades changed.
+
+Run tools/run_site_preview.py 8131 then open /backtesting for a disposable sample
+workspace. Original DBN data remains untouched. The real-data browser check is
+skipped when the ignored sample has not been prepared. Validation: 296 pytest
+passed (5 existing warnings); frontend build and real NQ/ES market-switch,
+canvas, tablet/dark-mode and one-data-fetch browser checks passed.
+
+## Local full-page chart workspace — 2 November 2026
+
+Owner asked for an FX Replay-like chart-first layout, retaining Primus styling.
+/backtesting now fills the viewport with a compact toolbar and corner Back link;
+no site header, hero or preview banner is rendered here. Native drawing tools
+are enabled (lines, levels, Fibonacci, box, text and position drawings only — no
+broker/order placement). The status strip keeps contract/date/UTC/sample scope
+and attribution visible without a large panel.
+
+Chart-only UTC aggregation in frontend/src/backtestingBars.js provides 1m, 2m,
+5m, 15m, 30m, 1h and 4h from the loaded one-minute sample. Missing minutes stay
+missing; OHLCV buckets use first open, extrema, last close and summed volume.
+No seconds or exchange daily/weekly bars are offered from this one-day sample.
+This is chart data processing, not trade-performance statistics or P&L.
+
+One Vela instance stays mounted. setMarket changes resolution/symbol and
+recomputes native studies; setTheme changes light/dark in place. The visible time
+range is retained across changes. Drawings are held separately per contract in
+memory so NQ levels do not appear on ES; no reload/cloud persistence is claimed.
+The searchable Indicators dialog uses Vela's native catalog with add/remove and
+input-settings access, and charts retain native legend controls. No Pine addon
+or indicator formulas were introduced. Studies only have the loaded sample's
+warm-up history. Replay and simulated orders remain a later stage.
+
+Validation: 26 frontend unit tests and build passed; real-data browser checks
+cover viewport fill, aggregation controls, indicator add/remove and survival
+through symbol/theme changes, native settings and responsive 320/390/800px
+layouts. Still local only; do not push or deploy without the owner's instruction.
+
+## Local replay sessions and simulated trading — 2 November 2026
+
+Supersedes the earlier chart-only/later-stage notes above. The owner requested a
+session landing screen with date, start time, capital and micro/mini contract
+size, then a full-page chart with play/pause, next candle, speed, market/limit/
+stop entries, quantity, optional stop/target, cancellation and closing. Sessions
+can be saved and resumed. Keep this local; no commit, push or deploy is authorised.
+
+`tools/run_backtesting_preview.py 8132` uses the durable, ignored SQLite file
+`data/private/backtesting-workspace.db`, separate from all existing journals and
+Lab trades. `/backtesting` lists sessions; `?session=<uuid>` reopens one. Every
+replay endpoint in `webapp/replay_sessions.py` is local-only and uses the existing
+workspace and CSRF checks. Private settings store a bounded session index and
+command log. Version checks reject stale tabs, UUID action IDs reject retries,
+and candle-file digests prevent resuming against silently changed prices.
+
+Optional ignored `data/private/replay-source.json` holds the local DBN source path
+and inclusive first_day/last_day. Preparing an uncached date streams the archive
+through the existing offline tool into ignored `data/private/replay-days/`.
+Original DBN files remain untouched. First-time date preparation may take time;
+cached days are reused. Dates are UTC days, not CME session templates. Per-day
+volume still selects the fixed prototype contract, not a validated rollover rule.
+MNQ/MES practice uses NQ/ES price history with micro dollar multipliers; it does
+not claim actual historical micro-contract tape (the sample is from 2010).
+
+`services/replay_engine.py` owns all new simulated money/fill arithmetic and uses
+existing instrument tick sizes/multipliers. Orders submitted after the visible
+candle first become eligible on the next one-minute candle. Adverse slippage,
+configured per-side commission and opening gaps apply. Stop-first resolves
+ambiguous candles conservatively; intrabar entries cannot claim an ambiguous
+same-candle target or use an opening price that preceded their entry as a gap
+exit. Positions close at the final candle; pending entries are cancelled. One
+position or pending entry at a time; no scaling, partial fills, margin calls,
+liquidation model or broker connection. No core formulas were changed.
+
+`BacktestingSessions.jsx` queues actions/progress writes, autosaves every three
+seconds and saves before returning to the list. It does not request candle data
+for each step. `BacktestingChart.jsx` keeps Vela mounted while time advances.
+Only revealed raw minutes enter timeframe aggregation or indicator data; partial
+higher-timeframe bars therefore use only reached prices/volume. The browser
+already has the selected day and projection, so this is a local practice replay,
+not a tamper-proof competition engine. Trade history/balance display only the
+current cursor snapshot. Drawings/study settings are still in-memory, not saved
+with sessions. Replay history has not been uploaded to R2 or Render.
+
+Tests cover next-open fills, micro/mini values, fees, slippage, stops/targets,
+intrabar ambiguity, cancellation, immutable snapshots, session-end closure,
+saving/resume, stale tabs, retry protection, CSRF, data changes and hosted guards.
+The existing Google/password browser helpers now acknowledge the existing
+release-notes popup before exercising navigation; the popup itself is unchanged.
+
+Validation: `python -m pytest -q` completed with 309 passed, 5 existing
+deprecation warnings in 21.06s. All 28 frontend unit tests, all 57 browser checks
+and the production frontend build passed. Browser checks include session
+creation, two-micro market entry/close, limit cancellation, play/step, saving,
+reload/resume and phone/tablet layouts in light/dark mode. This is viewport
+testing, not a claim of testing on a real Samsung tablet. Local preview runs at
+http://127.0.0.1:8132/backtesting. Nothing was committed, pushed or deployed.
+
+## Local replay usability follow-up — 2 November 2026
+
+Owner requested recoverable session deletion, visible entry/SL/TP and stable zoom
+while playing. Sessions now soft-delete with confirmation and can be restored
+from Deleted sessions. Deleted IDs reject open/action/progress until restored;
+all routes retain local/workspace/CSRF checks. No Lab trades are changed.
+
+The chart uses a browser-only Vela provider named practice. getBars and subscribe
+receive only reached, aggregated minutes; the streaming callback updates an
+existing candle or appends new ones instead of reloading setMarket each step.
+This preserves native bar spacing, horizontal pan and manual price scaling.
+Market/timeframe changes still use setMarket. No network/provider data is fetched
+per candle; native indicators follow the normal streaming path.
+
+An open position has a locked blue entry line and red/green draggable SL/TP
+lines. Unset levels explicitly read “drag to set”; they are visual suggestions,
+not active protection. Drawing edits pause replay, snap to quarter-point ticks
+and send an authenticated/versioned amend action. services.replay_engine applies
+changes after the current candle, rejects invalid sides and preserves prior
+snapshots. User removal of a managed line restores its authoritative display;
+it must not silently cancel an active stop. Plot pointer interactions pause play.
+
+Sample inspection: NQM0 has 140 flat OHLC candles and 36 timestamp gaps; ESM0
+has 51 flat candles and 4 gaps. All observed OHLC prices are on quarter-point
+ticks. Prices/gaps were not smoothed or fabricated. This is a sample check, not
+validation of the entire archive. Finer intraminute playback needs finer source
+history rather than invented tick paths.
+
+Validation: 311 pytest passed with 5 existing warnings in 28.85s; build passed.
+The three relevant browser flows passed (chart/studies/responsive, replay/order
+resume, delete/restore), and the replay test passed again with a real mouse drag
+of the stop line and server-side persisted-price verification. Preview restarted
+on port 8132 against the same durable local database. No publishing performed.
+
+Playback verification also found Vela 0.9.3 getVisibleRange rounds/clamps to
+whole loaded bars; feeding it back each candle progressively changed zoom.
+`frontend/src/replayViewport.js` is an isolated compatibility adapter for the
+pinned native renderer's exact logical viewport. View locked (default) restores
+barSpacing/rightOffset adjusted for appended bars; Following leaves native
+stream follow behaviour active. This adapter intentionally uses guarded native
+internals and must be rechecked before upgrading Vela. Manual price scaling is
+retained. The zoom/pan browser scenario passed; before/after historical-region
+pixel comparison changed only 0.18% during playback (including the live price
+line), below the 2.5% check limit. All four targeted browser flows passed after
+the final locked/follow control and narrow-phone adjustments. 28 frontend unit
+tests passed. No push or deploy.
+
+## Local pending-order price boxes, context menu and watermark — 2 November 2026
+
+Buy/Sell now shows an entry box and SL/TP controls while the submitted order is
+still pending. Fill timing is unchanged: market orders fill at next-minute open.
+services.replay_engine permits validated pending-order amendments without changing
+submission time, and carries brackets into the fill. Each snapshot includes a
+server-calculated ticket with reference price, draft/active prices and gross
+hypothetical SL/TP dollar results; pending market figures are estimates before
+fees, not realised results. No money formulas moved into React or core changes.
+
+ReplayCanvasTools replaces the managed native drawing lines with DOM price boxes
+at real projected prices. Drag/release snaps to ticks and submits the existing
+versioned amend action; X removes a bracket, cancels a pending entry or schedules
+an open-position close. Unset brackets explicitly say Drag to set. The entry is
+movable only for pending limit/stop orders, never for an already filled trade.
+The guarded, pinned Vela adapter now exposes its native drawing projector for
+price conversions including manual/log/inverted scales. Check it on upgrades.
+
+Right-click on the price pane opens Buy/Sell limit or stop according to clicked
+price versus current price, using the selected bottom-bar quantity, plus Reset
+chart view, Move to last candle and Chart settings. No table/object-tree/hide
+options, date jump or clipboard commands are included. Escape/outside click
+closes the menu. One position/pending entry restriction still applies.
+
+The timeframe watermark is enabled initially and can be toggled in Chart settings
+→ Symbol → Replay → Timeframe watermark. Preference is local to the browser.
+Both themes and the existing viewport preservation remain intact. Current local
+preview is port 8132; its durable session database is preserved through restart.
+
+Validation: 312 pytest passed, 5 existing warnings in 23.76s; 28 frontend unit
+checks and build passed. Five targeted browser flows passed, including pending
+SL drag before any fill, active SL drag, order cancel/close, reload/resume,
+context-menu order placement, watermark switching, narrow layouts and playback.
+No commit, push or deployment. No real broker integration.
+
+## Local saved custom intraday timeframes — 2 November 2026
+
+The toolbar + opens Your timeframes. Default shortcuts omit 2m; users can add
+whole-minute/hour intervals from 1m through 12h and save 1–10 browser-local
+shortcuts. Removing the active shortcut selects the first remaining choice.
+Malformed local preferences fall back safely. Custom intervals use the same
+UTC OHLCV aggregation and revealed-minute filtering; gaps remain gaps.
+
+Daily/weekly/monthly are explicitly NOT enabled in this one-day preview. The
+editor explains that multi-session history is the next data step. Do not present
+an incomplete single-day bucket as a complete week/month. Earlier sessions,
+exchange-session boundaries and a validated contract-roll policy must accompany
+those chart periods. No source data, core formulas or hosted settings changed.
+
+Validation: 312 pytest passed (5 existing warnings), 29 frontend unit checks,
+6 targeted browser flows including custom timeframe switching and reload
+persistence, and production build passed. Local port 8132 serves the new build
+on refresh; no backend restart is needed for these frontend-only changes.
+No commit, push or deployment performed.
+
+## Replay stages 1–4 local implementation — 2 November 2026
+
+New sessions load tools.prepare_replay_history context via load_history; older
+sessions retain original files/digests. Prior-day volume chooses daily outright
+contracts; first coverage uses deterministic symbol ordering. No backward price
+adjustment. Daily/weekly/monthly use UTC calendar boundaries with revealed current
+minutes and earlier completed daily candles. Default review day is 2013-01-25:
+314 earlier daily candles and 5,153 NQ / 5,487 ES preceding minute bars. Earliest
+coverage (2010-06-07) remains available; first periods can be incomplete.
+
+Per-session chart layout saving/restoration covers drawings per market, studies
+and inputs/visibility, cosmetic config, timeframe/symbol and exact logical/manual
+price scale. Explicit Save and Back wait for layout writes; background checks
+save changed snapshots every three seconds. Dedicated layout records do not
+invalidate the order-log version. Payloads are bounded and workspace/CSRF guarded.
+
+Closed replay trades can explicitly Send to Lab / Journal / both. The server
+projects the saved cursor, refuses future exits, retains initial-stop risk when
+available, and uses existing Trade/Database calculation. Stable external IDs
+and deterministic Journal card IDs prevent retry duplicates. Other accounts
+cannot open, edit layouts or transfer another member's session.
+
+Private immutable SHA-256 candle storage, packaging utility and hosted opt-in
+configuration are implemented. The initial automatic approval rejection blocked
+external upload; the owner then specifically approved both prepared Databento
+bundles to primuslab-images. Both uploaded and verified by read-back; public
+access unchanged. No UI deployment. See docs/REPLAY_DEPLOYMENT.md for host secret
+file/flag requirements and outstanding real-tablet/data-permission/hosted checks.
+
+Local real-history 5/10/25-read benchmark: max 0.385/0.846/1.974 seconds; process
+peak RSS about 192 MB. Measurements are local, not a hosted capacity guarantee.
+Full regression: 316 pytest passed (5 existing warnings), 30 frontend unit tests,
+62 browser checks and production build passed. The final Journal snapshot
+normalisation was rechecked with the focused replay/storage tests. Current
+preview remains port 8132 with the existing durable local database. No commit,
+push, production secret changes or deployment performed.
+
+
+## Replay Beta release controls — 2 November 2026
+
+Owner now explicitly requests upload and deployment and confirms written permission
+for other users to view purchased history. This supersedes the earlier local-only
+release restriction for these replay changes. Existing Google workspace isolation
+and private R2 credentials remain unchanged.
+
+New York / London chart display clocks follow IANA DST rules and persist in session
+layouts. UTC remains the storage and aggregation convention; start time is labelled
+UTC. Speed slider has 0.25/0.5/1/2/4/8/16/32 steps per second. Arrow menu jumps to
+a favourite New York-time session start; editable times/favourite persist per browser.
+Jumps are forward-only, process intervening fills, and clearly stop at the loaded
+day boundary. Backtesting is labelled Beta. Hosted date choices come only from
+the prepared manifest (2010-06-07 and 2013-01-25), not the entire raw archive.
+
+Hosted price reads use a two-bundle immutable cache, shared prices only; personal
+sessions, drawings and positions remain workspace-scoped in persistent PostgreSQL.
+The Docker image includes Vela's licence and notice. All core formulas unchanged.
+Validation: 317 pytest passed, 5 existing warnings in 25.75s; 33 frontend unit
+checks, 63 browser checks and production build passed. Hosted-path regression
+proves session creation/reopen/progress use R2 without Mac files.

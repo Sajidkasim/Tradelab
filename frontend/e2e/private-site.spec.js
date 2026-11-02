@@ -13,6 +13,9 @@ test('one private sign-in connects Journal, Lab and Home, and preserves the chos
   await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Skip guide',exact:true}).click();
+  const notes=page.getByRole('dialog',{name:'What’s new in Strategy Lab',exact:true});
+  await notes.getByRole('button',{name:'Got it',exact:true}).click();
+  await expect(notes).not.toBeVisible();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Home',exact:true}).click();
   await expect(page.locator('.pt-header-action')).toHaveCount(0);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();

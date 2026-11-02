@@ -10,6 +10,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
+    "@luxalgo/vela": "0.9.3",
     "lucide-react": "^0.468.0",
     "plotly.js-basic-dist-min": "^3.0.0",
     "react": "^19.2.0",

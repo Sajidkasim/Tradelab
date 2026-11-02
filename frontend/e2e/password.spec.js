@@ -37,6 +37,9 @@ test("one password unlocks the personal journal and Lock lab revokes access", as
   await expect(
     page.getByRole("heading", { name: "Results", exact: true }),
   ).toBeVisible();
+  const notes = page.getByRole('dialog', {name:'What’s new in Strategy Lab', exact:true});
+  await notes.getByRole('button', {name:'Got it', exact:true}).click();
+  await expect(notes).not.toBeVisible();
   await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Lock lab", exact: true }).click();
   await expect(

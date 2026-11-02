@@ -100,7 +100,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
     setError("");
     try {
       if (google) {
-        const result = await api(`/login/google${workspace ? `?return_to=${encodeURIComponent(workspace==='journal'?'/journal':'/lab')}` : ''}`, { method: "POST" });
+        const result = await api(`/login/google${workspace ? `?return_to=${encodeURIComponent(workspace==='journal'?'/journal':workspace==='backtesting'?'/backtesting':'/lab')}` : ''}`, { method: "POST" });
         window.location.assign(result.url);
         return;
       }
@@ -147,7 +147,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
           </div>
           <form className="login-form" onSubmit={submit}>
             <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
-            <h1 id="login-title">{workspace?`Sign in to your ${workspace==='journal'?'Journal':'Strategy Lab'}.`:"Welcome back."}</h1>
+            <h1 id="login-title">{workspace?`Sign in to your ${workspace==='journal'?'Journal':workspace==='backtesting'?'Backtesting':'Strategy Lab'}.`:"Welcome back."}</h1>
             <p>{workspace?"One Google sign-in. Your Journal and Strategy Lab, together and private.":"Your trades. Your research. Your next discovery."}</p>
             {!google && <div className="login-password-field">
               <label htmlFor="journal-password">Lab password</label>

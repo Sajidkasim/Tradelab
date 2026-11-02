@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { lazy, Suspense, createContext, useContext, useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
 import JournalPage from './JournalPage';
@@ -8,6 +8,8 @@ import './site-preview.css';
 
 export const localSitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
 export const sitePreview = () => localSitePreview() || document.querySelector('meta[name="primus-site-enabled"]')?.content === 'true';
+
+const BacktestingPage = lazy(() => import('./BacktestingPage'));
 
 const SiteThemeContext = createContext(null);
 
@@ -27,6 +29,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/" aria-current={active==='home'?'page':undefined}>Home</a>
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
+      {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
@@ -128,5 +131,5 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname.startsWith('/journal')?<JournalPage/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

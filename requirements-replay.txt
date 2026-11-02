@@ -1,0 +1,2 @@
+# Offline preparation only; not needed on Render.
+databento==0.89.0

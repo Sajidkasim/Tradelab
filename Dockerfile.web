@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements-web.txt
 COPY core/ core/
 COPY services/ services/
 COPY webapp/ webapp/
+COPY docs/licenses/ docs/licenses/
 COPY --from=frontend /build/frontend/dist frontend/dist/
 RUN useradd --create-home --uid 10001 primus
 USER primus

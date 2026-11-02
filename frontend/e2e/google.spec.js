@@ -19,6 +19,12 @@ async function login(page, who) {
     await page.getByRole('button',{name:'Skip guide',exact:true}).click();
     await expect(page.locator('.guided-tour')).toHaveCount(0);
   }
+  const updated = await (await page.request.get(`${origin}/api/metadata`)).json();
+  if (updated.release_notes && !updated.release_notes.seen) {
+    const notes = page.getByRole('dialog', {name:'What’s new in Strategy Lab', exact:true});
+    await notes.getByRole('button', {name:'Got it', exact:true}).click();
+    await expect(notes).not.toBeVisible();
+  }
 }
 
 test("Google opens separate journals, and signing out revokes the browser session", async ({ page, browser }) => {
