@@ -987,3 +987,38 @@ Final local validation: 320 pytest passed, 5 existing warnings in 22.83s;
 passed. A real local review session on 2020-06-02 opens paired NQ 4h / ES 1m at
 09:30 New York, with both clocks aligned. No commit, push or deployment of this
 local revision. Old cloud history remains unchanged. Local preview: port 8132.
+
+## Calendar and longer 4H correction — 2 November 2026
+
+Local only; no upload/deployment. New session always uses a calendar date input,
+with refreshed availability on each opening, rather than retaining a stale two-date
+select. Shows indexed coverage explicitly. tools/index_replay_charts.py prepares
+52,282 prior-day-volume-selected UTC 4H candles across the full local archive.
+webapp.replay_index.four_hour_history supplies the completed prefix before each
+session date; current-day 4H still aggregates only reached minutes. The replay
+response enriches chart-only context without changing original candle digests,
+orders, financial results or session progress. Existing sessions receive it too.
+A 2013-01-25 session receives 4,199 prior 4H candles; 2020-06-02 receives 15,864,
+both back to June 2010. Switched 4H initially shows the latest 180 bars; users can
+pan/zoom into the full loaded archive. Legacy short-layout views upgrade once,
+then save a chart-context version so later user zoom is respected.
+Validation: 321 pytest passed (5 existing warnings), 35 frontend unit checks;
+calendar stale-choice/2020-date regression and paired-chart/scaling checks pass.
+
+## Shared replay setup dropdowns — 2 November 2026
+
+Local only. ReplaySetupFields is shared by Backtesting journal and Send practice
+trade. Strategy, key level, key-level timeframe, entry timeframe, confirmations,
+news and market choices read the current private /api/metadata catalogue each
+form opening; no separate hardcoded vocabulary or typing-only strategy control.
+Saved legacy choices remain identifiable without adding them to the active lists.
+Session defaults and per-trade Send overrides are separate. ExportInput accepts an
+optional validated setup; existing clients still use session journal defaults.
+The existing edge.write_labels and Trade/Database paths carry selected labels and
+notes into Lab, and the Journal-only path retains setup fields too. Retries do
+not duplicate records or overwrite already-linked Lab trades. No core formulas
+or broker integration changed. Local preview restarted on 8132.
+Validation: 322 pytest passed, 5 existing warnings in 26.46s; 35 frontend unit
+checks and build passed. Three targeted browser flows cover new private Lab
+choices appearing in replay dropdowns, persistence, phone layout and trade export.
+No push or deployment performed.

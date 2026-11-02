@@ -182,7 +182,10 @@ test('daily charts and chart layouts survive save/reload and closed trades can b
  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
  await page.getByRole('button',{name:'Send to Lab / Journal',exact:true}).click();
  const transfer=page.getByRole('dialog',{name:'Send practice trade',exact:true});
- await transfer.getByLabel('Strategy',{exact:true}).fill('UI replay test');
+ await transfer.getByRole('combobox',{name:'Strategy',exact:true}).click();
+ await page.getByRole('option',{name:'Displacement continuation',exact:true}).click();
+ await transfer.getByRole('combobox',{name:'Key level / PDA',exact:true}).click();
+ await page.getByRole('option',{name:'FVG',exact:true}).click();
  await transfer.getByRole('button',{name:'Send trade',exact:true}).click();
  await expect(transfer.getByRole('status')).toContainText('Saved.');
 });
@@ -229,8 +232,11 @@ test('two charts share replay time and save the journal',async({page},testInfo)=
  expect(await page.getByLabel('Replay time',{exact:true}).first().getAttribute('datetime')).toBe(await page.getByLabel('Replay time',{exact:true}).last().getAttribute('datetime'));
  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
  const journal=page.getByRole('dialog',{name:'Backtesting journal',exact:true});
- await journal.getByLabel('Strategy',{exact:true}).fill('Reversal at key level');
- await journal.getByLabel('Session notes',{exact:true}).fill('Wait for confirmation.');
+ await journal.getByRole('combobox',{name:'Strategy',exact:true}).click();
+ await page.getByRole('option',{name:'Displacement continuation',exact:true}).click();
+ await journal.getByRole('combobox',{name:'Key level / PDA',exact:true}).click();
+ await page.getByRole('option',{name:'FVG',exact:true}).click();
+ await journal.getByLabel('Notes',{exact:true}).fill('Wait for confirmation.');
  await journal.getByRole('button',{name:'Save journal',exact:true}).click();
  await expect(journal.getByRole('status')).toContainText('Saved');
  await journal.getByRole('button',{name:'Close',exact:true}).click();
@@ -238,5 +244,67 @@ test('two charts share replay time and save the journal',async({page},testInfo)=
  await page.screenshot({path:testInfo.outputPath('two-charts.png')});
  await page.reload();await expect(page.locator('.replay-chart')).toHaveCount(2);
  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
- await expect(journal.getByLabel('Session notes',{exact:true})).toHaveValue('Wait for confirmation.');
+ await expect(journal.getByLabel('Notes',{exact:true})).toHaveValue('Wait for confirmation.');
+});
+
+test('calendar refreshes stale date choices and opens a 2020 session with years of 4h context',async({page},testInfo)=>{
+ test.skip(!existsSync(new URL('../../data/private/replay-index.db',import.meta.url)),'Full local index required.');
+ let listings=0;
+ await page.route('**/api/backtesting/sessions',async route=>{
+  if(route.request().method()!=='GET')return route.continue();
+  const response=await route.fetch();const data=await response.json();listings++;
+  if(listings===1)data.history.available_days=['2010-06-07','2013-01-25'];
+  await route.fulfill({response,json:data});
+ });
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ const input=page.getByLabel('Trading date',{exact:true});
+ await expect(input).toHaveAttribute('type','date');
+ await input.fill('2020-06-02');
+ const response=page.waitForResponse(r=>r.url().endsWith('/api/backtesting/sessions')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ const data=await (await response).json();expect(data.session.day).toBe('2020-06-02');
+ expect(data.sample.markets.NQ.four_hour_history.length).toBeGreaterThan(1000);
+ expect(data.sample.markets.NQ.four_hour_history[0].time).toBeLessThan(Date.UTC(2011,0,1));
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'4h',exact:true}).click();
+ await expect(page.getByLabel('Replay time',{exact:true})).toContainText('2020-06-02');
+ expect(listings).toBeGreaterThanOrEqual(2);
+ await page.screenshot({path:testInfo.outputPath('calendar-full-4h.png')});
+});
+
+test('backtesting setup dropdowns read the private Lab catalogue and retain all selected labels',async({page},testInfo)=>{
+ const base='http://127.0.0.1:8119';
+ const identity=await (await page.request.get(base+'/api/session')).json();
+ const metadata=await (await page.request.get(base+'/api/metadata')).json();
+ const headers={'Origin':base,'X-Primus-CSRF':identity.csrf};
+ const book={strategies:metadata.strategies,levels:metadata.playbook.levels},lab=metadata.lab_settings;
+ const choices={...lab,confirmations:[...new Set([...lab.confirmations,'Replay confirmation'])],level_timeframes:[...new Set([...lab.level_timeframes,'2H'])],entry_timeframes:[...new Set([...lab.entry_timeframes,'3m'])]};
+ expect((await page.request.put(base+'/api/playbook',{headers,data:{strategies:[...book.strategies,'Replay custom strategy'],levels:[...book.levels,'Replay key level']}})).ok()).toBe(true);
+ expect((await page.request.put(base+'/api/lab-settings',{headers,data:choices})).ok()).toBe(true);
+ try{
+  await page.goto(base+'/backtesting');
+  await page.getByRole('button',{name:'New session',exact:true}).click();
+  await page.getByRole('button',{name:'Open session',exact:true}).click();
+  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Backtesting journal',exact:true});
+  for(const [label,option] of [['Strategy','Replay custom strategy'],['Key level / PDA','Replay key level'],['Key level timeframe','2H'],['Entry timeframe','3m']]){
+   await dialog.getByRole('combobox',{name:label,exact:true}).click();
+   await page.getByRole('option',{name:option,exact:true}).click();
+  }
+  await dialog.getByLabel('Replay confirmation',{exact:true}).check();
+  await dialog.getByRole('button',{name:'Save journal',exact:true}).click();
+  await expect(dialog.getByRole('status')).toContainText('Saved');
+  await page.setViewportSize({width:390,height:844});
+  expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath('lab-linked-replay-journal.png')});
+  await page.reload();
+  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
+  await expect(dialog.getByRole('combobox',{name:'Key level / PDA',exact:true})).toContainText('Replay key level');
+  await expect(dialog.getByLabel('Replay confirmation',{exact:true})).toBeChecked();
+ }finally{
+  await page.request.put(base+'/api/playbook',{headers,data:book});
+  await page.request.put(base+'/api/lab-settings',{headers,data:lab});
+ }
 });

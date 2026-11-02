@@ -52,3 +52,11 @@ it('4h candles retain their full preceding minute context and share the replay c
  expect(chartHistory(market,clock,'1').at(-1).time).toBe(clock);
  expect(chartHistory(market,clock,'60').at(-1).high).toBe(106);
 });
+
+it('4h uses complete older archive candles without mixing daily candles or future prices',async()=>{
+ const {chartHistory}=await import('./backtestingBars');
+ const t=Date.UTC(2020,5,2);
+ const market={bars:[{time:t,open:110,high:112,low:109,close:111,volume:5},{time:t+60000,open:111,high:999,low:109,close:998,volume:5}],context:[],four_hour_history:[{time:t-86400000,open:100,high:105,low:99,close:101,volume:2400}]};
+ const bars=chartHistory(market,t,'240');
+ expect(bars).toHaveLength(2);expect(bars[0].volume).toBe(2400);expect(bars[1].high).toBe(112);
+});

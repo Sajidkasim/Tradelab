@@ -182,3 +182,25 @@ def test_replay_research_and_two_layouts_save_separately(local,candles):
     assert data['journal']['notes']=='Patient entry'
     assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
     assert client.post(root+'/ticket-preview',json={'version':1,'cursor':2,'price':100}).json()['amount']==-12
+
+def test_lab_setup_overrides_follow_export_without_changing_session_defaults(local,candles):
+    from core import edge
+    from webapp import daily_journal
+    client,app=local;sid=create(client)['session']['id'];root=f'/api/backtesting/sessions/{sid}'
+    defaults={'strategy':'Default','level':'Order block','timeframe':'4H','entry_timeframe':'1m','checklist':[],'notes':'Session defaults'}
+    assert client.put(root+'/journal',json=defaults).status_code==200
+    assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
+    assert client.put(root+'/progress',json={'version':1,'cursor':5}).status_code==200
+    setup={'strategy':'Reversal','level':'FVG','timeframe':'1H','entry_timeframe':'5m','checklist':['SMT','CISD'],'notes':'This trade only','news':'CPI','condition':'Trending'}
+    payload={'destination':'both','strategy':'Reversal','entry_cursor':3,'setup':setup}
+    reply=client.post(root+'/export',json=payload);assert reply.status_code==200,reply.text
+    frame=app.state.workspaces.database('owner').trades_df();trade=frame.iloc[0]
+    labels=edge.read_labels(trade.tags)
+    assert labels['level']=='FVG' and labels['timeframe']=='1H' and labels['entry_timeframe']=='5m'
+    assert set(labels['confirmations'])=={'SMT','CISD'}
+    assert trade.net_pnl==10 and 'This trade only' in trade.notes
+    card=daily_journal.entry(app.state.workspaces.database('owner'),reply.json()['journal_day'])['trades'][0]
+    assert card['level']=='FVG' and card['entry_timeframe']=='5m' and card['strategy']=='Reversal'
+    assert client.get(root).json()['journal']['level']=='Order block'
+    assert client.post(root+'/export',json=payload).json()==reply.json()
+    assert len(client.get('/api/trades').json())==1

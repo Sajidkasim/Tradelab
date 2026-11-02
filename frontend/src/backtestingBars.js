@@ -47,6 +47,10 @@ export function aggregateMinuteBars(bars, timeframe) {
 
 export function chartHistory(market,replayTime,timeframe){
  const reached=market.bars.filter(b=>b.time<=replayTime);
+ if(String(timeframe)==='240'&&market.four_hour_history){
+  const dayStart=Math.floor(market.bars[0].time/86400000)*86400000;
+  return [...market.four_hour_history.filter(b=>b.time<dayStart&&b.time+14400000<=replayTime+60000),...aggregateMinuteBars(reached,timeframe)];
+ }
  const earlier=['1D','1W','1M'].includes(timeframe)?(market.history||[]):(market.context||[]);
  return aggregateMinuteBars([...earlier,...reached],timeframe);
 }

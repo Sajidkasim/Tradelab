@@ -117,7 +117,11 @@ class TicketPreviewInput(ProgressInput):
 
 class JournalInput(BaseModel):
     strategy:str=Field(default='',max_length=120)
-    entry_timeframe:str=Field(default='',max_length=30)
+    level:str=Field(default='',max_length=120)
+    timeframe:str=Field(default='',max_length=120)
+    entry_timeframe:str=Field(default='',max_length=120)
+    condition:str=Field(default='',max_length=120)
+    news:str=Field(default='',max_length=120)
     checklist:list[str]=Field(default_factory=list,max_length=30)
     notes:str=Field(default='',max_length=10000)
 
@@ -125,6 +129,7 @@ class ExportInput(BaseModel):
     destination:Literal['lab','journal','both']='both'
     strategy:str=Field(min_length=1,max_length=120)
     entry_cursor:int=Field(ge=0)
+    setup:JournalInput|None=None
 
 def projection(record,data):return project(data['markets'][record['root']]['bars'],record['spec'],record['commands'])
 def snapshot(record,plan):return plan['frames'][record['cursor']-record['spec']['start_cursor']]
@@ -166,7 +171,15 @@ def mount(app,config,workspace):
         record['updated']=datetime.now(timezone.utc).isoformat()
         record['summary']=summary(record,plan)
         db.set_setting(PREFIX+record['id'],record)
+    @lru_cache(maxsize=2)
+    def chart_context(day,stamp):
+        from .replay_index import four_hour_history
+        return four_hour_history(ROOT/'replay-index.db',day)
     def result(record,plan,data=None):
+        index=ROOT/'replay-index.db'
+        if data and config.local and index.is_file():
+            context=chart_context(record['day'],index.stat().st_mtime_ns)
+            data={**data,'chart_context_version':1,'markets':{root:{**market,**({'four_hour_history':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
     def valid_cursor(record,cursor):
@@ -273,7 +286,7 @@ def mount(app,config,workspace):
             plan=projection(record,checked_data(record))
             trade=next((t for t in plan['trades'] if t['entry_cursor']==payload.entry_cursor and t['exit_cursor']<=record['cursor']),None)
             if not trade:raise HTTPException(422,'Save progress after this trade closes before sending it.')
-            result=transfer(db,record,trade,payload.destination,payload.strategy)
+            result=transfer(db,record,trade,payload.destination,payload.strategy,payload.setup.model_dump() if payload.setup else None)
             app.state.workspaces.bump(member['key']);return result
 
     @app.post('/api/backtesting/sessions/{sid}/ticket-preview')

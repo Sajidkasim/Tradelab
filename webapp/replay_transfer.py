@@ -7,10 +7,10 @@ from core.models import Trade,Direction,Source
 from services.replay_engine import INSTRUMENTS
 from . import daily_journal,journal_preferences
 
-def transfer(db,record,trade,destination,strategy):
+def transfer(db,record,trade,destination,strategy,setup=None):
     from core import edge
-    research=db.get_setting('primus_replay:'+record['id']+':journal',{})
-    labels=edge.write_labels(['primus:replay'],entry_timeframe=research.get('entry_timeframe','Not recorded'),confirmations=[x.strip() for x in research.get('checklist',[]) if x.strip()])
+    research=setup if setup is not None else db.get_setting('primus_replay:'+record['id']+':journal',{})
+    labels=edge.write_labels(['primus:replay'],level=research.get('level',''),timeframe=research.get('timeframe',''),condition=research.get('condition',''),news=research.get('news',''),entry_timeframe=research.get('entry_timeframe','Not recorded'),confirmations=[x.strip() for x in research.get('checklist',[]) if x.strip()])
     external=f"replay:{record['id']}:{trade['entry_cursor']}"
     card_id=uuid5(NAMESPACE_URL,external).hex
     entry=datetime.fromtimestamp(trade['entry_time']/1000,timezone.utc)
@@ -28,7 +28,7 @@ def transfer(db,record,trade,destination,strategy):
     if destination in ('journal','both'):
         cards=[c for c in journal['trades'] if c['id']!=card_id]
         old=next((c for c in journal['trades'] if c['id']==card_id),{})
-        card={**old,'id':card_id,'symbol':record['instrument'],'direction':'long' if trade['side']=='buy' else 'short','strategy':strategy.strip(),'time':local.strftime('%H:%M'),'source':'backtest','notes':old.get('notes',f"Replay: {record['name']}"),'net_pnl':trade['net'],'outcome':daily_journal.outcome(trade['net']),'level':'Not recorded','timeframe':'Not recorded','entry_timeframe':'Not recorded','risk_amount':None,'confirmations':old.get('confirmations',[]),'lab_trade_id':lab_id}
+        card={**old,'id':card_id,'symbol':record['instrument'],'direction':'long' if trade['side']=='buy' else 'short','strategy':strategy.strip(),'time':local.strftime('%H:%M'),'source':'backtest','notes':old.get('notes',research.get('notes') or f"Replay: {record['name']}"),'net_pnl':trade['net'],'outcome':daily_journal.outcome(trade['net']),'level':research.get('level') or 'Not recorded','timeframe':research.get('timeframe') or 'Not recorded','entry_timeframe':research.get('entry_timeframe') or 'Not recorded','risk_amount':None,'confirmations':old.get('confirmations',research.get('checklist',[])),'lab_trade_id':lab_id}
         if lab_id:card.update(daily_journal.trade_snapshot(db,lab_id) or {})
         daily_journal.save(db,day,{'trades':cards+[card]})
     return {'lab_trade_id':lab_id,'journal_day':day if destination in ('journal','both') else None}

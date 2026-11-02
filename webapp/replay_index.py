@@ -27,3 +27,12 @@ def load(path,day):
    if not current:raise ValueError('No NQ/ES candles on this date. Choose an available trading day.')
    markets[root]={'contract':contract,'bars':current,'context':context,'history':history}
  return {'day':day,'timezone':'UTC','schema':'ohlcv-1m','source':'Databento GLBX.MDP3','history_version':2,'selection':'Prior-day volume; unadjusted contracts; UTC calendar candles.','markets':markets}
+
+def four_hour_history(path,day):
+ cutoff=int(datetime.fromisoformat(day).replace(tzinfo=timezone.utc).timestamp()*1000)
+ with sqlite3.connect(path) as con:
+  if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='chart_4h'").fetchone():return {}
+  result={root:[] for root in ('NQ','ES')}
+  for root,t,o,h,l,c,v in con.execute('SELECT root,time,open,high,low,close,volume FROM chart_4h WHERE time<? ORDER BY root,time',(cutoff,)):
+   result[root].append({'time':t,'open':o,'high':h,'low':l,'close':c,'volume':v})
+  return result

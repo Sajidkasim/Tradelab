@@ -85,6 +85,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       const native=chart.renderer.renderer;
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
+      if(String(current.timeframe)==='240'&&sample.chart_context_version===1&&layout.chartContextVersion!==1&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});
       const available = await chart.availableNativeIndicators();
       if (!alive) return;
       setCatalog(available); syncStudies(); setReady(true); setBusy(false);
@@ -121,7 +122,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       chart.drawings.fromJSON(drawings.current[wanted]||{version:1,drawings:[]});
     }
     chart.setMarket({symbol:wanted,timeframe}).then(()=>{
-      if(alive){setBusy(false);syncStudies()}
+      if(alive){if(String(timeframe)==='240'&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});setBusy(false);syncStudies()}
     }).catch(e=>{if(alive){setError(e.message);setBusy(false)}});
     return () => {alive = false};
   }, [ready, market, timeframe, bars, syncStudies, follow]);
@@ -141,7 +142,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     const chart=chartRef.current;if(!ready||!chart||busy)return Promise.resolve();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={split:twoCharts,symbol,timeframe,clockZone,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
+    const value={chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
     const encoded=JSON.stringify(value);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     const task=layoutQueue.current.catch(()=>{}).then(()=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}`,{method:'PUT',body:{layout:value}})).catch(e=>{lastLayout.current='';setError(e.message);throw e});layoutQueue.current=task;return task;
@@ -183,7 +184,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     </header>
     <main className="bt-canvas-area" aria-label="Backtesting chart workspace" onPointerDown={()=>setPlaying(false)}>
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
-      {!sample.history_version&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
+      {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
       {watermark&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={onAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
