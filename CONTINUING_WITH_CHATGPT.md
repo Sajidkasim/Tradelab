@@ -1022,3 +1022,24 @@ Validation: 322 pytest passed, 5 existing warnings in 26.46s; 35 frontend unit
 checks and build passed. Three targeted browser flows cover new private Lab
 choices appearing in replay dropdowns, persistence, phone layout and trade export.
 No push or deployment performed.
+
+## Continuous local replay — 2 November 2026
+
+Local only. The complete Databento download is already saved once in the ignored
+replay-index.db (5,091 dates, 2010-06-06 through 2026-11-01); the session desk now
+makes that saved coverage explicit. No archive re-import or cloud upload is needed.
+New and unfinished sessions no longer liquidate at a loaded day boundary. The
+private version-checked /continue route appends the next available trading day,
+with immutable per-day signatures and retained cursor/commands/entry/SL/TP/fees.
+Play and next-candle load another day when needed; the session-jump shortcut can
+also load the following day. The Vela instance stays mounted, keeping drawings,
+indicators and viewport. Save/reload preserves the combined timeline. Weekend
+and holiday gaps up to seven calendar days are allowed; isolated two-date hosted
+samples never bridge years. At archive exhaustion positions remain saved/open.
+An open position or pending order cannot silently cross a selected contract roll.
+Completed legacy session-end exits are retained at their original cursor, so
+continuing an old session never rewrites a previously displayed financial result.
+No core formula/signature changes, broker calls, pushes or deployments.
+Validation: 328 pytest passed (5 existing warnings) in 24.54s, 35 frontend unit
+checks and build passed. Three targeted browser flows passed, including crossing
+midnight with an open position, saving/reopening it and manually closing later.

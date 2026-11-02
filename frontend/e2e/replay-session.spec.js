@@ -308,3 +308,39 @@ test('backtesting setup dropdowns read the private Lab catalogue and retain all 
   await page.request.put(base+'/api/lab-settings',{headers,data:lab});
  }
 });
+
+test('an open position continues into the next day without resetting the chart and survives reload',async({page},testInfo)=>{
+ test.skip(!existsSync(new URL('../../data/private/replay-index.db',import.meta.url)),'Full local index required.');
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Session name',{exact:true}).fill('Overnight continuation check');
+ await page.getByLabel('Trading date',{exact:true}).fill('2010-06-07');
+ await page.getByLabel('Start time (UTC)',{exact:true}).fill('23:59');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ const status=page.getByRole('status',{name:'Chart status',exact:true});
+ await expect(status).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'Buy',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('BUY 1 NQ');
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ const continuation=page.waitForResponse(r=>r.url().endsWith('/continue')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Play replay',exact:true}).click();
+ const reply=await continuation;expect(reply.status()).toBe(200);
+ const data=await reply.json();expect(data.projection.trades).toHaveLength(0);
+ await expect(page.getByLabel('Replay time',{exact:true})).toHaveAttribute('datetime',/2010-06-08/);
+ await page.getByRole('button',{name:'Pause replay',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await expect(status).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ await expect(page.locator('.bt-save-status')).toHaveText('Saved');
+ await page.reload();
+ await expect(status).toHaveText('Chart ready');
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await page.getByRole('button',{name:'Close position',exact:true}).click();
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('No open position');
+ await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
+ await expect(page.locator('.bt-trade-ledger article')).toHaveCount(1);
+ await expect(page.locator('.bt-trade-ledger')).toContainText('close');
+ await page.screenshot({path:testInfo.outputPath('overnight-position.png')});
+});

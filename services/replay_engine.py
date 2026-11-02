@@ -89,14 +89,14 @@ def project(bars, spec, commands):
                 exit_position(i,round_to_tick(price,instrument.tick_size),'stop')
             elif targeted and not new_intrabar:
                 exit_position(i,max(target,bar['open']) if sign==1 else min(target,bar['open']),'target')
-        if i==len(bars)-1:
+        if (i==len(bars)-1 and spec.get('close_at_end',True)) or i in spec.get('legacy_end_cursors',[]):
             if position:exit_position(i,bar['close']-slip*(1 if position['side']=='buy' else -1),'session end')
             if order:fill_event(i,'cancel',reason='Session ended');order=None
         for command in by_cursor.get(i,[]):
             kind=command['kind']
             if kind=='order':
                 if position or order or closing:raise ValueError('Close the position or cancel the pending order before entering again.')
-                if i==len(bars)-1:raise ValueError('The session has ended.')
+                if i==len(bars)-1 and spec.get('close_at_end',True):raise ValueError('The session has ended.')
                 if balance<=0:raise ValueError('No practice capital remains.')
                 order=validate_order(command['order'],bar['close'],spec);order['submitted']=i
             elif kind=='amend':

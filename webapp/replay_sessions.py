@@ -157,6 +157,11 @@ def mount(app,config,workspace):
     def get_record(db,sid):
         value=db.get_setting(_key(sid))
         if not value or value.get('deleted'):raise HTTPException(404,'Session not found.')
+        # Keep old finalised exits at their original cursor when extending history.
+        if 'close_at_end' not in value['spec']:
+            if value['cursor']==value['last_cursor']:
+                value['spec']['legacy_end_cursors']=[value['last_cursor']]
+            value['spec']['close_at_end']=False
         return value
     def checked_data(record):
         try:
@@ -164,7 +169,30 @@ def mount(app,config,workspace):
             data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
         except (ValueError,OSError):raise HTTPException(422,'The saved candle file is unavailable. Restore the local data before reopening this session.') from None
         if digest!=record['data_digest']:raise HTTPException(409,'The candle file changed. Start a new session to use the new data.')
+        if record.get('continuation_days'):
+            data={**data,'markets':{root:{**market,'bars':list(market['bars'])} for root,market in data['markets'].items()}}
+            for segment in record['continuation_days']:
+                extra,signature=history(segment['day'])
+                if signature!=segment['digest']:raise HTTPException(409,'Saved continuation candles changed. Restore the original data.')
+                for root,market in data['markets'].items():
+                    market['bars'].extend(extra['markets'][root]['bars'])
         return data
+
+    @lru_cache(maxsize=2)
+    def indexed_dates(path,stamp):
+        from .replay_index import days
+        return days(Path(path))
+
+    def next_day(record):
+        if record['spec'].get('close_at_end',True):return None
+        last=record.get('continuation_days',[{'day':record['day']}])[-1]['day']
+        index=ROOT/'replay-index.db'
+        if config.local:
+            available=indexed_dates(str(index),index.stat().st_mtime_ns) if index.is_file() else []
+        else:available=sorted(json.loads(Path(config.replay_manifest).read_text())['days'])
+        following=next((day for day in available if day>last),None)
+        # Never bridge years between isolated hosted samples as an overnight gap.
+        return following if following and (date.fromisoformat(following)-date.fromisoformat(last)).days<=7 else None
     def save(db,record,plan):
         data=checked_data(record)
         record['clock']=data['markets'][record['root']]['bars'][record['cursor']]['time']+60000
@@ -181,6 +209,7 @@ def mount(app,config,workspace):
             context=chart_context(record['day'],index.stat().st_mtime_ns)
             data={**data,'chart_context_version':1,'markets':{root:{**market,**({'four_hour_history':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
+        safe['next_day']=next_day(record)
         return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
     def valid_cursor(record,cursor):
         if cursor<record['cursor'] or cursor>record['last_cursor']:raise HTTPException(409,'Replay only moves forward. Create a new session to restart a date.')
@@ -212,7 +241,7 @@ def mount(app,config,workspace):
                 now=datetime.now(timezone.utc).isoformat()
                 record={'id':str(uuid4()),'name':payload.name.strip() or f'{root} · {payload.day}', 'day':payload.day.isoformat(),
                         'extended':bool(data.get('history_version')),'instrument':payload.instrument,'root':root,'capital':round(payload.capital,2),'spec':{'capital':round(payload.capital,2),
-                        'instrument':payload.instrument,'commission':payload.commission,'slippage':payload.slippage,'start_cursor':cursor},
+                        'instrument':payload.instrument,'commission':payload.commission,'slippage':payload.slippage,'start_cursor':cursor,'close_at_end':False},
                         'cursor':cursor,'last_cursor':len(bars)-1,'version':0,'commands':[],'data_digest':digest,'clock':stamp,'created':now,'updated':now}
                 plan=projection(record,data);save(db,record,plan)
                 db.set_setting(INDEX,ids+[record['id']]);app.state.workspaces.bump(member['key'])
@@ -250,6 +279,35 @@ def mount(app,config,workspace):
             valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
             plan=projection(record,checked_data(record));save(db,record,plan);app.state.workspaces.bump(member['key'])
             return {'session':result(record,plan)['session']}
+    @app.post('/api/backtesting/sessions/{sid}/continue')
+    def continue_session(sid:str,payload:ProgressInput,member=Depends(workspace)):
+        local_only()
+        try:
+            with app.state.workspaces.lock:
+                db=database(member);record=get_record(db,sid)
+                if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
+                valid_cursor(record,payload.cursor)
+                day=next_day(record)
+                if not day:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
+                data=checked_data(record);extra,digest=history(day)
+                # Carry the actual contract, never a synthetic rollover price jump.
+                previous=record.get('continuation_days',[])
+                last_data=history(previous[-1]['day'])[0] if previous else data
+                state=projection(record,data)['frames'][payload.cursor-record['spec']['start_cursor']]
+                if (state['position'] or state['order']) and extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract']:
+                    raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
+                for root,market in data['markets'].items():
+                    if extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time']:
+                        raise ValueError('The next candle file overlaps this session.')
+                record=deepcopy(record)
+                record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
+                record['cursor']=payload.cursor
+                combined=checked_data(record)
+                record['last_cursor']=len(combined['markets'][record['root']]['bars'])-1
+                record['version']+=1
+                plan=projection(record,combined);save(db,record,plan);app.state.workspaces.bump(member['key'])
+                return result(record,plan,combined)
+        except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.post('/api/backtesting/sessions/{sid}/action')
     def action(sid:str,payload:ActionInput,member=Depends(workspace)):
         local_only()

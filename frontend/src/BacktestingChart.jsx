@@ -20,11 +20,12 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr', 'volume'];
 
-export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,saveOtherLayout=()=>Promise.resolve()}) {
   const [symbol, setSymbol] = useState(layout.symbol||session.root);
   const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockZone||localStorage.getItem('primus-replay-clock')));
   const [follow,setFollow]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
+  const sampleRef=useRef(sample);sampleRef.current=sample;
   const timeline=sample.markets[session.root].bars;
   const replayTime=timeline[cursor].time;
   const frame=projection.frames[cursor-session.spec.start_cursor];
@@ -62,7 +63,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{const root=ticker.startsWith('NQ')?'NQ':'ES';return chartHistory(sample.markets[root],selection.current.replayTime,tf)},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
+      const source={getBars:async(ticker,tf)=>{const root=ticker.startsWith('NQ')?'NQ':'ES';return chartHistory(sampleRef.current.markets[root],selection.current.replayTime,tf)},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
@@ -95,7 +96,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if (chartRef.current === chart) chartRef.current = null;
       chart?.destroy();
     };
-  }, [sample, syncStudies]);
+  }, [session.id, syncStudies]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -130,13 +131,17 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   useEffect(()=>{if(ready)chartRef.current?.renderer.applyConfig({timeScale:{timezone:clockZone}});localStorage.setItem('primus-replay-clock',clockZone)},[clockZone,ready]);
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
   useEffect(() => {document.title = `${session.name} — Primus Backtesting`}, [session.name]);
-  function next(){onCursor(nextReplayCursor(timeline,cursor,Number(step)))}
+  async function next(){
+    if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setError(e.message)};return}
+    onCursor(nextReplayCursor(timeline,cursor,Number(step)));
+  }
   useEffect(()=>{
-    if(finished||sessionBusy||saveError){setPlaying(false);return}
-    if(!playing||busy||!ready)return;
+    if(saveError||(finished&&!session.next_day)){setPlaying(false);return}
+    if(!playing||busy||!ready||sessionBusy)return;
+    if(finished){next();return}
     const timer=setTimeout(()=>onCursor(nextReplayCursor(timeline,cursor,Number(step))),1000/Number(speed));
     return()=>clearTimeout(timer);
-  },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline]);
+  },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
 
   function saveLayout(){
     const chart=chartRef.current;if(!ready||!chart||busy)return Promise.resolve();
@@ -189,7 +194,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={onAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
-    {!secondary&&<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={onAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>}
+    {!secondary&&<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={onAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>}
     <footer className="bt-statusbar">
       <div><strong title={sample.selection}>{market?.contract || symbol}</strong><span>{timeframeName}</span><span className="bt-bar-count">{bars.length.toLocaleString('en-GB')} bars</span></div>
       <time className="bt-sample" aria-label="Replay time" dateTime={new Date(replayTime+60000).toISOString()}>{clockParts(replayTime+60000,clockZone).day} · {clockParts(replayTime+60000,clockZone).time}</time>

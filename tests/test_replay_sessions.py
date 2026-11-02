@@ -105,13 +105,14 @@ def test_layout_and_explicit_transfer_are_private_repeat_safe_and_preserve_resul
     assert client.put(f'/api/backtesting/sessions/{sid}/layout',json={'layout':layout}).status_code==200
     assert client.get(f'/api/backtesting/sessions/{sid}').json()['layout']==layout
     assert client.post(f'/api/backtesting/sessions/{sid}/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
-    assert client.put(f'/api/backtesting/sessions/{sid}/progress',json={'version':1,'cursor':5}).status_code==200
+    assert client.post(f'/api/backtesting/sessions/{sid}/action',json={'version':1,'cursor':4,'kind':'close','event_id':str(uuid4())}).status_code==200
+    assert client.put(f'/api/backtesting/sessions/{sid}/progress',json={'version':2,'cursor':5}).status_code==200
     body={'destination':'both','strategy':'Replay model','entry_cursor':3}
     result=client.post(f'/api/backtesting/sessions/{sid}/export',json=body)
     assert result.status_code==200,result.text
     assert client.post(f'/api/backtesting/sessions/{sid}/export',json=body).json()==result.json()
     trades=client.get('/api/trades').json();assert len(trades)==1
-    assert trades[0]['net_pnl']==10 and trades[0]['r_multiple'] is None
+    assert trades[0]['net_pnl']==6 and trades[0]['r_multiple'] is None
     from webapp.daily_journal import entry
     assert len(entry(app.state.workspaces.database('owner'),result.json()['journal_day'])['trades'])==1
 
@@ -190,7 +191,8 @@ def test_lab_setup_overrides_follow_export_without_changing_session_defaults(loc
     defaults={'strategy':'Default','level':'Order block','timeframe':'4H','entry_timeframe':'1m','checklist':[],'notes':'Session defaults'}
     assert client.put(root+'/journal',json=defaults).status_code==200
     assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
-    assert client.put(root+'/progress',json={'version':1,'cursor':5}).status_code==200
+    assert client.post(root+'/action',json={'version':1,'cursor':4,'kind':'close','event_id':str(uuid4())}).status_code==200
+    assert client.put(root+'/progress',json={'version':2,'cursor':5}).status_code==200
     setup={'strategy':'Reversal','level':'FVG','timeframe':'1H','entry_timeframe':'5m','checklist':['SMT','CISD'],'notes':'This trade only','news':'CPI','condition':'Trending'}
     payload={'destination':'both','strategy':'Reversal','entry_cursor':3,'setup':setup}
     reply=client.post(root+'/export',json=payload);assert reply.status_code==200,reply.text
@@ -198,9 +200,73 @@ def test_lab_setup_overrides_follow_export_without_changing_session_defaults(loc
     labels=edge.read_labels(trade.tags)
     assert labels['level']=='FVG' and labels['timeframe']=='1H' and labels['entry_timeframe']=='5m'
     assert set(labels['confirmations'])=={'SMT','CISD'}
-    assert trade.net_pnl==10 and 'This trade only' in trade.notes
+    assert trade.net_pnl==6 and 'This trade only' in trade.notes
     card=daily_journal.entry(app.state.workspaces.database('owner'),reply.json()['journal_day'])['trades'][0]
     assert card['level']=='FVG' and card['entry_timeframe']=='5m' and card['strategy']=='Reversal'
     assert client.get(root).json()['journal']['level']=='Order block'
     assert client.post(root+'/export',json=payload).json()==reply.json()
     assert len(client.get('/api/trades').json())==1
+
+
+@pytest.fixture
+def overnight(candles,monkeypatch,tmp_path):
+    from webapp import replay_index
+    data=deepcopy(candles);data['history_version']=2
+    data['markets']={root:deepcopy(market) for root,market in data['markets'].items()}
+    later=deepcopy(data);later['day']='2010-06-08'
+    for market in later['markets'].values():
+        for bar in market['bars']:bar['time']+=86400000
+    bundles={'2010-06-07':data,'2010-06-08':later}
+    (tmp_path/'replay-index.db').touch()
+    monkeypatch.setattr(replay_index,'days',lambda path:list(bundles))
+    monkeypatch.setattr(replay_index,'four_hour_history',lambda *args:{})
+    monkeypatch.setattr(replay_sessions,'load_history',lambda day:(deepcopy(bundles[day]),day+'-digest'))
+    return bundles
+
+
+def test_position_survives_midnight_continuation_reopen_and_explicit_close(local,overnight):
+    client,app=local;state=create(client);root='/api/backtesting/sessions/'+state['session']['id']
+    assert state['session']['next_day']=='2010-06-08'
+    assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2,'stop':90,'target':120}}).status_code==200
+    assert client.put(root+'/progress',json={'version':1,'cursor':5}).status_code==200
+    boundary=client.get(root).json()
+    assert boundary['projection']['trades']==[]
+    assert boundary['projection']['frames'][-1]['position']['stop']==90
+    response=client.post(root+'/continue',json={'version':2,'cursor':5})
+    assert response.status_code==200,response.text
+    state=response.json()
+    assert len(state['sample']['markets']['NQ']['bars'])==12
+    assert state['session']['last_cursor']==11
+    assert state['session']['cursor']==5 and state['session']['next_day'] is None
+    assert state['projection']['frames'][4]['position']['target']==120
+    assert state['projection']['trades']==[]
+    assert client.post(root+'/continue',json={'version':2,'cursor':5}).status_code==409
+    reopened=client.get(root).json()
+    assert len(reopened['sample']['markets']['NQ']['bars'])==12
+    assert reopened['projection']==state['projection']
+    assert client.post(root+'/action',json={'version':3,'cursor':6,'kind':'close','event_id':str(uuid4())}).status_code==200
+    assert client.put(root+'/progress',json={'version':4,'cursor':7}).status_code==200
+    trade=client.get(root).json()['projection']['trades'][0]
+    assert trade['reason']=='close' and trade['exit_cursor']==7
+    assert trade['entry_time']<overnight['2010-06-08']['markets']['NQ']['bars'][0]['time']<=trade['exit_time']
+
+
+def test_continuation_rejects_contract_roll_and_changed_saved_candles(local,overnight,monkeypatch):
+    client,app=local;state=create(client);root='/api/backtesting/sessions/'+state['session']['id']
+    assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':1}}).status_code==200
+    overnight['2010-06-08']['markets']['NQ']['contract']='NQU0'
+    assert client.post(root+'/continue',json={'version':1,'cursor':5}).status_code==422
+    assert client.get(root).json()['session']['version']==1
+    overnight['2010-06-08']['markets']['NQ']['contract']='NQM0'
+    assert client.post(root+'/continue',json={'version':1,'cursor':5}).status_code==200
+    monkeypatch.setattr(replay_sessions,'load_history',lambda day:(deepcopy(overnight[day]),'changed'))
+    assert client.get(root).status_code==409
+
+
+def test_unfinished_legacy_sessions_upgrade_but_completed_exits_stay_unchanged(local,candles):
+    client,app=local;state=create(client);sid=state['session']['id'];db=app.state.workspaces.database('owner')
+    record=db.get_setting(replay_sessions.PREFIX+sid);record['spec'].pop('close_at_end');db.set_setting(replay_sessions.PREFIX+sid,record)
+    assert client.get('/api/backtesting/sessions/'+sid).json()['session']['spec']['close_at_end'] is False
+    record['cursor']=record['last_cursor'];db.set_setting(replay_sessions.PREFIX+sid,record)
+    saved=client.get('/api/backtesting/sessions/'+sid).json()['session']['spec']
+    assert saved['close_at_end'] is False and saved['legacy_end_cursors']==[record['last_cursor']]

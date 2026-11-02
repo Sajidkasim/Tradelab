@@ -92,3 +92,34 @@ def test_ticket_preview_uses_entry_direction_and_contract_size():
     assert ticket_result(20000,19990,'buy',2,'NQ')==-400
     assert ticket_result(20000,19990,'sell',2,'NQ')==400
     assert ticket_result(5000,5002,'buy',3,'ES')==300
+
+
+def test_continuous_replay_keeps_position_and_pending_order_at_loaded_boundary():
+    spec={**SPEC,'close_at_end':False}
+    first=project(BARS,spec,[command(0)])
+    assert first['trades']==[]
+    assert first['frames'][-1]['position']['entry']==101
+    overnight={**BARS[-1],'time':86400000,'open':110,'high':112,'low':109,'close':111}
+    later=project(BARS+[overnight],spec,[command(0),{'at':3,'kind':'close'}])
+    assert later['trades'][0]['reason']=='close'
+    assert later['trades'][0]['exit']==110
+    assert later['trades'][0]['net']==17
+    pending=project(BARS,spec,[command(3)])
+    assert pending['frames'][-1]['order'] is not None
+    assert project(BARS+[overnight],spec,[command(3)])['frames'][-1]['position']['entry']==110
+
+
+def test_continuous_replay_still_honours_overnight_gap_stop():
+    spec={**SPEC,'close_at_end':False}
+    overnight={**BARS[-1],'time':86400000,'open':95,'high':97,'low':94,'close':96}
+    plan=project(BARS+[overnight],spec,[command(0,stop=97,target=120)])
+    assert plan['trades'][0]['reason']=='stop'
+    assert plan['trades'][0]['exit']==95
+
+
+def test_extending_an_already_completed_legacy_session_preserves_its_recorded_exit():
+    original=project(BARS,SPEC,[command(0)])
+    later=[*BARS,{**BARS[-1],'time':86400000,'open':110,'close':111}]
+    extended=project(later,{**SPEC,'close_at_end':False,'legacy_end_cursors':[3]},[command(0)])
+    assert extended['trades']==original['trades']
+    assert extended['frames'][:4]==original['frames']
