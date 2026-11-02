@@ -40,3 +40,15 @@ it('calendar candles combine earlier sessions and never reveal future minutes',a
  const current=chartHistory(market,t,'1M');expect(current).toHaveLength(1);expect(current[0].open).toBe(80);expect(current[0].high).toBe(105);expect(current[0].volume).toBe(30);
  expect(chartHistory(market,t,'1W')).toHaveLength(2);
 });
+
+it('4h candles retain their full preceding minute context and share the replay cutoff',async()=>{
+ const {chartHistory}=await import('./backtestingBars');
+ const start=Date.UTC(2020,5,2,8);
+ const context=Array.from({length:120},(_,i)=>({time:start+i*60000,open:100,high:105,low:95,close:101,volume:1}));
+ const today=Array.from({length:180},(_,i)=>({time:start+(120+i)*60000,open:101,high:i===179?999:106,low:94,close:102,volume:1}));
+ const market={context,bars:today},clock=start+179*60000;
+ const four=chartHistory(market,clock,'240');
+ expect(four).toEqual([{time:start,open:100,high:106,low:94,close:102,volume:180}]);
+ expect(chartHistory(market,clock,'1').at(-1).time).toBe(clock);
+ expect(chartHistory(market,clock,'60').at(-1).high).toBe(106);
+});

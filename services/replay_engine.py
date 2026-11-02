@@ -124,11 +124,17 @@ def project(bars, spec, commands):
             reference=position['entry'] if position else (order.get('price') or bar['close'])
             direction=1 if active['side']=='buy' else -1
             ticket={'pending':position is None,'reference':reference,'qty':active['qty'],'side':active['side'],
-                    'stop_price':active.get('stop') if active.get('stop') is not None else reference-direction*2.5,
-                    'target_price':active.get('target') if active.get('target') is not None else reference+direction*2.5}
+                    'stop_price':active.get('stop') if active.get('stop') is not None else reference,
+                    'target_price':active.get('target') if active.get('target') is not None else reference}
             for field in ('stop','target'):
                 price=active.get(field)
                 ticket[field+'_result']=None if price is None else round((price-reference)*direction*instrument.multiplier*active['qty'],2)
         frames.append({'ticket':ticket,'cursor':i,'balance':round(balance,2),'equity':round(balance+unrealized,2),'unrealized':round(unrealized,2),
                        'position':visible_position,'order':deepcopy(order)})
     return {'frames':frames,'trades':trades,'fills':fills}
+
+
+def ticket_result(reference,price,side,qty,instrument):
+    if side not in ('buy','sell') or instrument not in INSTRUMENTS or not 1<=qty<=50 or not all(math.isfinite(v) and v>0 for v in (reference,price)):
+        raise ValueError('Invalid ticket preview.')
+    return round((price-reference)*(1 if side=='buy' else -1)*INSTRUMENTS[instrument].multiplier*qty,2)

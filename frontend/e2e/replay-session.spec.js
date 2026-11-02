@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {existsSync} from 'node:fs';
 test.skip(!existsSync(new URL('../../data/private/backtesting-preview.json',import.meta.url)),'Prepare local Databento sample first.');
-test('create, replay, buy two micros, close, place/cancel a limit and resume saved practice without future results',async({page},testInfo)=>{
+test('create, replay, buy two contracts, close, place/cancel a limit and resume saved practice without future results',async({page},testInfo)=>{
  let writes=0;
  page.on('request',r=>{if(r.method()!=='GET'&&r.url().includes('/api/backtesting/'))writes++});
  await page.goto('http://127.0.0.1:8119/backtesting');
@@ -16,7 +16,7 @@ test('create, replay, buy two micros, close, place/cancel a limit and resume sav
  await page.getByRole('button',{name:'Increase contracts',exact:true}).click();
  await expect(page.getByRole('spinbutton',{name:'Contracts',exact:true})).toHaveValue('2');
  await page.getByRole('button',{name:'Buy',exact:true}).click();
- await expect(page.locator('.bt-position-strip')).toContainText('BUY 2 MNQ');
+ await expect(page.locator('.bt-position-strip')).toContainText('BUY 2 NQ');
  await expect(page.locator('.bt-position-strip')).toContainText('Next open');
  await expect(page.getByRole('group',{name:'Pending entry price box',exact:true})).toBeVisible();
  const pendingEdit=page.waitForResponse(r=>r.url().includes('/action')&&r.request().postDataJSON()?.kind==='amend');
@@ -25,12 +25,13 @@ test('create, replay, buy two micros, close, place/cancel a limit and resume sav
  const pendingReply=await pendingEdit;expect(pendingReply.status()).toBe(200);
  expect((await pendingReply.json()).projection.frames[0].order.stop).not.toBeNull();
  await page.screenshot({path:testInfo.outputPath('pending-price-boxes.png')});
+ await page.getByRole('button',{name:'Remove stop loss',exact:true}).click();
  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
  const ledger=page.getByRole('dialog',{name:'Session trades',exact:true});
  await expect(ledger).toContainText('No closed trades yet');
  await ledger.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
- await expect(page.locator('.bt-position-strip')).toContainText('Long 2 MNQ');
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 2 NQ');
  const amended=page.waitForResponse(r=>r.url().includes('/action')&&r.request().postDataJSON()?.kind==='amend');
  const stopHandle=page.getByRole('button',{name:'Drag stop price',exact:true});
  const handle=await stopHandle.boundingBox();
@@ -43,15 +44,15 @@ test('create, replay, buy two micros, close, place/cancel a limit and resume sav
  await expect(page.locator('.bt-position-strip')).toContainText('No open position');
  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
  await expect(ledger.locator('.bt-trade-ledger article')).toHaveCount(1);
- await expect(ledger.locator('.bt-trade-ledger')).toContainText('Buy 2 MNQ');
+ await expect(ledger.locator('.bt-trade-ledger')).toContainText('Buy 2 NQ');
  await ledger.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('combobox',{name:'Order type',exact:true}).click();
  await page.getByRole('option',{name:'Limit',exact:true}).click();
  await page.getByRole('button',{name:'Sell',exact:true}).click();
- const ticket=page.getByRole('dialog',{name:'Sell limit · MNQ',exact:true});
+ const ticket=page.getByRole('dialog',{name:'Sell limit · NQ',exact:true});
  await ticket.getByRole('spinbutton',{name:'Order price',exact:true}).fill('2000');
  await ticket.getByRole('button',{name:'Place sell limit',exact:true}).click();
- await expect(page.locator('.bt-position-strip')).toContainText('SELL 2 MNQ');
+ await expect(page.locator('.bt-position-strip')).toContainText('SELL 2 NQ');
  await page.getByRole('button',{name:'Cancel order',exact:true}).click();
  await expect(page.locator('.bt-position-strip')).toContainText('No open position');
  const before=writes;
@@ -213,4 +214,29 @@ test('chart clocks, speed slider and saved session jump work without replay data
  await expect(clock).toContainText('14:30:00');
  await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('London');
  await page.screenshot({path:testInfo.outputPath('clock-speed-jump.png')});
+});
+
+test('two charts share replay time and save the journal',async({page},testInfo)=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'4h',exact:true}).click();
+ await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
+ await expect(page.locator('.replay-chart')).toHaveCount(2);
+ await expect(page.getByRole('status',{name:'Chart status',exact:true}).last()).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ expect(await page.getByLabel('Replay time',{exact:true}).first().getAttribute('datetime')).toBe(await page.getByLabel('Replay time',{exact:true}).last().getAttribute('datetime'));
+ await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
+ const journal=page.getByRole('dialog',{name:'Backtesting journal',exact:true});
+ await journal.getByLabel('Strategy',{exact:true}).fill('Reversal at key level');
+ await journal.getByLabel('Session notes',{exact:true}).fill('Wait for confirmation.');
+ await journal.getByRole('button',{name:'Save journal',exact:true}).click();
+ await expect(journal.getByRole('status')).toContainText('Saved');
+ await journal.getByRole('button',{name:'Close',exact:true}).click();
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ await page.screenshot({path:testInfo.outputPath('two-charts.png')});
+ await page.reload();await expect(page.locator('.replay-chart')).toHaveCount(2);
+ await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
+ await expect(journal.getByLabel('Session notes',{exact:true})).toHaveValue('Wait for confirmation.');
 });

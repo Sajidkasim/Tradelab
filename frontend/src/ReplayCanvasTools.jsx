@@ -1,9 +1,14 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {api} from './api';
 import {replayProjector} from './replayViewport';
 const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v);
-export default function ReplayCanvasTools({chart,host,frame,session,price,qty,disabled,onAction,pause,onError}){
+export default function ReplayCanvasTools({chart,host,frame,session,price,qty,disabled,onAction,pause,onError,cursor,version}){
  const [geometry,setGeometry]=useState(null),[menu,setMenu]=useState(null),[drag,setDrag]=useState(null);
  const menuRef=useRef(null),ticket=frame.ticket;
+ const [estimate,setEstimate]=useState(null);
+ const latestDrag=useRef(drag);latestDrag.current=drag;
+ useEffect(()=>{setEstimate(null);if(!drag)return;let alive=true,busy=false,last=null;const update=()=>{const current=latestDrag.current;if(busy||!current||current.price===last)return;last=current.price;busy=true;api(`/backtesting/sessions/${session.id}/ticket-preview`,{method:'POST',body:{version,cursor,price:current.price}}).then(v=>{if(alive)setEstimate(v.amount)}).catch(()=>{}).finally(()=>{busy=false})};update();const timer=setInterval(update,120);return()=>{alive=false;clearInterval(timer)}},[drag?.kind,cursor,version]);
+
  useEffect(()=>{
   let raf;const update=()=>{const proj=replayProjector(chart);const pane=proj?.paneRect('price');
    if(proj&&pane&&ticket){const g={top:pane.top,bottom:pane.top+pane.height,entry:proj.yOf(ticket.reference,'price'),stop:proj.yOf(ticket.stop_price,'price'),target:proj.yOf(ticket.target_price,'price')};setGeometry(old=>JSON.stringify(old)===JSON.stringify(g)?old:g)}
@@ -28,10 +33,10 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
  const movable=kind!=='entry'||(ticket.pending&&frame.order?.type!=='market');
  const field=kind==='entry'?'price':kind;
  return <div key={kind} className={`bt-ticket-line ${kind} ${!active?'draft':''}`} style={{top:y}}>
- <div className="bt-price-ticket" role="group" aria-label={`${kind==='entry'?(ticket.pending?'Pending entry':'Entry'):kind==='stop'?'Stop loss':'Take profit'} price box`}>
+ <div className={`bt-price-ticket ${!active?`unset-${kind}`:''}`} role="group" aria-label={`${kind==='entry'?(ticket.pending?'Pending entry':'Entry'):kind==='stop'?'Stop loss':'Take profit'} price box`}>
  <button className="bt-ticket-drag" disabled={disabled||!movable||frame.position?.closing} title={movable?'Drag to set price':'Entry price'} aria-label={`Drag ${kind} price`} onPointerDown={e=>{if(!movable)return;pause();e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setDrag({kind,price:level})}} onPointerMove={e=>{if(drag?.kind===kind)setDrag({kind,price:atPointer(e)})}} onPointerUp={e=>{if(drag?.kind!==kind)return;const value=atPointer(e);setDrag(null);amend(field,value)}} onPointerCancel={()=>setDrag(null)}>
  <b>{kind==='entry'?`${ticket.side==='buy'?'BUY':'SELL'} ${ticket.qty}`:kind==='stop'?'SL':'TP'}</b>
- <span>{level.toFixed(2)}</span><strong>{drag?.kind===kind?'…':kind==='entry'?(ticket.pending?'Pending':money(frame.unrealized)):active?money(ticket[kind+'_result']):'Drag to set'}</strong>
+ <span>{level.toFixed(2)}</span><strong>{drag?.kind===kind?(estimate==null?'…':money(estimate)):kind==='entry'?(ticket.pending?'Pending':money(frame.unrealized)):active?money(ticket[kind+'_result']):'Drag to set'}</strong>
  </button><button disabled={disabled||frame.position?.closing} aria-label={kind==='entry'?(ticket.pending?'Cancel chart order':'Close chart position'):`Remove ${kind==='stop'?'stop loss':'take profit'}`} onClick={()=>kind==='entry'?send(ticket.pending?'cancel':'close'):amend(field,null)}>×</button>
  </div></div>})}<small className="bt-ticket-note">{ticket.pending?'Pending entry · market fill price may differ. ':''}SL/TP amounts are gross, before fees.</small></div>}
  {menu&&<div className="bt-chart-menu" role="menu" aria-label="Chart options" tabIndex={-1} ref={menuRef} style={{left:menu.x,top:menu.y}}>

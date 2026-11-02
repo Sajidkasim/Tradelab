@@ -5,7 +5,8 @@ from tests.test_webapp import local
 from webapp import replay_sessions
 
 @pytest.fixture
-def candles(monkeypatch):
+def candles(monkeypatch,tmp_path):
+    monkeypatch.setattr(replay_sessions,'ROOT',tmp_path)
     base=1275917220000 # 2010-06-07 13:27 UTC
     bars=[{'time':base+i*60000,'open':100+i,'high':102+i,'low':99+i,'close':101+i,'volume':10} for i in range(6)]
     data={'day':'2010-06-07','markets':{key:{'contract':key+'M0','bars':bars} for key in ('NQ','ES')}}
@@ -168,3 +169,16 @@ def test_hosted_replay_uses_private_bundles_without_local_files_and_caches_only_
         assert len(reads)==1
         assert client.post('/api/backtesting/sessions',json={'day':'2013-01-25'}).status_code==422
     db.engine.dispose()
+
+def test_replay_research_and_two_layouts_save_separately(local,candles):
+    client,app=local;sid=create(client)['session']['id']
+    root=f'/api/backtesting/sessions/{sid}'
+    assert client.put(root+'/layout',json={'layout':{'split':True,'timeframe':'240'}}).status_code==200
+    assert client.put(root+'/layout?pane=secondary',json={'layout':{'symbol':'ES','timeframe':'15'}}).status_code==200
+    assert client.put(root+'/journal',json={'strategy':'Reversal','entry_timeframe':'5m','checklist':['SMT'],'notes':'Patient entry'}).status_code==200
+    data=client.get(root).json()
+    assert data['layout']['timeframe']=='240'
+    assert data['layout_secondary']['symbol']=='ES'
+    assert data['journal']['notes']=='Patient entry'
+    assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
+    assert client.post(root+'/ticket-preview',json={'version':1,'cursor':2,'price':100}).json()['amount']==-12

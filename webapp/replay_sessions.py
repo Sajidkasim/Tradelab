@@ -62,8 +62,13 @@ def catalog():
     current=json.loads(sample.read_text()) if sample.is_file() else {}
     source=json.loads(config.read_text()) if config.is_file() else {}
     day=source.get('preview_day',current.get('day','2010-06-07'))
-    return {'first_day':source.get('first_day',day),'last_day':source.get('last_day',day),'sample_day':day,
-            'instruments':[{'symbol':k,'name':v.name,'multiplier':v.multiplier,'tick_size':v.tick_size,'commission':v.commission_per_contract/2} for k,v in INSTRUMENTS.items()]}
+    indexed={}
+    if (ROOT/'replay-index.db').is_file():
+        from .replay_index import days
+        available=days(ROOT/'replay-index.db')
+        if available:indexed={'indexed_days':len(available),'first_day':available[0],'last_day':available[-1]}
+    return {**{'first_day':source.get('first_day',day),'last_day':source.get('last_day',day),'sample_day':day,
+            'instruments':[{'symbol':k,'name':v.name,'multiplier':v.multiplier,'tick_size':v.tick_size,'commission':v.commission_per_contract/2} for k,v in INSTRUMENTS.items() if k in ('NQ','ES')]},**indexed}
 
 def load_sample(day):
     # Only a validated ISO date can become a filename; never accept a path from the browser.
@@ -86,6 +91,13 @@ def load_sample(day):
         return _read(str(target),target.stat().st_mtime_ns)
 
 def load_history(day):
+    if (ROOT/'replay-index.db').is_file():
+        from .replay_index import load
+        target=ROOT/'replay-index-days'/f'{date.fromisoformat(day).isoformat()}.json'
+        with DATA_LOCK:
+            if not target.is_file():
+                data=load(ROOT/'replay-index.db',day);target.parent.mkdir(parents=True,exist_ok=True);target.write_text(json.dumps(data,separators=(',',':')))
+            return _read(str(target),target.stat().st_mtime_ns)
     base,digest=load_sample(day)
     config=ROOT/'replay-source.json'
     if base.get('source')!='Databento GLBX.MDP3' or not config.is_file():return base,digest
@@ -99,6 +111,15 @@ def load_history(day):
 class LayoutInput(BaseModel):
     model_config=ConfigDict(extra='forbid')
     layout:dict
+
+class TicketPreviewInput(ProgressInput):
+    price:float=Field(gt=0,allow_inf_nan=False)
+
+class JournalInput(BaseModel):
+    strategy:str=Field(default='',max_length=120)
+    entry_timeframe:str=Field(default='',max_length=30)
+    checklist:list[str]=Field(default_factory=list,max_length=30)
+    notes:str=Field(default='',max_length=10000)
 
 class ExportInput(BaseModel):
     destination:Literal['lab','journal','both']='both'
@@ -133,7 +154,9 @@ def mount(app,config,workspace):
         if not value or value.get('deleted'):raise HTTPException(404,'Session not found.')
         return value
     def checked_data(record):
-        try:data,digest=(history if record.get('extended') else load_sample)(record['day'])
+        try:
+            old=ROOT/'replay-history'/f"{record['day']}.json"
+            data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
         except (ValueError,OSError):raise HTTPException(422,'The saved candle file is unavailable. Restore the local data before reopening this session.') from None
         if digest!=record['data_digest']:raise HTTPException(409,'The candle file changed. Start a new session to use the new data.')
         return data
@@ -203,7 +226,7 @@ def mount(app,config,workspace):
         try:
             with app.state.workspaces.lock:
                 record=get_record(database(member),sid);data=checked_data(record)
-                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',{})}
+                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',{}),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',{}),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
     def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
@@ -234,12 +257,12 @@ def mount(app,config,workspace):
         except ValueError as e:raise HTTPException(422,str(e)) from None
 
     @app.put('/api/backtesting/sessions/{sid}/layout')
-    def layout(sid:str,payload:LayoutInput,member=Depends(workspace)):
+    def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000:raise HTTPException(422,'Chart layout is too large.')
         with app.state.workspaces.lock:
             db=database(member);get_record(db,sid)
-            db.set_setting(_key(sid)+':layout',payload.layout);app.state.workspaces.bump(member['key'])
+            db.set_setting(_key(sid)+(':layout:secondary' if pane=='secondary' else ':layout'),payload.layout);app.state.workspaces.bump(member['key'])
         return {'saved':True}
     @app.post('/api/backtesting/sessions/{sid}/export')
     def export(sid:str,payload:ExportInput,member=Depends(workspace)):
@@ -252,3 +275,19 @@ def mount(app,config,workspace):
             if not trade:raise HTTPException(422,'Save progress after this trade closes before sending it.')
             result=transfer(db,record,trade,payload.destination,payload.strategy)
             app.state.workspaces.bump(member['key']);return result
+
+    @app.post('/api/backtesting/sessions/{sid}/ticket-preview')
+    def ticket_preview(sid:str,payload:TicketPreviewInput,member=Depends(workspace)):
+        local_only()
+        from services.replay_engine import ticket_result
+        with app.state.workspaces.lock:
+            record=get_record(database(member),sid);valid_cursor(record,payload.cursor)
+            plan=projection(record,checked_data(record));ticket=plan['frames'][payload.cursor-record['spec']['start_cursor']]['ticket']
+            if not ticket:raise HTTPException(422,'No active ticket.')
+            return {'amount':ticket_result(ticket['reference'],payload.price,ticket['side'],ticket['qty'],record['instrument'])}
+    @app.put('/api/backtesting/sessions/{sid}/journal')
+    def journal(sid:str,payload:JournalInput,member=Depends(workspace)):
+        local_only()
+        with app.state.workspaces.lock:
+            db=database(member);get_record(db,sid);db.set_setting(_key(sid)+':journal',payload.model_dump());app.state.workspaces.bump(member['key'])
+        return {'saved':True}

@@ -86,3 +86,9 @@ def test_pending_levels_can_be_set_before_any_fill_and_survive_entry():
  assert p['frames'][0]['ticket']['pending'] is True
  assert p['frames'][0]['ticket']['stop_result']==-2
  assert p['frames'][1]['position']['stop']==99
+
+def test_ticket_preview_uses_entry_direction_and_contract_size():
+    from services.replay_engine import ticket_result
+    assert ticket_result(20000,19990,'buy',2,'NQ')==-400
+    assert ticket_result(20000,19990,'sell',2,'NQ')==400
+    assert ticket_result(5000,5002,'buy',3,'ES')==300

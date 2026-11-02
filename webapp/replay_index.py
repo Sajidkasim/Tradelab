@@ -1,0 +1,29 @@
+"""Read bounded chart windows from the offline full-archive index."""
+import sqlite3
+from datetime import date,timedelta,datetime,timezone
+
+def days(path):
+ with sqlite3.connect(path) as con:return [r[0] for r in con.execute("SELECT day FROM volumes GROUP BY day HAVING COUNT(DISTINCT SUBSTR(symbol,1,2))=2 ORDER BY day")]
+
+def load(path,day):
+ end=date.fromisoformat(day);start=(end-timedelta(days=370)).isoformat();context_start=(end-timedelta(days=14)).isoformat()
+ with sqlite3.connect(path) as con:
+  volumes=con.execute('SELECT day,symbol,volume FROM volumes WHERE day>=? AND day<=? ORDER BY day,symbol',(start,day)).fetchall()
+  markets={}
+  for root in ('NQ','ES'):
+   groups={}
+   for d,s,v in volumes:
+    if s.startswith(root):groups.setdefault(d,{})[s]=v
+   previous={};history=[];context=[];current=[];contract=None
+   for d,candidates in groups.items():
+    eligible={s:v for s,v in previous.items() if s in candidates};symbol=max(eligible,key=eligible.get) if eligible else sorted(candidates)[0];previous=candidates
+    rows=con.execute('SELECT time,open,high,low,close,volume FROM bars WHERE day=? AND symbol=? ORDER BY time',(d,symbol)).fetchall()
+    if not rows:continue
+    records=[dict(zip(('time','open','high','low','close','volume'),r)) for r in rows] if d>=context_start else []
+    if d==day:current=records;contract=symbol
+    else:
+     history.append({'time':int(datetime.fromisoformat(d).replace(tzinfo=timezone.utc).timestamp()*1000),'open':rows[0][1],'high':max(r[2] for r in rows),'low':min(r[3] for r in rows),'close':rows[-1][4],'volume':sum(r[5] for r in rows)})
+     if d>=context_start:context.extend(records)
+   if not current:raise ValueError('No NQ/ES candles on this date. Choose an available trading day.')
+   markets[root]={'contract':contract,'bars':current,'context':context,'history':history}
+ return {'day':day,'timezone':'UTC','schema':'ohlcv-1m','source':'Databento GLBX.MDP3','history_version':2,'selection':'Prior-day volume; unadjusted contracts; UTC calendar candles.','markets':markets}

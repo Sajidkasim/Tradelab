@@ -8,6 +8,9 @@ from services.replay_engine import INSTRUMENTS
 from . import daily_journal,journal_preferences
 
 def transfer(db,record,trade,destination,strategy):
+    from core import edge
+    research=db.get_setting('primus_replay:'+record['id']+':journal',{})
+    labels=edge.write_labels(['primus:replay'],entry_timeframe=research.get('entry_timeframe','Not recorded'),confirmations=[x.strip() for x in research.get('checklist',[]) if x.strip()])
     external=f"replay:{record['id']}:{trade['entry_cursor']}"
     card_id=uuid5(NAMESPACE_URL,external).hex
     entry=datetime.fromtimestamp(trade['entry_time']/1000,timezone.utc)
@@ -20,7 +23,7 @@ def transfer(db,record,trade,destination,strategy):
     if destination in ('lab','both') and lab_id is None:
         instrument=INSTRUMENTS[record['instrument']];stop=trade.get('original_stop')
         if stop is not None and (trade['entry']-stop)*(1 if trade['side']=='buy' else -1)<=0:stop=None
-        t=Trade(symbol=record['instrument'],direction=Direction.LONG if trade['side']=='buy' else Direction.SHORT,qty=trade['qty'],entry_time=entry,exit_time=end,entry_price=trade['entry'],exit_price=trade['exit'],stop_price=stop,multiplier=instrument.multiplier,fees=trade['fees'],source=Source.BACKTEST,external_id=external,account_id=db.accounts()[0].id,setup_name=strategy.strip(),tags=['primus:replay'],notes=f"Replay session: {record['name']}. Simulated fills; {trade['reason']}.")
+        t=Trade(symbol=record['instrument'],direction=Direction.LONG if trade['side']=='buy' else Direction.SHORT,qty=trade['qty'],entry_time=entry,exit_time=end,entry_price=trade['entry'],exit_price=trade['exit'],stop_price=stop,multiplier=instrument.multiplier,fees=trade['fees'],source=Source.BACKTEST,external_id=external,account_id=db.accounts()[0].id,setup_name=strategy.strip(),tags=labels,notes=f"Replay session: {record['name']}. Simulated fills; {trade['reason']}.\n{research.get('notes','')}")
         db.insert_trades([t]);lab_id=int(db.trades_df().query('external_id == @external').iloc[0].id)
     if destination in ('journal','both'):
         cards=[c for c in journal['trades'] if c['id']!=card_id]

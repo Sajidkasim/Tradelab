@@ -946,3 +946,44 @@ The Docker image includes Vela's licence and notice. All core formulas unchanged
 Validation: 317 pytest passed, 5 existing warnings in 25.75s; 33 frontend unit
 checks, 63 browser checks and production build passed. Hosted-path regression
 proves session creation/reopen/progress use R2 without Mac files.
+
+## Full local replay archive and paired charts — 2 November 2026
+
+Latest user request is LOCAL REVIEW ONLY; do not push or deploy these changes.
+`tools/index_replay_history.py` builds a durable local SQLite minute index from
+all downloaded outright NQ/ES history, excluding spreads. It resumes an interrupted
+build; UTC dates use integer day conversion rather than slow timestamp formatting.
+Index: data/private/replay-index.db (ignored). Completed: 14,682,323 unique minutes,
+5,091 available dates, 2010-06-06 through 2026-11-01. Full SQL checks found zero
+invalid OHLCV or non-minute timestamps. Local loads on 2013-01-25, 2020-06-02 and
+2026-10-30 took 0.41–0.45 seconds. These are local, not hosted timings.
+
+`webapp.replay_index` reads bounded windows: 14 calendar days of preceding minutes
+for intraday/4h plus up to 370 days of daily context. Current candles include only
+reached minutes at the common replay clock. UTC calendar aggregation and unadjusted
+prior-day-volume contracts remain explicit conventions; no invented gap prices.
+Older saved sessions retain their original candle file/digest. New session market
+choices are NQ and ES; legacy micro sessions remain readable.
+
+Two-chart toggle shares one replay cursor; markets, timeframes, drawings and study
+settings remain independent. Primary/secondary layouts have separate private keys;
+Save and Back flush both layouts. On narrow screens charts stack. SL/TP draft
+anchors start at entry without placing actual exits until dragged; ticket amounts
+are computed by the Python simulation service, throttled during drag, direction
+and contract quantity included. Draft handles are visually separated at entry.
+
+Backtesting journal saves session strategy, entry timeframe, checklist and notes.
+Existing private Lab choices are suggested; extra confirmations can be entered.
+Send completed trade explicitly from Trades to Lab/Journal; its saved research
+labels/notes follow the trade through existing edge label and DB calculations.
+Retries remain duplicate-safe. No broker writes or core formula changes.
+
+The full index is LOCAL only. Current hosted manifest still contains two dates;
+shipping the entire archive online requires a separate chunked private-R2 release.
+Do not commit the database, raw archive, prepared price files or credentials.
+
+Final local validation: 320 pytest passed, 5 existing warnings in 22.83s;
+34 frontend checks and 64 full browser checks passed (1.7m). Production build
+passed. A real local review session on 2020-06-02 opens paired NQ 4h / ES 1m at
+09:30 New York, with both clocks aligned. No commit, push or deployment of this
+local revision. Old cloud history remains unchanged. Local preview: port 8132.
