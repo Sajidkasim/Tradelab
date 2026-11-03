@@ -1,0 +1,254 @@
+.learn-intro {
+  max-width: 650px;
+}
+.workspace-page .learn-intro h2 {
+  font-size: clamp(36px, 4.2vw, 56px);
+  letter-spacing: -2px;
+  line-height: 1.12;
+  margin-block: 18px;
+}
+.learn-intro > p {
+  max-width: 540px;
+}
+.learn-path {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 30px 0 18px;
+  gap: 10px;
+}
+.learn-path button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  border: 1px solid var(--pt-line);
+  background: var(--pt-white);
+  color: var(--pt-ink);
+  padding: 19px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 78px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.learn-path button > span {
+  font-size: 11px;
+  color: var(--pt-muted);
+}
+.learn-path button strong {
+  font-weight: 500;
+  font-size: 13px;
+  flex: 1;
+}
+.learn-path button svg {
+  flex-shrink: 0;
+}
+.learn-path button[aria-pressed="true"] {
+  background: var(--pt-ink);
+  color: var(--pt-paper);
+  border-color: var(--pt-ink);
+}
+.learn-path button[aria-pressed="true"] > span {
+  color: inherit;
+  opacity: 0.7;
+}
+.learn-path button:hover {
+  border-color: var(--pt-focus);
+}
+.learn-path button:focus-visible {
+  outline: 2px solid var(--pt-focus);
+  outline-offset: 3px;
+}
+.learn-guide {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  border: 1px solid var(--pt-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--pt-white);
+}
+.learn-guide-heading {
+  padding: 36px;
+  background: var(--pt-paper);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.workspace-page .learn-guide-heading h3 {
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin: 20px 0 10px;
+}
+.learn-guide-heading > svg {
+  margin-top: auto;
+  padding-top: 20px;
+  color: var(--pt-focus);
+}
+.learn-guide-body {
+  padding: 32px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 15px;
+}
+.workspace-page .learn-guide-body > p {
+  font-size: 14px;
+  line-height: 1.95;
+}
+.learn-guide-body aside {
+  border-top: 1px solid var(--pt-line);
+  padding-top: 20px;
+  margin-top: 2px;
+}
+.learn-guide-body aside > span {
+  font-size: 10px;
+  letter-spacing: 1.7px;
+  color: var(--pt-focus);
+  font-weight: 600;
+}
+.workspace-page .learn-guide-body aside p {
+  font-size: 13px;
+}
+.learn-guide-body > .button {
+  gap: 14px;
+  margin-top: auto;
+}
+.learn-source-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 20px;
+  padding-block: 22px 4px;
+  font-size: 11px;
+}
+.learn-source-note > span {
+  color: var(--pt-muted);
+}
+.learn-source-note > a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.learn-glossary {
+  border-top: 1px solid var(--pt-line);
+  padding-block: 32px 10px;
+}
+.glossary-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--pt-line);
+  background: var(--pt-white);
+  border-radius: 7px;
+  padding: 12px;
+  min-width: 280px;
+  color: var(--pt-muted);
+}
+.glossary-search input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 3px !important;
+  color: var(--pt-ink);
+  font: inherit;
+}
+.glossary-search:focus-within {
+  outline: 2px solid var(--pt-focus);
+  outline-offset: 2px;
+}
+.glossary-search input:focus {
+  outline: none;
+}
+.glossary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 35px;
+  align-items: start;
+}
+.glossary-grid details {
+  border-bottom: 1px solid var(--pt-line);
+  padding-block: 17px;
+}
+.glossary-grid summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+}
+.glossary-grid summary::-webkit-details-marker {
+  display: none;
+}
+.glossary-grid summary > span {
+  color: var(--pt-focus);
+  transition: transform 0.15s;
+}
+.glossary-grid details[open] summary > span {
+  transform: rotate(45deg);
+}
+.workspace-page .glossary-grid p {
+  font-size: 13px;
+  line-height: 1.85;
+  padding-right: 22px;
+}
+.workspace-page .glossary-count {
+  font-size: 11px;
+  color: var(--pt-muted);
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+@media (max-width: 900px) {
+  .learn-path {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .learn-guide {
+    grid-template-columns: 1fr;
+  }
+  .learn-guide-heading > svg {
+    display: none;
+  }
+  .learn-guide-heading,
+  .learn-guide-body {
+    padding: 25px;
+  }
+  .learn-guide-body {
+    gap: 12px;
+  }
+}
+@media (max-width: 650px) {
+  .glossary-grid {
+    grid-template-columns: 1fr;
+  }
+  .glossary-search {
+    min-width: 0;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .learn-glossary .wp-section-heading {
+    align-items: stretch;
+  }
+  .learn-path button {
+    padding: 14px 12px;
+    gap: 9px;
+    min-height: 75px;
+  }
+  .learn-path button strong {
+    font-size: 12px;
+  }
+  .learn-path button > svg {
+    width: 13px;
+  }
+  .workspace-page .learn-guide-heading h3 {
+    font-size: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learn-path button,
+  .glossary-grid summary > span {
+    transition: none;
+  }
+}

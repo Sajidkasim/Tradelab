@@ -35,7 +35,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
       <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn</a>
-      <a href="/market-lab" aria-current={active==='market-lab'?'page':undefined}>Market Lab</a>
+      <a href="/market-lab" aria-current={active==='market-lab'?'page':undefined}>Market Lab (Beta)</a>
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>

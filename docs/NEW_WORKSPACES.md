@@ -105,3 +105,31 @@ or adapters to the separate modules rather than modifying financial core formula
 - After the final changes, seven backend workflow tests passed again, including
   private image replacement/deletion cleanup and cross-user access checks.
 - `git diff --check` passed. No commit, push or deployment was performed.
+
+## Learning story and brain explorer — 3 November 2026
+
+Local design update: Learn now includes four original, static starter guides and
+19 searchable glossary terms in `learningContent.js` / `LearnFoundations.jsx`.
+These introduce charts, risk, testing and review. They are separate from the team's
+editable resource library. Further-reading links point to CME and CFTC sources;
+no external articles or videos have been copied into the library.
+
+Mindset begins with `BrainExplorer.jsx` and the small original procedural mesh in
+`brainModel.js`. Pointer drag, arrow keys and rotation/reset buttons move the 3D
+illustration. Region buttons select PFC, amygdala or hippocampus; internal regions
+use a transparent surface. Geometry and locations are expressly schematic. The
+copy explains connected functions rather than diagnosing a user's brain state,
+with NIMH source links. Reflection prompts lead into the existing breathing and
+private-goals sections. No reflections or brain selections are recorded.
+
+Rendering is browser-only, coalesced to one requested animation frame, with a
+capped pixel ratio and bounded mesh. It has no idle animation loop, external model
+asset, new dependency, AI call or storage service. Effects and resize observers
+are cleaned up on unmount. Existing theme and reduced-motion support remain.
+The shared navigation labels Market Lab (Beta), matching Backtesting (Beta).
+
+Checks: 71 frontend unit tests passed, seven workspace browser flows passed, and
+production build / git diff checks passed. Browser coverage includes pointer and
+keyboard rotation, reset, idle stability, inside-region selection, glossary search,
+phone/dark layouts, existing resource publishing and private-board persistence.
+No commit, push or deployment performed.
