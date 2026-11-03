@@ -367,6 +367,49 @@ test('delete all drawings confirms once and preserves the simulated position and
  await expect(page.getByRole('group',{name:'Entry price box',exact:true})).toBeVisible();
 });
 
+test('permanent removal is explicitly confirmed and only removes the selected deleted session',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Session name',{exact:true}).fill('Purge preview');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ const id=new URL(page.url()).searchParams.get('session');
+ await page.getByRole('link',{name:'Back to sessions',exact:true}).click();
+ const card=page.locator('.bt-session-card').filter({hasText:'Purge preview'});
+ await card.getByRole('button',{name:'Delete Purge preview',exact:true}).click();
+ await page.getByRole('dialog',{name:'Delete session?',exact:true}).getByRole('button',{name:'Delete session',exact:true}).click();
+ await page.getByText(/Deleted sessions \(/).click();
+ await card.getByRole('button',{name:'Delete permanently',exact:true}).click();
+ const modal=page.getByRole('dialog',{name:'Permanently delete session?',exact:true});
+ await expect(modal.getByRole('button',{name:'Delete permanently',exact:true})).toBeDisabled();
+ await modal.getByLabel('Type the session name to confirm').fill('Purge preview');
+ await modal.getByRole('button',{name:'Delete permanently',exact:true}).click();
+ await expect(card).toHaveCount(0);
+ const listing=await (await page.request.get('http://127.0.0.1:8119/api/backtesting/sessions')).json();
+ expect([...listing.sessions,...listing.deleted].some(item=>item.id===id)).toBe(false);
+});
+
+test('drawing gestures defer layout snapshots until release and save the final drawing',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Lines',exact:true}).click();
+ await page.locator('.replay-chart').click({position:{x:400,y:250}});
+ await page.locator('.replay-chart').click({position:{x:650,y:300}});
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ await page.waitForTimeout(1500);
+ let snapshots=0;page.on('request',r=>{if(r.method()==='PUT'&&r.url().includes('/layout?'))snapshots++});
+ const rect=await page.locator('.replay-chart').boundingBox();
+ await page.mouse.move(rect.x+525,rect.y+275);await page.mouse.down();
+ await page.mouse.move(rect.x+545,rect.y+295,{steps:20});
+ await page.waitForTimeout(1600);expect(snapshots).toBe(0);
+ await page.mouse.up();await expect.poll(()=>snapshots).toBeGreaterThan(0);
+ const id=new URL(page.url()).searchParams.get('session');
+ const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${id}`)).json();
+ expect(Object.values(saved.layout.drawings).flatMap(doc=>doc.drawings)).toHaveLength(1);
+});
+
 test('temporary execution timing diagnosis',async({page})=>{
  await page.addInitScript(()=>{localStorage.setItem('primus-replay-profile','1');window.__primusReplayTimings=[]});
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();

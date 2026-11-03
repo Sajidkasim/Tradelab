@@ -50,6 +50,10 @@ class ProgressInput(BaseModel):
 class ContinueInput(ProgressInput):
     days:int=Field(default=1,ge=1,le=10,strict=True)
 
+class PurgeInput(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    confirmation:str=Field(max_length=80)
+
 class ActionInput(ProgressInput):
     kind:Literal['order','cancel','close','amend']
     event_id:UUID
@@ -271,12 +275,17 @@ def mount(app,config,workspace):
         local_only()
         with app.state.workspaces.lock:
             db=database(member)
-            rows=[db.get_setting(PREFIX+sid) for sid in db.get_setting(INDEX,[])]
+            # Discard each command log after reading its small summary. Retaining all
+            # full records at once needlessly multiplies memory for long sessions.
+            active=[];deleted=[]
+            for sid in reversed(db.get_setting(INDEX,[])):
+                row=db.get_setting(_key(sid))
+                if row:(deleted if row.get('deleted') else active).append(row['summary'])
             available=catalog()
             if not config.local:
                 days=sorted(available_manifest()['days'])
                 if days:available.update(first_day=days[0],last_day=days[-1],sample_day=next((d for d in reversed(days) if date.fromisoformat(d).weekday()<5),days[-1]),available_days=days,**({'indexed_days':len(days)} if archive() else {}))
-            return {'sessions':[row['summary'] for row in reversed(rows) if row and not row.get('deleted')], 'deleted':[row['summary'] for row in reversed(rows) if row and row.get('deleted')], 'history':available}
+            return {'sessions':active, 'deleted':deleted, 'history':available}
     @app.post('/api/backtesting/sessions')
     def create(payload:SessionInput,member=Depends(workspace)):
         local_only()
@@ -315,6 +324,28 @@ def mount(app,config,workspace):
             if not record:raise HTTPException(404,'Session not found.')
             record.pop('deleted',None);db.set_setting(_key(sid),record);app.state.workspaces.bump(member['key'])
             return {'restored':True}
+    @app.delete('/api/backtesting/sessions/{sid}/permanent')
+    def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+        local_only()
+        from sqlalchemy import select
+        from core.db import settings_t
+        key=_key(sid)
+        with app.state.workspaces.lock:
+            db=database(member)
+            # Use the authenticated workspace's engine/schema; never a client-supplied
+            # workspace. Remove the record, layouts and session notes atomically.
+            with db.engine.begin() as connection:
+                raw=connection.execute(select(settings_t.c.value).where(settings_t.c.key==key).with_for_update()).scalar()
+                if not raw:raise HTTPException(404,'Session not found.')
+                record=json.loads(raw)
+                if not record.get('deleted'):raise HTTPException(409,'Move this session to Deleted sessions first.')
+                if payload.confirmation!=record['name']:raise HTTPException(422,'Type the session name exactly to confirm permanent deletion.')
+                raw_ids=connection.execute(select(settings_t.c.value).where(settings_t.c.key==INDEX).with_for_update()).scalar()
+                ids=json.loads(raw_ids) if raw_ids else []
+                connection.execute(settings_t.delete().where(settings_t.c.key.in_([key,key+':layout',key+':layout:secondary',key+':journal'])))
+                connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([item for item in ids if item!=record['id']])))
+            app.state.workspaces.bump(member['key'])
+            return {'permanently_deleted':True}
     @app.get('/api/backtesting/sessions/{sid}')
     def open_session(sid:str,member=Depends(workspace)):
         local_only()

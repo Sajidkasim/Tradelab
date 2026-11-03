@@ -98,6 +98,35 @@ def test_delete_restore_and_saved_bracket_edits(local,candles):
     assert client.post(f'/api/backtesting/sessions/{sid}/restore').status_code==200
     assert client.get(f'/api/backtesting/sessions/{sid}').json()['session']['version']==2
 
+def test_permanent_session_deletion_requires_trash_confirmation_and_preserves_other_data(local,candles):
+    client,app=local
+    sid=create(client)['session']['id'];other=create(client)['session']['id'];root=f'/api/backtesting/sessions/{sid}'
+    db=app.state.workspaces.database('owner');key=replay_sessions._key(sid)
+    for suffix in (':layout',':layout:secondary',':journal'):db.set_setting(key+suffix,{'keep':'until confirmed'})
+    before=client.get('/api/trades').json()
+    db.set_setting('daily_journal:test-preserved',{'source_session':sid})
+    assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==409
+    assert client.delete(root).status_code==200
+    assert client.request('DELETE',root+'/permanent',json={'confirmation':'wrong'}).status_code==422
+    assert db.get_setting(key)
+    assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==200
+    assert all(db.get_setting(key+suffix) is None for suffix in ('',':layout',':layout:secondary',':journal'))
+    listing=client.get('/api/backtesting/sessions').json()
+    assert [s['id'] for s in listing['sessions']]==[other] and listing['deleted']==[]
+    assert db.get_setting('daily_journal:test-preserved')=={'source_session':sid}
+    assert client.get('/api/trades').json()==before
+    assert client.post(root+'/restore').status_code==404
+    assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==404
+
+def test_permanent_session_deletion_is_workspace_scoped(google,candles):
+    client,app,state=google
+    login(client,state);sid=create(client)['session']['id'];root=f'/api/backtesting/sessions/{sid}'
+    assert client.delete(root).status_code==200
+    login(client,state,'friend@example.com','different-friend-sub')
+    assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==404
+    login(client,state)
+    assert any(s['id']==sid for s in client.get('/api/backtesting/sessions').json()['deleted'])
+
 
 def test_layout_and_explicit_transfer_are_private_repeat_safe_and_preserve_results(local,candles):
     client,app=local;created=create(client);sid=created['session']['id']

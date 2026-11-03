@@ -6,6 +6,7 @@ import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
 import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
 import {recordTiming} from './replayTiming';
+import {installDrawingPerformance,latestLayoutWriter} from './replayDrawingPerformance';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
@@ -52,6 +53,9 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const [catalog, setCatalog] = useState([]), [studies, setStudies] = useState([]);
   const host = useRef(null), chartRef = useRef(null), drawings = useRef(layout.drawings||{});
   const feed=useRef(null),lastLayout=useRef(''),layoutQueue=useRef(Promise.resolve());
+  const layoutDirty=useRef(false),gesture=useRef(false),layoutTimer=useRef(null),saveCurrent=useRef(null),layoutWriter=useRef(null);
+  if(!layoutWriter.current)layoutWriter.current=latestLayoutWriter(value=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}`,{method:'PUT',body:{layout:value}}));
+  function dirtyLayout(){layoutDirty.current=true;clearTimeout(layoutTimer.current);layoutTimer.current=setTimeout(()=>{if(!gesture.current)saveCurrent.current?.(false).catch(()=>{})},1000)}
   const [watermark,setWatermark]=useState(()=>localStorage.getItem('primus-replay-watermark')!=='off');
   const watermarkValue=useRef(watermark);watermarkValue.current=watermark;
   const [orderQty,setOrderQty]=useState(1);
@@ -106,6 +110,14 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
       unsubscribers.push(installFreeReplayNavigation(chart,host.current));
+      unsubscribers.push(installDrawingPerformance(chart));
+      for(const event of ['drawing:created','drawing:edited','drawing:removed','drawing:selected','indicator:added','indicator:removed','indicator:inputs','indicator:visibility','indicator:moved','pane:changed','priceStyle:change','viewport:changed'])unsubscribers.push(chart.on(event,dirtyLayout));
+      // Includes settings edits, undo/redo and wheel/price-scale gestures. A layout
+      // snapshot is never constructed while a pointer is held down.
+      const start=()=>{gesture.current=true},end=()=>{if(gesture.current){gesture.current=false;dirtyLayout()}},wheel=()=>dirtyLayout();
+      const element=host.current;element.addEventListener('pointerdown',start,true);element.addEventListener('wheel',wheel,{passive:true});
+      window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);window.addEventListener('blur',end);
+      unsubscribers.push(()=>{element.removeEventListener('pointerdown',start,true);element.removeEventListener('wheel',wheel);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);window.removeEventListener('blur',end);clearTimeout(layoutTimer.current)});
       unsubscribers.push(chart.on('viewport:changed',()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>loadEdge(chart),150)}));
       const available = await chart.availableNativeIndicators();
       if (!alive) return;
@@ -185,18 +197,22 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     return()=>clearTimeout(timer);
   },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
 
-  function saveLayout(){
+  function saveLayout(force=true){
     const chart=chartRef.current;if(!ready||!chart||busy)return Promise.resolve();
+    if(!force&&(!layoutDirty.current||gesture.current))return layoutQueue.current;
+    layoutDirty.current=false;const started=performance.now();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
     const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
-    const encoded=JSON.stringify(value);if(encoded===lastLayout.current)return layoutQueue.current;
+    const encoded=JSON.stringify(value);recordTiming('drawings:layout-snapshot',started);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
-    const task=layoutQueue.current.catch(()=>{}).then(()=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}`,{method:'PUT',body:{layout:value}})).catch(e=>{lastLayout.current='';setError(e.message);throw e});layoutQueue.current=task;return task;
+    const task=layoutWriter.current(value).catch(e=>{layoutDirty.current=true;lastLayout.current='';setError(e.message);throw e});layoutQueue.current=task;return task;
   }
+  saveCurrent.current=saveLayout;
   useEffect(()=>{registerLayoutSave?.(saveLayout);return()=>registerLayoutSave?.(null)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
-  useEffect(()=>{const timer=setInterval(()=>saveLayout().catch(()=>{}),3000);return()=>clearInterval(timer)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
+  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,chartGroup?.activeChartId,chartGroup?.syncCrosshair]);
+  useEffect(()=>{const timer=setInterval(()=>saveCurrent.current?.(false).catch(()=>{}),10000);return()=>clearInterval(timer)},[]);
 
   const wasPlaying=useRef(false);
   useEffect(()=>{if(wasPlaying.current&&!playing&&!secondary)saveLayout().then(saveOtherLayout).then(onSave).catch(()=>{});wasPlaying.current=playing},[playing]);
