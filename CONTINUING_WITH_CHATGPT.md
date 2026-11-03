@@ -1101,3 +1101,13 @@ Lab records remain authoritative and duplicate links count once. Totals are
 response-only derived values, never additional stored financial records.
 Validation: 360 pytest passed (5 existing warnings), 64 frontend unit checks,
 4 Journal browser flows and production build passed. Local preview: port 8132.
+
+## Learn / Market Lab / Mindset foundation — 3 November 2026
+
+Local only, no commit or deployment. See docs/NEW_WORKSPACES.md for page use,
+publishing roles, privacy, bounded ORB tests, licence source and changed files.
+Resources are public-read, owner/approved-publisher write. Vision boards and
+research summaries use existing per-user settings, with no cross-user reads.
+Market Lab calls core.backtest and the existing example_orb strategy; no formulas,
+replay fills or broker behavior change. Scans cap at ten calendar days / 16,000
+raw bars, reject rolls and serialize execution. Candle downloads are not exposed.

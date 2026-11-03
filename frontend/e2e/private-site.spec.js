@@ -9,12 +9,14 @@ test('one private sign-in connects Journal, Lab and Home, and preserves the chos
   await page.getByRole('button',{name:'Continue with Google',exact:true}).click();
   await expect(page).toHaveURL(`${origin}/journal`);
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();
+  const journalNotes=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
+  if(await journalNotes.count())await journalNotes.getByRole('button',{name:'Got it',exact:true}).click();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Strategy Lab',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'Skip guide',exact:true}).click();
   const notes=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
-  await notes.getByRole('button',{name:'Got it',exact:true}).click();
+  if(await notes.count())await notes.getByRole('button',{name:'Got it',exact:true}).click();
   await expect(notes).not.toBeVisible();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Home',exact:true}).click();
   await expect(page.locator('.pt-header-action')).toHaveCount(0);

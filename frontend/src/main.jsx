@@ -28,6 +28,6 @@ class ErrorBoundary extends React.Component {
 }
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
-    {sitePreview() && ['/', '/journal', '/journal/', '/backtesting'].includes(location.pathname) ? <SiteExperience/> : <App />}
+    {sitePreview() && ['/', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset'].includes(location.pathname) ? <SiteExperience/> : <App />}
   </ErrorBoundary>,
 );

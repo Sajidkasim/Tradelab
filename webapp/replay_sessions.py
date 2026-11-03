@@ -198,6 +198,31 @@ def mount(app,config,workspace):
         digest=manifest['days'].get(day)
         if not digest:raise HTTPException(422,'This date is not available on the server.')
         return hosted_bundle(digest),digest
+    def research_days():
+        if not config.local:return sorted(available_manifest()['days'])
+        index=ROOT/'replay-index.db'
+        if index.is_file():
+            from .replay_index import days
+            return days(index)
+        available=[]
+        sample=ROOT/'backtesting-preview.json'
+        if sample.is_file():available.append(json.loads(sample.read_text())['day'])
+        available.extend(p.stem for p in (ROOT/'replay-days').glob('*.json'))
+        return sorted(set(available))
+    def research_day(day,root):
+        index=ROOT/'replay-index.db'
+        if config.local and index.is_file():
+            import sqlite3
+            with sqlite3.connect(index) as con:
+                contract=con.execute('SELECT symbol FROM active_contracts WHERE day=? AND root=?',(day,root)).fetchone()
+                if not contract:return None
+                rows=con.execute('SELECT time,open,high,low,close,volume FROM bars WHERE day=? AND symbol=? ORDER BY time LIMIT 2001',(day,contract[0])).fetchall()
+                if len(rows)>2000:raise ValueError('Daily history exceeds the research limit.')
+                return {'contract':contract[0],'bars':[dict(zip(('time','open','high','low','close','volume'),r)) for r in rows]}
+        data=(archive().execution_history(day)[0] if archive() else history(day)[0])
+        return data['markets'].get(root)
+    from . import market_lab
+    market_lab.mount(app,config,workspace,research_days,research_day)
     def get_record(db,sid):
         value=db.get_setting(_key(sid))
         if not value or value.get('deleted'):raise HTTPException(404,'Session not found.')
