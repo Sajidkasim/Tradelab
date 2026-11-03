@@ -107,3 +107,5 @@ body:has(.backtesting-workspace){overflow:hidden}
 @media(min-width:901px) and (max-width:1500px){.bt-panes-split .bt-statusbar .bt-save-status{display:none}}
 
 .bt-history-bounds{padding:3px 9px;min-height:20px;font-size:10px;color:var(--bt-muted);background:var(--bt-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.replay-chart{touch-action:none}
+
+.bt-loading-note{position:absolute;top:8px;right:75px;z-index:4;background:var(--bt-surface);color:var(--bt-muted);padding:5px 10px;border:1px solid var(--bt-border);border-radius:5px;font-size:12px;pointer-events:none}

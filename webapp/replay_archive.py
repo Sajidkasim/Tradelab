@@ -3,6 +3,7 @@ import gzip,hashlib,json,re
 from datetime import date,timedelta,datetime,timezone
 from functools import lru_cache
 from io import BytesIO
+from .replay_timing import timed
 from pathlib import Path
 
 MAX_BYTES=12*1024*1024
@@ -15,6 +16,7 @@ def pack(value):
     raw=encode(value)
     if len(raw)>MAX_BYTES:raise ValueError('Archive chunk is too large.')
     return hashlib.sha256(raw).hexdigest(),gzip.compress(raw,mtime=0)
+@timed("archive decompress + integrity + JSON parse")
 def unpack(body,digest):
     with gzip.GzipFile(fileobj=BytesIO(body)) as stream:raw=stream.read(MAX_BYTES+1)
     if len(raw)>MAX_BYTES or hashlib.sha256(raw).hexdigest()!=digest:raise ValueError('Archive integrity check failed.')
@@ -54,12 +56,36 @@ class Archive:
         return data,signature
 
     @lru_cache(maxsize=16)
+    @timed("archive chart page total")
     def chart_window(self,root,tf,before,cutoff,limit=750,after=None):
         from services.replay_chart_history import aggregate
         dates=sorted(self.manifest['days'])
         first=records(self.chunk(self.manifest['days'][dates[0]])['markets'][root]['bars'])[0]['time']
         last=records(self.chunk(self.manifest['days'][dates[-1]])['markets'][root]['bars'])[-1]['time']
         calendar=tf in ('1D','1W','1M')
+        pages=self.manifest.get('timeframe_chunks',{}).get(root,{}).get(tf)
+        if pages:
+            from bisect import bisect_right
+            eligible=[p for p in pages if p['first']<before and (after is None or p['last']>after)]
+            rows=[]
+            for page in (eligible if calendar or after is not None else reversed(eligible)):
+                rows.extend(row for row in self.chunk(page['digest']) if row[0]<before and (after is None or row[0]>after) and row[6]<=cutoff+60000)
+                if not calendar and len(rows)>limit:break
+            from services.replay_chart_history import bucket
+            opened=bucket(cutoff,tf)
+            if opened is not None and opened<before and (after is None or opened>after) and not any(row[0]==opened for row in rows) and (calendar or after is None or len(rows)<=limit):
+                parts=[];start=opened
+                if tf in ('1W','1M'):
+                    daily=[row for row in self.chunk(self.manifest['charts_calendar_ny'])[root] if row[0]>=opened and row[6]<=cutoff+60000]
+                    parts=[row[:6] for row in daily]
+                    if daily:start=daily[-1][6]
+                startday=datetime.fromtimestamp(start/1000,timezone.utc).date().isoformat();endday=datetime.fromtimestamp(cutoff/1000,timezone.utc).date().isoformat()
+                for day in dates:
+                    if startday<=day<=endday:parts.extend(row for row in self.chunk(self.manifest['days'][day])['markets'][root]['bars'] if start<=row[0]<=cutoff)
+                partial=aggregate(parts,tf)
+                if partial:rows.append(partial[-1])
+            rows=sorted(rows);selected=rows if calendar else rows[:limit] if after is not None else rows[-limit:]
+            return {'bars':records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(rows)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}
         if calendar:
             digest=self.manifest.get('charts_calendar_ny')
             if not digest:raise ValueError('Upload the prepared New York chart-calendar bundle before enabling full calendar history on this server.')
@@ -77,8 +103,8 @@ class Archive:
             for day in (eligible if after is not None else reversed(eligible)):
                 part=[row for row in self.chunk(self.manifest['days'][day])['markets'][root]['bars'] if row[0]<=end]
                 rows=rows+part if after is not None else part+rows
-                candles=[bar for bar in aggregate(rows,tf) if after is None or bar[0]>after]
-                if len(candles)>limit:break
+                if len(rows)>=(limit+2)*int(tf):break
+            candles=[bar for bar in aggregate(rows,tf) if after is None or bar[0]>after]
         candles=[bar for bar in candles if bar[0]<before and bar[0]<=cutoff and (after is None or bar[0]>after)]
         selected=candles if calendar else candles[:limit] if after is not None else candles[-limit:]
         return {'bars':records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(candles)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}

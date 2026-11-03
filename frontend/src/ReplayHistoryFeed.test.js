@@ -4,7 +4,7 @@ import {api} from './api';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 const t=Date.parse('2023-09-12T14:00:00Z');
 const bar=(time,close)=>({time,open:close,high:close+1,low:close-1,close,volume:2});
-beforeEach(()=>api.mockReset());
+beforeEach(()=>{api.mockReset()});
 test('deduplicates requests, caches by symbol/timeframe, and advances only that symbol',async()=>{
  let now=t;const markets={NQ:{bars:[bar(t,100),bar(t+60000,102)]},ES:{bars:[bar(t,5000),bar(t+60000,5002)]}};
  api.mockImplementation(async url=>{const q=new URL(url,'http://local').searchParams;const root=q.get('root');return {bars:[bar(t,root==='NQ'?100:5000)],replay_time:t,earliest:t-86400000,latest:t+86400000,exhausted:true}});
@@ -15,4 +15,9 @@ test('deduplicates requests, caches by symbol/timeframe, and advances only that 
  expect(feed.view('NQ','240').at(-1).volume).toBe(4);expect(feed.view('NQ','240').at(-1).volume).toBe(4);
  await feed.initial('NQ','240');expect(api).toHaveBeenCalledTimes(2);
  feed.anchor=t-3600000;await feed.initial('NQ','1D');expect(new URL(api.mock.calls.at(-1)[0],'http://local').searchParams.has('before')).toBe(false);
+});
+test('aborting a stale load removes its pending request and never caches it',async()=>{
+ const feed=new ReplayHistoryFeed('id',()=>({cursor:0,time:t,markets:{NQ:{bars:[]}}}),()=>{});
+ api.mockImplementation((_url,options)=>new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')))));
+ const job=feed.initial('NQ','240');feed.cancel();await expect(job).rejects.toHaveProperty('name','AbortError');expect(feed.slot('NQ','240')).toBeUndefined();expect(feed.requests.size).toBe(0);
 });

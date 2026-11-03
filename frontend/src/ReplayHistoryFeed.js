@@ -1,23 +1,26 @@
+import {recordTiming} from './replayTiming';
 import {api} from './api';
 import {replayBucketOpen} from './replayHistoryCalendar';
 const merge=(a,b)=>[...new Map([...a,...b].map(bar=>[bar.time,bar])).values()].sort((a,b)=>a.time-b.time);
 export class ReplayHistoryFeed{
- constructor(id,read,onStatus){this.id=id;this.read=read;this.onStatus=onStatus;this.slots=new Map();this.requests=new Map();this.anchor=null}
+ constructor(id,read,onStatus){this.id=id;this.read=read;this.onStatus=onStatus;this.slots=new Map();this.requests=new Map();this.anchor=null;this.controllers=new Map()}
  key(root,tf){return `${root}:${tf}`}
  slot(root,tf){return this.slots.get(this.key(root,tf))}
  async fetch(root,tf,params={}){
   const {cursor}=this.read(),query=new URLSearchParams({root,timeframe:String(tf),cursor:String(cursor),limit:'750',...params});
   const key=query.toString();if(this.requests.has(key))return this.requests.get(key);
-  const job=api(`/backtesting/sessions/${this.id}/chart-history?${query}`).finally(()=>this.requests.delete(key));this.requests.set(key,job);return job;
+  const controller=new AbortController();this.controllers.set(key,controller);const started=performance.now();const job=api(`/backtesting/sessions/${this.id}/chart-history?${query}`,{signal:controller.signal}).finally(()=>{recordTiming('history-request:'+tf,started);if(this.requests.get(key)===job){this.requests.delete(key);this.controllers.delete(key)}});this.requests.set(key,job);return job;
  }
- async initial(root,tf){
-  const cached=this.slot(root,tf);if(cached&&(!this.anchor||this.anchor>=cached.bars[0]?.time&&this.anchor<=cached.bars.at(-1)?.time||['1D','1W','1M'].includes(String(tf)))){this.view(root,tf);this.onStatus(cached);return cached.bars}
-  const {time}=this.read();const anchor=!['1D','1W','1M'].includes(String(tf))&&this.anchor&&this.anchor<time?this.anchor:null;
+ cancel(){for(const controller of this.controllers.values())controller.abort()}
+ async prefetch(root){for(const tf of ['240','1D','1W','1M']){if(!this.slot(root,tf))try{await this.initial(root,tf,true)}catch(error){if(error.name==='AbortError')return}}}
+ async initial(root,tf,background=false){
+  const cached=this.slot(root,tf);if(cached&&(!this.anchor||cached.atTail&&this.anchor>=cached.bars.at(-1)?.time||this.anchor>=cached.bars[0]?.time&&this.anchor<=cached.bars.at(-1)?.time||['1D','1W','1M'].includes(String(tf)))){this.view(root,tf);if(!background)this.onStatus(cached);return cached.bars}
+  const {time}=this.read();const anchor=!background&&!['1D','1W','1M'].includes(String(tf))&&this.anchor&&this.anchor<time?this.anchor:null;
   const reply=await this.fetch(root,tf,anchor?{before:String(Math.ceil(anchor))}:{});
   let bars=reply.bars;
   if(anchor&& !['1D','1W','1M'].includes(String(tf))){const right=await this.fetch(root,tf,{after:String(Math.floor(anchor)-1)});bars=merge(bars,right.bars)}
   const value={...reply,bars,seen:time,atTail:!anchor,leftDone:reply.exhausted,rightDone:!anchor};
-  this.slots.set(this.key(root,tf),value);this.onStatus(value);
+  this.slots.set(this.key(root,tf),value);if(!background)this.onStatus(value);
   // Bounded symbol/timeframe caches; eviction never limits what can be fetched again.
   if(this.slots.size>12)this.slots.delete(this.slots.keys().next().value);
   return bars;

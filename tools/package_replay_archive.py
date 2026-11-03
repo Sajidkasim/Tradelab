@@ -47,6 +47,7 @@ def upload(target):
     if not all(values.values()):raise SystemExit('Private R2 configuration is missing.')
     connection=ImageStorage(SimpleNamespace(r2_ready=True,**values));client=connection.client
     manifest=json.loads((target/'manifest.json').read_text());digests=list(dict.fromkeys([*manifest['days'].values(),manifest['charts'],*([manifest['charts_ny']] if manifest.get('charts_ny') else []),*([manifest['charts_calendar_ny']] if manifest.get('charts_calendar_ny') else [])]))
+    digests=list(dict.fromkeys(digests+[page['digest'] for markets in manifest.get('timeframe_chunks',{}).values() for pages in markets.values() for page in pages]))
     def put(digest):
         body=(target/(digest+'.json.gz')).read_bytes();object_key=key(digest)
         try:

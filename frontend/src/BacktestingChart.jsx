@@ -5,6 +5,7 @@ import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
 import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
+import {recordTiming} from './replayTiming';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
@@ -24,8 +25,8 @@ const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr', 'volume'];
 
 export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const symbol=paneState.symbol,timeframe=paneState.timeframe;
-  const setSymbol=value=>onPaneChange(paneId,{symbol:value});
-  const setTimeframe=value=>onPaneChange(paneId,{timeframe:value});
+  const setSymbol=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{symbol:value})};
+  const setTimeframe=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
   const groupRef=useRef(chartGroup);groupRef.current=chartGroup;
   const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:localStorage.getItem('primus-replay-clock-v2')));
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
@@ -78,7 +79,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive)setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
+      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
@@ -114,7 +115,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       alive = false; unsubscribers.forEach(unsubscribe => unsubscribe());
       if (chartRef.current === chart) chartRef.current = null;
       registerChart(paneId,null);
-      clearTimeout(edgeTimer.current);chart?.destroy();
+      clearTimeout(edgeTimer.current);historyFeed.current.cancel();chart?.destroy();
     };
   }, [session.id, syncStudies]);
 
@@ -148,10 +149,13 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     const snapshot=previousSymbol===wanted?currentView:symbolViews.current.get(wanted)||({...currentView,price:null});
     historyFeed.current.anchor=snapshot?.to??null;
     marketRequest.current={symbol:wanted,timeframe};
-    chart.setMarket({symbol:wanted,timeframe}).then(()=>{
-      if(chartRef.current===chart){restoreReplayView(chart,snapshot);lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
-    }).catch(e=>{if(chartRef.current===chart){setError(e.message);setBusy(false)}}).finally(()=>{marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
+    const switchStarted=performance.now();
+    historyFeed.current.initial(symbol,timeframe).then(()=>{if(selection.current.symbol!==symbol||selection.current.timeframe!==timeframe)return;return chart.setMarket({symbol:wanted,timeframe})}).then(()=>{
+      if(chartRef.current===chart&&selection.current.symbol===symbol&&selection.current.timeframe===timeframe){restoreReplayView(chart,snapshot);lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
+    }).catch(e=>{if(chartRef.current===chart&&e.name!=='AbortError'){setError(e.message);setBusy(false)}}).finally(()=>{recordTiming('switch:'+timeframe,switchStarted);marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
   }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
+
+  useEffect(()=>{if(!ready||busy)return;const timer=setTimeout(()=>historyFeed.current.prefetch(symbol),250);return()=>clearTimeout(timer)},[ready,busy,symbol]);
 
   async function loadEdge(chart){
     if(edgeBusy.current||chartRef.current!==chart)return;
@@ -223,7 +227,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={21}/><span>PRIMUS · BETA</span></a>
       <div className="bt-market"><Select label="Market" values={['NQ','ES']} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>
       <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
-        {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready || busy} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
+        {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
       <div className="bt-tools">{<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
@@ -236,6 +240,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     {twoCharts&&<div className="bt-pane-heading"><button className="bt-pane-tag" aria-pressed={selected} onClick={onSelect}>{symbol} · {timeframeName}</button></div>}
     <main className="bt-canvas-area" aria-label="Backtesting chart workspace">
       <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={17}/></button>
+      {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
       {watermark&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}

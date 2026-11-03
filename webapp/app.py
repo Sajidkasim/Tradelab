@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResp
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from starlette.concurrency import run_in_threadpool
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.exc import SQLAlchemyError
@@ -55,6 +56,7 @@ def create_app(config: Settings | None = None):
         allowed_hosts.append(config.legacy_host)
     if config.custom_host:
         allowed_hosts.append(config.custom_host)
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=3)
     app.add_middleware(SessionMiddleware, secret_key=config.secret, session_cookie="primus_session",
                        max_age=SESSION_SECONDS, same_site="lax", https_only=not config.local)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)

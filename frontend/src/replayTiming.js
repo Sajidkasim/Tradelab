@@ -1,4 +1,5 @@
 export function recordTiming(name,start){
+ if(typeof localStorage==='undefined')return;
  if(localStorage.getItem('primus-replay-profile')!=='1')return;
  const row={name,ms:performance.now()-start,time:performance.now()};
  (window.__primusReplayTimings??=[]).push(row);

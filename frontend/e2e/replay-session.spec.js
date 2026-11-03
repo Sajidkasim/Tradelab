@@ -455,3 +455,21 @@ test('full calendar coverage, bounded 4h pages and free navigation preserve repl
  await expect(page.getByRole('alert')).toHaveCount(0);
  await page.screenshot({path:testInfo.outputPath('paged-history-free-navigation.png')});
 });
+
+test('timeframe switching benchmark',async({page})=>{
+ await page.addInitScript(()=>{localStorage.setItem('primus-replay-profile','1');window.__primusReplayTimings=[]});
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');await page.getByRole('button',{name:'Open session',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ for(const tf of ['4h','1D','1W','1M','4h','1D','1W','1M']){
+  const n=await page.evaluate(()=>window.__primusReplayTimings.filter(x=>x.name.startsWith('switch:')).length);
+  await page.getByRole('button',{name:tf,exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__primusReplayTimings.filter(x=>x.name.startsWith('switch:')).length),{timeout:20000}).toBeGreaterThan(n);
+ }
+ console.log(JSON.stringify(await page.evaluate(()=>window.__primusReplayTimings.filter(x=>x.name.startsWith('switch:')||x.name.startsWith('history-request:')))));
+});
+
+test('rapid timeframe changes cancel slow requests and keep the previous chart visible',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.route('**/chart-history?**',async route=>{if(new URL(route.request().url()).searchParams.get('timeframe')==='240')await new Promise(r=>setTimeout(r,1200));try{await route.continue()}catch{}});
+ await page.getByRole('button',{name:'4h',exact:true}).click();await page.getByRole('button',{name:'1D',exact:true}).click();await page.getByRole('button',{name:'1W',exact:true}).click();await page.getByRole('button',{name:'1M',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:2000});await expect(page.getByRole('button',{name:'1M',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('alert')).toHaveCount(0);
+});
