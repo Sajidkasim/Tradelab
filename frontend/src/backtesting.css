@@ -114,3 +114,5 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-price-ticket .bt-ticket-drag{min-height:40px;padding:8px 12px;gap:8px}.bt-price-ticket .bt-ticket-drag:hover{background:var(--bt-border)}
 
 .bt-session-ranges{position:absolute;left:0;top:0;pointer-events:none;z-index:2;overflow:hidden;font:10px Inter,system-ui;color:var(--bt-ink)}.bt-session-dashboard{position:absolute;top:12px;right:80px;z-index:3;background:var(--bt-surface);color:var(--bt-ink);font-size:11px;border:1px solid var(--bt-border);pointer-events:none}.bt-session-dashboard td,.bt-session-dashboard th{padding:4px 7px;text-align:left}.bt-session-range-status{position:absolute;bottom:10px;left:60px;z-index:3;background:var(--bt-surface);color:var(--bt-ink)}
+
+.bt-transfer-success{display:flex;align-items:center;gap:10px;padding:14px;border:1px solid #389483;border-radius:8px;background:#38948318;color:var(--bt-ink)}.bt-transfer-success svg{color:#389483;flex-shrink:0}

@@ -190,7 +190,7 @@ test('daily charts and chart layouts survive save/reload and closed trades can b
  await transfer.getByRole('combobox',{name:'Key level / PDA',exact:true}).click();
  await page.getByRole('option',{name:'FVG',exact:true}).click();
  await transfer.getByRole('button',{name:'Send trade',exact:true}).click();
- await expect(transfer.getByRole('status')).toContainText('Saved.');
+ await expect(transfer.getByRole('status')).toContainText('Trade sent');
 });
 
 test('chart clocks, speed slider and saved session jump work without replay data requests',async({page},testInfo)=>{
@@ -202,7 +202,7 @@ test('chart clocks, speed slider and saved session jump work without replay data
  const clock=page.getByLabel('Replay time',{exact:true});
  await expect(clock).toContainText('08:30:00');
  await page.getByRole('combobox',{name:'Chart timezone',exact:true}).click();
- await page.getByRole('option',{name:'London',exact:true}).click();
+ await expect(page.getByRole('option',{name:'UTC',exact:true})).toHaveCount(0);await page.getByRole('option',{name:'London',exact:true}).click();
  await expect(clock).toContainText('13:30:00');
  await page.getByRole('slider',{name:'Replay speed',exact:true}).fill('5');
  await expect(page.locator('.bt-speed-slider output')).toHaveText('8×');
@@ -219,8 +219,8 @@ test('chart clocks, speed slider and saved session jump work without replay data
  await page.reload();
  await expect(clock).toContainText('14:30:00');
  await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('London');
- await clock.click();await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('UTC');
- await clock.press('Enter');await expect(clock).toContainText('(UTC-5)');
+ await clock.click();await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('New York');
+ await expect(clock).toContainText('(UTC-5)');
  await page.screenshot({path:testInfo.outputPath('clock-speed-jump.png')});
 });
 
@@ -233,6 +233,7 @@ test('two charts share replay time and retain layouts without a Journal button',
  await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
  await expect(page.locator('.replay-chart')).toHaveCount(2);
  await expect(page.getByRole('status',{name:'Chart status',exact:true}).last()).toHaveText('Chart ready',{timeout:15000});
+ await expect(page.getByRole('button',{name:'ES · 4h',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
  expect(await page.getByLabel('Replay time',{exact:true}).first().getAttribute('datetime')).toBe(await page.getByLabel('Replay time',{exact:true}).last().getAttribute('datetime'));
  await expect(page.getByRole('button',{name:'Backtesting journal',exact:true})).toHaveCount(0);
@@ -296,7 +297,7 @@ test('backtesting setup dropdowns read the private Lab catalogue and retain all 
   }
   await dialog.getByLabel('Replay confirmation',{exact:true}).check();
   await dialog.getByRole('button',{name:'Send trade',exact:true}).click();
-  await expect(dialog.getByRole('status')).toContainText('Saved');
+  await expect(dialog.getByRole('status')).toContainText('Trade sent');
   await page.setViewportSize({width:390,height:844});
   expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath('lab-linked-replay-journal.png')});
@@ -448,15 +449,18 @@ test('session ranges use editable NY defaults, save privately and restore on rel
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Configure sessions',exact:true}).click();
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.locator('.bt-study-row').filter({has:page.getByText('Sessions',{exact:true})}).getByRole('button',{name:'Add',exact:true}).click();await page.getByRole('button',{name:'Settings for Sessions',exact:true}).click();
  const settings=page.getByRole('dialog',{name:'Session ranges',exact:true});
  await expect(settings.getByLabel('Asia start',{exact:true})).toHaveValue('20:00');await expect(settings.getByLabel('Asia end',{exact:true})).toHaveValue('02:00');
+ await expect(settings.getByLabel('NY AM start',{exact:true})).toHaveValue('07:00');
  await expect(settings.getByLabel('NY AM end',{exact:true})).toHaveValue('17:00');
  await expect(settings.getByLabel('Last session days (1–30)',{exact:true})).toHaveValue('5');
  await expect(settings).not.toContainText('VWAP');await expect(settings).not.toContainText('Trendline');
+ await settings.getByLabel('NY AM color',{exact:true}).fill('#ff0000');
+ await settings.getByRole('combobox',{name:'NY AM border',exact:true}).click();await page.getByRole('option',{name:'Dashed',exact:true}).click();
  await settings.getByLabel('Show session ranges',{exact:true}).check();await settings.getByLabel('Show dashboard',{exact:true}).check();
  await settings.getByRole('button',{name:'Save as my default',exact:true}).click();
- await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible();await expect(page.locator('.bt-session-dashboard')).toContainText('Asia');
+ await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible();expect(await page.getByLabel('Session range overlays',{exact:true}).evaluate(el=>parseFloat(el.style.left))).toBeGreaterThan(0);await expect(page.locator('.bt-session-dashboard')).toContainText('Asia');await expect.poll(()=>page.locator('.bt-session-ranges rect[stroke="#ff0000"][stroke-dasharray="5 4"]').count()).toBeGreaterThan(0);
  await page.reload();await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible();
  const defaults=await (await page.request.get('http://127.0.0.1:8119/api/backtesting/chart-defaults')).json();
  expect(defaults.sessionRanges).toMatchObject({enabled:true,days:5,zone:'America/New_York'});
@@ -473,6 +477,16 @@ test('temporary execution timing diagnosis',async({page})=>{
  await expect(page.getByRole('button',{name:'Remove stop loss',exact:true})).toBeEnabled();
  const values=await page.evaluate(()=>window.__primusReplayTimings.filter(v=>v.name==='drag move handler'));
  console.log(JSON.stringify({clickVisible_ms:click,dragComplete_ms:Date.now()-dragStarted,previewRequests:previews,pointerCount:values.length,pointerPerSecond:values.length/((Date.now()-dragStarted)/1000),pointerMean_ms:values.reduce((n,v)=>n+v.ms,0)/values.length,pointerMax_ms:Math.max(...values.map(v=>v.ms))}));
+});
+
+test('drawing style templates save, apply and survive reload',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Lines',exact:true}).click();await page.locator('.replay-chart').click({position:{x:400,y:250}});await page.locator('.replay-chart').click({position:{x:650,y:300}});
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();
+ const modal=page.getByRole('dialog',{name:'Drawing templates',exact:true});await modal.getByLabel('Template name').fill('My line');await modal.getByRole('button',{name:'Save template',exact:true}).click();
+ await expect(modal).toContainText('Template saved.');await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.reload();
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();await expect(modal).toContainText('My line');
 });
 
 test('order appears before slow acknowledgement; drag keeps replay moving, Escape cancels and drop commits once',async({page})=>{

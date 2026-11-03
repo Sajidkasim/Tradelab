@@ -39,7 +39,7 @@ class BulkDeleteInput(BaseModel):
     confirmation:str=Field(max_length=80)
 
 DEFAULTS='primus_replay_chart_defaults'
-DEFAULT_FIELDS={'config','studies','timeframe','clockZone','clockDisplayVersion','watermark','minuteWatermarks','shortcuts','sessionRanges'}
+DEFAULT_FIELDS={'config','studies','timeframe','clockZone','clockDisplayVersion','watermark','minuteWatermarks','shortcuts','sessionRanges','drawingTemplates','drawingDefaults'}
 def chart_defaults(db):return db.get_setting(DEFAULTS,{})
 
 class OrderInput(BaseModel):
@@ -359,6 +359,10 @@ def mount(app,config,workspace):
         with app.state.workspaces.lock:
             database(member).set_setting(DEFAULTS,payload.layout);app.state.workspaces.bump(member['key'])
         return {'saved':True}
+    @app.get('/api/backtesting/sessions/{sid}/layouts')
+    def session_layouts(sid:str,member=Depends(workspace)):
+        local_only();db=database(member);get_record(db,sid)
+        return {'layout':db.get_setting(_key(sid)+':layout',{}),'layout_secondary':db.get_setting(_key(sid)+':layout:secondary',{})}
     @app.get('/api/backtesting/sessions/{sid}')
     def open_session(sid:str,member=Depends(workspace)):
         local_only()

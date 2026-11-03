@@ -25,7 +25,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const registerChart=useCallback((id,chart)=>{chartInstances.current[id]=chart},[]);
  const syncPointer=useCallback((id,event)=>{if(!crosshairSync.current)return;for(const [other,chart] of Object.entries(chartInstances.current))if(other!==id)chart?.renderer.setExternalCrosshair(event.time??null,null)},[]);
  function toggleCrosshair(){setChartWorkspace(state=>({...state,syncCrosshair:!state.syncCrosshair}));for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null)}
- function toggleSplit(){if(twoCharts)layoutSavers.current.secondary?.().catch(()=>{});for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null);setTwoCharts(value=>!value);setChartWorkspace(state=>({...state,activeChartId:'primary'}))}
+ async function toggleSplit(){try{if(twoCharts){await layoutSavers.current.secondary?.();setTwoCharts(false)}else{await layoutSavers.current.primary?.();const saved=await api(`/backtesting/sessions/${active.session.id}/layouts`);const {drawings,priceScale,...inherited}=saved.layout||{};setChartWorkspace(state=>({...state,charts:state.charts.map(p=>p.id==='secondary'?{...inherited,id:'secondary',symbol:p.symbol||'ES',drawings:p.drawings||{}}:p)}));setTwoCharts(true)}for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null);setChartWorkspace(state=>({...state,activeChartId:'primary'}))}catch(e){setError(e.message)}}
 
  const layoutSavers=useRef({}),prefetch=useRef(null);
  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
