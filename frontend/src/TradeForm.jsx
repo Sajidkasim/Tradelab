@@ -28,6 +28,7 @@ export default function TradeForm({
   onPrevious,
   onSaved,
   onClose,
+  onDraftStateChange,
   remaining = 0,
   focusField,
   journalOrigin,
@@ -85,6 +86,11 @@ export default function TradeForm({
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const draftSnapshot=JSON.stringify({strategy,labels,confirmed,notes,source,account,direction,symbol,method,start,exit,fields,originalRisk,riskUnavailable});
+  const initialDraft=useRef(draftSnapshot);
+  const dirty=draftSnapshot!==initialDraft.current;
+  useEffect(()=>{onDraftStateChange?.({dirty,busy})},[dirty,busy,onDraftStateChange]);
+  useEffect(()=>{if(!dirty)return;const warn=event=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[dirty]);
   const change = (key, value) => setFields((f) => ({ ...f, [key]: value }));
   function reuse() {
     setStrategy(previous.strategy);

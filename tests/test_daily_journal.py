@@ -254,3 +254,28 @@ def test_existing_members_get_automatic_private_tags_without_migration(draft):
         assert result['unresolved_tags']==[] and result['rows'][0]['setup_name']==strategy
         assert client.get('/api/trades').json()==[]
         client.post('/api/logout')
+
+@pytest.mark.parametrize('amounts,expected,status', [([150,-50],100,'win'),([50,-150],-100,'loss'),([50,-50],0,'breakeven'),([0],0,'breakeven'),([10,None],None,'not_recorded'),([],None,'not_recorded')])
+def test_calendar_day_total_uses_recorded_pnl_and_grades_stay_private(draft,amounts,expected,status):
+    from uuid import uuid4
+    client,app,state=draft
+    login(client,state)
+    cards=[{'id':uuid4().hex,'net_pnl':amount,'setup_grade':['A+','A','B'][i%3]} for i,amount in enumerate(amounts)]
+    result=client.put('/api/journal/2026-11-03',json={'trades':cards})
+    assert result.status_code==200,result.text
+    value=result.json()
+    assert value['day_result']['net_pnl']==expected
+    assert value['day_result']['outcome']==status
+    assert [card['setup_grade'] for card in value['trades']]==[card['setup_grade'] for card in cards]
+    listed=client.get('/api/journal').json()[0]
+    assert listed['day_result']==value['day_result']
+    assert client.get('/api/trades').json()==[]
+    login(client,state,'friend@example.com','friend-sub')
+    assert client.get('/api/journal').json()==[]
+
+
+def test_invalid_journal_grade_is_rejected(draft):
+    from uuid import uuid4
+    client,app,state=draft
+    login(client,state)
+    assert client.put('/api/journal/2026-11-03',json={'trades':[{'id':uuid4().hex,'setup_grade':'C'}]}).status_code==422

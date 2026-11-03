@@ -93,3 +93,28 @@ test('Journal entry deletion is confirmed, reversible and leaves Lab trades alon
   await expect(page.getByRole('textbox',{name:'Before the session',exact:true})).toHaveValue('An entry to restore.');
   expect(await (await page.request.get(`${origin}/api/trades`)).json()).toEqual(before);
 });
+
+test('Lab Add trade protects notes and inputs from backdrop, Escape and Cancel',async({page})=>{
+ await page.goto(`${origin}/lab#trades`);await page.getByRole('button',{name:'Add trade',exact:true}).click();
+ const form=page.getByRole('dialog',{name:'Add trade',exact:true});
+ await form.getByText('Timing & notes',{exact:true}).click();
+ await form.getByRole('textbox',{name:'One useful observation',exact:true}).fill('Important notes that must not disappear.');
+ let prompts=0;page.on('dialog',async dialog=>{prompts++;expect(dialog.message()).toContain('unsaved trade details and notes');await dialog.dismiss()});
+ await page.keyboard.press('Escape');await expect(form).toBeVisible();await expect(form.getByRole('textbox',{name:'One useful observation',exact:true})).toHaveValue('Important notes that must not disappear.');
+ await page.mouse.click(2,2);await expect(form).toBeVisible();
+ await form.getByRole('button',{name:'Cancel',exact:true}).click();await expect(form).toBeVisible();expect(prompts).toBe(3);
+ page.removeAllListeners('dialog');page.once('dialog',d=>d.accept());await form.getByRole('button',{name:'Close',exact:true}).click();await expect(form).toHaveCount(0);
+ await page.getByRole('button',{name:'Add trade',exact:true}).click();await form.getByRole('button',{name:'Cancel',exact:true}).click();await expect(form).toHaveCount(0);
+});
+
+test('Journal-only grades persist and calendar dots follow whole-day P&L',async({page})=>{
+ const resultDay='2026-09-18';await page.goto(`${origin}/journal?day=${resultDay}`);
+ await page.getByRole('button',{name:'Add trade',exact:true}).click();const card=page.getByRole('article',{name:'Journal trade 1',exact:true});await choose(card,'Setup grade','A+ setup');
+ await card.getByText('Setup & result',{exact:false}).first().click();await card.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('100');
+ await page.getByRole('button',{name:'Save entry',exact:true}).first().click();const calendar=page.getByRole('button',{name:'18 September 2026',exact:true});await expect(calendar.locator('.pj-day-dot.win')).toBeVisible();await expect(page.getByLabel('Day profit and loss')).toContainText('$100.00');
+ await page.reload();await card.locator('.pj-trade-summary').click();await expect(card.getByRole('combobox',{name:'Setup grade',exact:true})).toHaveText('A+ setup');
+ await page.getByRole('button',{name:'Add trade',exact:true}).click();const second=page.getByRole('article',{name:'Journal trade 2',exact:true});await choose(second,'Setup grade','B setup');await second.getByText('Setup & result',{exact:false}).first().click();await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('-150');
+ await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot.loss')).toBeVisible();await expect(page.getByLabel('Day profit and loss')).toContainText('-$50.00');
+ await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('-100');await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot.breakeven')).toBeVisible();
+ await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('');await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot')).toHaveCount(0);await expect(page.getByLabel('Day profit and loss')).toContainText('incomplete');
+});

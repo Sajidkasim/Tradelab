@@ -1083,3 +1083,21 @@ Validation: 353 pytest passed (5 existing warnings), 64 Vitest checks passed,
 production build passed. Replay browser suite: 27 passed; the sync save/reload
 check passed separately after correcting its wait for completed layout writes.
 The local preview is on port 8132 using its existing persistent preview database.
+
+## Trade draft protection and Journal results — 3 November 2026
+
+Local only. TradeForm compares its complete editable draft against its opening
+snapshot. useTradeDismissal guards backdrop clicks, Escape, close and Cancel in
+both the Lab trade modal and Journal-to-Lab modal. An untouched form closes
+without prompting; unsaved changes require confirmation, and in-flight saves
+cannot be dismissed. Browser navigation also warns for an unfinished draft.
+
+Journal cards have a private setup_grade ('', A+, A, B); this is not a Lab label
+and is not sent into Lab statistics. daily_journal.with_day_result adapts recorded
+card results into core.metrics.daily_pnl, without formula changes. Calendar dots
+are green/red/blue for positive/negative/zero total, only once all unique trades
+have recorded P&L. Missing results and no-trade days have no outcome dot. Linked
+Lab records remain authoritative and duplicate links count once. Totals are
+response-only derived values, never additional stored financial records.
+Validation: 360 pytest passed (5 existing warnings), 64 frontend unit checks,
+4 Journal browser flows and production build passed. Local preview: port 8132.

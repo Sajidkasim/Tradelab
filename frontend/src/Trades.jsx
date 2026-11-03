@@ -20,6 +20,7 @@ import {
   Menu,
 } from "./components";
 import TradeForm from "./TradeForm";
+import useTradeDismissal from "./useTradeDismissal";
 import DeleteAllTrades from "./DeleteAllTrades";
 import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
 import { reviewIssues } from "./research";
@@ -47,6 +48,7 @@ export default function Trades({
   const [opened, setOpened] = useState(null),
     [previous, setPrevious] = useState(null),
     [bulk, setBulk] = useState(false);
+  const tradeDismissal=useTradeDismissal(()=>setOpened(null));
   const [deleting, setDeleting] = useState(null);
   const [deleteAll, setDeleteAll] = useState(false);
   const [focusField, setFocusField] = useState(null);
@@ -445,16 +447,17 @@ export default function Trades({
       {opened !== null && (opened === "new" || trade) && (
         <Modal
           title={trade ? "Review trade" : "Add trade"}
-          onClose={() => setOpened(null)}
+          onClose={tradeDismissal.requestClose}
         >
           <TradeForm
+            onDraftStateChange={tradeDismissal.onDraftStateChange}
             key={opened}
             trade={trade}
             meta={meta}
             previous={previous}
             onPrevious={setPrevious}
             onSaved={saved}
-            onClose={() => setOpened(null)}
+            onClose={tradeDismissal.requestClose}
             remaining={queue.length}
             focusField={focusField}
           />

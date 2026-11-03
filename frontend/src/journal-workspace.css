@@ -150,3 +150,15 @@
 .pj-undo{display:inline-flex;align-items:center;gap:6px;margin-left:14px;padding:4px 9px;border:1px solid currentColor;background:transparent;border-radius:3px;color:inherit;font-size:12px}
 .pj-workspace .pt-btn.pj-danger{background:#983f30;color:#fff;border-color:#983f30}.pj-trash-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--pt-line);font-size:14px}
 @media(max-width:650px){.pj-trash-link{grid-column:1/-1;padding-top:0}}
+
+/* Entry presence and financial result are separate signals. */
+.pj-workspace .pt-calendar-grid>button.has-entry {background:var(--pt-white);color:var(--pt-ink);border-color:var(--pt-line)}
+.pj-workspace .pt-calendar-grid>button.selected.has-entry {background:var(--pt-paper);color:var(--pt-ink)}
+.pj-workspace .pt-calendar-grid>button {position:relative;height:38px}
+.pj-day-dot {display:inline-block;width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.pj-day-dot.win {background:#23935d}
+.pj-day-dot.loss {background:#d5444f}
+.pj-day-dot.breakeven {background:#347fe3}
+.pt-calendar-grid>button .pj-day-dot {position:absolute;bottom:3px;left:calc(50% - 3px)}
+.pj-calendar-legend {display:flex;gap:12px;flex-wrap:wrap}
+.pj-calendar-legend span {display:inline-flex;gap:5px;align-items:center}

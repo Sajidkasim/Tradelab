@@ -170,6 +170,7 @@ class TourProgress(StrictModel):
 
 
 class JournalTrade(StrictModel):
+    setup_grade: Literal['', 'A+', 'A', 'B'] = ''
     level: str = Field(default=edge.UNKNOWN, max_length=120)
     timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
     entry_timeframe: str = Field(default=edge.UNKNOWN, max_length=120)

@@ -18,20 +18,48 @@ def entry(database, day):
     stored = database.get_setting(PREFIX + day, {})
     if stored.get('deleted_at'):
         stored = {}
-    return {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
-            'images': [], 'trades': [], 'updated_at': None, **stored}
+    return with_day_result(database, {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
+            'images': [], 'trades': [], 'updated_at': None, **stored})
 
 
 def save(database, day, values):
     result = {**entry(database, day), **values, 'day': day,
               'updated_at': datetime.now(timezone.utc).isoformat()}
+    result.pop('day_result', None)
     database.set_setting(PREFIX + day, result)
-    return result
+    return with_day_result(database, result)
 
 
 def entries(database):
-    return sorted((row for row in database.settings_with_prefix(PREFIX).values()
+    return sorted((with_day_result(database, row) for row in database.settings_with_prefix(PREFIX).values()
                    if isinstance(row, dict) and row.get('day') and not row.get('deleted_at')), key=lambda row: row['day'], reverse=True)
+
+
+def with_day_result(database, row):
+    """Journal-only totals use the tested core; missing results never imply zero."""
+    import pandas as pd
+    from core.metrics import daily_pnl
+    trades = row.get('trades', [])
+    amounts = []
+    seen = set()
+    for card in trades:
+        linked = card.get('lab_trade_id')
+        if linked and linked in seen:
+            continue  # Two cards linked to one Lab trade are one financial result.
+        if linked:
+            seen.add(linked)
+            trade = database.get_trade(linked)
+            net = trade.net_pnl if trade is not None else card.get('net_pnl')
+        else:
+            net = card.get('net_pnl')
+        amounts.append(net)
+    recorded = [amount for amount in amounts if amount is not None]
+    total = None
+    if amounts and len(recorded) == len(amounts):
+        frame = pd.DataFrame({'net_pnl': recorded, 'exit_time': [row['day']] * len(recorded)})
+        total = float(daily_pnl(frame).iloc[0])
+    return {**row, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
+                                 'recorded_trades': len(recorded), 'total_trades': len(amounts)}}
 
 
 def image_path(config, member, day, image_id):
