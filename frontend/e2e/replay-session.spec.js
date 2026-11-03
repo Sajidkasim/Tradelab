@@ -430,3 +430,28 @@ test('one toolbar targets the active pane, retains both charts and restores spli
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('shared-toolbar-phone.png')});
 });
+
+test('full calendar coverage, bounded 4h pages and free navigation preserve replay cutoff',async({page},testInfo)=>{
+ let pages=0;page.on('request',r=>{if(r.url().includes('/chart-history?'))pages++});
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ const count=async()=>Number((await page.locator('.bt-bar-count').textContent()).replace(/[^0-9]/g,''));
+ for(const [tf,min] of [['1D',3000],['1W',600],['1M',150]]){
+  await page.getByRole('button',{name:tf,exact:true}).click();await expect.poll(count).toBeGreaterThan(min);
+ }
+ await page.getByRole('button',{name:'4h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ expect(await count()).toBeLessThanOrEqual(750);
+ await expect(page.getByLabel('Dataset coverage',{exact:true})).toContainText('2010-06-06');
+ const before=pages;
+ // Pan well past the loaded left edge. The viewport stays free and older pages arrive.
+ await page.mouse.move(650,350);await page.mouse.wheel(0,500);await page.mouse.wheel(0,500);
+ await expect.poll(()=>pages).toBeGreaterThan(before);await expect.poll(count).toBeGreaterThan(750);
+ const clock=await page.getByLabel('Replay time',{exact:true}).getAttribute('datetime');
+ await page.getByRole('button',{name:'1h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ expect(await page.getByLabel('Replay time',{exact:true}).getAttribute('datetime')).toBe(clock);
+ // Price-axis reset remains available after a vertical pan and zoom.
+ await page.mouse.move(600,350);await page.mouse.down();await page.mouse.move(650,430,{steps:10});await page.mouse.up();
+ await page.mouse.dblclick(1415,400);await page.mouse.move(650,350);await page.mouse.wheel(0,400);
+ await expect(page.getByRole('alert')).toHaveCount(0);
+ await page.screenshot({path:testInfo.outputPath('paged-history-free-navigation.png')});
+});

@@ -52,3 +52,33 @@ class Archive:
         # Price identity excludes chart-only enrichment; manifests are immutable per release.
         signature=hashlib.sha256(encode({'day':self.manifest['days'][day],'context':[self.manifest['days'][p['day']] for p in earlier],'charts':self.manifest['charts']})).hexdigest()
         return data,signature
+
+    @lru_cache(maxsize=16)
+    def chart_window(self,root,tf,before,cutoff,limit=750,after=None):
+        from services.replay_chart_history import aggregate
+        dates=sorted(self.manifest['days'])
+        first=records(self.chunk(self.manifest['days'][dates[0]])['markets'][root]['bars'])[0]['time']
+        last=records(self.chunk(self.manifest['days'][dates[-1]])['markets'][root]['bars'])[-1]['time']
+        calendar=tf in ('1D','1W','1M')
+        if calendar:
+            digest=self.manifest.get('charts_calendar_ny')
+            if not digest:raise ValueError('Upload the prepared New York chart-calendar bundle before enabling full calendar history on this server.')
+            daily=[row for row in self.chunk(digest)[root] if row[6]<=cutoff+60000]
+            start=daily[-1][6] if daily else first
+            rows=[row[:6] for row in daily]
+            for day in dates:
+                if day<datetime.fromtimestamp(start/1000,timezone.utc).date().isoformat() or day>datetime.fromtimestamp(cutoff/1000,timezone.utc).date().isoformat():continue
+                rows.extend(row for row in self.chunk(self.manifest['days'][day])['markets'][root]['bars'] if start<=row[0]<=cutoff)
+            candles=aggregate(rows,tf)
+        else:
+            end=min(before-1,cutoff);endday=datetime.fromtimestamp(end/1000,timezone.utc).date().isoformat()
+            startday=datetime.fromtimestamp((after or 0)/1000,timezone.utc).date().isoformat()
+            eligible=[day for day in dates if startday<=day<=endday];rows=[];candles=[]
+            for day in (eligible if after is not None else reversed(eligible)):
+                part=[row for row in self.chunk(self.manifest['days'][day])['markets'][root]['bars'] if row[0]<=end]
+                rows=rows+part if after is not None else part+rows
+                candles=[bar for bar in aggregate(rows,tf) if after is None or bar[0]>after]
+                if len(candles)>limit:break
+        candles=[bar for bar in candles if bar[0]<before and bar[0]<=cutoff and (after is None or bar[0]>after)]
+        selected=candles if calendar else candles[:limit] if after is not None else candles[-limit:]
+        return {'bars':records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(candles)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}

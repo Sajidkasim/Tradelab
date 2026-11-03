@@ -105,3 +105,5 @@ body:has(.backtesting-workspace){overflow:hidden}
 
 .bt-panes-split .bt-statusbar{gap:8px;padding:0 8px;min-height:32px;white-space:nowrap}.bt-panes-split .bt-statusbar>div{gap:8px}.bt-panes-split .bt-statusbar .bt-bar-count{display:none}.bt-panes-split .bt-sample{overflow:hidden;text-overflow:ellipsis;min-width:0}.bt-panes-split .bt-statusbar .bt-attribution{font-size:9px}
 @media(min-width:901px) and (max-width:1500px){.bt-panes-split .bt-statusbar .bt-save-status{display:none}}
+
+.bt-history-bounds{padding:3px 9px;min-height:20px;font-size:10px;color:var(--bt-muted);background:var(--bt-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}.replay-chart{touch-action:none}

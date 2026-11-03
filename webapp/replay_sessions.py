@@ -383,6 +383,27 @@ def mount(app,config,workspace):
             result=transfer(db,record,trade,payload.destination,payload.strategy,payload.setup.model_dump() if payload.setup else None)
             app.state.workspaces.bump(member['key']);return result
 
+    @app.get('/api/backtesting/sessions/{sid}/chart-history')
+    def chart_history(sid:str,root:Literal['NQ','ES'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
+        local_only()
+        if timeframe not in ('1D','1W','1M') and (not timeframe.isdigit() or not 1<=int(timeframe)<=720):raise HTTPException(422,'Unsupported timeframe.')
+        if not 1<=limit<=1000:raise HTTPException(422,'Choose a page size between 1 and 1000.')
+        # Authorise the session under the workspace lock; read public price files outside it.
+        with app.state.workspaces.lock:
+            record=get_record(database(member),sid)
+            if not record['spec']['start_cursor']<=cursor<=record['last_cursor']:raise HTTPException(422,'Invalid replay cursor.')
+            data=checked_data(record)
+            cutoff=data['markets'][record['root']]['bars'][cursor]['time']
+        edge=min(before if before is not None else cutoff+1,cutoff+1)
+        index=ROOT/'replay-index.db'
+        try:
+            if config.local and index.is_file():
+                from .replay_chart_windows import window
+                return window(str(index),index.stat().st_mtime_ns,root,timeframe,edge,cutoff,limit,after)
+            if archive():return archive().chart_window(root,timeframe,edge,cutoff,limit,after)
+            raise ValueError('Full chart history has not been configured on this server.')
+        except (ValueError,OSError) as exc:raise HTTPException(422,str(exc)) from None
+
     @app.post('/api/backtesting/sessions/{sid}/ticket-preview')
     def ticket_preview(sid:str,payload:TicketPreviewInput,member=Depends(workspace)):
         local_only()

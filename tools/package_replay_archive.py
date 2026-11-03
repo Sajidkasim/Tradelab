@@ -30,6 +30,10 @@ def build(index,target):
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_4h_ny'").fetchone():
             ny={root:db.execute('SELECT time,open,high,low,close,volume FROM chart_4h_ny WHERE root=? ORDER BY time',(root,)).fetchall() for root in ('NQ','ES')}
             ny_digest,ny_body=pack(ny);(target/(ny_digest+'.json.gz')).write_bytes(ny_body);manifest['charts_ny']=ny_digest
+    with sqlite3.connect(index) as db:
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_daily_ny'").fetchone():
+            calendar={root:db.execute('SELECT time,open,high,low,close,volume,end FROM chart_daily_ny WHERE root=? ORDER BY time',(root,)).fetchall() for root in ('NQ','ES')}
+            digest,body=pack(calendar);(target/(digest+'.json.gz')).write_bytes(body);manifest['charts_calendar_ny']=digest
     (target/'manifest.json').write_text(json.dumps(manifest,separators=(',',':')))
     print(json.dumps({'dates':len(days),'compressed_bytes':sum(p.stat().st_size for p in target.glob('*.gz'))}),flush=True)
     return manifest
@@ -42,7 +46,7 @@ def upload(target):
     values={f'r2_{n.lower()}':cfg.get('PRIMUS_R2_'+n,'') for n in names}
     if not all(values.values()):raise SystemExit('Private R2 configuration is missing.')
     connection=ImageStorage(SimpleNamespace(r2_ready=True,**values));client=connection.client
-    manifest=json.loads((target/'manifest.json').read_text());digests=list(dict.fromkeys([*manifest['days'].values(),manifest['charts'],*([manifest['charts_ny']] if manifest.get('charts_ny') else [])]))
+    manifest=json.loads((target/'manifest.json').read_text());digests=list(dict.fromkeys([*manifest['days'].values(),manifest['charts'],*([manifest['charts_ny']] if manifest.get('charts_ny') else []),*([manifest['charts_calendar_ny']] if manifest.get('charts_calendar_ny') else [])]))
     def put(digest):
         body=(target/(digest+'.json.gz')).read_bytes();object_key=key(digest)
         try:

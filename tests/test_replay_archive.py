@@ -99,3 +99,15 @@ def test_prefetch_can_load_a_ten_day_batch_without_saving_new_trades(tmp_path):
         assert data['session']['cursor']==initial['session']['cursor']
         assert data['projection']['trades']==[] and data['session']['next_day'] is None
     db.engine.dispose()
+
+def test_hosted_chart_windows_are_paged_and_calendar_never_reveals_future():
+    store,manifest=bundles()
+    archive=Archive(manifest,store,'private');cut=1591056120000
+    minute=archive.chart_window('NQ','1',cut+1,cut,2)
+    assert len(minute['bars'])==2 and minute['bars'][-1]['time']==cut
+    earlier=archive.chart_window('NQ','1',minute['bars'][0]['time'],cut,2)
+    assert earlier['bars'][-1]['time']<minute['bars'][0]['time']
+    with pytest.raises(ValueError,match='calendar bundle'):archive.chart_window('NQ','1D',cut+1,cut)
+    manifest['charts_calendar_ny']=store.add({root:[[1590962400000,100,110,90,105,100,1591048800000]] for root in ('NQ','ES')})
+    result=Archive(manifest,store,'private').chart_window('NQ','1D',cut+1,cut)
+    assert result['bars'][-1]['close']==103

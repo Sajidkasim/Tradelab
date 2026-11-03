@@ -4,10 +4,11 @@ import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
-import {holdReplayViewport} from './replayViewport';
+import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
+import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
-import {aggregateMinuteBars, CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe, chartHistory, upperBound} from './backtestingBars';
+import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
 
 const chartTheme = mode => ({
@@ -29,7 +30,6 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:localStorage.getItem('primus-replay-clock-v2')));
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
-  const sampleRef=useRef(sample);sampleRef.current=sample;
   const timeline=sample.markets[session.root].bars;
   const replayTime=timeline[cursor].time;
   const confirmedFrame=projection.frames[cursor-session.spec.start_cursor];
@@ -40,7 +40,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     try{return await onAction(kind,order)}finally{if(kind==='order')setSubmittingOrder(null)}
   }
   const finished=cursor===session.last_cursor;
-  const lastRendered=useRef(null),marketRequest=useRef(null);
+  const lastRendered=useRef(null),marketRequest=useRef(null),symbolViews=useRef(new Map());
   const [marketVersion,setMarketVersion]=useState(0);
   const jumpToLatest=useRef(false);
   const [shortcuts,setShortcuts]=useState(()=>savedTimeframes(localStorage.getItem('primus-replay-timeframes')));
@@ -56,7 +56,11 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const [orderQty,setOrderQty]=useState(1);
   const selection = useRef({symbol, timeframe, theme, replayTime});
   selection.current = {symbol, timeframe, theme, replayTime};
-  const bars = useMemo(() => sample ? chartHistory(sample.markets[symbol],replayTime,timeframe) : [], [sample, symbol, timeframe, replayTime]);
+  const [historyStatus,setHistoryStatus]=useState(null);
+  const replayRead=useRef(null);replayRead.current={cursor,time:replayTime,markets:sample.markets};
+  const historyFeed=useRef(null);if(!historyFeed.current)historyFeed.current=new ReplayHistoryFeed(session.id,()=>replayRead.current,value=>setHistoryStatus({...value}));
+  const bars = useMemo(() => historyFeed.current.view(symbol,timeframe)||[], [sample,symbol,timeframe,replayTime,ready,marketVersion,historyStatus]);
+  const edgeTimer=useRef(null),edgeBusy=useRef(false);
   const market = sample?.markets[symbol];
   const timeframeName = timeframeLabel(timeframe);
   const syncStudies = useCallback(() => {
@@ -74,11 +78,11 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{const root=ticker.startsWith('NQ')?'NQ':'ES';return chartHistory(sampleRef.current.markets[root],selection.current.replayTime,tf)},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
+      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive)setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
-        live: true, theme: chartTheme(current.theme), height: '100%',
+        live: true, bars:750, theme: chartTheme(current.theme), height: '100%',
         drawings: {tools: drawingTools}, animations: false,
       });
       chartRef.current = chart;
@@ -100,16 +104,17 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       const native=chart.renderer.renderer;
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
-      if(String(current.timeframe)==='240'&&(sample.chart_context_version||0)>0&&layout.chartContextVersion!==sample.chart_context_version&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});
+      unsubscribers.push(installFreeReplayNavigation(chart,host.current));
+      unsubscribers.push(chart.on('viewport:changed',()=>{clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>loadEdge(chart),150)}));
       const available = await chart.availableNativeIndicators();
       if (!alive) return;
-      setCatalog(available); syncStudies(); setReady(true); setBusy(false);
+      lastRendered.current=historyFeed.current.view(current.symbol,current.timeframe)||[];setCatalog(available); syncStudies(); setReady(true); setBusy(false);
     }).catch(e => {if (alive) {setError(e.message); setBusy(false)}});
     return () => {
       alive = false; unsubscribers.forEach(unsubscribe => unsubscribe());
       if (chartRef.current === chart) chartRef.current = null;
       registerChart(paneId,null);
-      chart?.destroy();
+      clearTimeout(edgeTimer.current);chart?.destroy();
     };
   }, [session.id, syncStudies]);
 
@@ -126,10 +131,10 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     lastRendered.current=bars;
     if(same&&previousBars){
       // Streaming updates retain candle spacing, horizontal pan and manual price scale.
-      const restoreView=!follow&&!jumpToLatest.current?holdReplayViewport(chart,bars.length-previousBars.length):()=>{};
       const last=previousBars.at(-1)?.time??-Infinity;
-      let from=Math.max(0,previousBars.length-1);while(from>0&&bars[from]?.time>last)from--;
-      for(let i=from;i<bars.length;i++)for(const cb of feed.current||[])cb(bars[i]);
+      let low=0,high=bars.length;while(low<high){const middle=(low+high)>>>1;if(bars[middle].time<last)low=middle+1;else high=middle}const updates=bars.slice(low);
+      const restoreView=!follow&&!jumpToLatest.current?holdReplayViewport(chart,updates.filter(bar=>bar.time>last).length):()=>{};
+      for(const bar of updates)for(const cb of feed.current||[])cb(bar);
       restoreView();
       if(jumpToLatest.current){chart.panBy(10000);jumpToLatest.current=false}
       setBusy(false);return;
@@ -138,11 +143,28 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       drawings.current[previousSymbol]=chart.drawings.toJSON();
       chart.drawings.fromJSON(drawings.current[wanted]||{version:1,drawings:[]});
     }
+    if(same){setBusy(false);return}
+    const currentView=captureReplayView(chart);symbolViews.current.set(previousSymbol,currentView);
+    const snapshot=previousSymbol===wanted?currentView:symbolViews.current.get(wanted)||({...currentView,price:null});
+    historyFeed.current.anchor=snapshot?.to??null;
     marketRequest.current={symbol:wanted,timeframe};
     chart.setMarket({symbol:wanted,timeframe}).then(()=>{
-      if(chartRef.current===chart){if(String(timeframe)==='240'&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});setBusy(false);syncStudies()}
+      if(chartRef.current===chart){restoreReplayView(chart,snapshot);lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
     }).catch(e=>{if(chartRef.current===chart){setError(e.message);setBusy(false)}}).finally(()=>{marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
   }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
+
+  async function loadEdge(chart){
+    if(edgeBusy.current||chartRef.current!==chart)return;
+    const selected=selection.current,slot=historyFeed.current.slot(selected.symbol,selected.timeframe);
+    if(!slot?.bars.length||['1D','1W','1M'].includes(selected.timeframe))return;
+    const range=captureReplayView(chart);if(!range)return;
+    const count=slot.bars.length,margin=Math.min(100,Math.floor(count/4));
+    const direction=range.from<=slot.bars[margin].time&&!slot.leftDone?'left':range.to>=slot.bars[count-1-margin].time&&!slot.rightDone?'right':null;
+    if(!direction)return;edgeBusy.current=true;
+    try{const loaded=await historyFeed.current.page(selected.symbol,selected.timeframe,direction);
+      if(loaded&&chartRef.current===chart&&selection.current.symbol===selected.symbol&&selection.current.timeframe===selected.timeframe){replaceReplayHistory(chart,loaded);lastRendered.current=loaded}
+    }catch(error){setError(error.message)}finally{edgeBusy.current=false}
+  }
 
   useEffect(()=>{if(ready)chartRef.current?.renderer.applyConfig({timeScale:{timezone:clockZone}});localStorage.setItem('primus-replay-clock-v2',clockZone)},[clockZone,ready]);
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
@@ -229,6 +251,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       <span className="bt-chart-status" data-error={Boolean(error)} data-busy={busy} role="status" aria-label="Chart status">{error ? 'Check chart message' : busy ? 'Loading chart…' : finished&&!session.next_day?'End of dataset':'Chart ready'}</span>
       <a href="https://velacharts.dev" target="_blank" rel="noreferrer" className="bt-attribution">Vela / LuxAlgo</a>
     </footer>
+    {historyStatus&&<div className="bt-history-bounds" role="status" aria-label="Dataset coverage">{new Date(historyStatus.earliest).toISOString().slice(0,10)} – {new Date(historyStatus.latest).toISOString().slice(0,10)} · {historyStatus.leftDone||historyStatus.exhausted?'Start of dataset · no older candles':'Pan left for older candles'} · Future candles hidden in replay</div>}
     {clearDrawings&&<Modal title="Delete all drawings?" onClose={()=>setClearDrawings(false)}><p>Remove all drawings from this chart? Trades, positions and trade markers stay unchanged.</p><div className="settings-actions"><Button variant="primary" onClick={deleteAllDrawings}>Delete drawings</Button><Button onClick={()=>setClearDrawings(false)}>Cancel</Button></div></Modal>}
     {timeframeEditor&&<Modal title="Your timeframes" onClose={()=>setTimeframeEditor(null)}>
       <p>Choose your chart shortcuts. Saved on this browser for future sessions.</p>
