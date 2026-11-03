@@ -237,7 +237,7 @@ def mount(app,config,workspace):
             available=catalog()
             if not config.local:
                 days=sorted(available_manifest()['days'])
-                if days:available.update(first_day=days[0],last_day=days[-1],sample_day=days[-1],available_days=days,**({'indexed_days':len(days)} if archive() else {}))
+                if days:available.update(first_day=days[0],last_day=days[-1],sample_day=next((d for d in reversed(days) if date.fromisoformat(d).weekday()<5),days[-1]),available_days=days,**({'indexed_days':len(days)} if archive() else {}))
             return {'sessions':[row['summary'] for row in reversed(rows) if row and not row.get('deleted')], 'deleted':[row['summary'] for row in reversed(rows) if row and row.get('deleted')], 'history':available}
     @app.post('/api/backtesting/sessions')
     def create(payload:SessionInput,member=Depends(workspace)):
