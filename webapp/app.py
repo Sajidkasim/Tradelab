@@ -24,7 +24,7 @@ from core.models import Source
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
-from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink
+from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink, FeedbackInput
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -601,6 +601,32 @@ def create_app(config: Settings | None = None):
             database.set_setting(journal_preferences.KEY, values)
             app.state.workspaces.bump(member['key'])
         return values
+
+    @app.post('/api/feedback')
+    def submit_feedback(payload: FeedbackInput, request: Request, member=Depends(workspace)):
+        from datetime import datetime, timezone, timedelta
+        from uuid import uuid4
+        message = payload.message.strip()
+        if not message:
+            raise HTTPException(422, 'Write a message before sending.')
+        now = datetime.now(timezone.utc)
+        with app.state.workspaces.lock:
+            database = app.state.workspaces.root
+            rows = database.settings_with_prefix('primus_feedback:').values()
+            recent = [row for row in rows if row.get('sender') == member['key'] and row['created_at'] > (now-timedelta(hours=1)).isoformat()]
+            if len(recent) >= 5:
+                raise HTTPException(429, 'You have sent five messages this hour. Please try again later.')
+            record = {'id':uuid4().hex, 'sender':member['key'], 'name':member['name'], 'message':message, 'created_at':now.isoformat()}
+            database.set_setting('primus_feedback:'+record['id'], record)
+        return {'sent':True}
+
+    @app.get('/api/feedback')
+    def read_feedback(request: Request, member=Depends(workspace)):
+        if member['key'] != 'owner':
+            raise HTTPException(403, 'Only the owner can read feedback.')
+        with app.state.workspaces.lock:
+            rows = app.state.workspaces.root.settings_with_prefix('primus_feedback:').values()
+            return sorted(rows, key=lambda row:row['created_at'], reverse=True)[:100]
 
     @app.post('/api/release-notes/seen')
     def acknowledge_release(request: Request, member=Depends(workspace)):

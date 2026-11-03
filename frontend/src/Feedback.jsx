@@ -1,0 +1,10 @@
+import React,{useState} from 'react';
+import {api} from './api';
+import {Modal,Button,Notice} from './components';
+export default function Feedback({owner=false}){
+ const [open,setOpen]=useState(false),[inbox,setInbox]=useState(null),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[sent,setSent]=useState(false);
+ async function load(){setError('');try{setInbox(await api('/feedback',{cache:'no-store'}))}catch(e){setError(e.message)}}
+ return <><button className="button" onClick={()=>{setOpen(true);setSent(false)}}>Give feedback</button>{owner&&<button className="button" onClick={load}>Feedback inbox</button>}
+ {open&&<Modal title="Backtesting feedback" onClose={()=>!busy&&setOpen(false)}><p>Backtesting is still in beta. Tell Sajid what worked or what needs fixing. Your message and account name will be shared with him; no trades or screenshots are attached.</p>{sent?<Notice>✓ Feedback sent to Sajid. Thank you.</Notice>:<form onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');try{await api('/feedback',{method:'POST',body:{message:message.trim()}});setSent(true);setMessage('')}catch(e){setError(e.message)}finally{setBusy(false)}}}><label className="field">Your feedback<textarea aria-label="Your feedback" required maxLength={2000} rows={5} value={message} onChange={e=>setMessage(e.target.value)}/></label><Button type="submit" busy={busy} disabled={!message.trim()}>Send feedback</Button></form>}{error&&<Notice error>{error}</Notice>}</Modal>}
+ {inbox&&<Modal title="Feedback inbox" onClose={()=>setInbox(null)}><p>Only you can read this inbox.</p><Button onClick={load}>Refresh feedback</Button>{!inbox.length&&<p>No feedback yet.</p>}{inbox.map(item=><section key={item.id} className="notice"><strong>{item.name}</strong><small>{new Date(item.created_at).toLocaleString()}</small><p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{item.message}</p></section>)}{error&&<Notice error>{error}</Notice>}</Modal>}</>;
+}

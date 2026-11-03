@@ -197,3 +197,7 @@ class DailyEntry(StrictModel):
     lesson: str = Field(default='', max_length=12000)
     mindset: Literal['Not set', 'Focused', 'Patient', 'Distracted', 'Frustrated'] = 'Not set'
     trades: list[JournalTrade] | None = Field(default=None, max_length=30)
+
+
+class FeedbackInput(StrictModel):
+    message: str = Field(min_length=1, max_length=2000)

@@ -6,6 +6,7 @@ import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Select} from './components';
 import {JournalClock} from './JournalClock';
 import TradeForm from './TradeForm';
+import ReleaseNotes from './ReleaseNotes';
 import useTradeDismissal from './useTradeDismissal';
 import {money} from './format';
 import JournalTradeCards,{JournalScreenshots} from './JournalTradeCards';
@@ -81,6 +82,7 @@ export default function JournalPage(){
   const entrancePreview=localSitePreview()&&new URLSearchParams(location.search).get('preview')==='signin';
   if(!identity.authenticated||entrancePreview)return <><PrimusHeader active="journal"/><Unlock workspace="journal" ready={!entrancePreview&&Boolean(identity.csrf)} authMode={entrancePreview?'google':identity.auth_mode} onUnlocked={boot}/></>;
   return <div className="pt-journal pj-workspace">
+    {meta.release_notes&&!meta.release_notes.seen&&<ReleaseNotes notes={meta.release_notes} onClose={()=>setMeta(m=>({...m,release_notes:{...m.release_notes,seen:true}}))} onSeen={async()=>{await api('/release-notes/seen',{method:'POST'});setMeta(m=>({...m,release_notes:{...m.release_notes,seen:true}}))}}/>}
     <PrimusHeader active="journal"/>
     <main className="pt-wrap pt-journal-main">
       <div className="pt-journal-heading"><div><span className="pt-overline">THE DAILY PRACTICE</span><h1>Pause. Put it <em>on paper.</em></h1><p>Your session, your trades and the story behind them. All in one place.</p></div><div className="pt-private-badge"><LockKeyhole size={15}/> Your private workspace</div></div>

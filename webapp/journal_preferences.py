@@ -21,8 +21,7 @@ def read(database):
 
 
 def fresh(database):
-    # New members already start on this release; the welcome guide introduces it.
-    database.set_setting(release_notes.KEY, release_notes.VERSION)
+    # New members also receive the current update notice after onboarding.
     database.set_setting(edge.PLAYBOOK_KEY, {'strategies': [], 'levels': []})
     settings = deepcopy(lab_settings.DEFAULTS)
     settings['confirmations'] = []

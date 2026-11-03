@@ -21,7 +21,7 @@ async function login(page, who) {
   }
   const updated = await (await page.request.get(`${origin}/api/metadata`)).json();
   if (updated.release_notes && !updated.release_notes.seen) {
-    const notes = page.getByRole('dialog', {name:'What’s new in Strategy Lab', exact:true});
+    const notes = page.getByRole('dialog', {name:'What’s new in PrimusTrader', exact:true});
     await notes.getByRole('button', {name:'Got it', exact:true}).click();
     await expect(notes).not.toBeVisible();
   }
