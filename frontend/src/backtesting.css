@@ -89,3 +89,19 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-ticket-drag{cursor:ns-resize;touch-action:none}.bt-ticket-drag:hover{filter:brightness(1.15);outline:1px solid currentColor}.bt-ticket-line.dropping{transition:top 80ms ease-out}.bt-ticket-layer:has(.bt-ticket-drag:active) .bt-ticket-line{transition:none}.bt-risk-zone{position:absolute;left:42px;right:70px;pointer-events:none;background:#d368711a}.bt-risk-zone.target{background:#3894831a}.bt-break-even{position:absolute;pointer-events:auto;left:55px;top:40px;background:var(--bt-surface);color:var(--bt-ink);border:1px solid var(--bt-border);padding:5px 8px;border-radius:4px}
 
 .bt-ticket-line.dragging{transition:none}.bt-ticket-drag{white-space:nowrap}.bt-risk-zone{max-height:100%;overflow:hidden}
+
+/* Shared toolbar: pane selection never remounts either Vela instance. */
+.bt-layout{display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100dvh;gap:0}
+.bt-shared-toolbar{min-width:0;z-index:5}.bt-shared-toolbar .bt-toolbar{flex-wrap:wrap}
+.bt-panes{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;overflow:hidden}
+.bt-panes-split{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px;background:var(--bt-bg)}
+.bt-panes .bt-chart-pane{height:100%;min-height:0;min-width:0;box-sizing:border-box;border:1px solid var(--bt-border)}
+.bt-panes-split .bt-chart-pane.is-selected{outline:2px solid #389483;outline-offset:-2px}
+.bt-pane-heading{display:flex;align-items:center;min-height:34px;padding:5px 10px;border-bottom:1px solid var(--bt-border);flex-shrink:0}
+.bt-pane-tag{font:inherit;font-size:12px;font-weight:650;border:0;border-radius:4px;padding:4px 9px;background:var(--bt-border);color:var(--bt-muted);cursor:pointer}
+.is-selected .bt-pane-tag{background:#287d70;color:#fff}
+.bt-shared-playback{min-width:0}.bt-shared-toolbar .bt-timeframes{min-width:0;max-width:100%;overflow-x:auto}
+@media(max-width:900px){.bt-panes-split{grid-template-columns:minmax(0,1fr);grid-template-rows:repeat(2,minmax(0,1fr))}.bt-pane-heading{min-height:28px;padding:2px 8px}.bt-panes-split .bt-statusbar .bt-save-status,.bt-panes-split .bt-statusbar .bt-attribution{display:none}}
+
+.bt-panes-split .bt-statusbar{gap:8px;padding:0 8px;min-height:32px;white-space:nowrap}.bt-panes-split .bt-statusbar>div{gap:8px}.bt-panes-split .bt-statusbar .bt-bar-count{display:none}.bt-panes-split .bt-sample{overflow:hidden;text-overflow:ellipsis;min-width:0}.bt-panes-split .bt-statusbar .bt-attribution{font-size:9px}
+@media(min-width:901px) and (max-width:1500px){.bt-panes-split .bt-statusbar .bt-save-status{display:none}}

@@ -400,3 +400,33 @@ test('order appears before slow acknowledgement; drag keeps replay moving, Escap
  await page.mouse.move(handle.x+20,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+20,handle.y+60,{steps:20});await page.mouse.up();
  expect((await response).status()).toBe(200);expect(edits).toBe(1);expect(previews).toBe(0);
 });
+
+test('one toolbar targets the active pane, retains both charts and restores split layout',async({page},testInfo)=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
+ const first=page.locator('[data-pane-id="primary"]'),second=page.locator('[data-pane-id="secondary"]');
+ await expect(second.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await expect(page.getByRole('group',{name:'Chart timeframe',exact:true})).toHaveCount(1);
+ await page.evaluate(()=>{window.originalCharts=[...document.querySelectorAll('.replay-chart')];window.originalCanvases=[...document.querySelectorAll('.replay-chart canvas')]});
+ await page.getByRole('button',{name:'1h',exact:true}).click();await expect(first.locator('.bt-pane-tag')).toHaveText('NQ · 1h');
+ await second.locator('.bt-pane-tag').click();await expect(second).toHaveClass(/is-selected/);
+ await expect(page.getByRole('combobox',{name:'Market',exact:true})).toHaveText('ES');
+ await page.getByRole('button',{name:'15m',exact:true}).click();await expect(second.locator('.bt-pane-tag')).toHaveText('ES · 15m');await expect(first.locator('.bt-pane-tag')).toHaveText('NQ · 1h');
+ await expect(second.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await page.getByRole('button',{name:'Play replay',exact:true}).click();const clock=first.getByLabel('Replay time',{exact:true}),before=await clock.textContent();
+ await first.locator('.bt-pane-tag').click();await expect(page.getByRole('button',{name:'1h',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.getByRole('button',{name:'5m',exact:true}).click();await expect(clock).not.toHaveText(before);await expect(page.getByRole('button',{name:'Pause replay',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Pause replay',exact:true}).click();
+ expect(await first.getByLabel('Replay time',{exact:true}).getAttribute('datetime')).toBe(await second.getByLabel('Replay time',{exact:true}).getAttribute('datetime'));
+ await second.locator('.bt-pane-tag').click();await page.getByRole('button',{name:'Sync crosshair',exact:true}).click();
+ expect(await page.evaluate(()=>window.originalCharts.every((node,i)=>node===document.querySelectorAll('.replay-chart')[i])&&window.originalCanvases.every(node=>node.isConnected))).toBe(true);
+ await page.getByRole('button',{name:'Save session',exact:true}).click();await page.reload();
+ await expect(second.locator('.bt-pane-tag')).toHaveText('ES · 15m',{timeout:15000});await expect(first.locator('.bt-pane-tag')).toHaveText('NQ · 5m');await expect(second).toHaveClass(/is-selected/);
+ await expect(page.getByRole('button',{name:'Sync crosshair',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.screenshot({path:testInfo.outputPath('shared-toolbar-desktop.png')});
+ await page.setViewportSize({width:390,height:844});
+ const a=await first.boundingBox(),b=await second.boundingBox();expect(b.y).toBeGreaterThan(a.y+a.height);expect(Math.abs(a.height-b.height)).toBeLessThan(2);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath('shared-toolbar-phone.png')});
+});

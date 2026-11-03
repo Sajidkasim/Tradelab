@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2} from 'lucide-react';
 import {api} from './api';
+import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
 import {holdReplayViewport} from './replayViewport';
@@ -20,8 +21,11 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr', 'volume'];
 
-export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,saveOtherLayout=()=>Promise.resolve()}) {
-  const [symbol, setSymbol] = useState(layout.symbol||session.root);
+export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+  const symbol=paneState.symbol,timeframe=paneState.timeframe;
+  const setSymbol=value=>onPaneChange(paneId,{symbol:value});
+  const setTimeframe=value=>onPaneChange(paneId,{timeframe:value});
+  const groupRef=useRef(chartGroup);groupRef.current=chartGroup;
   const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:localStorage.getItem('primus-replay-clock-v2')));
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
@@ -36,11 +40,12 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     try{return await onAction(kind,order)}finally{if(kind==='order')setSubmittingOrder(null)}
   }
   const finished=cursor===session.last_cursor;
-  const lastRendered=useRef(null);
+  const lastRendered=useRef(null),marketRequest=useRef(null);
+  const [marketVersion,setMarketVersion]=useState(0);
   const jumpToLatest=useRef(false);
   const [shortcuts,setShortcuts]=useState(()=>savedTimeframes(localStorage.getItem('primus-replay-timeframes')));
   const [timeframeEditor,setTimeframeEditor]=useState(null),[customInterval,setCustomInterval]=useState('3'),[customUnit,setCustomUnit]=useState('minutes'),[timeframeError,setTimeframeError]=useState('');
-  const [timeframe, setTimeframe] = useState(()=>validTimeframe(layout.timeframe)?layout.timeframe:shortcuts[0]), [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(true), [error, setError] = useState('');
   const [picker, setPicker] = useState(false), [search, setSearch] = useState('');
   const [catalog, setCatalog] = useState([]), [studies, setStudies] = useState([]);
@@ -77,6 +82,8 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
         drawings: {tools: drawingTools}, animations: false,
       });
       chartRef.current = chart;
+      registerChart(paneId,chart);
+      unsubscribers.push(chart.renderer.onCrosshairMove(event=>onCrosshair(paneId,event)));
       chart.data.registerProvider('practice',source);
       const sync = () => {if (alive) syncStudies()};
       unsubscribers.push(chart.on('indicator:added', sync), chart.on('indicator:removed', sync));
@@ -101,6 +108,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     return () => {
       alive = false; unsubscribers.forEach(unsubscribe => unsubscribe());
       if (chartRef.current === chart) chartRef.current = null;
+      registerChart(paneId,null);
       chart?.destroy();
     };
   }, [session.id, syncStudies]);
@@ -108,8 +116,8 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   useEffect(() => {
     const chart = chartRef.current;
     if (!ready || !chart || !market) return;
+    if(marketRequest.current)return;
     if (chart.market.symbol === `practice:${market.contract}` && chart.market.timeframe === timeframe && lastRendered.current===bars) return;
-    let alive = true;
     setBusy(true); setError('');
     const previousSymbol = chart.market.symbol;
     const wanted=`practice:${market.contract}`;
@@ -130,11 +138,11 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       drawings.current[previousSymbol]=chart.drawings.toJSON();
       chart.drawings.fromJSON(drawings.current[wanted]||{version:1,drawings:[]});
     }
+    marketRequest.current={symbol:wanted,timeframe};
     chart.setMarket({symbol:wanted,timeframe}).then(()=>{
-      if(alive){if(String(timeframe)==='240'&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});setBusy(false);syncStudies()}
-    }).catch(e=>{if(alive){setError(e.message);setBusy(false)}});
-    return () => {alive = false};
-  }, [ready, market, timeframe, bars, syncStudies, follow]);
+      if(chartRef.current===chart){if(String(timeframe)==='240'&&bars.length>180)chart.setVisibleRange({from:bars.at(-180).time,to:bars.at(-1).time});setBusy(false);syncStudies()}
+    }).catch(e=>{if(chartRef.current===chart){setError(e.message);setBusy(false)}}).finally(()=>{marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
+  }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
 
   useEffect(()=>{if(ready)chartRef.current?.renderer.applyConfig({timeScale:{timezone:clockZone}});localStorage.setItem('primus-replay-clock-v2',clockZone)},[clockZone,ready]);
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
@@ -145,7 +153,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   }
   useEffect(()=>{
     if(saveError||(finished&&!session.next_day)){setPlaying(false);return}
-    if(!playing||busy||!ready||sessionBusy)return;
+    if(secondary||!playing||!ready||sessionBusy)return;
     if(finished){next();return}
     const timer=setTimeout(()=>onCursor(nextReplayCursor(timeline,cursor,Number(step))),1000/Number(speed));
     return()=>clearTimeout(timer);
@@ -155,9 +163,10 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     const chart=chartRef.current;if(!ready||!chart||busy)return Promise.resolve();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
+    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
     const encoded=JSON.stringify(value);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
+    onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
     const task=layoutQueue.current.catch(()=>{}).then(()=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}`,{method:'PUT',body:{layout:value}})).catch(e=>{lastLayout.current='';setError(e.message);throw e});layoutQueue.current=task;return task;
   }
   useEffect(()=>{registerLayoutSave?.(saveLayout);return()=>registerLayoutSave?.(null)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
@@ -186,23 +195,24 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const matches = catalog.filter(item => `${item.title} ${item.type}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a,b) => (popular.includes(a.type) ? 0 : 1) - (popular.includes(b.type) ? 0 : 1) || a.title.localeCompare(b.title));
 
-  return <div className="backtesting-workspace">
-    <header className="bt-toolbar" aria-label="Chart controls">
+  return <div className={`backtesting-workspace bt-chart-pane ${selected?'is-selected':''}`} data-pane-id={paneId} onPointerDownCapture={e=>{if(e.currentTarget.contains(e.target))onSelect()}}>
+    {selected&&toolbarHost&&createPortal(<header className="bt-toolbar" aria-label="Chart controls">
       <a href="/backtesting" className="bt-back" aria-label="Back to sessions" title="Save & back to sessions" onClick={e=>{e.preventDefault();setPlaying(false);saveLayout().then(saveOtherLayout).then(onSessionBack).catch(()=>{})}}><ArrowLeft size={19}/><span>Back</span></a>
       <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={21}/><span>PRIMUS · BETA</span></a>
       <div className="bt-market"><Select label="Market" values={['NQ','ES']} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>
       <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
         {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready || busy} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
-      <div className="bt-tools">{!secondary&&<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}
+      <div className="bt-tools">{<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
         <button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Chart settings" title="Chart settings" onClick={() => chartRef.current?.renderer.openSettings()}><Settings2 size={18}/></button>
         <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
       </div>
-    </header>
-    <main className="bt-canvas-area" aria-label="Backtesting chart workspace" onPointerDown={e=>{if(!e.target.closest('.bt-ticket-layer'))setPlaying(false)}}>
+    </header>,toolbarHost)}
+    {twoCharts&&<div className="bt-pane-heading"><button className="bt-pane-tag" aria-pressed={selected} onClick={onSelect}>{symbol} · {timeframeName}</button></div>}
+    <main className="bt-canvas-area" aria-label="Backtesting chart workspace">
       <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={17}/></button>
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
@@ -210,7 +220,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
-    {!secondary&&<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>}
+    {!secondary&&controlsHost&&createPortal(<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
     <footer className="bt-statusbar">
       <div><strong title={sample.selection}>{market?.contract || symbol}</strong><span>{timeframeName}</span><span className="bt-bar-count">{bars.length.toLocaleString('en-GB')} bars</span></div>
       <time className="bt-sample" aria-label="Replay time" role="button" tabIndex={0} title="Switch clock: UTC, New York, London" onClick={()=>setClockZone(z=>REPLAY_ZONES[(REPLAY_ZONES.findIndex(x=>x.value===z)+1)%REPLAY_ZONES.length].value)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setClockZone(z=>REPLAY_ZONES[(REPLAY_ZONES.findIndex(x=>x.value===z)+1)%REPLAY_ZONES.length].value)}}} dateTime={new Date(replayTime+60000).toISOString()}>{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>
