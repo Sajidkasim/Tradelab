@@ -29,7 +29,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const setSymbol=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{symbol:value})};
   const setTimeframe=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
   const groupRef=useRef(chartGroup);groupRef.current=chartGroup;
-  const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:localStorage.getItem('primus-replay-clock-v2')));
+  const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:undefined));
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
   const timeline=sample.markets[session.root].bars;
@@ -45,7 +45,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const lastRendered=useRef(null),marketRequest=useRef(null),symbolViews=useRef(new Map());
   const [marketVersion,setMarketVersion]=useState(0);
   const jumpToLatest=useRef(false);
-  const [shortcuts,setShortcuts]=useState(()=>savedTimeframes(localStorage.getItem('primus-replay-timeframes')));
+  const [shortcuts,setShortcuts]=useState(()=>savedTimeframes(JSON.stringify(layout.shortcuts)));
   const [timeframeEditor,setTimeframeEditor]=useState(null),[customInterval,setCustomInterval]=useState('3'),[customUnit,setCustomUnit]=useState('minutes'),[timeframeError,setTimeframeError]=useState('');
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(true), [error, setError] = useState('');
@@ -53,11 +53,14 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const [catalog, setCatalog] = useState([]), [studies, setStudies] = useState([]);
   const host = useRef(null), chartRef = useRef(null), drawings = useRef(layout.drawings||{});
   const feed=useRef(null),lastLayout=useRef(''),layoutQueue=useRef(Promise.resolve());
+  const selectedRef=useRef(selected);selectedRef.current=selected;
   const layoutDirty=useRef(false),gesture=useRef(false),layoutTimer=useRef(null),saveCurrent=useRef(null),layoutWriter=useRef(null);
-  if(!layoutWriter.current)layoutWriter.current=latestLayoutWriter(value=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}`,{method:'PUT',body:{layout:value}}));
+  if(!layoutWriter.current)layoutWriter.current=latestLayoutWriter(value=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}&defaults=${selectedRef.current}`,{method:'PUT',body:{layout:value}}));
   function dirtyLayout(){layoutDirty.current=true;clearTimeout(layoutTimer.current);layoutTimer.current=setTimeout(()=>{if(!gesture.current)saveCurrent.current?.(false).catch(()=>{})},1000)}
-  const [watermark,setWatermark]=useState(()=>localStorage.getItem('primus-replay-watermark')!=='off');
+  const [watermark,setWatermark]=useState(()=>layout.watermark!==false);
   const watermarkValue=useRef(watermark);watermarkValue.current=watermark;
+  const [minuteWatermarks,setMinuteWatermarks]=useState(()=>layout.minuteWatermarks||{'1':true,'5':true});
+  const minuteWatermarkRef=useRef(minuteWatermarks);minuteWatermarkRef.current=minuteWatermarks;
   const [orderQty,setOrderQty]=useState(1);
   const selection = useRef({symbol, timeframe, theme, replayTime});
   selection.current = {symbol, timeframe, theme, replayTime};
@@ -87,7 +90,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
-        live: true, bars:750, theme: chartTheme(current.theme), height: '100%',
+        nativeBackend:'canvas2d', live: true, bars:750, theme: chartTheme(current.theme), height: '100%',
         drawings: {tools: drawingTools}, animations: false,
       });
       chartRef.current = chart;
@@ -102,7 +105,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       if (!alive) return;
       const config = chart.renderer.getConfig();
       if (config) chart.renderer.applyConfig({...config, timeScale: {...config.timeScale, timezone: clockZone}});
-      chart.renderer.setSettingsSections([{title:'Replay',placement:'symbol',rows:[{kind:'toggle',label:'Timeframe watermark',get:()=>watermarkValue.current,set:value=>{setWatermark(value);localStorage.setItem('primus-replay-watermark',value?'on':'off')}}]}]);
+      chart.renderer.setSettingsSections([{title:'Replay',placement:'symbol',rows:[{kind:'toggle',label:'Timeframe watermark',get:()=>watermarkValue.current,set:value=>{setWatermark(value);dirtyLayout()}},{kind:'toggle',label:'1-minute watermark',get:()=>minuteWatermarkRef.current['1']!==false,set:value=>{setMinuteWatermarks(v=>({...v,'1':value}));dirtyLayout()}},{kind:'toggle',label:'5-minute watermark',get:()=>minuteWatermarkRef.current['5']!==false,set:value=>{setMinuteWatermarks(v=>({...v,'5':value}));dirtyLayout()}}]}]);
       if(layout.config)chart.renderer.applyConfig({...layout.config,timeScale:{...layout.config.timeScale,timezone:clockZone}});
       if(layout.drawings?.[chart.market.symbol])chart.drawings.fromJSON(layout.drawings[chart.market.symbol]);
       for(const item of layout.studies||[])if(item.type)chart.addNativeIndicator(item.type,{inputs:item.inputs||{}}).setVisible(item.visible!==false);
@@ -197,13 +200,13 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     return()=>clearTimeout(timer);
   },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
 
-  function saveLayout(force=true){
+  function saveLayout(force=true,patch={}){
     const chart=chartRef.current;if(!ready||!chart||busy)return Promise.resolve();
     if(!force&&(!layoutDirty.current||gesture.current))return layoutQueue.current;
     layoutDirty.current=false;const started=performance.now();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible}))};
+    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible})),...patch};
     const encoded=JSON.stringify(value);recordTiming('drawings:layout-snapshot',started);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
@@ -259,7 +262,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
-      {watermark&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
+      {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
@@ -283,7 +286,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       </form>
       <div className="notice"><strong>New York 4H candles</strong><p>4H opens at 18:00, 22:00, 02:00, 06:00, 10:00 and 14:00 New York time, including daylight saving. Daily, weekly and monthly candles retain their existing calendar boundaries. Contract changes are unadjusted. The first available period can be incomplete.</p></div>
       {timeframeError&&<p role="alert">{timeframeError}</p>}
-      <div className="settings-actions"><Button variant="primary" onClick={()=>{if(!timeframeEditor.length||timeframeEditor.length>10){setTimeframeError('Choose between 1 and 10 shortcuts.');return}const next=[...timeframeEditor].sort((a,b)=>Number(a)-Number(b));localStorage.setItem('primus-replay-timeframes',JSON.stringify(next));setShortcuts(next);if(!next.includes(timeframe))setTimeframe(next[0]);setTimeframeEditor(null)}}>Save timeframes</Button><Button onClick={()=>setTimeframeEditor(null)}>Cancel</Button></div>
+      <div className="settings-actions"><Button variant="primary" onClick={async()=>{if(!timeframeEditor.length||timeframeEditor.length>10){setTimeframeError('Choose between 1 and 10 shortcuts.');return}const next=[...timeframeEditor].sort((a,b)=>Number(a)-Number(b));try{await saveLayout(true,{shortcuts:next,...(!next.includes(timeframe)?{timeframe:next[0]}:{})})}catch(e){setTimeframeError(e.message);return}setShortcuts(next);if(!next.includes(timeframe))setTimeframe(next[0]);setTimeframeEditor(null)}}>Save timeframes</Button><Button onClick={()=>setTimeframeEditor(null)}>Cancel</Button></div>
     </Modal>}
     {picker && <Modal title="Indicators" className="bt-indicator-modal" onClose={() => setPicker(false)}>
       <label className="bt-indicator-search"><Search size={18}/><input autoFocus type="search" aria-label="Find an indicator" placeholder="Search EMA, RSI, VWAP…" value={search} onChange={e => setSearch(e.target.value)}/></label>

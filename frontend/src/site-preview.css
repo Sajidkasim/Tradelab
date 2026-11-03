@@ -354,3 +354,5 @@
 .pt-tool:is(:hover,:focus-visible) .pt-preview-trace,.pt-tool:is(:hover,:focus-visible) .pt-preview-signal{opacity:.8}
 .pt-tool-journal:is(:hover,:focus-visible) .pt-paper-preview,.pt-tool:is(:hover,:focus-visible) .pt-tool-top>svg,.pt-tool:is(:hover,:focus-visible) .pt-tool-bottom>svg,.pt-header nav a:is(:hover,:focus-visible)>svg{transform:none}
 }
+
+.pt-tool-backtesting{grid-column:1/-1;min-height:0}

@@ -91,12 +91,10 @@ def test_delete_restore_and_saved_bracket_edits(local,candles):
     assert edited.status_code==200,edited.text
     reopened=client.get(f'/api/backtesting/sessions/{sid}').json()
     assert reopened['projection']['frames'][1]['position']['stop']==102.5
-    assert client.delete(f'/api/backtesting/sessions/{sid}').status_code==200
+    assert client.request('DELETE',f'/api/backtesting/sessions/{sid}',json={'confirmation':'Test practice'}).status_code==200
     assert client.get(f'/api/backtesting/sessions/{sid}').status_code==404
     listing=client.get('/api/backtesting/sessions').json()
-    assert listing['sessions']==[] and listing['deleted'][0]['id']==sid
-    assert client.post(f'/api/backtesting/sessions/{sid}/restore').status_code==200
-    assert client.get(f'/api/backtesting/sessions/{sid}').json()['session']['version']==2
+    assert listing['sessions']==[] and listing['deleted']==[]
 
 def test_permanent_session_deletion_requires_trash_confirmation_and_preserves_other_data(local,candles):
     client,app=local
@@ -105,8 +103,6 @@ def test_permanent_session_deletion_requires_trash_confirmation_and_preserves_ot
     for suffix in (':layout',':layout:secondary',':journal'):db.set_setting(key+suffix,{'keep':'until confirmed'})
     before=client.get('/api/trades').json()
     db.set_setting('daily_journal:test-preserved',{'source_session':sid})
-    assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==409
-    assert client.delete(root).status_code==200
     assert client.request('DELETE',root+'/permanent',json={'confirmation':'wrong'}).status_code==422
     assert db.get_setting(key)
     assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==200
@@ -115,17 +111,44 @@ def test_permanent_session_deletion_requires_trash_confirmation_and_preserves_ot
     assert [s['id'] for s in listing['sessions']]==[other] and listing['deleted']==[]
     assert db.get_setting('daily_journal:test-preserved')=={'source_session':sid}
     assert client.get('/api/trades').json()==before
-    assert client.post(root+'/restore').status_code==404
     assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==404
 
 def test_permanent_session_deletion_is_workspace_scoped(google,candles):
     client,app,state=google
     login(client,state);sid=create(client)['session']['id'];root=f'/api/backtesting/sessions/{sid}'
-    assert client.delete(root).status_code==200
     login(client,state,'friend@example.com','different-friend-sub')
     assert client.request('DELETE',root+'/permanent',json={'confirmation':'Test practice'}).status_code==404
     login(client,state)
-    assert any(s['id']==sid for s in client.get('/api/backtesting/sessions').json()['deleted'])
+    assert any(s['id']==sid for s in client.get('/api/backtesting/sessions').json()['sessions'])
+
+def test_bulk_deletion_is_atomic_confirmed_and_includes_old_trash(local,candles):
+    client,app=local
+    ids=[create(client)['session']['id'] for _ in range(3)]
+    db=app.state.workspaces.database('owner');record=db.get_setting(replay_sessions._key(ids[2]));record['deleted']=True;db.set_setting(replay_sessions._key(ids[2]),record)
+    endpoint='/api/backtesting/sessions/delete'
+    assert client.post(endpoint,json={'ids':ids,'confirmation':'DELETE 2'}).status_code==422
+    assert client.post(endpoint,json={'ids':[ids[0],str(uuid4())],'confirmation':'DELETE 2'}).status_code==404
+    assert db.get_setting(replay_sessions._key(ids[0]))
+    assert client.post(endpoint,json={'ids':ids,'confirmation':'DELETE 3'}).status_code==200
+    assert db.get_setting(replay_sessions.INDEX)==[]
+
+def test_bulk_deletion_and_chart_defaults_are_private(google,candles):
+    client,app,state=google;login(client,state)
+    sid=create(client)['session']['id']
+    defaults={'config':{'grid':{'visible':False}},'timeframe':'5','watermark':True,'minuteWatermarks':{'1':False,'5':True},'studies':[]}
+    assert client.put(f'/api/backtesting/sessions/{sid}/layout',json={'layout':{**defaults,'drawings':{'secret':'owner drawing'},'viewport':{'rightOffset':8}}}).status_code==200
+    assert client.get('/api/backtesting/chart-defaults').json()==defaults
+    assert client.put(f'/api/backtesting/sessions/{sid}/layout?pane=secondary&defaults=false',json={'layout':{'timeframe':'240'}}).status_code==200
+    assert client.get('/api/backtesting/chart-defaults').json()==defaults
+    fresh=create(client)
+    assert fresh['layout']==defaults and fresh['layout_secondary']==defaults
+    assert client.get(f"/api/backtesting/sessions/{fresh['session']['id']}").json()['layout']==defaults
+    login(client,state,'friend@example.com','different-friend-sub')
+    assert client.get('/api/backtesting/chart-defaults').json()=={}
+    assert create(client)['layout']=={}
+    assert client.post('/api/backtesting/sessions/delete',json={'ids':[sid],'confirmation':'DELETE 1'}).status_code==404
+    login(client,state)
+    assert client.get(f'/api/backtesting/sessions/{sid}').status_code==200
 
 
 def test_layout_and_explicit_transfer_are_private_repeat_safe_and_preserve_results(local,candles):

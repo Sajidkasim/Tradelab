@@ -33,6 +33,15 @@ class SessionInput(BaseModel):
     commission:float=Field(default=0.5,ge=0,le=100)
     slippage:int=Field(default=0,ge=0,le=20,strict=True)
 
+class BulkDeleteInput(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    ids:list[UUID]=Field(min_length=1,max_length=100)
+    confirmation:str=Field(max_length=80)
+
+DEFAULTS='primus_replay_chart_defaults'
+DEFAULT_FIELDS={'config','studies','timeframe','clockZone','clockDisplayVersion','watermark','minuteWatermarks','shortcuts'}
+def chart_defaults(db):return db.get_setting(DEFAULTS,{})
+
 class OrderInput(BaseModel):
     model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
     side:Literal['buy','sell']
@@ -307,52 +316,56 @@ def mount(app,config,workspace):
                         'cursor':cursor,'last_cursor':len(bars)-1,'version':0,'commands':[],'data_digest':digest,'clock':stamp,'created':now,'updated':now}
                 plan=projection(record,data);save(db,record,plan,data)
                 db.set_setting(INDEX,ids+[record['id']]);app.state.workspaces.bump(member['key'])
-                return result(record,plan,data)
+                return {**result(record,plan,data),'layout':chart_defaults(db),'layout_secondary':chart_defaults(db)}
         except ValueError as e:raise HTTPException(422,str(e)) from None
-    @app.delete('/api/backtesting/sessions/{sid}')
-    def delete_session(sid:str,member=Depends(workspace)):
-        local_only()
+    def remove_records(db,ids):
+        from sqlalchemy import select
+        from core.db import settings_t
+        keys=[_key(sid) for sid in ids]
+        with db.engine.begin() as connection:
+            records={key:json.loads(value) for key,value in connection.execute(select(settings_t.c.key,settings_t.c.value).where(settings_t.c.key.in_(keys)).with_for_update())}
+            if len(records)!=len(keys):raise HTTPException(404,'Session not found. Refresh your sessions before deleting.')
+            raw=connection.execute(select(settings_t.c.value).where(settings_t.c.key==INDEX).with_for_update()).scalar()
+            saved_ids=json.loads(raw) if raw else []
+            names=[key+suffix for key in keys for suffix in ('',':layout',':layout:secondary',':journal')]
+            connection.execute(settings_t.delete().where(settings_t.c.key.in_(names)))
+            connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([sid for sid in saved_ids if sid not in ids])))
+    @app.post('/api/backtesting/sessions/delete')
+    def bulk_delete(payload:BulkDeleteInput,member=Depends(workspace)):
+        local_only();ids=[str(sid) for sid in payload.ids]
+        if len(set(ids))!=len(ids) or payload.confirmation!=f'DELETE {len(ids)}':raise HTTPException(422,'Type DELETE followed by the exact number of sessions.')
         with app.state.workspaces.lock:
-            db=database(member);record=get_record(db,sid)
-            record['deleted']=True;db.set_setting(_key(sid),record);app.state.workspaces.bump(member['key'])
-            return {'deleted':True}
-    @app.post('/api/backtesting/sessions/{sid}/restore')
-    def restore_session(sid:str,member=Depends(workspace)):
+            remove_records(database(member),ids);app.state.workspaces.bump(member['key'])
+        return {'permanently_deleted':len(ids)}
+    @app.delete('/api/backtesting/sessions/{sid}')
+    def delete_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+        return purge_session(sid,payload,member)
+    @app.delete('/api/backtesting/sessions/{sid}/permanent')
+    def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
         local_only()
         with app.state.workspaces.lock:
             db=database(member);record=db.get_setting(_key(sid))
             if not record:raise HTTPException(404,'Session not found.')
-            record.pop('deleted',None);db.set_setting(_key(sid),record);app.state.workspaces.bump(member['key'])
-            return {'restored':True}
-    @app.delete('/api/backtesting/sessions/{sid}/permanent')
-    def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+            if payload.confirmation!=record['name']:raise HTTPException(422,'Type the session name exactly to confirm permanent deletion.')
+            remove_records(db,[record['id']]);app.state.workspaces.bump(member['key'])
+        return {'permanently_deleted':True}
+    @app.get('/api/backtesting/chart-defaults')
+    def get_chart_defaults(member=Depends(workspace)):
+        local_only();return chart_defaults(database(member))
+    @app.put('/api/backtesting/chart-defaults')
+    def set_chart_defaults(payload:LayoutInput,member=Depends(workspace)):
         local_only()
-        from sqlalchemy import select
-        from core.db import settings_t
-        key=_key(sid)
+        if len(json.dumps(payload.layout))>250000 or set(payload.layout)-DEFAULT_FIELDS:raise HTTPException(422,'Choose chart preferences only, within the layout size limit.')
         with app.state.workspaces.lock:
-            db=database(member)
-            # Use the authenticated workspace's engine/schema; never a client-supplied
-            # workspace. Remove the record, layouts and session notes atomically.
-            with db.engine.begin() as connection:
-                raw=connection.execute(select(settings_t.c.value).where(settings_t.c.key==key).with_for_update()).scalar()
-                if not raw:raise HTTPException(404,'Session not found.')
-                record=json.loads(raw)
-                if not record.get('deleted'):raise HTTPException(409,'Move this session to Deleted sessions first.')
-                if payload.confirmation!=record['name']:raise HTTPException(422,'Type the session name exactly to confirm permanent deletion.')
-                raw_ids=connection.execute(select(settings_t.c.value).where(settings_t.c.key==INDEX).with_for_update()).scalar()
-                ids=json.loads(raw_ids) if raw_ids else []
-                connection.execute(settings_t.delete().where(settings_t.c.key.in_([key,key+':layout',key+':layout:secondary',key+':journal'])))
-                connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([item for item in ids if item!=record['id']])))
-            app.state.workspaces.bump(member['key'])
-            return {'permanently_deleted':True}
+            database(member).set_setting(DEFAULTS,payload.layout);app.state.workspaces.bump(member['key'])
+        return {'saved':True}
     @app.get('/api/backtesting/sessions/{sid}')
     def open_session(sid:str,member=Depends(workspace)):
         local_only()
         try:
             with app.state.workspaces.lock:
                 record=get_record(database(member),sid);data=checked_data(record)
-                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',{}),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',{}),'journal':database(member).get_setting(_key(sid)+':journal',{})}
+                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',chart_defaults(database(member))),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',chart_defaults(database(member))),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
     def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
@@ -415,12 +428,14 @@ def mount(app,config,workspace):
         except ValueError as e:raise HTTPException(422,str(e)) from None
 
     @app.put('/api/backtesting/sessions/{sid}/layout')
-    def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',member=Depends(workspace)):
+    def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',defaults:bool=True,member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000:raise HTTPException(422,'Chart layout is too large.')
         with app.state.workspaces.lock:
             db=database(member);get_record(db,sid)
-            db.set_setting(_key(sid)+(':layout:secondary' if pane=='secondary' else ':layout'),payload.layout);app.state.workspaces.bump(member['key'])
+            db.set_setting(_key(sid)+(':layout:secondary' if pane=='secondary' else ':layout'),payload.layout)
+            if defaults:db.set_setting(DEFAULTS,{key:value for key,value in payload.layout.items() if key in DEFAULT_FIELDS})
+            app.state.workspaces.bump(member['key'])
         return {'saved':True}
     @app.post('/api/backtesting/sessions/{sid}/export')
     def export(sid:str,payload:ExportInput,member=Depends(workspace)):
