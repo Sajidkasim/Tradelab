@@ -31,8 +31,8 @@ def load(path,day):
 def four_hour_history(path,day):
  cutoff=int(datetime.fromisoformat(day).replace(tzinfo=timezone.utc).timestamp()*1000)
  with sqlite3.connect(path) as con:
-  if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='chart_4h'").fetchone():return {}
+  if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='chart_4h_ny'").fetchone():return {}
   result={root:[] for root in ('NQ','ES')}
-  for root,t,o,h,l,c,v in con.execute('SELECT root,time,open,high,low,close,volume FROM chart_4h WHERE time<? ORDER BY root,time',(cutoff,)):
+  for root,t,o,h,l,c,v in con.execute('SELECT root,time,open,high,low,close,volume FROM chart_4h_ny WHERE time+14400000<=? ORDER BY root,time',(cutoff,)):
    result[root].append({'time':t,'open':o,'high':h,'low':l,'close':c,'volume':v})
   return result

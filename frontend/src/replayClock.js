@@ -8,7 +8,7 @@ export function nextReplayCursor(bars,cursor,minutes=1) {
 }
 export function revealedBars(bars,clock){return bars.filter(bar=>bar.time<=clock)}
 
-export const REPLAY_ZONES=[{value:'America/New_York',label:'New York'},{value:'Europe/London',label:'London'}];
+export const REPLAY_ZONES=[{value:'UTC',label:'UTC'},{value:'America/New_York',label:'New York'},{value:'Europe/London',label:'London'}];
 export const REPLAY_SPEEDS=[0.25,0.5,1,2,4,8,16,32];
 export const JUMP_DEFAULTS={favorite:'newyork',asia:'20:00',london:'02:00',newyork:'09:30',dayopen:'17:00'};
 export const validClockTime=value=>typeof value==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(value);
@@ -32,4 +32,9 @@ export function nextSessionCursor(bars,cursor,time){
   if(next.day>=now.day&&next.minutes>=target)return i;
  }
  return null;
+}
+
+export function replayClockLabel(time,zone){
+ const offset=new Intl.DateTimeFormat('en-GB',{timeZone:zone,timeZoneName:'shortOffset'}).formatToParts(time).find(p=>p.type==='timeZoneName').value.replace('GMT','UTC').replace('−','-');
+ return `${clockParts(time,zone).time} (${offset})`;
 }

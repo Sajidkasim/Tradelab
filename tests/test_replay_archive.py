@@ -69,3 +69,33 @@ def test_hosted_full_archive_routes_need_no_local_index_and_keep_private_session
         assert restored.json()['projection']==created['projection']
         assert restored.json()['sample']['markets']['NQ']['four_hour_history'][0]['time']==1275868800000
     db.engine.dispose()
+
+
+def test_ny_chart_enrichment_does_not_change_saved_price_signature():
+    store,manifest=bundles();before=Archive(manifest,store,'private').history('2020-06-02')
+    manifest={**manifest,'charts_ny':store.add({root:[[1591048800000,100,105,99,101,50]] for root in ('NQ','ES')})}
+    after=Archive(manifest,store,'private').history('2020-06-02')
+    assert before[1]==after[1]
+    assert before[0]['markets']['NQ']['bars']==after[0]['markets']['NQ']['bars']
+    assert after[0]['ny_four_hour'] is True
+
+
+def test_prefetch_can_load_a_ten_day_batch_without_saving_new_trades(tmp_path):
+    store,manifest=bundles();path=tmp_path/'full.json';path.write_text(json.dumps(manifest))
+    legacy=tmp_path/'legacy.json';legacy.write_text('{"days":{}}')
+    db=Database(str(tmp_path/'batch.db'));db.init();app=FastAPI()
+    app.state.workspaces=SimpleNamespace(lock=threading.RLock(),database=lambda key:db,bump=lambda key:None)
+    app.state.image_storage=SimpleNamespace(client=store)
+    cfg=SimpleNamespace(local=False,replay_enabled=True,replay_manifest=str(legacy),replay_archive_manifest=str(path),r2_bucket='private')
+    replay_sessions.mount(app,cfg,lambda:{'key':'owner'})
+    with TestClient(app) as client:
+        initial=client.post('/api/backtesting/sessions',json={'day':'2020-06-01','start_time':'00:03','instrument':'NQ'}).json()
+        sid=initial['session']['id'];url='/api/backtesting/sessions/'+sid+'/continue'
+        assert client.post(url,json={'version':0,'cursor':2,'days':11}).status_code==422
+        result=client.post(url,json={'version':0,'cursor':2,'days':10})
+        assert result.status_code==200,result.text
+        data=result.json();assert len(data['sample']['markets']['NQ']['bars'])==18
+        assert data['sample']['markets']['NQ']['bars'][:6]==initial['sample']['markets']['NQ']['bars']
+        assert data['session']['cursor']==initial['session']['cursor']
+        assert data['projection']['trades']==[] and data['session']['next_day'] is None
+    db.engine.dispose()

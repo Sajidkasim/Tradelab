@@ -41,6 +41,9 @@ class ProgressInput(BaseModel):
     version:int=Field(ge=0)
     cursor:int=Field(ge=0)
 
+class ContinueInput(ProgressInput):
+    days:int=Field(default=1,ge=1,le=10,strict=True)
+
 class ActionInput(ProgressInput):
     kind:Literal['order','cancel','close','amend']
     event_id:UUID
@@ -219,10 +222,10 @@ def mount(app,config,workspace):
         index=ROOT/'replay-index.db'
         if data and config.local and index.is_file():
             context=chart_context(record['day'],index.stat().st_mtime_ns)
-            data={**data,'chart_context_version':1,'markets':{root:{**market,**({'four_hour_history':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
+            data={**data,'chart_context_version':2,'markets':{root:{**market,**({'four_hour_history_ny':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
         if data and not config.local and archive():
             context=archive().history(record['day'])[0]
-            data={**data,'chart_context_version':1,'markets':{root:{**market,'four_hour_history':context['markets'][root]['four_hour_history']} for root,market in data['markets'].items()}}
+            data={**data,'chart_context_version':2 if context.get('ny_four_hour') else 1,'markets':{root:{**market,**({'four_hour_history_ny':context['markets'][root]['four_hour_history_ny']} if context.get('ny_four_hour') else {'four_hour_history':context['markets'][root]['four_hour_history']})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
         return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
@@ -295,29 +298,32 @@ def mount(app,config,workspace):
             plan=projection(record,checked_data(record));save(db,record,plan);app.state.workspaces.bump(member['key'])
             return {'session':result(record,plan)['session']}
     @app.post('/api/backtesting/sessions/{sid}/continue')
-    def continue_session(sid:str,payload:ProgressInput,member=Depends(workspace)):
+    def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
         local_only()
         try:
             with app.state.workspaces.lock:
                 db=database(member);record=get_record(db,sid)
                 if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
                 valid_cursor(record,payload.cursor)
-                day=next_day(record)
-                if not day:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
-                data=checked_data(record);extra,digest=history(day)
-                # Carry the actual contract, never a synthetic rollover price jump.
+                record=deepcopy(record);combined=checked_data(record)
+                state=projection(record,combined)['frames'][payload.cursor-record['spec']['start_cursor']]
                 previous=record.get('continuation_days',[])
-                last_data=history(previous[-1]['day'])[0] if previous else data
-                state=projection(record,data)['frames'][payload.cursor-record['spec']['start_cursor']]
-                if (state['position'] or state['order']) and extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract']:
-                    raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
-                for root,market in data['markets'].items():
-                    if extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time']:
+                last_data=history(previous[-1]['day'])[0] if previous else combined
+                added=0
+                for _ in range(payload.days):
+                    day=next_day(record)
+                    if not day:break
+                    extra,digest=history(day)
+                    if (state['position'] or state['order']) and extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract']:
+                        if added:break
+                        raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
+                    if any(extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time'] for root,market in combined['markets'].items()):
                         raise ValueError('The next candle file overlaps this session.')
-                record=deepcopy(record)
-                record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
+                    combined={**combined,'markets':{root:{**market,'bars':[*market['bars'],*extra['markets'][root]['bars']]} for root,market in combined['markets'].items()}}
+                    record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
+                    last_data=extra;added+=1
+                if not added:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
                 record['cursor']=payload.cursor
-                combined=checked_data(record)
                 record['last_cursor']=len(combined['markets'][record['root']]['bars'])-1
                 record['version']+=1
                 plan=projection(record,combined);save(db,record,plan);app.state.workspaces.bump(member['key'])

@@ -44,8 +44,11 @@ class Archive:
                 'context':[bar for part in earlier for bar in records(part['markets'][root]['bars'])],
                 'history':[b for b in records(charts[root]['daily']) if cutoff-370*86400000<=b['time']<cutoff],
                 'four_hour_history':[b for b in records(charts[root]['4h']) if b['time']<cutoff]}
+            if self.manifest.get('charts_ny'):
+                ny=self.chunk(self.manifest['charts_ny'])
+                markets[root]['four_hour_history_ny']=[b for b in records(ny[root]) if b['time']+14400000<=cutoff]
         data={'day':day,'timezone':'UTC','schema':'ohlcv-1m','source':'Databento GLBX.MDP3','history_version':2,'chart_context_version':1,
-              'selection':'Prior-day volume; unadjusted contracts; UTC calendar candles.','markets':markets}
+              'ny_four_hour':bool(self.manifest.get('charts_ny')),'selection':'Prior-day volume; unadjusted contracts; UTC calendar candles.','markets':markets}
         # Price identity excludes chart-only enrichment; manifests are immutable per release.
         signature=hashlib.sha256(encode({'day':self.manifest['days'][day],'context':[self.manifest['days'][p['day']] for p in earlier],'charts':self.manifest['charts']})).hexdigest()
         return data,signature

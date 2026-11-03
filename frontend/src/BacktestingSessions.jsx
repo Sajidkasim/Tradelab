@@ -5,6 +5,7 @@ import {api,setCsrf} from './api';
 import {PrimusHeader} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
 import BacktestingChart from './BacktestingChart';
+import {prepareReplayCharts} from './prepareReplayCharts';
 import './backtesting.css';
 const cash=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
 const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',hour:'2-digit',minute:'2-digit'});
@@ -15,16 +16,22 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null);
  const [deleting,setDeleting]=useState(null);
  const [twoCharts,setTwoCharts]=useState(false);
- const layoutSavers=useRef({});
+ const layoutSavers=useRef({}),prefetch=useRef(null);
  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
  const latest=useRef({data:null,cursor:0}),queue=useRef(Promise.resolve()),locked=useRef(false);
  latest.current={data:active,cursor};
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
  const list=useCallback(async()=>{setListing(await api('/backtesting/sessions'))},[]);
- function opened(data){setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}`)}
+ async function opened(data){
+  if(data.session.next_day&&data.session.last_cursor-data.session.cursor<10000){
+   const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:10}});data={...data,...reply};
+  }
+  await prepareReplayCharts(data.sample);
+  setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}`)
+ }
  useEffect(()=>{
   let alive=true;
-  (async()=>{const identity=await api('/session');setCsrf(identity.csrf);setIdentity(identity);if(!identity.authenticated)return;await list();const sid=new URLSearchParams(location.search).get('session');if(sid){const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)opened(data)}})().catch(e=>{if(alive)setError(e.message)});
+  (async()=>{const identity=await api('/session');setCsrf(identity.csrf);setIdentity(identity);if(!identity.authenticated)return;await list();const sid=new URLSearchParams(location.search).get('session');if(sid){const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)await opened(data)}})().catch(e=>{if(alive)setError(e.message)});
   return()=>{alive=false};
  },[list]);
  function enqueue(job){const task=queue.current.catch(()=>{}).then(job);queue.current=task;return task}
@@ -46,17 +53,20 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   catch(e){setSaveError(e.message);throw e}
   finally{locked.current=false;setBusy(false)}
  }
- async function continueSession(){
-  if(locked.current)return;
-  locked.current=true;setBusy(true);setSaveError('');
-  try{return await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at}});accept(reply);return reply})}
-  catch(e){setSaveError(e.message);throw e}
-  finally{locked.current=false;setBusy(false)}
+ function continueSession(background=false){
+  if(prefetch.current)return prefetch.current;
+  if(!background){locked.current=true;setBusy(true)}
+  setSaveError('');
+  const task=enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at,days:10}});await prepareReplayCharts(reply.sample);accept(reply);return reply}).catch(e=>{setSaveError(e.message);throw e}).finally(()=>{prefetch.current=null;if(!background){locked.current=false;setBusy(false)}});
+  prefetch.current=task;return task;
  }
+ useEffect(()=>{
+  if(active?.session.next_day&&active.session.last_cursor-cursor<8000&&!prefetch.current&&!saveError)continueSession(true).catch(()=>{});
+ },[active?.sample,cursor,active?.session.next_day,saveError]);
  async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  async function remove(id,restore=false){setBusy(true);try{await api(`/backtesting/sessions/${id}${restore?'/restore':''}`,{method:restore?'POST':'DELETE'});setDeleting(null);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function resume(id){setBusy(true);setError('');try{opened(await api(`/backtesting/sessions/${id}`))}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function create(event){event.preventDefault();setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});opened(data);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function resume(id){setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`))}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function create(event){event.preventDefault();setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function newSession(){setError('');setBusy(true);try{const fresh=await api('/backtesting/sessions');setListing(fresh);setForm({name:'',day:fresh.history.sample_day,start_time:'13:30',instrument:'NQ',capital:50000,commission:fresh.history.instruments.find(x=>x.symbol==='NQ')?.commission??0.5,slippage:0})}catch(e){setError(e.message)}finally{setBusy(false)}}
  function change(field,value){setForm(f=>({...f,[field]:value}))}
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;

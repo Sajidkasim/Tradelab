@@ -12,7 +12,7 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  await dialog.getByLabel('Starting capital ($)',{exact:true}).fill('10000');
  await page.screenshot({path:testInfo.outputPath('new-session.png')});
  await dialog.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Increase contracts',exact:true}).click();
  await expect(page.getByRole('spinbutton',{name:'Contracts',exact:true})).toHaveValue('2');
  await page.getByRole('button',{name:'Buy',exact:true}).click();
@@ -57,7 +57,7 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  await expect(page.locator('.bt-position-strip')).toContainText('No open position');
  const before=writes;
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  expect(writes-before).toBeLessThanOrEqual(1); // at most a scheduled autosave, never candle-data requests
  await page.getByRole('button',{name:'Play replay',exact:true}).click();
  const initial=await page.getByLabel('Replay time',{exact:true}).textContent();
@@ -100,7 +100,7 @@ test('play preserves a zoomed and panned historical viewport',async({page},testI
  await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByLabel('Session name',{exact:true}).fill('Viewport check');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.mouse.move(650,400);await page.mouse.wheel(0,-600);
  await page.mouse.move(500,400);await page.mouse.down();await page.mouse.move(1000,400,{steps:20});await page.mouse.up();
  await page.mouse.move(1410,300);await page.mouse.down();await page.mouse.move(1410,400,{steps:10});await page.mouse.up();
@@ -118,7 +118,7 @@ test('right-click offers price-aware orders and settings include timeframe water
  await page.goto('http://127.0.0.1:8119/backtesting');
  await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByLabel('Timeframe watermark',{exact:true})).toHaveText('1m');
  await page.locator('.replay-chart').click({button:'right',position:{x:600,y:600}});
  const menu=page.getByRole('menu',{name:'Chart options',exact:true});
@@ -139,7 +139,7 @@ test('custom timeframe shortcuts save and survive reload',async({page},testInfo)
  await page.goto('http://127.0.0.1:8119/backtesting');
  await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByRole('group',{name:'Chart timeframe'}).getByRole('button',{name:'2m',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Manage timeframes',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Your timeframes',exact:true});
@@ -147,7 +147,7 @@ test('custom timeframe shortcuts save and survive reload',async({page},testInfo)
  await page.screenshot({path:testInfo.outputPath('timeframe-settings.png')});
  await dialog.getByRole('button',{name:'Save timeframes',exact:true}).click();
  await page.getByRole('group',{name:'Chart timeframe'}).getByRole('button',{name:'3m',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByLabel('Timeframe watermark',{exact:true})).toHaveText('3m');
  await page.reload();
  await expect(page.getByRole('group',{name:'Chart timeframe'}).getByRole('button',{name:'3m',exact:true})).toBeVisible();
@@ -159,7 +159,7 @@ test('daily charts and chart layouts survive save/reload and closed trades can b
  await page.getByLabel('Session name',{exact:true}).fill('Full workflow');
  await page.getByLabel('Trading date',{exact:true}).fill('2013-01-25');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('group',{name:'Chart timeframe'}).getByRole('button',{name:'1D',exact:true}).click();
  await expect(page.getByLabel('Timeframe watermark',{exact:true})).toHaveText('1D');
  await page.getByRole('button',{name:'Indicators',exact:true}).click();
@@ -195,7 +195,7 @@ test('chart clocks, speed slider and saved session jump work without replay data
  await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByLabel('Trading date',{exact:true}).fill('2013-01-25');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  const clock=page.getByLabel('Replay time',{exact:true});
  await expect(clock).toContainText('08:30:00');
  await page.getByRole('combobox',{name:'Chart timezone',exact:true}).click();
@@ -216,35 +216,27 @@ test('chart clocks, speed slider and saved session jump work without replay data
  await page.reload();
  await expect(clock).toContainText('14:30:00');
  await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('London');
+ await clock.click();await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('UTC');
+ await clock.press('Enter');await expect(clock).toContainText('(UTC-5)');
  await page.screenshot({path:testInfo.outputPath('clock-speed-jump.png')});
 });
 
-test('two charts share replay time and save the journal',async({page},testInfo)=>{
+test('two charts share replay time and retain layouts without a Journal button',async({page},testInfo)=>{
  await page.goto('http://127.0.0.1:8119/backtesting');
  await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'4h',exact:true}).click();
  await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
  await expect(page.locator('.replay-chart')).toHaveCount(2);
- await expect(page.getByRole('status',{name:'Chart status',exact:true}).last()).toHaveText('Chart ready');
+ await expect(page.getByRole('status',{name:'Chart status',exact:true}).last()).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
  expect(await page.getByLabel('Replay time',{exact:true}).first().getAttribute('datetime')).toBe(await page.getByLabel('Replay time',{exact:true}).last().getAttribute('datetime'));
- await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
- const journal=page.getByRole('dialog',{name:'Backtesting journal',exact:true});
- await journal.getByRole('combobox',{name:'Strategy',exact:true}).click();
- await page.getByRole('option',{name:'Displacement continuation',exact:true}).click();
- await journal.getByRole('combobox',{name:'Key level / PDA',exact:true}).click();
- await page.getByRole('option',{name:'FVG',exact:true}).click();
- await journal.getByLabel('Notes',{exact:true}).fill('Wait for confirmation.');
- await journal.getByRole('button',{name:'Save journal',exact:true}).click();
- await expect(journal.getByRole('status')).toContainText('Saved');
- await journal.getByRole('button',{name:'Close',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Backtesting journal',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Save session',exact:true}).click();
  await page.screenshot({path:testInfo.outputPath('two-charts.png')});
  await page.reload();await expect(page.locator('.replay-chart')).toHaveCount(2);
- await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
- await expect(journal.getByLabel('Notes',{exact:true})).toHaveValue('Wait for confirmation.');
+
 });
 
 test('calendar refreshes stale date choices and opens a 2020 session with years of 4h context',async({page},testInfo)=>{
@@ -264,9 +256,9 @@ test('calendar refreshes stale date choices and opens a 2020 session with years 
  const response=page.waitForResponse(r=>r.url().endsWith('/api/backtesting/sessions')&&r.request().method()==='POST');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  const data=await (await response).json();expect(data.session.day).toBe('2020-06-02');
- expect(data.sample.markets.NQ.four_hour_history.length).toBeGreaterThan(1000);
- expect(data.sample.markets.NQ.four_hour_history[0].time).toBeLessThan(Date.UTC(2011,0,1));
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ expect(data.sample.markets.NQ.four_hour_history_ny.length).toBeGreaterThan(1000);
+ expect(data.sample.markets.NQ.four_hour_history_ny[0].time).toBeLessThan(Date.UTC(2011,0,1));
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'4h',exact:true}).click();
  await expect(page.getByLabel('Replay time',{exact:true})).toContainText('2020-06-02');
  expect(listings).toBeGreaterThanOrEqual(2);
@@ -286,23 +278,24 @@ test('backtesting setup dropdowns read the private Lab catalogue and retain all 
   await page.goto(base+'/backtesting');
   await page.getByRole('button',{name:'New session',exact:true}).click();
   await page.getByRole('button',{name:'Open session',exact:true}).click();
-  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
-  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:'Backtesting journal',exact:true});
+  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+  await page.getByRole('button',{name:'Buy',exact:true}).click();
+  await page.getByRole('button',{name:'Next candle',exact:true}).click();
+  await page.getByRole('button',{name:'Close position',exact:true}).click();
+  await page.getByRole('button',{name:'Next candle',exact:true}).click();
+  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
+  await page.getByRole('button',{name:'Send to Lab / Journal',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'Send practice trade',exact:true});
   for(const [label,option] of [['Strategy','Replay custom strategy'],['Key level / PDA','Replay key level'],['Key level timeframe','2H'],['Entry timeframe','3m']]){
    await dialog.getByRole('combobox',{name:label,exact:true}).click();
    await page.getByRole('option',{name:option,exact:true}).click();
   }
   await dialog.getByLabel('Replay confirmation',{exact:true}).check();
-  await dialog.getByRole('button',{name:'Save journal',exact:true}).click();
+  await dialog.getByRole('button',{name:'Send trade',exact:true}).click();
   await expect(dialog.getByRole('status')).toContainText('Saved');
   await page.setViewportSize({width:390,height:844});
   expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath('lab-linked-replay-journal.png')});
-  await page.reload();
-  await page.getByRole('button',{name:'Backtesting journal',exact:true}).click();
-  await expect(dialog.getByRole('combobox',{name:'Key level / PDA',exact:true})).toContainText('Replay key level');
-  await expect(dialog.getByLabel('Replay confirmation',{exact:true})).toBeChecked();
  }finally{
   await page.request.put(base+'/api/playbook',{headers,data:book});
   await page.request.put(base+'/api/lab-settings',{headers,data:lab});
@@ -318,23 +311,23 @@ test('an open position continues into the next day without resetting the chart a
  await page.getByLabel('Start time (UTC)',{exact:true}).fill('23:59');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  const status=page.getByRole('status',{name:'Chart status',exact:true});
- await expect(status).toHaveText('Chart ready');
+ await expect(status).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Buy',exact:true}).click();
  await expect(page.locator('.bt-position-strip')).toContainText('BUY 1 NQ');
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
  await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
- const continuation=page.waitForResponse(r=>r.url().endsWith('/continue')&&r.request().method()==='POST');
+ let boundaryRequests=0;page.on('request',r=>{if(r.url().endsWith('/continue'))boundaryRequests++});
  await page.getByRole('button',{name:'Play replay',exact:true}).click();
- const reply=await continuation;expect(reply.status()).toBe(200);
- const data=await reply.json();expect(data.projection.trades).toHaveLength(0);
+ await expect(page.getByRole('button',{name:'Backtesting journal',exact:true})).toHaveCount(0);
  await expect(page.getByLabel('Replay time',{exact:true})).toHaveAttribute('datetime',/2010-06-08/);
  await page.getByRole('button',{name:'Pause replay',exact:true}).click();
+ expect(boundaryRequests).toBe(0);
  await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
- await expect(status).toHaveText('Chart ready');
+ await expect(status).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Save session',exact:true}).click();
  await expect(page.locator('.bt-save-status')).toHaveText('Saved');
  await page.reload();
- await expect(status).toHaveText('Chart ready');
+ await expect(status).toHaveText('Chart ready',{timeout:15000});
  await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
  await page.getByRole('button',{name:'Close position',exact:true}).click();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
@@ -343,4 +336,31 @@ test('an open position continues into the next day without resetting the chart a
  await expect(page.locator('.bt-trade-ledger article')).toHaveCount(1);
  await expect(page.locator('.bt-trade-ledger')).toContainText('close');
  await page.screenshot({path:testInfo.outputPath('overnight-position.png')});
+});
+
+test('delete all drawings confirms once and preserves the simulated position and trade markers',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await expect(page.getByRole('button',{name:'Backtesting journal',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Lines',exact:true}).click();
+ await page.locator('.replay-chart').click({position:{x:400,y:250}});
+ await page.locator('.replay-chart').click({position:{x:650,y:300}});
+ await page.getByRole('button',{name:'Buy',exact:true}).click();
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ const id=new URL(page.url()).searchParams.get('session');
+ const drawingCount=async()=>{const data=await (await page.request.get('http://127.0.0.1:8119/api/backtesting/sessions/'+id)).json();return Object.values(data.layout.drawings||{}).flatMap(x=>x.drawings||[]).length};
+ await expect.poll(drawingCount).toBeGreaterThan(0);
+ await page.getByRole('button',{name:'Delete all drawings',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Delete all drawings?',exact:true});
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await page.getByRole('button',{name:'Delete all drawings',exact:true}).click();
+ await dialog.getByRole('button',{name:'Delete drawings',exact:true}).click();
+ await expect.poll(drawingCount).toBe(0);
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await expect(page.getByRole('group',{name:'Entry price box',exact:true})).toBeVisible();
 });

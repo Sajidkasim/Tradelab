@@ -35,3 +35,9 @@ it('recovers safe clock and jump preferences from malformed browser settings',()
  expect(savedJumpSettings('{"favorite":"bad","london":"99:99"}').london).toBe('02:00');
  expect(savedJumpSettings('{"favorite":"london","london":"03:00"}').favorite).toBe('london');
 });
+it('labels the replay clock with a DST-aware UTC offset in 24h format',async()=>{
+ const {replayClockLabel}=await import('./replayClock');
+ expect(replayClockLabel(Date.parse('2026-07-06T18:32:05Z'),'America/New_York')).toBe('14:32:05 (UTC-4)');
+ expect(replayClockLabel(Date.parse('2026-01-05T19:32:05Z'),'America/New_York')).toBe('14:32:05 (UTC-5)');
+ expect(replayClockLabel(Date.parse('2026-07-06T18:32:05Z'),'UTC')).toBe('18:32:05 (UTC)');
+});

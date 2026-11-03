@@ -26,7 +26,9 @@ def test_four_hour_index_contains_full_archive_without_future_bars(tmp_path):
                 c.executemany('INSERT INTO bars VALUES(?,?,?,?,?,?,?,?)',[(t+i*60000,root+'M0',day,100,102,99,101,10) for i in range(480)])
         c.execute('CREATE TABLE volumes AS SELECT day,symbol,SUM(volume) volume FROM bars GROUP BY day,symbol')
     build(path)
+    from tools.index_replay_ny import build as build_ny
+    build_ny(path)
     history=four_hour_history(path,'2020-06-02')
-    assert len(history['NQ'])==2
-    assert history['NQ'][0]['volume']==2400
+    assert len(history['NQ'])==3
+    assert sum(b['volume'] for b in history['NQ'])==4800
     assert all(b['time']<1591056000000 for b in history['ES'])
