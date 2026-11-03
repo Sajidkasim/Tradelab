@@ -1,0 +1,5 @@
+import {it,expect} from 'vitest';
+import {pivotKey,pivotOutput} from './pivotPeriods';
+it('uses DST-aware local dates and Monday week boundaries',()=>{expect(pivotKey(Date.parse('2026-03-09T03:30Z'),'Daily','America/New_York')).toBe('2026-03-08');expect(pivotKey(Date.parse('2026-11-02T04:30Z'),'Daily','America/New_York')).toBe('2026-11-01');expect(pivotKey(Date.parse('2026-11-04T15:00Z'),'Weekly','America/New_York')).toBe('2026-11-02')});
+it('two previous pivot periods plus current use previous OHLC and skip closed-day gaps',()=>{const bars=[2,3,6,7,8].flatMap(day=>[14,15].map(hour=>({time:Date.UTC(2026,10,day,hour),open:10,high:15,low:9,close:12})));const out=pivotOutput(bars,{anchor:'Daily',periodsBack:2},'5');expect(out.series[0].points).toHaveLength(6);expect(out.series[0].points[1].value).toBe(12);expect(out.series[0].points[0].time).toBe(Date.UTC(2026,10,6,14));expect(pivotOutput(bars,{anchor:'Daily',periodsBack:1},'5').series[0].points).toHaveLength(4)});
+it('does not manufacture daily pivots from weekly candles',()=>{expect(pivotOutput([],{anchor:'Daily'},'1W').series).toEqual([])});

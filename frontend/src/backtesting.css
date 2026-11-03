@@ -122,3 +122,9 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-favorite-row>span {flex:1;min-width:160px;overflow-wrap:anywhere}
 .bt-active-studies .bt-study-row {flex-wrap:wrap;gap:10px}
 .bt-active-studies .bt-study-row label {font-size:12px;max-width:210px}
+.bt-floating-favorites{position:absolute;z-index:7;display:flex;max-width:calc(100% - 12px);overflow:auto;gap:3px;padding:5px;border:1px solid var(--bt-border);border-radius:8px;background:var(--bt-surface);box-shadow:0 4px 16px #0002}
+.bt-floating-favorites button{background:transparent;color:var(--bt-ink);border:0;padding:7px;white-space:nowrap;cursor:pointer}
+.bt-floating-favorites button:first-child{touch-action:none;cursor:grab}
+.bt-favorite-tool{display:flex;gap:10px;align-items:center;padding:8px}
+.bt-template-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-bottom:1px solid var(--bt-border)}
+.bt-template-row>span{flex:1;min-width:140px}

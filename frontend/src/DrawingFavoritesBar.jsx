@@ -1,0 +1,10 @@
+import React,{useRef,useState,useEffect} from 'react';
+export const toolNames={trendline:'Line',hline:'Horizontal line',hray:'Horizontal ray',box:'Rectangle',fibretracement:'Fibonacci',text:'Text',position:'Long / short position'};
+export function clampBar(point,width,height){return {x:Math.max(0,Math.min(point.x,Math.max(0,width-160))),y:Math.max(0,Math.min(point.y,Math.max(0,height-44)))}}
+export default function DrawingFavoritesBar({chart,position,onPosition}){
+ const [tools,setTools]=useState(()=>chart.drawings.favorites()),[point,setPoint]=useState(position||{x:70,y:70});const ref=useRef(),drag=useRef();
+ useEffect(()=>chart.on('drawing:favorites',()=>setTools(chart.drawings.favorites())),[chart]);
+ useEffect(()=>{const fit=()=>setPoint(p=>clampBar(p,ref.current?.parentElement.clientWidth||800,ref.current?.parentElement.clientHeight||600));window.addEventListener('resize',fit);fit();return()=>window.removeEventListener('resize',fit)},[]);
+ if(!tools.length)return null;
+ return <div ref={ref} className="bt-floating-favorites" role="toolbar" aria-label="Favorite drawing tools" style={{left:point.x,top:point.y}}><button aria-label="Move favorites bar" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);drag.current={x:e.clientX-point.x,y:e.clientY-point.y}}} onPointerMove={e=>{if(drag.current){const parent=ref.current.parentElement;setPoint(clampBar({x:e.clientX-drag.current.x,y:e.clientY-drag.current.y},parent.clientWidth,parent.clientHeight))}}} onPointerUp={()=>{drag.current=null;onPosition(point)}} onPointerCancel={()=>{drag.current=null}} onKeyDown={e=>{const delta={ArrowLeft:[-10,0],ArrowRight:[10,0],ArrowUp:[0,-10],ArrowDown:[0,10]}[e.key];if(delta){e.preventDefault();const p=clampBar({x:point.x+delta[0],y:point.y+delta[1]},ref.current.parentElement.clientWidth,ref.current.parentElement.clientHeight);setPoint(p);onPosition(p)}}}>⠿</button>{tools.filter(t=>toolNames[t]).map(t=><button key={t} title={toolNames[t]} onClick={()=>chart.drawings.setTool(t)}>{toolNames[t]}</button>)}</div>;
+}

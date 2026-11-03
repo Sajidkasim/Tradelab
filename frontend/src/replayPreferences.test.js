@@ -13,7 +13,7 @@ describe('indicator interval policy',()=>{
  });
 });
 describe('styled drawing favorites',()=>{
- for(const type of ['trendline','hline','hray','box'])it(`round trips ${type} style, text and properties without anchors or mutation`,()=>{
+ for(const type of ['trendline','hline','hray','box','text','position','fibretracement'])it(`round trips ${type} style, text and properties without anchors or mutation`,()=>{
   const d={type,anchors:[{time:1,price:12}],style:{color:'#abc',width:3,lineStyle:'dashed'},text:{value:'My level',size:14},props:{extendRight:true}};
   const saved=saveFavorite([],d,' Favorite ','id'),restored=JSON.parse(JSON.stringify(saved));
   expect(restored[0].settings).toEqual({style:d.style,text:d.text,props:d.props});expect(restored[0].settings.anchors).toBeUndefined();

@@ -483,10 +483,10 @@ test('drawing style templates save, apply and survive reload',async({page})=>{
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Lines',exact:true}).click();await page.locator('.replay-chart').click({position:{x:400,y:250}});await page.locator('.replay-chart').click({position:{x:650,y:300}});
- await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();
- const modal=page.getByRole('dialog',{name:'Drawing favorites',exact:true});await modal.getByLabel('Template name').fill('My line');await modal.getByRole('button',{name:'Save template',exact:true}).click();
- await expect(modal).toContainText('Favorite saved.');await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.reload();
- await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();await expect(modal).toContainText('My line');
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();
+ const modal=page.getByRole('dialog',{name:'Drawing templates',exact:true});await modal.getByLabel('Template name').fill('My line');await modal.getByRole('button',{name:'Save template',exact:true}).click();
+ await expect(modal).toContainText('Template saved.');await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.reload();
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();await expect(modal).toContainText('My line');
 });
 
 test('order appears before slow acknowledgement; drag keeps replay moving, Escape cancels and drop commits once',async({page})=>{
@@ -610,14 +610,14 @@ test('indicator maximum interval hides Sessions above its limit and persists nat
 test('named drawing favorites place copies, rename, delete and survive reload',async({page})=>{
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();const modal=page.getByRole('dialog',{name:'Drawing favorites',exact:true});await expect(modal).toContainText('No saved favorites yet');await modal.getByRole('button',{name:'Close',exact:true}).last().click();
+ await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();const modal=page.getByRole('dialog',{name:'Drawing templates',exact:true});await expect(modal).toContainText('No saved templates yet');await modal.getByRole('button',{name:'Close',exact:true}).last().click();
  await page.getByRole('button',{name:'Lines',exact:true}).click();await page.locator('.replay-chart').click({position:{x:400,y:250}});await page.locator('.replay-chart').click({position:{x:650,y:300}});
- await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await modal.getByLabel('Template name').fill('Reusable line');await modal.getByRole('button',{name:'Save template',exact:true}).click();await expect(modal).toContainText('Favorite saved.');
+ await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();await modal.getByLabel('Template name').fill('Reusable line');await modal.getByRole('button',{name:'Save template',exact:true}).click();await expect(modal).toContainText('Template saved.');
  await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.locator('.replay-chart').click({position:{x:430,y:350}});await page.locator('.replay-chart').click({position:{x:700,y:400}});await page.getByRole('button',{name:'Save session',exact:true}).click();
  const sid=new URL(page.url()).searchParams.get('session');const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${sid}/layouts`)).json();expect(saved.layout.drawingFavorites).toHaveLength(1);expect(Object.values(saved.layout.drawings).flatMap(x=>x.drawings||x).length).toBeGreaterThanOrEqual(2);
- await page.reload();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await expect(modal).toContainText('Reusable line');
- await modal.getByRole('button',{name:'Rename',exact:true}).click();await modal.getByLabel('New favorite name').fill('My renamed level');await modal.getByRole('button',{name:'Save name',exact:true}).click();await expect(modal).toContainText('My renamed level');await modal.getByRole('button',{name:'Delete',exact:true}).click();await expect(modal).toContainText('No saved favorites yet');
- await modal.getByRole('button',{name:'Close',exact:true}).last().click();await page.reload();await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await expect(modal).toContainText('No saved favorites yet');
+ await page.reload();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();await expect(modal).toContainText('Reusable line');
+ await modal.getByRole('button',{name:'Rename',exact:true}).click();await modal.getByLabel('New template name').fill('My renamed level');await modal.getByRole('button',{name:'Save name',exact:true}).click();await expect(modal).toContainText('My renamed level');await modal.getByRole('button',{name:'Delete',exact:true}).click();await expect(modal).toContainText('No saved templates yet');
+ await modal.getByRole('button',{name:'Close',exact:true}).last().click();await page.reload();await page.getByRole('button',{name:'Drawing templates',exact:true}).last().click();await expect(modal).toContainText('No saved templates yet');
 });
 
 test('Sync intervals follows either pane, persists and returns to independent intervals when disabled',async({page})=>{

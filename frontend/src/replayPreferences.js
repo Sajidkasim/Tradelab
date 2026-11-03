@@ -17,7 +17,7 @@ export function toggleIntervalSync(state){
  const syncIntervals=!state.syncIntervals,timeframe=state.charts.find(x=>x.id===state.activeChartId)?.timeframe;
  return {...state,syncIntervals,charts:syncIntervals&&timeframe?state.charts.map(x=>({...x,timeframe})):state.charts};
 }
-export const favoriteTypes=['trendline','hline','hray','box'];
+export const favoriteTypes=['trendline','hline','hray','box','text','fibretracement','position'];
 const copy=value=>JSON.parse(JSON.stringify(value));
 export function favoriteSettings(drawing){
  const doc=drawing.serialize?.()||drawing;
@@ -25,7 +25,7 @@ export function favoriteSettings(drawing){
 }
 export function saveFavorite(list,drawing,name,id=crypto.randomUUID()){
  name=name.trim();if(!name)throw Error('Give your favorite a name.');
- if(!favoriteTypes.includes(drawing.type))throw Error('Choose a line, ray or rectangle.');
+ if(!favoriteTypes.includes(drawing.type))throw Error('Choose a supported drawing.');
  if(list.some(x=>x.id!==id&&x.name.toLowerCase()===name.toLowerCase()))throw Error('That name is already used.');
  return [...list.filter(x=>x.id!==id),{id,name:name.slice(0,40),type:drawing.type,settings:favoriteSettings(drawing)}];
 }
