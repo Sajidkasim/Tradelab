@@ -1056,3 +1056,30 @@ include earlier 4H context as local results do; saved journal setup dropdowns us
 the same already-shipped private Lab catalogue. The archive is about 111 MB.
 Full tests: 330 passed, 5 existing warnings in 22.05s; 35 frontend checks and build
 passed. No core formulas or broker integration changed. See REPLAY_DEPLOYMENT.
+
+## Indicator limits, styled favorites and interval sync — 3 November 2026
+
+Local only; no commit or deployment. replayPreferences orders the existing minute
+intervals (including custom 1–720 minute values) before daily/weekly/monthly.
+Each native indicator has a Maximum timeframe selector in Indicators / On your
+chart; Sessions has the same limit in its settings. Interval-driven hiding keeps
+manual eye-toggle intent separate and restores visibility on smaller intervals.
+The saved studies retain inputs, manual visibility and maximum interval.
+
+Drawing favorites has a direct toolbar entry. Named line, horizontal line/ray
+and rectangle/square presets deep-copy style, text and tool properties without
+anchors or prices. Vela tool templates omit literal text, so a one-placement
+created listener applies the copied text through its public drawings.update API.
+Rename/delete and an empty state are supported; legacy templates migrate into
+the toolbox. Native starred tool types also persist. drawingFavorites and
+ drawingToolFavorites are private chart-default fields; existing workspace tests
+verify a second user cannot inherit these preferences.
+
+Split Sync intervals defaults off. Enabling matches the active interval; future
+changes update both panes atomically without propagating symbols, drawings or
+viewport settings. chartGroup persists the toggle. Forced layout saves wait for
+pending chart switches, and registered savers always use current settings.
+Validation: 353 pytest passed (5 existing warnings), 64 Vitest checks passed,
+production build passed. Replay browser suite: 27 passed; the sync save/reload
+check passed separately after correcting its wait for completed layout writes.
+The local preview is on port 8132 using its existing persistent preview database.

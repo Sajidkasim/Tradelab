@@ -484,8 +484,8 @@ test('drawing style templates save, apply and survive reload',async({page})=>{
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'Lines',exact:true}).click();await page.locator('.replay-chart').click({position:{x:400,y:250}});await page.locator('.replay-chart').click({position:{x:650,y:300}});
  await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();
- const modal=page.getByRole('dialog',{name:'Drawing templates',exact:true});await modal.getByLabel('Template name').fill('My line');await modal.getByRole('button',{name:'Save template',exact:true}).click();
- await expect(modal).toContainText('Template saved.');await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.reload();
+ const modal=page.getByRole('dialog',{name:'Drawing favorites',exact:true});await modal.getByLabel('Template name').fill('My line');await modal.getByRole('button',{name:'Save template',exact:true}).click();
+ await expect(modal).toContainText('Favorite saved.');await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.reload();
  await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Drawing templates',exact:true}).click();await expect(modal).toContainText('My line');
 });
 
@@ -583,4 +583,51 @@ test('rapid timeframe changes cancel slow requests and keep the previous chart v
  await page.route('**/chart-history?**',async route=>{if(new URL(route.request().url()).searchParams.get('timeframe')==='240')await new Promise(r=>setTimeout(r,1200));try{await route.continue()}catch{}});
  await page.getByRole('button',{name:'4h',exact:true}).click();await page.getByRole('button',{name:'1D',exact:true}).click();await page.getByRole('button',{name:'1W',exact:true}).click();await page.getByRole('button',{name:'1M',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:2000});await expect(page.getByRole('button',{name:'1M',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('indicator maximum interval hides Sessions above its limit and persists native study policy',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();
+ await page.locator('.bt-study-row').filter({has:page.getByText('Sessions',{exact:true})}).first().getByRole('button',{name:'Add',exact:true}).click();
+ await page.getByRole('button',{name:'Settings for Sessions',exact:true}).click();const modal=page.getByRole('dialog',{name:'Session ranges',exact:true});
+ await modal.getByLabel('Maximum chart timeframe',{exact:true}).click();await page.getByRole('option',{name:'15m',exact:true}).click();await modal.getByRole('button',{name:'Save as my default',exact:true}).click();
+ await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible({timeout:15000});
+ await page.getByRole('group',{name:'Chart timeframe',exact:true}).getByRole('button',{name:'1h',exact:true}).click();
+ await expect(page.getByLabel('Session range overlays',{exact:true})).toHaveCount(0);
+ await page.getByRole('group',{name:'Chart timeframe',exact:true}).getByRole('button',{name:'5m',exact:true}).click();
+ await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible({timeout:15000});
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByLabel('Find an indicator',{exact:true}).fill('ema');
+ const add=page.getByRole('button',{name:/^Add .*Moving Average/}).first();await add.click();await page.getByLabel('Find an indicator',{exact:true}).fill('');
+ const maximum=page.getByLabel(/^Maximum timeframe for /).first();await maximum.click();await page.getByRole('option',{name:'15m',exact:true}).click();await page.getByRole('button',{name:'Done',exact:true}).click();
+ await page.getByRole('group',{name:'Chart timeframe',exact:true}).getByRole('button',{name:'1h',exact:true}).click();await page.getByRole('button',{name:'Save session',exact:true}).click();
+ const sid=new URL(page.url()).searchParams.get('session');const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${sid}/layouts`)).json();
+ expect(saved.layout.studies.find(x=>x.maximum==='15').visible).toBe(true);
+ await page.reload();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await expect(page.getByLabel(/^Maximum timeframe for /).first()).toHaveAttribute('data-value','15');
+});
+
+test('named drawing favorites place copies, rename, delete and survive reload',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();const modal=page.getByRole('dialog',{name:'Drawing favorites',exact:true});await expect(modal).toContainText('No saved favorites yet');await modal.getByRole('button',{name:'Close',exact:true}).last().click();
+ await page.getByRole('button',{name:'Lines',exact:true}).click();await page.locator('.replay-chart').click({position:{x:400,y:250}});await page.locator('.replay-chart').click({position:{x:650,y:300}});
+ await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await modal.getByLabel('Template name').fill('Reusable line');await modal.getByRole('button',{name:'Save template',exact:true}).click();await expect(modal).toContainText('Favorite saved.');
+ await modal.getByRole('button',{name:'Use for next drawing',exact:true}).click();await page.locator('.replay-chart').click({position:{x:430,y:350}});await page.locator('.replay-chart').click({position:{x:700,y:400}});await page.getByRole('button',{name:'Save session',exact:true}).click();
+ const sid=new URL(page.url()).searchParams.get('session');const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${sid}/layouts`)).json();expect(saved.layout.drawingFavorites).toHaveLength(1);expect(Object.values(saved.layout.drawings).flatMap(x=>x.drawings||x).length).toBeGreaterThanOrEqual(2);
+ await page.reload();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await expect(modal).toContainText('Reusable line');
+ await modal.getByRole('button',{name:'Rename',exact:true}).click();await modal.getByLabel('New favorite name').fill('My renamed level');await modal.getByRole('button',{name:'Save name',exact:true}).click();await expect(modal).toContainText('My renamed level');await modal.getByRole('button',{name:'Delete',exact:true}).click();await expect(modal).toContainText('No saved favorites yet');
+ await modal.getByRole('button',{name:'Close',exact:true}).last().click();await page.reload();await page.getByRole('button',{name:'Drawing favorites',exact:true}).click();await expect(modal).toContainText('No saved favorites yet');
+});
+
+test('Sync intervals follows either pane, persists and returns to independent intervals when disabled',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true}).last()).toHaveText('Chart ready',{timeout:15000});
+ const sync=page.getByRole('button',{name:'Sync intervals',exact:true}),bar=page.getByRole('group',{name:'Chart timeframe',exact:true});
+ await expect(sync).toHaveAttribute('aria-pressed','false');await sync.click();await bar.getByRole('button',{name:'1h',exact:true}).click();await expect(page.getByRole('button',{name:'ES · 1h',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'NQ · 1h',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'ES · 1h',exact:true}).click();await bar.getByRole('button',{name:'15m',exact:true}).click();await expect(page.getByRole('button',{name:'NQ · 15m',exact:true})).toBeVisible();await page.getByRole('button',{name:'Save session',exact:true}).click();
+ const sid=new URL(page.url()).searchParams.get('session');
+ await expect.poll(async()=>{const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${sid}/layouts`)).json();return [saved.layout?.timeframe,saved.layout_secondary?.timeframe,saved.layout?.chartGroup?.syncIntervals]}, {timeout:15000}).toEqual(['15','15',true]);
+ await page.reload();await expect(sync).toHaveAttribute('aria-pressed','true',{timeout:15000});await expect(page.getByRole('button',{name:'ES · 15m',exact:true})).toBeVisible();await sync.click();await bar.getByRole('button',{name:'5m',exact:true}).click();await expect(page.getByRole('button',{name:'NQ · 15m',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'ES · 5m',exact:true})).toBeVisible();
 });

@@ -135,7 +135,7 @@ def test_bulk_deletion_is_atomic_confirmed_and_includes_old_trash(local,candles)
 def test_bulk_deletion_and_chart_defaults_are_private(google,candles):
     client,app,state=google;login(client,state)
     sid=create(client)['session']['id']
-    defaults={'config':{'grid':{'visible':False}},'timeframe':'5','watermark':True,'minuteWatermarks':{'1':False,'5':True},'studies':[], 'sessionRanges':{'enabled':True,'days':5,'zone':'America/New_York'}}
+    defaults={'config':{'grid':{'visible':False}},'timeframe':'5','watermark':True,'minuteWatermarks':{'1':False,'5':True},'studies':[{'type':'ema','inputs':{},'visible':True,'maximum':'15'}], 'drawingToolFavorites':['hray','box'], 'drawingFavorites':[{'id':'level','name':'My level','type':'hray','settings':{'style':{'color':'#abc'},'text':{'value':'Support'}}}], 'sessionRanges':{'enabled':True,'days':5,'zone':'America/New_York','maximum':'60'}}
     assert client.put(f'/api/backtesting/sessions/{sid}/layout',json={'layout':{**defaults,'drawings':{'secret':'owner drawing'},'viewport':{'rightOffset':8}}}).status_code==200
     assert client.get('/api/backtesting/chart-defaults').json()==defaults
     assert client.put(f'/api/backtesting/sessions/{sid}/layout?pane=secondary&defaults=false',json={'layout':{'timeframe':'240'}}).status_code==200

@@ -7,6 +7,7 @@ import {Modal,Button,Notice,Select,Field} from './components';
 import BacktestingChart from './BacktestingChart';
 import {prepareReplayCharts} from './prepareReplayCharts';
 import './backtesting.css';
+import {changePane,toggleIntervalSync} from './replayPreferences';
 const cash=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
 const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',hour:'2-digit',minute:'2-digit'});
 
@@ -17,11 +18,11 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [selectedSessions,setSelectedSessions]=useState([]);
  const [purging,setPurging]=useState(null),[purgeName,setPurgeName]=useState('');
  const [twoCharts,setTwoCharts]=useState(false);
- const [chartWorkspace,setChartWorkspace]=useState({charts:[],activeChartId:'primary',syncCrosshair:false});
+ const [chartWorkspace,setChartWorkspace]=useState({charts:[],activeChartId:'primary',syncCrosshair:false,syncIntervals:false});
  const [toolbarHost,setToolbarHost]=useState(null),[controlsHost,setControlsHost]=useState(null);
  const chartInstances=useRef({}),crosshairSync=useRef(false);
  crosshairSync.current=chartWorkspace.syncCrosshair;
- const updatePane=useCallback((id,patch)=>setChartWorkspace(state=>({...state,charts:state.charts.map(chart=>chart.id===id?{...chart,...patch}:chart)})),[]);
+ const updatePane=useCallback((id,patch)=>setChartWorkspace(state=>changePane(state,id,patch)),[]);
  const registerChart=useCallback((id,chart)=>{chartInstances.current[id]=chart},[]);
  const syncPointer=useCallback((id,event)=>{if(!crosshairSync.current)return;for(const [other,chart] of Object.entries(chartInstances.current))if(other!==id)chart?.renderer.setExternalCrosshair(event.time??null,null)},[]);
  function toggleCrosshair(){setChartWorkspace(state=>({...state,syncCrosshair:!state.syncCrosshair}));for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null)}
@@ -39,7 +40,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   }
   await prepareReplayCharts(data.sample);
   const group=data.layout?.chartGroup||{};
-  setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.layout?.symbol||data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.layout_secondary?.symbol||'ES',timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair)});
+  setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.layout?.symbol||data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.layout_secondary?.symbol||'ES',timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
   setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}`)
  }
  useEffect(()=>{
@@ -86,7 +87,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  function change(field,value){setForm(f=>({...f,[field]:value}))}
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
  if(active){
-  const common={theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair},onToggleCrosshair:toggleCrosshair};
+  const common={theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <div className="backtesting-workspace bt-layout">
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div className={twoCharts?'bt-panes bt-panes-split':'bt-panes'}>
