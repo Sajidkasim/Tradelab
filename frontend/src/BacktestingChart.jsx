@@ -5,6 +5,8 @@ import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
 import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
+import SessionRanges,{SessionRangeSettings} from './SessionRanges';
+import {sessionOptions} from './replaySessionRanges';
 import {recordTiming} from './replayTiming';
 import {installDrawingPerformance,latestLayoutWriter} from './replayDrawingPerformance';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
@@ -30,6 +32,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const setTimeframe=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
   const groupRef=useRef(chartGroup);groupRef.current=chartGroup;
   const [clockZone,setClockZone]=useState(()=>replayZone(layout.clockDisplayVersion===2?layout.clockZone:undefined));
+  const [sessionRangeOptions,setSessionRangeOptions]=useState(()=>sessionOptions(layout.sessionRanges)),[sessionRangeEditor,setSessionRangeEditor]=useState(false);
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
   const timeline=sample.markets[session.root].bars;
@@ -206,7 +209,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     layoutDirty.current=false;const started=performance.now();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible})),...patch};
+    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,sessionRanges:sessionRangeOptions,clockDisplayVersion:2,drawings:drawings.current,config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:h.visible})),...patch};
     const encoded=JSON.stringify(value);recordTiming('drawings:layout-snapshot',started);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
@@ -262,6 +265,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
+      {ready&&<SessionRanges id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
@@ -288,13 +292,15 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {timeframeError&&<p role="alert">{timeframeError}</p>}
       <div className="settings-actions"><Button variant="primary" onClick={async()=>{if(!timeframeEditor.length||timeframeEditor.length>10){setTimeframeError('Choose between 1 and 10 shortcuts.');return}const next=[...timeframeEditor].sort((a,b)=>Number(a)-Number(b));try{await saveLayout(true,{shortcuts:next,...(!next.includes(timeframe)?{timeframe:next[0]}:{})})}catch(e){setTimeframeError(e.message);return}setShortcuts(next);if(!next.includes(timeframe))setTimeframe(next[0]);setTimeframeEditor(null)}}>Save timeframes</Button><Button onClick={()=>setTimeframeEditor(null)}>Cancel</Button></div>
     </Modal>}
+    {sessionRangeEditor&&<SessionRangeSettings value={sessionRangeOptions} onClose={()=>setSessionRangeEditor(false)} onSave={async value=>{await saveLayout(true,{sessionRanges:value});setSessionRangeOptions(value)}}/>}
     {picker && <Modal title="Indicators" className="bt-indicator-modal" onClose={() => setPicker(false)}>
       <label className="bt-indicator-search"><Search size={18}/><input autoFocus type="search" aria-label="Find an indicator" placeholder="Search EMA, RSI, VWAP…" value={search} onChange={e => setSearch(e.target.value)}/></label>
+      {(!search||'session ranges'.includes(search.toLowerCase()))&&<div className="bt-study-row"><div><strong>Session ranges</strong><small>Asia · London · NY AM · New York time</small></div><Button onClick={()=>{setPicker(false);setSessionRangeEditor(true)}}>Configure sessions</Button></div>}
       {!search && studies.length > 0 && <section className="bt-active-studies" aria-label="Indicators on chart"><h3>On your chart</h3>{studies.map(item => <div className="bt-study-row" key={item.id}><span>{item.title}</span><button aria-label={`Settings for ${item.title}`} onClick={() => editStudy(item.id)}><Settings2 size={16}/></button><button aria-label={`Remove ${item.title}`} onClick={() => removeStudy(item.id)}><X size={16}/></button></div>)}</section>}
       <div className="bt-indicator-list" aria-label="Available indicators">{matches.map(item => {
         const present = studies.some(study => study.type === item.type);
         return <div className="bt-study-row" key={item.type}><div><strong>{item.title}</strong>{!item.supported && <small>Not available for this sample</small>}</div><button aria-label={`Add ${item.title}`} disabled={!item.supported || (present && !item.multiInstance)} onClick={() => addStudy(item)}>{present && !item.multiInstance ? 'Added' : <><Plus size={15}/> Add</>}</button></div>;
-      })}{matches.length === 0 && <p>No indicators match “{search}”.</p>}</div>
+      })}{matches.length === 0 && !'session ranges'.includes(search.toLowerCase()) && <p>No indicators match “{search}”.</p>}</div>
       <div className="bt-indicator-footer"><small>Indicators only use candles revealed so far. Daily pivots may need earlier sessions.</small><Button onClick={() => setPicker(false)}>Done</Button></div>
     </Modal>}
   </div>;

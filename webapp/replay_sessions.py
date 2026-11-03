@@ -39,7 +39,7 @@ class BulkDeleteInput(BaseModel):
     confirmation:str=Field(max_length=80)
 
 DEFAULTS='primus_replay_chart_defaults'
-DEFAULT_FIELDS={'config','studies','timeframe','clockZone','clockDisplayVersion','watermark','minuteWatermarks','shortcuts'}
+DEFAULT_FIELDS={'config','studies','timeframe','clockZone','clockDisplayVersion','watermark','minuteWatermarks','shortcuts','sessionRanges'}
 def chart_defaults(db):return db.get_setting(DEFAULTS,{})
 
 class OrderInput(BaseModel):

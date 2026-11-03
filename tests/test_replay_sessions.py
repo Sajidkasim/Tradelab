@@ -135,7 +135,7 @@ def test_bulk_deletion_is_atomic_confirmed_and_includes_old_trash(local,candles)
 def test_bulk_deletion_and_chart_defaults_are_private(google,candles):
     client,app,state=google;login(client,state)
     sid=create(client)['session']['id']
-    defaults={'config':{'grid':{'visible':False}},'timeframe':'5','watermark':True,'minuteWatermarks':{'1':False,'5':True},'studies':[]}
+    defaults={'config':{'grid':{'visible':False}},'timeframe':'5','watermark':True,'minuteWatermarks':{'1':False,'5':True},'studies':[], 'sessionRanges':{'enabled':True,'days':5,'zone':'America/New_York'}}
     assert client.put(f'/api/backtesting/sessions/{sid}/layout',json={'layout':{**defaults,'drawings':{'secret':'owner drawing'},'viewport':{'rightOffset':8}}}).status_code==200
     assert client.get('/api/backtesting/chart-defaults').json()==defaults
     assert client.put(f'/api/backtesting/sessions/{sid}/layout?pane=secondary&defaults=false',json={'layout':{'timeframe':'240'}}).status_code==200

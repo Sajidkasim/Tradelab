@@ -444,6 +444,24 @@ test('minute watermark preferences persist into a new session and after reload',
  await expect(page.getByLabel('Timeframe watermark',{exact:true})).toHaveText('5m');
 });
 
+test('session ranges use editable NY defaults, save privately and restore on reload',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();await page.getByRole('button',{name:'Configure sessions',exact:true}).click();
+ const settings=page.getByRole('dialog',{name:'Session ranges',exact:true});
+ await expect(settings.getByLabel('Asia start',{exact:true})).toHaveValue('20:00');await expect(settings.getByLabel('Asia end',{exact:true})).toHaveValue('02:00');
+ await expect(settings.getByLabel('NY AM end',{exact:true})).toHaveValue('17:00');
+ await expect(settings.getByLabel('Last session days (1–30)',{exact:true})).toHaveValue('5');
+ await expect(settings).not.toContainText('VWAP');await expect(settings).not.toContainText('Trendline');
+ await settings.getByLabel('Show session ranges',{exact:true}).check();await settings.getByLabel('Show dashboard',{exact:true}).check();
+ await settings.getByRole('button',{name:'Save as my default',exact:true}).click();
+ await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible();await expect(page.locator('.bt-session-dashboard')).toContainText('Asia');
+ await page.reload();await expect(page.getByLabel('Session range overlays',{exact:true})).toBeVisible();
+ const defaults=await (await page.request.get('http://127.0.0.1:8119/api/backtesting/chart-defaults')).json();
+ expect(defaults.sessionRanges).toMatchObject({enabled:true,days:5,zone:'America/New_York'});
+});
+
 test('temporary execution timing diagnosis',async({page})=>{
  await page.addInitScript(()=>{localStorage.setItem('primus-replay-profile','1');window.__primusReplayTimings=[]});
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
