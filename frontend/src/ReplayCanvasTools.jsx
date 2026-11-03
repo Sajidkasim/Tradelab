@@ -1,13 +1,17 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {api} from './api';
+import {recordTiming} from './replayTiming';
 import {replayProjector} from './replayViewport';
 const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v);
 export default function ReplayCanvasTools({chart,host,frame,session,price,qty,disabled,onAction,pause,onError,cursor,version}){
  const [geometry,setGeometry]=useState(null),[menu,setMenu]=useState(null),[drag,setDrag]=useState(null);
  const menuRef=useRef(null),ticket=frame.ticket;
- const [estimate,setEstimate]=useState(null);
- const latestDrag=useRef(drag);latestDrag.current=drag;
- useEffect(()=>{setEstimate(null);if(!drag)return;let alive=true,busy=false,last=null;const update=()=>{const current=latestDrag.current;if(busy||!current||current.price===last)return;last=current.price;busy=true;api(`/backtesting/sessions/${session.id}/ticket-preview`,{method:'POST',body:{version,cursor,price:current.price}}).then(v=>{if(alive)setEstimate(v.amount)}).catch(()=>{}).finally(()=>{busy=false})};update();const timer=setInterval(update,120);return()=>{alive=false;clearInterval(timer)}},[drag?.kind,cursor,version]);
+ const [pendingLevel,setPendingLevel]=useState(null);
+ const latest=useRef({frame,cursor});latest.current={frame,cursor};
+ const latestDrag=useRef(null),dragRaf=useRef(null);
+ const tick=session.tick_size||.25,multiplier=session.multiplier||({'NQ':20,'MNQ':2,'ES':50,'MES':5}[session.instrument]);
+ useEffect(()=>{if(!drag)return;const cancel=e=>{if(e.key==='Escape'){cancelAnimationFrame(dragRaf.current);dragRaf.current=null;latestDrag.current=null;setDrag(null)}};window.addEventListener('keydown',cancel);return()=>window.removeEventListener('keydown',cancel)},[Boolean(drag)]);
+ useEffect(()=>()=>cancelAnimationFrame(dragRaf.current),[]);
+ useEffect(()=>{if(!ticket){cancelAnimationFrame(dragRaf.current);dragRaf.current=null;latestDrag.current=null;setDrag(null);setPendingLevel(null)}},[Boolean(ticket)]);
 
  useEffect(()=>{
   let raf;const update=()=>{const proj=replayProjector(chart);const pane=proj?.paneRect('price');
@@ -20,23 +24,37 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
   el.addEventListener('contextmenu',context,true);return()=>el.removeEventListener('contextmenu',context,true);
  },[chart,host,pause]);
  useEffect(()=>{if(!menu)return;const close=e=>{if(e.key==='Escape'||(e.type==='pointerdown'&&!menuRef.current?.contains(e.target)))setMenu(null)};document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);menuRef.current?.focus();return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close)}},[menu]);
- async function send(kind,order){pause();try{await onAction(kind,order)}catch(e){onError(e.message)}}
- function amend(field,value){const a=frame.position||frame.order;if(!a)return;send('amend',{side:a.side,type:frame.order?.type||'market',qty:a.qty,price:frame.order?.price??null,stop:a.stop,target:a.target,[field]:value})}
- function atPointer(e){const r=host.current.getBoundingClientRect();return Math.max(.25,Math.round(replayProjector(chart).pxToPoint(e.clientX-r.left,e.clientY-r.top,'price').price*4)/4)}
+ async function send(kind,order){try{await onAction(kind,order)}catch(e){onError(e.message)}}
+ function amend(field,value){const a=latest.current.frame.position||latest.current.frame.order;if(!a)return;return send('amend',{side:a.side,type:latest.current.frame.order?.type||'market',qty:a.qty,[field]:value})}
+ function atPointer(e){const started=performance.now();const r=host.current.getBoundingClientRect();const value=Math.max(tick,Math.round(replayProjector(chart).pxToPoint(e.clientX-r.left,e.clientY-r.top,'price').price/tick)*tick);recordTiming('pointer handler',started);return value}
  function place(side){const type=side==='buy'?(menu.price<=price?'limit':'stop'):(menu.price>=price?'limit':'stop');send('order',{side,type,qty:Number(qty),price:menu.price});setMenu(null)}
  return <>
- {ticket&&geometry&&<div className="bt-ticket-layer" aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['entry','stop','target'].map(kind=>{
+ {ticket&&geometry&&<div className="bt-ticket-layer" aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['stop','target'].map(kind=>{const value=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:ticket[kind+'_price'];const y=replayProjector(chart)?.yOf(value,'price');return y==null?null:<div key={kind+'zone'} className={`bt-risk-zone ${kind}`} style={{top:Math.min(y,geometry.entry),height:Math.abs(y-geometry.entry)}}/>})}{frame.position&&<button className="bt-break-even" onClick={()=>amend('stop',frame.position.entry)}>SL to break-even</button>}{['entry','stop','target'].map(kind=>{
  const active=kind==='entry'||(kind==='stop'?ticket.stop_result:ticket.target_result)!=null;
- const level=drag?.kind===kind?drag.price:kind==='entry'?ticket.reference:ticket[kind+'_price'];
- const y=drag?.kind===kind?replayProjector(chart)?.yOf(level,'price'):geometry[kind];
- if(y==null||y<geometry.top+15||y>geometry.bottom-15)return null;
+ const level=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:kind==='entry'?ticket.reference:ticket[kind+'_price'];
+ const amount=(level-ticket.reference)*(ticket.side==='buy'?1:-1)*multiplier*ticket.qty;
+ const points=Math.abs(level-ticket.reference),risk=Math.abs((drag?.kind==='stop'?drag.price:ticket.stop_price)-ticket.reference);
+ const rr=risk>0?Math.abs((drag?.kind==='target'?drag.price:ticket.target_price)-ticket.reference)/risk:null;
+ let y=(drag?.kind===kind||pendingLevel?.kind===kind)?replayProjector(chart)?.yOf(level,'price'):geometry[kind];
+ if(y==null)return null;
+ if(drag?.kind===kind)y=Math.max(geometry.top+15,Math.min(y,geometry.bottom-15));
+ else if(y<geometry.top+15||y>geometry.bottom-15)return null;
  const movable=kind!=='entry'||(ticket.pending&&frame.order?.type!=='market');
  const field=kind==='entry'?'price':kind;
- return <div key={kind} className={`bt-ticket-line ${kind} ${!active?'draft':''}`} style={{top:y}}>
+ return <div key={kind} className={`bt-ticket-line ${kind} ${!active?'draft':''} ${drag?.kind===kind?'dragging':pendingLevel?.kind===kind?'dropping':''}`} style={{top:y}}>
  <div className={`bt-price-ticket ${!active?`unset-${kind}`:''}`} role="group" aria-label={`${kind==='entry'?(ticket.pending?'Pending entry':'Entry'):kind==='stop'?'Stop loss':'Take profit'} price box`}>
- <button className="bt-ticket-drag" disabled={disabled||!movable||frame.position?.closing} title={movable?'Drag to set price':'Entry price'} aria-label={`Drag ${kind} price`} onPointerDown={e=>{if(!movable)return;pause();e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);setDrag({kind,price:level})}} onPointerMove={e=>{if(drag?.kind===kind)setDrag({kind,price:atPointer(e)})}} onPointerUp={e=>{if(drag?.kind!==kind)return;const value=atPointer(e);setDrag(null);amend(field,value)}} onPointerCancel={()=>setDrag(null)}>
+ <button className="bt-ticket-drag" disabled={disabled||!movable||frame.position?.closing} title={movable?'Drag to set price':'Entry price'} aria-label={`Drag ${kind} price`} onPointerDown={e=>{if(!movable)return;e.stopPropagation();e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);latestDrag.current={kind,price:level};setDrag(latestDrag.current)}} onPointerMove={e=>{
+ const started=performance.now();try{
+ if(latestDrag.current?.kind!==kind)return;
+ let value=atPointer(e);const sign=ticket.side==='buy'?1:-1;
+ if(kind==='stop'){const edge=ticket.reference-(ticket.pending?sign*tick:0);value=sign===1?Math.min(value,edge):Math.max(value,edge)}
+ if(kind==='target')value=sign===1?Math.max(value,ticket.reference+tick):Math.min(value,ticket.reference-tick);
+ latestDrag.current={kind,price:value};
+ if(dragRaf.current==null)dragRaf.current=requestAnimationFrame(()=>{dragRaf.current=null;setDrag(latestDrag.current)});
+ }finally{recordTiming('drag move handler',started)}
+ }} onPointerUp={e=>{e.stopPropagation();if(latestDrag.current?.kind!==kind)return;cancelAnimationFrame(dragRaf.current);dragRaf.current=null;const value=latestDrag.current.price;latestDrag.current=null;const pending={kind,price:value};setPendingLevel(pending);setDrag(null);Promise.resolve(amend(field,value)).finally(()=>setPendingLevel(current=>current===pending?null:current))}} onPointerCancel={()=>{cancelAnimationFrame(dragRaf.current);dragRaf.current=null;latestDrag.current=null;setDrag(null)}}>
  <b>{kind==='entry'?`${ticket.side==='buy'?'BUY':'SELL'} ${ticket.qty}`:kind==='stop'?'SL':'TP'}</b>
- <span>{level.toFixed(2)}</span><strong>{drag?.kind===kind?(estimate==null?'…':money(estimate)):kind==='entry'?(ticket.pending?'Pending':money(frame.unrealized)):active?money(ticket[kind+'_result']):'Drag to set'}</strong>
+ <span>{level.toFixed(2)}</span><strong>{drag?.kind===kind?`${money(amount)} · ${points.toFixed(2)} pt${rr==null?'':` · ${rr.toFixed(2)}R`}`:kind==='entry'?(ticket.pending?'Pending':money(frame.unrealized)):active?money(ticket[kind+'_result']):'Drag to set'}</strong>
  </button><button disabled={disabled||frame.position?.closing} aria-label={kind==='entry'?(ticket.pending?'Cancel chart order':'Close chart position'):`Remove ${kind==='stop'?'stop loss':'take profit'}`} onClick={()=>kind==='entry'?send(ticket.pending?'cancel':'close'):amend(field,null)}>×</button>
  </div></div>})}<small className="bt-ticket-note">{ticket.pending?'Pending entry · market fill price may differ. ':''}SL/TP amounts are gross, before fees.</small></div>}
  {menu&&<div className="bt-chart-menu" role="menu" aria-label="Chart options" tabIndex={-1} ref={menuRef} style={{left:menu.x,top:menu.y}}>

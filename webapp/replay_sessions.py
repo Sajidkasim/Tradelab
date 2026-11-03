@@ -1,5 +1,6 @@
 """Private replay sessions. Hosted history is explicitly enabled and read from R2."""
 from copy import deepcopy
+from .replay_timing import timed
 from datetime import date, datetime, timezone
 from functools import lru_cache
 from hashlib import sha256
@@ -134,6 +135,7 @@ class ExportInput(BaseModel):
     entry_cursor:int=Field(ge=0)
     setup:JournalInput|None=None
 
+@timed("projection + SL/TP hit checks")
 def projection(record,data):return project(data['markets'][record['root']]['bars'],record['spec'],record['commands'])
 def snapshot(record,plan):return plan['frames'][record['cursor']-record['spec']['start_cursor']]
 def summary(record,plan):
@@ -175,7 +177,14 @@ def mount(app,config,workspace):
                 value['spec']['legacy_end_cursors']=[value['last_cursor']]
             value['spec']['close_at_end']=False
         return value
+    price_cache={}
+    @timed("read + parse history")
     def checked_data(record):
+        index=ROOT/'replay-index.db'
+        cacheable=not config.local or (index.is_file() and index.stat().st_size>1024)
+        stamp=index.stat().st_mtime_ns if index.is_file() else 0
+        identity=(record['day'],record['data_digest'],record.get('extended'),tuple((p['day'],p['digest']) for p in record.get('continuation_days',[])),stamp)
+        if cacheable and identity in price_cache:return price_cache[identity]
         try:
             old=ROOT/'replay-history'/f"{record['day']}.json"
             data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
@@ -191,6 +200,9 @@ def mount(app,config,workspace):
                 if signature!=segment['digest']:raise HTTPException(409,'Saved continuation candles changed. Restore the original data.')
                 for root,market in data['markets'].items():
                     market['bars'].extend(extra['markets'][root]['bars'])
+        if cacheable:
+            if len(price_cache)>=2:price_cache.pop(next(iter(price_cache)))
+            price_cache[identity]=data
         return data
 
     @lru_cache(maxsize=2)
@@ -208,6 +220,7 @@ def mount(app,config,workspace):
         following=next((day for day in available if day>last),None)
         # Never bridge years between isolated hosted samples as an overnight gap.
         return following if following and (date.fromisoformat(following)-date.fromisoformat(last)).days<=7 else None
+    @timed("save session including history read")
     def save(db,record,plan):
         data=checked_data(record)
         record['clock']=data['markets'][record['root']]['bars'][record['cursor']]['time']+60000
@@ -228,6 +241,8 @@ def mount(app,config,workspace):
             data={**data,'chart_context_version':2 if context.get('ny_four_hour') else 1,'markets':{root:{**market,**({'four_hour_history_ny':context['markets'][root]['four_hour_history_ny']} if context.get('ny_four_hour') else {'four_hour_history':context['markets'][root]['four_hour_history']})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
+        safe['tick_size']=INSTRUMENTS[record['instrument']].tick_size
+        safe['multiplier']=INSTRUMENTS[record['instrument']].multiplier
         return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
     def valid_cursor(record,cursor):
         if cursor<record['cursor'] or cursor>record['last_cursor']:raise HTTPException(409,'Replay only moves forward. Create a new session to restart a date.')
@@ -342,7 +357,7 @@ def mount(app,config,workspace):
                 command={'at':payload.cursor,'kind':payload.kind,'event_id':str(payload.event_id)}
                 if payload.kind in ('order','amend'):
                     if not payload.order:raise ValueError('Choose an order.')
-                    command['order']=payload.order.model_dump()
+                    command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
                 record=deepcopy(record);record['commands'].append(command);record['cursor']=payload.cursor
                 plan=projection(record,data);record['version']+=1;save(db,record,plan);app.state.workspaces.bump(member['key'])
                 return result(record,plan)

@@ -364,3 +364,39 @@ test('delete all drawings confirms once and preserves the simulated position and
  await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
  await expect(page.getByRole('group',{name:'Entry price box',exact:true})).toBeVisible();
 });
+
+test('temporary execution timing diagnosis',async({page})=>{
+ await page.addInitScript(()=>{localStorage.setItem('primus-replay-profile','1');window.__primusReplayTimings=[]});
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ const started=Date.now();await page.getByRole('button',{name:'Buy',exact:true}).click();await expect(page.getByRole('group',{name:'Pending entry price box',exact:true})).toBeVisible();const click=Date.now()-started;
+ let previews=0;page.on('request',r=>{if(r.url().includes('ticket-preview'))previews++});
+ const handle=await page.getByRole('button',{name:'Drag stop price',exact:true}).boundingBox();
+ const dragStarted=Date.now();await page.mouse.move(handle.x+20,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+20,handle.y+handle.height/2+40,{steps:100});await page.mouse.up();
+ await expect(page.getByRole('button',{name:'Remove stop loss',exact:true})).toBeEnabled();
+ const values=await page.evaluate(()=>window.__primusReplayTimings.filter(v=>v.name==='drag move handler'));
+ console.log(JSON.stringify({clickVisible_ms:click,dragComplete_ms:Date.now()-dragStarted,previewRequests:previews,pointerCount:values.length,pointerPerSecond:values.length/((Date.now()-dragStarted)/1000),pointerMean_ms:values.reduce((n,v)=>n+v.ms,0)/values.length,pointerMax_ms:Math.max(...values.map(v=>v.ms))}));
+});
+
+test('order appears before slow acknowledgement; drag keeps replay moving, Escape cancels and drop commits once',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ let acknowledged=false;
+ await page.route('**/api/backtesting/sessions/*/action',async route=>{if(route.request().postDataJSON().kind==='order'){await new Promise(r=>setTimeout(r,1000));await route.continue();acknowledged=true}else await route.continue()});
+ await page.getByRole('button',{name:'Buy',exact:true}).click();
+ await expect(page.getByRole('group',{name:'Pending entry price box',exact:true})).toBeVisible({timeout:600});expect(acknowledged).toBe(false);
+ await expect(page.getByRole('button',{name:'Next candle',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ let edits=0,previews=0;page.on('request',r=>{if(r.url().includes('ticket-preview'))previews++;if(r.url().endsWith('/action')&&r.postDataJSON().kind==='amend')edits++});
+ await page.getByRole('button',{name:'Play replay',exact:true}).click();
+ const clock=page.getByLabel('Replay time',{exact:true}),before=await clock.textContent();
+ let handle=await page.getByRole('button',{name:'Drag target price',exact:true}).boundingBox();
+ await page.mouse.move(handle.x+20,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+20,handle.y-50,{steps:30});
+ await expect(clock).not.toHaveText(before);expect(edits).toBe(0);expect(previews).toBe(0);
+ await page.keyboard.press('Escape');await page.mouse.up();expect(edits).toBe(0);
+ await page.getByRole('button',{name:'Pause replay',exact:true}).click();
+ handle=await page.getByRole('button',{name:'Drag stop price',exact:true}).boundingBox();
+ const response=page.waitForResponse(r=>r.url().endsWith('/action')&&r.request().postDataJSON().kind==='amend');
+ await page.mouse.move(handle.x+20,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+20,handle.y+60,{steps:20});await page.mouse.up();
+ expect((await response).status()).toBe(200);expect(edits).toBe(1);expect(previews).toBe(0);
+});

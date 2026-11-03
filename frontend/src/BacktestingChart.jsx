@@ -28,7 +28,13 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
   const sampleRef=useRef(sample);sampleRef.current=sample;
   const timeline=sample.markets[session.root].bars;
   const replayTime=timeline[cursor].time;
-  const frame=projection.frames[cursor-session.spec.start_cursor];
+  const confirmedFrame=projection.frames[cursor-session.spec.start_cursor];
+  const [submittingOrder,setSubmittingOrder]=useState(null);
+  const frame=submittingOrder?{...confirmedFrame,order:submittingOrder,ticket:{pending:true,reference:submittingOrder.price??timeline[cursor].close,side:submittingOrder.side,qty:submittingOrder.qty,stop_price:submittingOrder.stop??timeline[cursor].close,target_price:submittingOrder.target??timeline[cursor].close,stop_result:null,target_result:null}}:confirmedFrame;
+  async function submitAction(kind,order){
+    if(kind==='order')setSubmittingOrder({...order,submitting:true});
+    try{return await onAction(kind,order)}finally{if(kind==='order')setSubmittingOrder(null)}
+  }
   const finished=cursor===session.last_cursor;
   const lastRendered=useRef(null);
   const jumpToLatest=useRef(false);
@@ -196,15 +202,15 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
         <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
       </div>
     </header>
-    <main className="bt-canvas-area" aria-label="Backtesting chart workspace" onPointerDown={()=>setPlaying(false)}>
+    <main className="bt-canvas-area" aria-label="Backtesting chart workspace" onPointerDown={e=>{if(!e.target.closest('.bt-ticket-layer'))setPlaying(false)}}>
       <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={17}/></button>
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
       {watermark&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
-      {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={onAction} pause={()=>setPlaying(false)} onError={setError}/>}
+      {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
-    {!secondary&&<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={onAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>}
+    {!secondary&&<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>}
     <footer className="bt-statusbar">
       <div><strong title={sample.selection}>{market?.contract || symbol}</strong><span>{timeframeName}</span><span className="bt-bar-count">{bars.length.toLocaleString('en-GB')} bars</span></div>
       <time className="bt-sample" aria-label="Replay time" role="button" tabIndex={0} title="Switch clock: UTC, New York, London" onClick={()=>setClockZone(z=>REPLAY_ZONES[(REPLAY_ZONES.findIndex(x=>x.value===z)+1)%REPLAY_ZONES.length].value)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setClockZone(z=>REPLAY_ZONES[(REPLAY_ZONES.findIndex(x=>x.value===z)+1)%REPLAY_ZONES.length].value)}}} dateTime={new Date(replayTime+60000).toISOString()}>{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>

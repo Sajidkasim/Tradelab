@@ -123,3 +123,33 @@ def test_extending_an_already_completed_legacy_session_preserves_its_recorded_ex
     extended=project(later,{**SPEC,'close_at_end':False,'legacy_end_cursors':[3]},[command(0)])
     assert extended['trades']==original['trades']
     assert extended['frames'][:4]==original['frames']
+
+@pytest.mark.parametrize('side',['buy','sell'])
+def test_break_even_edit_is_future_only_and_preserves_original_risk(side):
+    entry=101
+    first_stop=98 if side=='buy' else 105
+    bars=[BARS[0],{**BARS[1],'low':100.75,'high':101.25,'close':101},
+          {**BARS[2],'open':101,'low':100,'high':102,'close':101}]
+    cmds=[command(0,side=side,stop=first_stop),{'at':1,'kind':'amend','order':{'stop':entry,'target':None}}]
+    plan=project(bars,{**SPEC,'close_at_end':False},cmds)
+    assert plan['frames'][1]['position']['stop']==entry
+    assert plan['frames'][1]['position']['original_stop']==first_stop
+    assert plan['trades'][0]['exit_cursor']==2
+    assert plan['trades'][0]['net']==-1 # break-even price still pays both commissions
+
+@pytest.mark.parametrize('side,stop',[('buy',101.25),('sell',100.75)])
+def test_edit_cannot_move_stop_to_wrong_side_of_entry(side,stop):
+    with pytest.raises(ValueError,match='loss side'):
+        project(BARS,SPEC,[command(0,side=side),{'at':1,'kind':'amend','order':{'stop':stop}}])
+
+
+def test_partial_level_edits_preserve_other_bracket_and_explicit_remove():
+    bars=[BARS[0],{**BARS[1],'low':100.75,'high':101.25,'close':101},BARS[2]]
+    commands=[command(0,stop=98,target=110),{'at':1,'kind':'amend','order':{'stop':100}},
+              {'at':1,'kind':'amend','order':{'target':112}}]
+    result=project(bars,{**SPEC,'close_at_end':False},commands)
+    assert result['frames'][1]['position']['stop']==100
+    assert result['frames'][1]['position']['target']==112
+    result=project(bars,{**SPEC,'close_at_end':False},commands+[{'at':1,'kind':'amend','order':{'stop':None}}])
+    assert result['frames'][1]['position']['stop'] is None
+    assert result['frames'][1]['position']['target']==112

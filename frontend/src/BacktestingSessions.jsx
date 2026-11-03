@@ -48,10 +48,11 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   window.addEventListener('pagehide',exit);return()=>window.removeEventListener('pagehide',exit);
  },[saving]);
  async function action(kind,order){
-  locked.current=true;setBusy(true);setSaveError('');
+  const background=kind==='amend';
+  if(!background){locked.current=true;setBusy(true)}setSaveError('');
   try{await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/action`,{method:'POST',body:{version:data.session.version,cursor:at,kind,event_id:crypto.randomUUID(),...(order?{order}: {})}});accept(reply)})}
   catch(e){setSaveError(e.message);throw e}
-  finally{locked.current=false;setBusy(false)}
+  finally{if(!background){locked.current=false;setBusy(false)}}
  }
  function continueSession(background=false){
   if(prefetch.current)return prefetch.current;
