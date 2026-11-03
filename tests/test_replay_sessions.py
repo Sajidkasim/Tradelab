@@ -270,3 +270,13 @@ def test_unfinished_legacy_sessions_upgrade_but_completed_exits_stay_unchanged(l
     record['cursor']=record['last_cursor'];db.set_setting(replay_sessions.PREFIX+sid,record)
     saved=client.get('/api/backtesting/sessions/'+sid).json()['session']['spec']
     assert saved['close_at_end'] is False and saved['legacy_end_cursors']==[record['last_cursor']]
+
+def test_compact_wire_is_opt_in_and_does_not_leak_to_legacy_requests(local,candles):
+    client,app=local;created=create(client);sid=created['session']['id']
+    compact=client.get(f'/api/backtesting/sessions/{sid}',headers={'X-Primus-Replay-Wire':'columns-v1'}).json()
+    wire=compact['projection']['frames'];assert wire['encoding']=='columns-v1'
+    assert wire['length']==len(created['projection']['frames'])
+    assert 'context' not in compact['sample']['markets']['NQ']
+    legacy=client.get(f'/api/backtesting/sessions/{sid}').json()
+    assert isinstance(legacy['projection']['frames'],list)
+    assert legacy['projection']['frames']==created['projection']['frames']

@@ -34,7 +34,7 @@ def validate_order(order, reference, spec, allow_break_even=False):
         raise ValueError('The target must be on the profit side of entry.')
     return {k:order.get(k) for k in ('side','type','qty','price','stop','target')}
 
-def project(bars, spec, commands):
+def project(bars, spec, commands, *, compact=False):
     if not bars:raise ValueError('This session has no candles.')
     instrument=INSTRUMENTS[spec['instrument']]
     capital=float(spec['capital']);fee=float(spec['commission']);slip=spec['slippage']*instrument.tick_size
@@ -43,7 +43,8 @@ def project(bars, spec, commands):
     start=spec['start_cursor']
     if not 0<=start<len(bars):raise ValueError('Invalid session start.')
     balance=capital;position=None;order=None;closing=False
-    frames=[];trades=[];fills=[];by_cursor={};previous=start
+    from .replay_frames import CompactFrames
+    frames=CompactFrames(start) if compact else [];trades=[];fills=[];by_cursor={};previous=start
     for command in commands:
         at=command['at']
         if at<previous or at>=len(bars):raise ValueError('Replay actions must be in time order.')

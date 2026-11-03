@@ -1,5 +1,8 @@
 """Private replay sessions. Hosted history is explicitly enabled and read from R2."""
 from copy import deepcopy
+from contextvars import ContextVar
+from .byte_cache import ByteCache,byte_cache
+COMPACT_WIRE=ContextVar("compact_replay_wire",default=False)
 from .replay_timing import timed
 from datetime import date, datetime, timezone
 from functools import lru_cache
@@ -7,6 +10,8 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import threading
+import asyncio
+from fastapi.responses import JSONResponse
 from typing import Literal
 from uuid import UUID, uuid4
 from fastapi import Depends, HTTPException
@@ -55,7 +60,7 @@ def _key(sid):
     try:return PREFIX+str(UUID(sid))
     except (ValueError,TypeError):raise HTTPException(404,'Session not found.') from None
 
-@lru_cache(maxsize=8)
+@byte_cache(8*1024*1024,entries=2)
 def _read(path,stamp):
     content=Path(path).read_bytes()
     return json.loads(content),sha256(content).hexdigest()
@@ -136,7 +141,7 @@ class ExportInput(BaseModel):
     setup:JournalInput|None=None
 
 @timed("projection + SL/TP hit checks")
-def projection(record,data):return project(data['markets'][record['root']]['bars'],record['spec'],record['commands'])
+def projection(record,data):return project(data['markets'][record['root']]['bars'],record['spec'],record['commands'],compact=True)
 def snapshot(record,plan):return plan['frames'][record['cursor']-record['spec']['start_cursor']]
 def summary(record,plan):
     return {k:record[k] for k in ('id','name','day','instrument','root','capital','cursor','version','created','updated')} | {
@@ -144,10 +149,22 @@ def summary(record,plan):
         'clock':record['clock'],'finished':record['cursor']==record['last_cursor']}
 
 def mount(app,config,workspace):
+    replay_gate=asyncio.Semaphore(1)
+    @app.middleware('http')
+    async def replay_wire(request,call_next):
+        heavy='/api/backtesting/sessions' in request.url.path and not any(part in request.url.path for part in ('/chart-history','/layout','/journal'))
+        if heavy:
+            try:await asyncio.wait_for(replay_gate.acquire(),timeout=15)
+            except asyncio.TimeoutError:return JSONResponse({'detail':'Replay is busy. Please retry shortly.'},status_code=503,headers={'Retry-After':'1'})
+        token=COMPACT_WIRE.set(request.headers.get('X-Primus-Replay-Wire')=='columns-v1')
+        try:return await call_next(request)
+        finally:
+            COMPACT_WIRE.reset(token)
+            if heavy:replay_gate.release()
     def database(member): return app.state.workspaces.database(member["key"])
     def local_only():
         if not config.local and not getattr(config,'replay_enabled',False):raise HTTPException(404)
-    @lru_cache(maxsize=2)
+    @byte_cache(8*1024*1024,entries=1)
     def hosted_bundle(digest):
         # Immutable prices can be shared; private session/position data is never cached here.
         from .replay_history_storage import HistoryStorage
@@ -163,7 +180,7 @@ def mount(app,config,workspace):
         return archive().manifest if archive() else json.loads(Path(config.replay_manifest).read_text())
     def history(day):
         if config.local:return load_history(day)
-        if archive():return archive().history(day)
+        if archive():return archive().execution_history(day) if COMPACT_WIRE.get() else archive().history(day)
         manifest=json.loads(Path(config.replay_manifest).read_text())
         digest=manifest['days'].get(day)
         if not digest:raise HTTPException(422,'This date is not available on the server.')
@@ -177,14 +194,15 @@ def mount(app,config,workspace):
                 value['spec']['legacy_end_cursors']=[value['last_cursor']]
             value['spec']['close_at_end']=False
         return value
-    price_cache={}
+    price_cache=ByteCache(12*1024*1024,entries=2)
     @timed("read + parse history")
     def checked_data(record):
         index=ROOT/'replay-index.db'
         cacheable=not config.local or (index.is_file() and index.stat().st_size>1024)
         stamp=index.stat().st_mtime_ns if index.is_file() else 0
-        identity=(record['day'],record['data_digest'],record.get('extended'),tuple((p['day'],p['digest']) for p in record.get('continuation_days',[])),stamp)
-        if cacheable and identity in price_cache:return price_cache[identity]
+        identity=(record['day'],record['data_digest'],record.get('extended'),tuple((p['day'],p['digest']) for p in record.get('continuation_days',[])),stamp,COMPACT_WIRE.get())
+        cached=price_cache.get(identity) if cacheable else None
+        if cached is not None:return cached
         try:
             old=ROOT/'replay-history'/f"{record['day']}.json"
             data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
@@ -193,6 +211,7 @@ def mount(app,config,workspace):
             legacy=json.loads(Path(config.replay_manifest).read_text())['days'].get(record['day'])
             if legacy==record['data_digest']:data,digest=hosted_bundle(legacy),legacy
         if digest!=record['data_digest']:raise HTTPException(409,'The candle file changed. Start a new session to use the new data.')
+        if COMPACT_WIRE.get():data={**data,'markets':{root:{'contract':market['contract'],'bars':market['bars']} for root,market in data['markets'].items()}}
         if record.get('continuation_days'):
             data={**data,'markets':{root:{**market,'bars':list(market['bars'])} for root,market in data['markets'].items()}}
             for segment in record['continuation_days']:
@@ -200,9 +219,7 @@ def mount(app,config,workspace):
                 if signature!=segment['digest']:raise HTTPException(409,'Saved continuation candles changed. Restore the original data.')
                 for root,market in data['markets'].items():
                     market['bars'].extend(extra['markets'][root]['bars'])
-        if cacheable:
-            if len(price_cache)>=2:price_cache.pop(next(iter(price_cache)))
-            price_cache[identity]=data
+        if cacheable:price_cache.put(identity,data)
         return data
 
     @lru_cache(maxsize=2)
@@ -221,29 +238,32 @@ def mount(app,config,workspace):
         # Never bridge years between isolated hosted samples as an overnight gap.
         return following if following and (date.fromisoformat(following)-date.fromisoformat(last)).days<=7 else None
     @timed("save session including history read")
-    def save(db,record,plan):
-        data=checked_data(record)
+    def save(db,record,plan,data=None):
+        if data is None:data=checked_data(record)
         record['clock']=data['markets'][record['root']]['bars'][record['cursor']]['time']+60000
         record['updated']=datetime.now(timezone.utc).isoformat()
         record['summary']=summary(record,plan)
         db.set_setting(PREFIX+record['id'],record)
-    @lru_cache(maxsize=2)
+    @byte_cache(4*1024*1024,entries=1)
     def chart_context(day,stamp):
         from .replay_index import four_hour_history
         return four_hour_history(ROOT/'replay-index.db',day)
-    def result(record,plan,data=None):
+    def result(record,plan,data=None,include_projection=True):
+        if include_projection and not COMPACT_WIRE.get() and len(plan['frames'])>20000:
+            raise HTTPException(409,'Refresh this page to load the memory-efficient replay version. Your saved session is unchanged.')
         index=ROOT/'replay-index.db'
-        if data and config.local and index.is_file():
+        if data and not COMPACT_WIRE.get() and config.local and index.is_file():
             context=chart_context(record['day'],index.stat().st_mtime_ns)
             data={**data,'chart_context_version':2,'markets':{root:{**market,**({'four_hour_history_ny':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
-        if data and not config.local and archive():
+        if data and not COMPACT_WIRE.get() and not config.local and archive():
             context=archive().history(record['day'])[0]
             data={**data,'chart_context_version':2 if context.get('ny_four_hour') else 1,'markets':{root:{**market,**({'four_hour_history_ny':context['markets'][root]['four_hour_history_ny']} if context.get('ny_four_hour') else {'four_hour_history':context['markets'][root]['four_hour_history']})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
         safe['tick_size']=INSTRUMENTS[record['instrument']].tick_size
         safe['multiplier']=INSTRUMENTS[record['instrument']].multiplier
-        return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
+        wire_plan={**plan,'frames':plan['frames'].wire() if COMPACT_WIRE.get() else list(plan['frames'])} if include_projection else None
+        return {'session':safe,'projection':wire_plan,**({'sample':data} if data else {})}
     def valid_cursor(record,cursor):
         if cursor<record['cursor'] or cursor>record['last_cursor']:raise HTTPException(409,'Replay only moves forward. Create a new session to restart a date.')
     @app.get('/api/backtesting/sessions')
@@ -276,7 +296,7 @@ def mount(app,config,workspace):
                         'extended':bool(data.get('history_version')),'instrument':payload.instrument,'root':root,'capital':round(payload.capital,2),'spec':{'capital':round(payload.capital,2),
                         'instrument':payload.instrument,'commission':payload.commission,'slippage':payload.slippage,'start_cursor':cursor,'close_at_end':False},
                         'cursor':cursor,'last_cursor':len(bars)-1,'version':0,'commands':[],'data_digest':digest,'clock':stamp,'created':now,'updated':now}
-                plan=projection(record,data);save(db,record,plan)
+                plan=projection(record,data);save(db,record,plan,data)
                 db.set_setting(INDEX,ids+[record['id']]);app.state.workspaces.bump(member['key'])
                 return result(record,plan,data)
         except ValueError as e:raise HTTPException(422,str(e)) from None
@@ -310,8 +330,8 @@ def mount(app,config,workspace):
             db=database(member);record=get_record(db,sid)
             if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
             valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
-            plan=projection(record,checked_data(record));save(db,record,plan);app.state.workspaces.bump(member['key'])
-            return {'session':result(record,plan)['session']}
+            data=checked_data(record);plan=projection(record,data);save(db,record,plan,data);app.state.workspaces.bump(member['key'])
+            return {'session':result(record,plan,include_projection=False)['session']}
     @app.post('/api/backtesting/sessions/{sid}/continue')
     def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
         local_only()
@@ -341,7 +361,7 @@ def mount(app,config,workspace):
                 record['cursor']=payload.cursor
                 record['last_cursor']=len(combined['markets'][record['root']]['bars'])-1
                 record['version']+=1
-                plan=projection(record,combined);save(db,record,plan);app.state.workspaces.bump(member['key'])
+                plan=projection(record,combined);save(db,record,plan,combined);app.state.workspaces.bump(member['key'])
                 return result(record,plan,combined)
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.post('/api/backtesting/sessions/{sid}/action')
@@ -359,7 +379,7 @@ def mount(app,config,workspace):
                     if not payload.order:raise ValueError('Choose an order.')
                     command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
                 record=deepcopy(record);record['commands'].append(command);record['cursor']=payload.cursor
-                plan=projection(record,data);record['version']+=1;save(db,record,plan);app.state.workspaces.bump(member['key'])
+                plan=projection(record,data);record['version']+=1;save(db,record,plan,data);app.state.workspaces.bump(member['key'])
                 return result(record,plan)
         except ValueError as e:raise HTTPException(422,str(e)) from None
 

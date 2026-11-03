@@ -4,6 +4,7 @@ from functools import lru_cache
 from datetime import datetime,timezone
 from services.replay_chart_history import aggregate,FIELDS
 from .replay_timing import timed
+from .byte_cache import byte_cache
 
 def _records(rows):return [dict(zip(FIELDS,row)) for row in rows]
 def _minutes(db,root,start,end):
@@ -20,7 +21,7 @@ def forming(db,root,tf,opened,cutoff):
     rows.extend(_minutes(db,root,start,cutoff));result=aggregate(rows,tf)
     return result[-1] if result else None
 
-@lru_cache(maxsize=16)
+@byte_cache(4*1024*1024,entries=8)
 @timed("indexed chart query + forming candle")
 def window(path,stamp,root,tf,before,cutoff,limit=750,after=None):
     with sqlite3.connect(path) as db:

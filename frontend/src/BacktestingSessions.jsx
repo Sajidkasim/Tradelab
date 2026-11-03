@@ -33,8 +33,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
  const list=useCallback(async()=>{setListing(await api('/backtesting/sessions'))},[]);
  async function opened(data){
-  if(data.session.next_day&&data.session.last_cursor-data.session.cursor<10000){
-   const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:10}});data={...data,...reply};
+  if(data.session.next_day&&data.session.last_cursor-data.session.cursor<3000){
+   const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:3}});data={...data,...reply};
   }
   await prepareReplayCharts(data.sample);
   const group=data.layout?.chartGroup||{};
@@ -70,11 +70,11 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   if(prefetch.current)return prefetch.current;
   if(!background){locked.current=true;setBusy(true)}
   setSaveError('');
-  const task=enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at,days:10}});await prepareReplayCharts(reply.sample);accept(reply);return reply}).catch(e=>{setSaveError(e.message);throw e}).finally(()=>{prefetch.current=null;if(!background){locked.current=false;setBusy(false)}});
+  const task=enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at,days:3}});await prepareReplayCharts(reply.sample);accept(reply);return reply}).catch(e=>{setSaveError(e.message);throw e}).finally(()=>{prefetch.current=null;if(!background){locked.current=false;setBusy(false)}});
   prefetch.current=task;return task;
  }
  useEffect(()=>{
-  if(active?.session.next_day&&active.session.last_cursor-cursor<8000&&!prefetch.current&&!saveError)continueSession(true).catch(()=>{});
+  if(active?.session.next_day&&active.session.last_cursor-cursor<2000&&!prefetch.current&&!saveError)continueSession(true).catch(()=>{});
  },[active?.sample,cursor,active?.session.next_day,saveError]);
  async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  async function remove(id,restore=false){setBusy(true);try{await api(`/backtesting/sessions/${id}${restore?'/restore':''}`,{method:restore?'POST':'DELETE'});setDeleting(null);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}

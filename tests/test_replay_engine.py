@@ -153,3 +153,12 @@ def test_partial_level_edits_preserve_other_bracket_and_explicit_remove():
     result=project(bars,{**SPEC,'close_at_end':False},commands+[{'at':1,'kind':'amend','order':{'stop':None}}])
     assert result['frames'][1]['position']['stop'] is None
     assert result['frames'][1]['position']['target']==112
+
+@pytest.mark.parametrize('side',['buy','sell'])
+def test_compact_frames_are_lossless_for_fills_edits_fees_and_snapshot_mutation(side):
+    cmds=[command(0,side=side),{'at':1,'kind':'amend','order':{'stop':100 if side=='buy' else 102}}, {'at':1,'kind':'close'}]
+    original=project(BARS,SPEC,cmds);compact=project(BARS,SPEC,cmds,compact=True)
+    assert list(compact['frames'])==original['frames']
+    assert compact['trades']==original['trades'] and compact['fills']==original['fills']
+    frame=compact['frames'][1];frame['position']['entry']=-99
+    assert compact['frames'][1]==original['frames'][1]

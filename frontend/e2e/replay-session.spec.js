@@ -1,3 +1,4 @@
+import {replayFrames} from '../src/replayFrames.js';
 import {test,expect} from '@playwright/test';
 import {existsSync} from 'node:fs';
 test.skip(!existsSync(new URL('../../data/private/backtesting-preview.json',import.meta.url)),'Prepare local Databento sample first.');
@@ -23,7 +24,7 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  const pendingStop=await page.getByRole('button',{name:'Drag stop price',exact:true}).boundingBox();
  await page.mouse.move(pendingStop.x+30,pendingStop.y+pendingStop.height/2);await page.mouse.down();await page.mouse.move(pendingStop.x+30,pendingStop.y+pendingStop.height/2+30,{steps:8});await page.mouse.up();
  const pendingReply=await pendingEdit;expect(pendingReply.status()).toBe(200);
- expect((await pendingReply.json()).projection.frames[0].order.stop).not.toBeNull();
+ expect(replayFrames((await pendingReply.json()).projection.frames)[0].order.stop).not.toBeNull();
  await page.screenshot({path:testInfo.outputPath('pending-price-boxes.png')});
  await page.getByRole('button',{name:'Remove stop loss',exact:true}).click();
  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();
@@ -37,7 +38,7 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  const handle=await stopHandle.boundingBox();
  await page.mouse.move(handle.x+30,handle.y+handle.height/2);await page.mouse.down();await page.mouse.move(handle.x+30,handle.y+handle.height/2+40,{steps:10});await page.mouse.up();
  const amendment=await amended;expect(amendment.status()).toBe(200);
- const state=await amendment.json();expect(state.projection.frames[1].position.stop).not.toBeNull();
+ const state=await amendment.json();expect(replayFrames(state.projection.frames)[1].position.stop).not.toBeNull();
  await page.screenshot({path:testInfo.outputPath('active-levels.png')});
  await page.getByRole('button',{name:'Close position',exact:true}).click();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
@@ -256,8 +257,9 @@ test('calendar refreshes stale date choices and opens a 2020 session with years 
  const response=page.waitForResponse(r=>r.url().endsWith('/api/backtesting/sessions')&&r.request().method()==='POST');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  const data=await (await response).json();expect(data.session.day).toBe('2020-06-02');
- expect(data.sample.markets.NQ.four_hour_history_ny.length).toBeGreaterThan(1000);
- expect(data.sample.markets.NQ.four_hour_history_ny[0].time).toBeLessThan(Date.UTC(2011,0,1));
+ expect(data.sample.markets.NQ.four_hour_history_ny).toBeUndefined();
+ const prior=await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${data.session.id}/chart-history?root=NQ&timeframe=240&cursor=${data.session.cursor}&before=${Date.UTC(2011,0,1)}`);
+ expect(prior.ok()).toBe(true);const earlier=await prior.json();expect(earlier.bars[0].time).toBeLessThan(Date.UTC(2011,0,1));
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await page.getByRole('button',{name:'4h',exact:true}).click();
  await expect(page.getByLabel('Replay time',{exact:true})).toContainText('2020-06-02');

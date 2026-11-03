@@ -1,3 +1,4 @@
+import {replayFrames} from './replayFrames';
 let csrf = "";
 export function setCsrf(value) {
   csrf = value || "";
@@ -15,6 +16,7 @@ export async function api(path, options = {}) {
   const form = body instanceof FormData;
   const headers = {
     "X-Primus-CSRF": csrf,
+    ...(path.startsWith("/backtesting/")?{"X-Primus-Replay-Wire":"columns-v1"}:{}),
     ...(!form && body !== undefined
       ? { "Content-Type": "application/json" }
       : {}),
@@ -41,5 +43,6 @@ export async function api(path, options = {}) {
       response.status,
     );
   }
+  if(data.projection)data.projection={...data.projection,frames:replayFrames(data.projection.frames)};
   return data;
 }

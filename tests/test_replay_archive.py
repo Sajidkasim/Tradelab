@@ -111,3 +111,11 @@ def test_hosted_chart_windows_are_paged_and_calendar_never_reveals_future():
     manifest['charts_calendar_ny']=store.add({root:[[1590962400000,100,110,90,105,100,1591048800000]] for root in ('NQ','ES')})
     result=Archive(manifest,store,'private').chart_window('NQ','1D',cut+1,cut)
     assert result['bars'][-1]['close']==103
+
+def test_execution_reader_preserves_frozen_signature_without_chart_copies():
+    store,manifest=bundles();archive=Archive(manifest,store,'private')
+    old,signature=archive.history('2020-06-02');new,new_signature=archive.execution_history('2020-06-02')
+    assert signature==new_signature
+    for root in ('NQ','ES'):
+        assert new['markets'][root]['bars']==old['markets'][root]['bars']
+        assert set(new['markets'][root])=={'contract','bars'}
