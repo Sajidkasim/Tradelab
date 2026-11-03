@@ -28,6 +28,7 @@ class Settings:
 
     replay_enabled: bool = False
     replay_manifest: str = ''
+    replay_archive_manifest: str = str(Path(__file__).with_name('replay_archive_manifest.json'))
     r2_account_id: str = ''
     r2_bucket: str = ''
     r2_access_key_id: str = field(default='', repr=False)

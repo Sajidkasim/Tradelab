@@ -75,3 +75,23 @@ day and process all intervening fills. Speed slider supports 0.25–32 steps/sec
 Clock and chart layout save per session; jump preferences save on the browser.
 An immutable two-bundle cache avoids repeat R2 downloads while saving progress;
 private session/position data is never shared through that cache.
+
+## Full cloud archive — 3 November 2026
+
+`tools/package_replay_archive.py` packages the canonical full local index into
+one immutable compressed object per trading date plus one shared daily/4H chart
+object. The archive has 5,091 dates and 52,282 completed 4H candles, approximately
+111 MB compressed. It avoids duplicating fourteen days of history in every file.
+`--reuse --upload-r2` resumes uploads, verifies every new object on read-back,
+and writes `webapp/replay_archive_manifest.json` only after all objects succeed.
+That release manifest contains dates/hashes, not credentials or candle prices.
+Docker copies it with webapp. Existing R2 credentials and hosting plan are reused.
+
+Settings.replay_archive_manifest selects this shipped v2 manifest when present.
+Hosted history assembles only fourteen earlier calendar days of minute context,
+370 days of daily context and the completed 4H prefix before the chosen date.
+Caches are bounded and contain immutable prices only. All private session APIs
+continue to enforce workspace checks, CSRF and version conflicts. The old v1
+secret manifest and objects are retained so existing session candle signatures
+and financial results remain valid; existing sessions also receive full 4H context.
+No Mac data file or running local server is needed after deployment.

@@ -1043,3 +1043,16 @@ No core formula/signature changes, broker calls, pushes or deployments.
 Validation: 328 pytest passed (5 existing warnings) in 24.54s, 35 frontend unit
 checks and build passed. Three targeted browser flows passed, including crossing
 midnight with an open position, saving/reopening it and manually closing later.
+
+## Full R2 archive release — 3 November 2026
+
+Owner explicitly requested uploading full history and fixing hosted/local parity.
+New webapp.replay_archive reads bounded gzip chunks with SHA-256 and 12 MB
+uncompressed limits. tools/package_replay_archive.py builds canonical per-day
+chunks from active_contracts and shared daily/4H context, then uploads with
+read-back checks before publishing the shipped hash-only manifest. Old v1 price
+bundles stay available for frozen existing session signatures. Hosted results now
+include earlier 4H context as local results do; saved journal setup dropdowns use
+the same already-shipped private Lab catalogue. The archive is about 111 MB.
+Full tests: 330 passed, 5 existing warnings in 22.05s; 35 frontend checks and build
+passed. No core formulas or broker integration changed. See REPLAY_DEPLOYMENT.

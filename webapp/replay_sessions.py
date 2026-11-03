@@ -148,8 +148,17 @@ def mount(app,config,workspace):
         from .replay_history_storage import HistoryStorage
         connection=app.state.image_storage
         return HistoryStorage(ROOT,connection.client,config.r2_bucket).read(digest)
+    @lru_cache(maxsize=1)
+    def archive():
+        path=Path(getattr(config,'replay_archive_manifest',''))
+        if config.local or not path.is_file():return None
+        from .replay_archive import Archive
+        return Archive(json.loads(path.read_text()),app.state.image_storage.client,config.r2_bucket)
+    def available_manifest():
+        return archive().manifest if archive() else json.loads(Path(config.replay_manifest).read_text())
     def history(day):
         if config.local:return load_history(day)
+        if archive():return archive().history(day)
         manifest=json.loads(Path(config.replay_manifest).read_text())
         digest=manifest['days'].get(day)
         if not digest:raise HTTPException(422,'This date is not available on the server.')
@@ -168,6 +177,9 @@ def mount(app,config,workspace):
             old=ROOT/'replay-history'/f"{record['day']}.json"
             data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
         except (ValueError,OSError):raise HTTPException(422,'The saved candle file is unavailable. Restore the local data before reopening this session.') from None
+        if digest!=record['data_digest'] and not config.local:
+            legacy=json.loads(Path(config.replay_manifest).read_text())['days'].get(record['day'])
+            if legacy==record['data_digest']:data,digest=hosted_bundle(legacy),legacy
         if digest!=record['data_digest']:raise HTTPException(409,'The candle file changed. Start a new session to use the new data.')
         if record.get('continuation_days'):
             data={**data,'markets':{root:{**market,'bars':list(market['bars'])} for root,market in data['markets'].items()}}
@@ -189,7 +201,7 @@ def mount(app,config,workspace):
         index=ROOT/'replay-index.db'
         if config.local:
             available=indexed_dates(str(index),index.stat().st_mtime_ns) if index.is_file() else []
-        else:available=sorted(json.loads(Path(config.replay_manifest).read_text())['days'])
+        else:available=sorted(available_manifest()['days'])
         following=next((day for day in available if day>last),None)
         # Never bridge years between isolated hosted samples as an overnight gap.
         return following if following and (date.fromisoformat(following)-date.fromisoformat(last)).days<=7 else None
@@ -208,6 +220,9 @@ def mount(app,config,workspace):
         if data and config.local and index.is_file():
             context=chart_context(record['day'],index.stat().st_mtime_ns)
             data={**data,'chart_context_version':1,'markets':{root:{**market,**({'four_hour_history':context[root]} if root in context else {})} for root,market in data['markets'].items()}}
+        if data and not config.local and archive():
+            context=archive().history(record['day'])[0]
+            data={**data,'chart_context_version':1,'markets':{root:{**market,'four_hour_history':context['markets'][root]['four_hour_history']} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
         return {'session':safe,'projection':plan,**({'sample':data} if data else {})}
@@ -221,8 +236,8 @@ def mount(app,config,workspace):
             rows=[db.get_setting(PREFIX+sid) for sid in db.get_setting(INDEX,[])]
             available=catalog()
             if not config.local:
-                days=sorted(json.loads(Path(config.replay_manifest).read_text())['days'])
-                if days:available.update(first_day=days[0],last_day=days[-1],sample_day=days[-1],available_days=days)
+                days=sorted(available_manifest()['days'])
+                if days:available.update(first_day=days[0],last_day=days[-1],sample_day=days[-1],available_days=days,**({'indexed_days':len(days)} if archive() else {}))
             return {'sessions':[row['summary'] for row in reversed(rows) if row and not row.get('deleted')], 'deleted':[row['summary'] for row in reversed(rows) if row and row.get('deleted')], 'history':available}
     @app.post('/api/backtesting/sessions')
     def create(payload:SessionInput,member=Depends(workspace)):
