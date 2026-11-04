@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useState } from "react";
+import preview from "../../assets/brain-preview.png";
 const Viewer = lazy(() => import("./AnatomyViewer"));
 export default function AnatomyExplorer(props) {
   const [load, setLoad] = useState(false);
@@ -14,6 +15,19 @@ export default function AnatomyExplorer(props) {
     </Suspense>
   ) : (
     <div className="anatomy-loading">
+      <button
+        className="anatomy-preview"
+        aria-label="Explore the anatomical brain in 3D"
+        onClick={() => setLoad(true)}
+      >
+        <img
+          src={preview}
+          alt="Anatomical brain with the frontal pole highlighted"
+        />
+        <span>
+          Open the 3D explorer <span aria-hidden="true">↗</span>
+        </span>
+      </button>
       <span className="pt-overline">HUMAN REFERENCE ATLAS / 3D</span>
       <h3>Explore beneath the surface.</h3>
       <p>

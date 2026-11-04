@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, createContext, useContext, useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
-import TermHelp from './TermHelp';
 import LearningTrail from './LearningTrail';
 import JournalPage from './JournalPage';
 import { api, setCsrf } from './api';
@@ -40,7 +39,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/market-lab" aria-current={active==='market-lab'?'page':undefined}>Market Lab (Beta)</a>
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
-    <TermHelp/></nav>
+    </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
   </header><LearningTrail/></>;
 }

@@ -165,3 +165,17 @@ browser flows, six backend/package checks and production build passed. The final
 viewer sizing/zoom/mobile and saved-progress flows passed again after visual
 review. Local preview restarted on 8132 with its existing database. No commit,
 push or deployment performed.
+
+## Visual refinements — 4 November 2026
+
+Removed the quick Glossary button from shared navigation. Definitions remain in
+Learn and on relevant Market Lab metrics. Learn's four guides now have small
+interactive SVG illustrations (candle components, planned trade levels, testing
+sequence and review context); these are explicitly illustrative, not data or
+calculated results. Captions follow accessible label selections. The anatomical
+viewer has a 135 KB locally rendered preview with a click-to-open overlay, using
+the existing attributed HRA geometry. Full model loading remains opt-in. Subtle
+hover/entry transitions respect reduced motion; no idle animation loop was added.
+Visual refinement checks: 71 frontend unit tests, six focused browser flows,
+production build and diff checks passed. The guide browser test explicitly opens
+its target lesson so saved progress does not change the test's starting point.

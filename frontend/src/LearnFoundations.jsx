@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowUpRight, BookOpen, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 import { STARTER_GUIDES, GLOSSARY, searchGlossary } from "./learningContent";
 import "./learn-foundations.css";
+import TermHelp from "./TermHelp";
+import GuideVisual from "./GuideVisual";
 import { api } from "./api";
 export default function LearnFoundations({ identity }) {
   const requested = new URLSearchParams(location.search).get("lesson");
@@ -130,9 +132,9 @@ export default function LearnFoundations({ identity }) {
             </span>
             <h3 id="learn-guide-title">{guide.title}</h3>
             <p>{guide.summary}</p>
-            <BookOpen size={42} strokeWidth={1} aria-hidden="true" />
+            <GuideVisual key={guide.id} guide={guide.id} />
           </div>
-          <div className="learn-guide-body">
+          <div className="learn-guide-body" key={guide.id}>
             <p>{guide.body}</p>
             <aside>
               <span>TRY THIS NEXT</span>
@@ -197,6 +199,7 @@ export default function LearnFoundations({ identity }) {
             <span className="pt-overline">THE WORDS BEHIND THE CHART</span>
             <h2 id="glossary-title">A little less jargon.</h2>
             <p>Quick definitions to keep beside your research.</p>
+            <TermHelp />
           </div>
           <label className="glossary-search">
             <Search size={16} aria-hidden="true" />
