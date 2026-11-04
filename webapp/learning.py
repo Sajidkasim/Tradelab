@@ -13,6 +13,13 @@ from .daily_journal import compress, MAX_UPLOAD
 CONTENT='primus_resources_v1'
 PUBLISHERS='primus_publishers_v1'
 BOARD='primus_vision_v1'
+PROGRESS='primus_learning_progress_v1'
+GUIDES=Literal['chart','risk','test','review']
+
+class LearningProgress(StrictModel):
+    last:GUIDES='chart'
+    completed:list[GUIDES]=Field(default_factory=list,max_length=4)
+
 IMAGE_DAY='2000-01-01'  # Reuses the existing private object store, never Journal entries.
 CATEGORIES={'learn':['Chart basics','Strategy rules','Risk management','Backtesting','Journaling'], 'mindset':['Patience','Fear of missing out','Loss aversion','Following a plan']}
 
@@ -124,6 +131,15 @@ def mount(app,config,workspace):
             allowed=set(root().get_setting(PUBLISHERS,[]));allowed.add(account_id) if payload.allowed else allowed.discard(account_id)
             root().set_setting(PUBLISHERS,sorted(allowed))
         return {'saved':True}
+    @app.get('/api/learning-progress')
+    def get_progress(member=Depends(workspace)):
+        with app.state.workspaces.lock:return personal(member).get_setting(PROGRESS,{'last':'chart','completed':[]})
+    @app.put('/api/learning-progress')
+    def save_progress(payload:LearningProgress,member=Depends(workspace)):
+        value={**payload.model_dump(),'completed':list(dict.fromkeys(payload.completed))}
+        with app.state.workspaces.lock:
+            personal(member).set_setting(PROGRESS,value);app.state.workspaces.bump(member['key'])
+        return value
     @app.get('/api/vision-board')
     def board(member=Depends(workspace)):
         with app.state.workspaces.lock:return personal(member).get_setting(BOARD,[])

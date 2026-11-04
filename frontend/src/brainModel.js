@@ -1,5 +1,6 @@
 // Small, original procedural illustration; approximate regions, not an anatomy scan.
 export const BRAIN_REGIONS = [
+ {id:"caudate",short:"Caudate",name:"Caudate nucleus",color:"#edce7f",point:[.1,.05,.15],eyebrow:"Learning & action selection",title:"Notice the repeated response.",body:"The caudate is part of the striatum within the basal ganglia. These connected circuits contribute to learning and selecting actions, alongside cortical and other brain regions.",prompt:"What familiar cue led to the action, and what alternative could you plan?",view:"inside"},
   {
     id: "pfc",
     short: "PFC",

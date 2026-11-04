@@ -1,6 +1,8 @@
 import React, { lazy, Suspense, createContext, useContext, useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
+import TermHelp from './TermHelp';
+import LearningTrail from './LearningTrail';
 import JournalPage from './JournalPage';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
@@ -26,7 +28,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
   const [member,setMember]=useState(null);
   useEffect(()=>{if(actions)return;let active=true;api('/session').then(value=>{if(active){setMember(value);setCsrf(value.csrf)}}).catch(()=>{});return()=>{active=false}},[Boolean(actions)]);
   async function signOut(){try{await api('/logout',{method:'POST'});location.assign('/')}catch{location.assign('/lab')}}
-  return <header className={`pt-header ${actions ? "has-tools" : ""}`}>
+  return <><header className={`pt-header ${actions ? "has-tools" : ""}`}>
     <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={29} strokeWidth={1.2}/><span>PRIMUS<span>TRADER</span></span></a>
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
     <nav className={open?'is-open':''} aria-label="Primus navigation">
@@ -38,9 +40,9 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/market-lab" aria-current={active==='market-lab'?'page':undefined}>Market Lab (Beta)</a>
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
-    </nav>
+    <TermHelp/></nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
-  </header>;
+  </header><LearningTrail/></>;
 }
 
 const traders = [

@@ -133,3 +133,35 @@ production build / git diff checks passed. Browser coverage includes pointer and
 keyboard rotation, reset, idle stability, inside-region selection, glossary search,
 phone/dark layouts, existing resource publishing and private-board persistence.
 No commit, push or deployment performed.
+
+## Connected journey and anatomical viewer — 4 November 2026
+
+Learn guides now remember the last opened guide and optional completions in the
+current user's existing settings (`primus_learning_progress_v1`). Authenticated
+GET/PUT routes validate guide IDs and remain workspace/CSRF scoped. Anonymous
+visits can read guides but do not persist progress. Guide links carry a public
+lesson ID to practice and Journal; a small trail links Read / Practise / Reflect.
+It does not create trades or Journal entries automatically. Quick glossary is
+available through the shared header, and research metric labels open definitions.
+
+Mindset has three situation cards (missed move, consecutive losses, breaking a
+plan), original reflection steps, and links to comfortable breathing/Journal.
+Region explanations distinguish anatomy from self-reported feelings. No brain
+state is measured or diagnosed; psychology guidance links to NIMH/NHS sources.
+
+The detailed atlas uses the CC BY 4.0 Human Reference Atlas female brain v1.3,
+with original rendering/UI, not Neurotorium assets. Attribution/provenance:
+`docs/licenses/HRA-BRAIN.md`. A new lazy Three.js module loads the 12 MB asset
+only on an explicit click. Rotation, zoom, reset, hemisphere selection and outer
+opacity are supported, with a lightweight fallback for unavailable WebGL.
+PFC highlights frontal pole as an explicit landmark, not a claimed full PFC
+segmentation. Amygdala, hippocampus and caudate use the model's named structures.
+Materials/geometry/controls/renderer are disposed on unmount; rendering is demand
+driven. No AI requests or new server services are added. Model bytes are public
+educational assets and are bundled into the existing Docker frontend build.
+
+Validation for the connected journey: 71 frontend unit checks, nine workspace
+browser flows, six backend/package checks and production build passed. The final
+viewer sizing/zoom/mobile and saved-progress flows passed again after visual
+review. Local preview restarted on 8132 with its existing database. No commit,
+push or deployment performed.

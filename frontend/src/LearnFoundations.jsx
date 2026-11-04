@@ -1,9 +1,80 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ArrowUpRight, BookOpen, Search } from "lucide-react";
 import { STARTER_GUIDES, GLOSSARY, searchGlossary } from "./learningContent";
 import "./learn-foundations.css";
-export default function LearnFoundations() {
-  const [guideId, setGuideId] = useState("chart"),
+import { api } from "./api";
+export default function LearnFoundations({ identity }) {
+  const requested = new URLSearchParams(location.search).get("lesson");
+  const initial = STARTER_GUIDES.some((g) => g.id === requested)
+    ? requested
+    : "chart";
+  const [progress, setProgress] = useState({ last: initial, completed: [] }),
+    [saved, setSaved] = useState(false),
+    [saveError, setSaveError] = useState("");
+  const latest = useRef({ last: initial, completed: [] }),
+    generation = useRef(0);
+  const [ready, setReady] = useState(false);
+  const queue = useRef(Promise.resolve()),
+    touched = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    generation.current++;
+    touched.current = false;
+    setReady(false);
+    latest.current = { last: initial, completed: [] };
+    setSaved(false);
+    setProgress({ last: initial, completed: [] });
+    if (identity?.authenticated)
+      api("/learning-progress")
+        .then((p) => {
+          if (alive) {
+            latest.current = p;
+            setProgress(p);
+            setReady(true);
+            if (!touched.current) setGuideId(requested ? initial : p.last);
+          }
+        })
+        .catch((e) => {
+          if (alive) setSaveError(e.message);
+        });
+    return () => {
+      alive = false;
+    };
+  }, [identity]);
+  function remember(id, complete) {
+    touched.current = true;
+    setGuideId(id);
+    setSaved(false);
+    setSaveError("");
+    if (identity?.authenticated && !ready) return;
+    const previous = latest.current;
+    {
+      const next = {
+        last: id,
+        completed: complete
+          ? previous.completed.includes(id)
+            ? previous.completed.filter((x) => x !== id)
+            : [...previous.completed, id]
+          : previous.completed,
+      };
+      latest.current = next;
+      setProgress(next);
+      const epoch = generation.current;
+      if (identity?.authenticated)
+        queue.current = queue.current
+          .catch(() => {})
+          .then(() => {
+            if (epoch === generation.current)
+              return api("/learning-progress", { method: "PUT", body: next });
+          })
+          .then(() => {
+            if (epoch === generation.current) setSaved(true);
+          })
+          .catch((e) => setSaveError(e.message));
+    }
+  }
+
+  const [guideId, setGuideId] = useState(initial),
     [query, setQuery] = useState("");
   const guide = STARTER_GUIDES.find((g) => g.id === guideId),
     terms = searchGlossary(query);
@@ -25,16 +96,25 @@ export default function LearnFoundations() {
             want to understand today.
           </p>
         </header>
+        <p className="wp-footnote">
+          {identity?.authenticated
+            ? `Your place is saved privately · ${progress.completed.length} of 4 guides complete`
+            : "Sign in to remember your place across visits."}
+        </p>
+        {saveError && <p role="alert">Could not save progress: {saveError}</p>}
         <div className="learn-path" role="group" aria-label="Trading basics">
           {STARTER_GUIDES.map((g) => (
             <button
               key={g.id}
-              onClick={() => setGuideId(g.id)}
+              onClick={() => remember(g.id, false)}
               aria-pressed={guideId === g.id}
               aria-controls="learn-guide"
             >
               <span>{g.step}</span>
-              <strong>{g.label}</strong>
+              <strong>
+                {g.label}
+                {progress.completed.includes(g.id) ? " ✓" : ""}
+              </strong>
               <ArrowUpRight size={16} />
             </button>
           ))}
@@ -58,9 +138,26 @@ export default function LearnFoundations() {
               <span>TRY THIS NEXT</span>
               <p>{guide.exercise}</p>
             </aside>
-            <a className="button" href={guide.link}>
+            <div className="settings-actions">
+              <button
+                className="button"
+                aria-pressed={progress.completed.includes(guide.id)}
+                onClick={() => remember(guide.id, true)}
+              >
+                {progress.completed.includes(guide.id)
+                  ? "Completed ✓ — undo"
+                  : "Mark guide complete"}
+              </button>
+            </div>
+            <p className="wp-footnote" role="status">
+              {saved ? "Progress saved privately." : "Completion is optional."}
+            </p>
+            <a className="button" href={`${guide.link}?lesson=${guide.id}`}>
               {guide.action}
               <ArrowUpRight size={15} />
+            </a>
+            <a href={`/journal?lesson=${guide.id}`}>
+              Reflect on this lesson in Journal ↗
             </a>
           </div>
         </article>

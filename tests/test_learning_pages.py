@@ -85,3 +85,17 @@ def test_new_site_routes_and_signin_returns(draft):
     csrf(client)
     for page in ('/learn','/market-lab','/mindset'):
         assert client.post('/api/login/google?return_to='+page).status_code==200
+
+
+def test_learning_progress_is_private_validated_and_survives_requests(draft):
+    client,app,state=draft
+    assert client.get('/api/learning-progress').status_code==401
+    login(client,state)
+    assert client.put('/api/learning-progress',json={'last':'risk','completed':['chart']}).status_code==200
+    assert client.get('/api/learning-progress').json()=={'last':'risk','completed':['chart']}
+    assert client.put('/api/learning-progress',json={'last':'bad','completed':[]}).status_code==422
+    login(client,state,'friend@example.com','friend-sub')
+    assert client.get('/api/learning-progress').json()=={'last':'chart','completed':[]}
+    assert client.put('/api/learning-progress',json={'last':'test','completed':['test','test']}).json()['completed']==['test']
+    login(client,state)
+    assert client.get('/api/learning-progress').json()=={'last':'risk','completed':['chart']}

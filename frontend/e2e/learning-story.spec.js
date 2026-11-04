@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 const origin='http://127.0.0.1:8119';
 test('Mindset brain is interactive by region, pointer and keyboard with no animation while idle',async({page},info)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(origin+'/mindset');
- const canvas=page.getByRole('img',{name:/Rotatable schematic brain/});await expect(canvas).toBeVisible();
+ await page.getByText('Open lightweight illustration',{exact:true}).click();const canvas=page.getByRole('img',{name:/Rotatable schematic brain/});await expect(canvas).toBeVisible();
  const before=await canvas.evaluate(el=>el.toDataURL());
  await page.getByRole('button',{name:'Rotate brain right',exact:true}).click();await expect.poll(()=>canvas.evaluate(el=>el.toDataURL())).not.toBe(before);
  await canvas.focus();await page.keyboard.press('ArrowLeft');await page.getByRole('button',{name:'Reset brain view',exact:true}).click();await expect.poll(()=>canvas.evaluate(el=>el.toDataURL())).toBe(before);

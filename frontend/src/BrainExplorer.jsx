@@ -9,6 +9,7 @@ import {
   rotatePoint,
 } from "./brainModel";
 import "./brain-explorer.css";
+import AnatomyExplorer from "./AnatomyExplorer";
 
 function BrainScene({ selected, inside, onSelect }) {
   const canvas = useRef(null),
@@ -242,7 +243,14 @@ export default function BrainExplorer() {
         </p>
       </header>
       <div className="brain-explorer">
-        <BrainScene selected={selected} inside={inside} onSelect={select} />
+        <AnatomyExplorer
+          selected={selected}
+          inside={inside}
+          onSelect={select}
+          fallback={
+            <BrainScene selected={selected} inside={inside} onSelect={select} />
+          }
+        />
         <div className="brain-reading">
           <div className="brain-tabs" role="group" aria-label="Brain regions">
             {BRAIN_REGIONS.map((r) => (
@@ -267,6 +275,29 @@ export default function BrainExplorer() {
             <h3>{region.title}</h3>
             <strong>{region.name}</strong>
             <p>{region.body}</p>
+            <details className="brain-psychology">
+              <summary>Emotion, habits & a practical response</summary>
+              <p>
+                {
+                  {
+                    pfc: "Attention and planning can be harder when you feel under pressure or tired. Use a written checklist to reduce how much you have to remember in the moment. This is a process aid, not a way to switch a region on.",
+                    amygdala:
+                      "Threat, uncertainty and emotionally important outcomes involve many connected regions. When urgency appears, name what you feel, take a comfortable pause, and separate the observed setup from the outcome you hope for.",
+                    hippocampus:
+                      "Memory provides context, but one vivid win or loss is a small sample. Record the current setup before comparing it with your recent experience.",
+                    caudate:
+                      "The caudate participates in circuits for learning and action selection. Habitual reactions are not located in one structure alone. Write a specific alternative action for a familiar cue, such as reviewing the checklist before reopening the order panel.",
+                  }[selected]
+                }
+              </p>
+              <a
+                href="https://www.nimh.nih.gov/health/topics/caring-for-your-mental-health"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Self-care guidance · NIMH ↗
+              </a>
+            </details>
             <div className="brain-prompt">
               <span>A QUESTION FOR YOUR NEXT SESSION</span>
               <p>{region.prompt}</p>
