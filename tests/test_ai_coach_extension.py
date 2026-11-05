@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 
 import pandas as pd
@@ -126,7 +127,7 @@ def test_aura_logs_gemini_status_without_private_error_body(monkeypatch, capsys)
 
     monkeypatch.setattr(ai_coach.requests, "post", post)
     result = ai_coach.aura_coach({"database": None, "account": None, "trader_name": "Trader"}, model="ignored")
-    assert result == ai_coach.REVIEW_ERROR
+    assert result == "Gemini is temporarily unavailable. Try again shortly."
     assert capsys.readouterr().out == "Gemini API Error: HTTP 503 UNAVAILABLE\n"
 
 
@@ -141,3 +142,8 @@ def test_aura_passes_a_private_question_to_the_provider(draft, monkeypatch):
     assert client.post(url, json={"question": "a" * 1001}).status_code == 422
     response = client.post(url, json={"question": "  Why did my entry matter?  "})
     assert response.json() == {"markdown": "Why did my entry matter?"}
+
+
+def test_aura_answers_greeting_without_gemini(monkeypatch):
+    monkeypatch.setattr(ai_coach, "load_dotenv", lambda: pytest.fail("Greeting should stay local"))
+    assert ai_coach.aura_coach({"question": "Hello!"}).startswith("Hey!")

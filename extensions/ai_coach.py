@@ -142,7 +142,14 @@ def _generate(key, model, brief, tools):
             # Google error messages may echo submitted content. Log only the HTTP and canonical API status.
             status = status if isinstance(status, str) and re.fullmatch(r"[A-Z_]{1,40}", status) else ""
             print(f"Gemini API Error: HTTP {response.status_code} {status}".rstrip(), flush=True)
+            if response.status_code == 429:
+                return "Gemini has reached a usage limit. Try again later."
+            if response.status_code == 503:
+                return "Gemini is temporarily unavailable. Try again shortly."
             return REVIEW_ERROR
+        except requests.Timeout:
+            print("Gemini API Error: request timed out", flush=True)
+            return "Gemini took too long to reply. Please try again."
         except (requests.RequestException, ValueError) as error:
             print(f"Gemini API Error: {type(error).__name__}", flush=True)
             return REVIEW_ERROR
@@ -176,13 +183,15 @@ def _generate(key, model, brief, tools):
 
 def aura_coach(briefing_data, model=None, system=None, user=None):
     """Accept a Journal briefing or the registry's documented four arguments."""
+    brief = user if user is not None else briefing_data
+    if isinstance(brief, dict) and re.fullmatch(r"(hi|hello|hey)[!. ]*", brief.get("question", "").strip(), re.I):
+        return "Hey! Ask me about your entries, risk, or anything you noticed in this session."
     load_dotenv()
     key = os.getenv("COACH_API_KEY")
     if not key:
         return "Aura is unavailable until COACH_API_KEY is configured."
     model_name = os.getenv("COACH_GEMINI_MODEL", "gemini-3.8-flash")
     try:
-        brief = user if user is not None else briefing_data
         if not isinstance(brief, dict) or "database" not in brief:
             from ui import access, state
 
