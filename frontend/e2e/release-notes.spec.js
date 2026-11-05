@@ -14,8 +14,12 @@ test('release notes can be reopened, fit phones, and remain dismissed after relo
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'What’s new',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
-  await expect(dialog).toContainText('3 November 2026');
-  await expect(dialog).toContainText('Your trade notes are protected');
+  await expect(dialog).toContainText('5 November 2026');
+  await expect(dialog).toContainText('Journal accounts and equity');
+  await expect(dialog).toContainText('Drawings stay anchored');
+  await expect(dialog).toContainText('Search the Learn glossary');
+  await expect(dialog).toContainText('Learn and Market Lab guidance');
+  await expect(dialog).toContainText('Mindset brain explorer');
   await expect(dialog).toContainText('Backtesting is still in beta');
   expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath(`release-notes-${width}.png`)});
