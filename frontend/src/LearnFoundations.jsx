@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, BookOpen, Search } from "lucide-react";
 import { STARTER_GUIDES, GLOSSARY, searchGlossary } from "./learningContent";
 import "./learn-foundations.css";
-import TermHelp from "./TermHelp";
-import GuideVisual from "./GuideVisual";
 import { api } from "./api";
 export default function LearnFoundations({ identity }) {
   const requested = new URLSearchParams(location.search).get("lesson");
@@ -132,9 +130,9 @@ export default function LearnFoundations({ identity }) {
             </span>
             <h3 id="learn-guide-title">{guide.title}</h3>
             <p>{guide.summary}</p>
-            <GuideVisual key={guide.id} guide={guide.id} />
+            <BookOpen size={42} strokeWidth={1} aria-hidden="true" />
           </div>
-          <div className="learn-guide-body" key={guide.id}>
+          <div className="learn-guide-body">
             <p>{guide.body}</p>
             <aside>
               <span>TRY THIS NEXT</span>
@@ -199,7 +197,6 @@ export default function LearnFoundations({ identity }) {
             <span className="pt-overline">THE WORDS BEHIND THE CHART</span>
             <h2 id="glossary-title">A little less jargon.</h2>
             <p>Quick definitions to keep beside your research.</p>
-            <TermHelp />
           </div>
           <label className="glossary-search">
             <Search size={16} aria-hidden="true" />
@@ -215,17 +212,22 @@ export default function LearnFoundations({ identity }) {
         <p className="glossary-count" role="status">
           {terms.length} of {GLOSSARY.length} terms
         </p>
-        <div className="glossary-grid">
-          {terms.map(([term, meaning]) => (
-            <details key={term}>
-              <summary>
-                {term}
-                <span aria-hidden="true">+</span>
-              </summary>
-              <p>{meaning}</p>
-            </details>
-          ))}
-        </div>
+        {Object.entries(terms.reduce((groups, entry) => {
+          (groups[entry[2] || "Other"] ??= []).push(entry);
+          return groups;
+        }, Object.create(null))).sort(([a], [b]) => a.localeCompare(b)).map(([category, entries]) => (
+          <section className="glossary-category" key={category} aria-label={category}>
+            <h3>{category}</h3>
+            <div className="glossary-grid">
+              {entries.map(([term, meaning]) => (
+                <details key={term}>
+                  <summary>{term}<span aria-hidden="true">+</span></summary>
+                  <p>{meaning}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        ))}
         {!terms.length && (
           <p className="wp-empty">
             No terms match. Try a shorter word or clear your search.

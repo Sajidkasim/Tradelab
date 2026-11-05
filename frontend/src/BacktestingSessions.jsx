@@ -6,6 +6,7 @@ import {PrimusHeader} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
 import BacktestingChart from './BacktestingChart';
 import Feedback from './Feedback';
+import compassLogo from '../../assets/primus-compass.png';
 import {prepareReplayCharts} from './prepareReplayCharts';
 import './backtesting.css';
 import {changePane,toggleIntervalSync} from './replayPreferences';
@@ -14,6 +15,16 @@ const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',ho
 
 export default function BacktestingSessions({theme,onThemeToggle}) {
  const [identity,setIdentity]=useState(null);
+ const [opening,setOpening]=useState(false);
+ const [renderedPanes,setRenderedPanes]=useState({});
+ const reportReady=useCallback(id=>setRenderedPanes(panes=>panes[id]?panes:{...panes,[id]:true}),[]);
+ const drawingTool=useRef(null);
+ const selectDrawingTool=useCallback((type)=>{
+  drawingTool.current=type;
+  for(const chart of Object.values(chartInstances.current)){
+   if(chart&&chart.drawings.getTool()!==type)chart.drawings.setTool(type);
+  }
+ },[]);
  const [listing,setListing]=useState(null),[active,setActive]=useState(null),[cursor,setCursor]=useState(0);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null);
  const [selectedSessions,setSelectedSessions]=useState([]);
@@ -40,6 +51,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
    const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:3}});data={...data,...reply};
   }
   await prepareReplayCharts(data.sample);
+  setRenderedPanes({});
+  drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
   setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.layout?.symbol||data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.layout_secondary?.symbol||'ES',timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
   setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}`)
@@ -82,20 +95,27 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  function confirmDelete(items){setError('');setPurging(items);setPurgeName('')}
  async function purge(){setBusy(true);setError('');try{await api('/backtesting/sessions/delete',{method:'POST',body:{ids:purging.map(item=>item.id),confirmation:purgeName}});setPurging(null);setPurgeName('');setSelectedSessions([]);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function resume(id){setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`))}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function resume(id){setOpening(true);setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`))}catch(e){setError(e.message);setOpening(false)}finally{setBusy(false)}}
  async function create(event){event.preventDefault();setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function newSession(){setError('');setBusy(true);try{const fresh=await api('/backtesting/sessions');setListing(fresh);setForm({name:'',day:fresh.history.sample_day,start_time:'13:30',instrument:'NQ',capital:50000,commission:fresh.history.instruments.find(x=>x.symbol==='NQ')?.commission??0.5,slippage:0})}catch(e){setError(e.message)}finally{setBusy(false)}}
  function change(field,value){setForm(f=>({...f,[field]:value}))}
+ const initialChartsReady=Boolean(active&&renderedPanes.primary&&(!twoCharts||renderedPanes.secondary));
+ useEffect(()=>{if(initialChartsReady)setOpening(false)},[initialChartsReady]);
+ const loading=<div className="loading-screen pt-loading" role="status" aria-live="polite">
+  <div className="pt-loading-logo"><img src={compassLogo} alt="Primus compass"/><span aria-hidden="true"/></div>
+  <h1>Primus Trader</h1><p>Opening your replay session…</p>
+ </div>;
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
+ if(opening&&!active)return loading;
  if(active){
-  const common={owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
-  return <div className="backtesting-workspace bt-layout">
+  const common={reportReady,drawingTool,selectDrawingTool,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div className={twoCharts?'bt-panes bt-panes-split':'bt-panes'}>
     {chartWorkspace.charts.filter(pane=>pane.id==='primary'||twoCharts).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id==='secondary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>layoutSavers.current[pane.id==='primary'?'secondary':'primary']?.()||Promise.resolve()}/>)}
    </div>
    <div className="bt-shared-playback" ref={setControlsHost}/>
-  </div>;
+  </div></>;
  }
 
  return <div className="pt-site"><PrimusHeader active="backtesting" actions={<span className="bt-local-label">{identity?.local?'Local practice':'Private practice'}</span>}/><main className="pt-wrap bt-sessions-page">

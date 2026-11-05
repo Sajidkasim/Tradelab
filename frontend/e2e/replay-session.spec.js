@@ -76,7 +76,14 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  await expect(page.getByRole('heading',{name:'Your practice desk.',exact:true})).toBeVisible();
  const card=page.locator('.bt-session-card').filter({hasText:'Morning practice'});
  await expect(card).toContainText('Starting capital $10,000.00');
+ let releaseResume;
+ const resumeGate = new Promise(resolve => { releaseResume = resolve });
+ const resumeURL = '**/api/backtesting/sessions/*';
+ await page.route(resumeURL, async route => { await resumeGate; await route.continue() }, {times:1});
  await card.getByRole('button',{name:'Resume',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Primus Trader',exact:true})).toBeVisible();
+ await expect(page.locator('.replay-chart')).toHaveCount(0);
+ releaseResume();
  await expect(page.getByLabel('Replay time',{exact:true})).toHaveText(savedClock);
  await page.reload();
  await expect(page.getByLabel('Replay time',{exact:true})).toHaveText(savedClock);
@@ -509,6 +516,33 @@ test('one toolbar targets the active pane, retains both charts and restores spli
  const first=page.locator('[data-pane-id="primary"]'),second=page.locator('[data-pane-id="secondary"]');
  await expect(second.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByRole('group',{name:'Chart timeframe',exact:true})).toHaveCount(1);
+ await expect(first.getByRole('button',{name:'Lines',exact:true})).toBeVisible();
+ await expect(second.getByRole('button',{name:'Lines',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Indicators',exact:true}).click();
+ const indicators=page.getByRole('dialog',{name:'Indicators',exact:true});
+ await expect(indicators.getByRole('region',{name:'Indicators on chart'})).toHaveCount(0);
+ await indicators.getByRole('searchbox',{name:'Find an indicator'}).fill('Volume');
+ await indicators.getByRole('button',{name:'Add Volume',exact:true}).click();
+ await expect(indicators.getByRole('button',{name:'Add Volume',exact:true})).toBeDisabled();
+ await indicators.getByRole('button',{name:'Done',exact:true}).click();
+ await first.getByRole('button',{name:'Lines',exact:true}).click();
+ for (const pane of [first,second]) {
+  await pane.locator('.replay-chart').click({position:{x:240,y:220}});
+  await pane.locator('.replay-chart').click({position:{x:420,y:260}});
+ }
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ const sessionId=new URL(page.url()).searchParams.get('session');
+ const readLayouts=async()=>await (await page.request.get('http://127.0.0.1:8119/api/backtesting/sessions/'+sessionId+'/layouts')).json();
+ const countDrawings=layout=>Object.values(layout?.drawings||{}).flatMap(doc=>doc.drawings).length;
+ await expect.poll(async()=>{
+  const layouts=await readLayouts();
+  return [countDrawings(layouts.layout),countDrawings(layouts.layout_secondary)];
+ }).toEqual([1,1]);
+ const layouts=await readLayouts();
+ for (const layout of [layouts.layout,layouts.layout_secondary]) {
+  expect(layout.studies.some(study=>study.type==='volume')).toBe(false);
+ }
+ await first.locator('.bt-pane-tag').click();
  await page.evaluate(()=>{window.originalCharts=[...document.querySelectorAll('.replay-chart')];window.originalCanvases=[...document.querySelectorAll('.replay-chart canvas')]});
  await page.getByRole('button',{name:'1h',exact:true}).click();await expect(first.locator('.bt-pane-tag')).toHaveText('NQ · 1h');
  await second.locator('.bt-pane-tag').click();await expect(second).toHaveClass(/is-selected/);

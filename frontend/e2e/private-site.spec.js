@@ -18,7 +18,7 @@ test('one private sign-in connects Journal, Lab and Home, and preserves the chos
   const notes=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
   if(await notes.count())await notes.getByRole('button',{name:'Got it',exact:true}).click();
   await expect(notes).not.toBeVisible();
-  await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Home',exact:true}).click();
+  await page.getByRole('link',{name:'PrimusTrader home',exact:true}).click();
   await expect(page.locator('.pt-header-action')).toHaveCount(0);
   await page.getByRole('button',{name:'Sign out',exact:true}).click();
   await expect(page.locator('.pt-header-action')).toHaveText(/Sign in/);

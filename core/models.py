@@ -75,6 +75,7 @@ class Account:
     consistency_target_pct: float = 50.0   # best day may be at most this % of total profit
     max_trades_per_day: int = 10
     id: Optional[int] = None
+    account_type: str = "Personal"
 
 
 @dataclass

@@ -144,7 +144,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();
-  await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Home',exact:true}).click();
+  await page.getByRole('link',{name:'PrimusTrader home',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await expect(page.getByRole('button',{name:'Switch to dark mode',exact:true})).toBeVisible();
 });
@@ -166,4 +166,31 @@ test('Lab uses the Primus loading logo and exposes its theme button on desktop a
     await page.getByRole('button',{name:'Switch to light mode',exact:true}).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   }
+});
+
+test('navigation order and Journal account management', async ({page}) => {
+  await page.goto(origin + '/journal');
+  const nav = page.getByRole('navigation', {name: 'Primus navigation'});
+  await expect(nav.getByRole('link')).toHaveText(['Mindset', 'Journal', 'Strategy Lab', 'Backtesting (Beta)', 'Learn']);
+  await expect(nav.getByRole('button', {name: /glossary/i})).toHaveCount(0);
+  await page.locator('.pj-accounts > summary').click();
+  await page.getByRole('button', {name: 'Add account', exact: true}).click();
+  const form = page.getByRole('dialog', {name: 'Add account'});
+  await form.getByLabel('Account name').fill('Browser evaluation');
+  await form.getByLabel('Account size ($)').fill('25000');
+  await form.getByLabel('Account type').selectOption('Eval');
+  await form.getByRole('button', {name: 'Save account'}).click();
+  const row = page.locator('.pj-account-row').filter({hasText: 'Browser evaluation'});
+  await expect(row).toContainText('$25,000.00 · Eval');
+  await row.getByRole('button', {name: 'Edit Browser evaluation'}).click();
+  const edit = page.getByRole('dialog', {name: 'Edit account'});
+  await edit.getByLabel('Account type').selectOption('Funded');
+  await edit.getByRole('button', {name: 'Save account'}).click();
+  await expect(row).toContainText('Funded');
+  await row.getByRole('button', {name: 'Delete Browser evaluation'}).click();
+  await page.getByRole('dialog', {name: 'Delete account?'}).getByRole('button', {name: 'Cancel'}).click();
+  await expect(row).toBeVisible();
+  await row.getByRole('button', {name: 'Delete Browser evaluation'}).click();
+  await page.getByRole('dialog', {name: 'Delete account?'}).getByRole('button', {name: 'Delete account', exact: true}).click();
+  await expect(row).toHaveCount(0);
 });

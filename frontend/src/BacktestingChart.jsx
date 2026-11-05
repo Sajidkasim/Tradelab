@@ -27,9 +27,9 @@ const chartTheme = mode => ({
   fontFamily: 'Inter, system-ui, sans-serif',
 });
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
-const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr', 'volume'];
+const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const symbol=paneState.symbol,timeframe=paneState.timeframe;
   const setSymbol=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{symbol:value})};
   const setTimeframe=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
@@ -101,7 +101,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
         nativeBackend:'canvas2d', live: true, bars:750, theme: chartTheme(current.theme), height: '100%',
-        drawings: {tools: drawingTools}, animations: false,
+        drawings: {tools: drawingTools, toolbar: !secondary}, volume: false, animations: false,
       });
       chartRef.current = chart;
       registerChart(paneId,chart);
@@ -119,8 +119,10 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       chart.renderer.setSettingsSections([{title:'Replay',placement:'symbol',rows:[{kind:'toggle',label:'Timeframe watermark',get:()=>watermarkValue.current,set:value=>{setWatermark(value);dirtyLayout()}},{kind:'toggle',label:'1-minute watermark',get:()=>minuteWatermarkRef.current['1']!==false,set:value=>{setMinuteWatermarks(v=>({...v,'1':value}));dirtyLayout()}},{kind:'toggle',label:'5-minute watermark',get:()=>minuteWatermarkRef.current['5']!==false,set:value=>{setMinuteWatermarks(v=>({...v,'5':value}));dirtyLayout()}}]}]);
       if(layout.config)chart.renderer.applyConfig({...layout.config,timeScale:{...layout.config.timeScale,timezone:clockZone}});
       chart.drawings.setToolTemplates(layout.drawingTemplates||{});chart.drawings.setToolDefaults(layout.drawingDefaults||{});chart.drawings.setFavorites(layout.drawingToolFavorites||[]);
+      chart.drawings.setTool(drawingTool.current);
+      unsubscribers.push(chart.on('drawing:tool', ({type})=>selectDrawingTool(type)));
       if(layout.drawings?.[chart.market.symbol])chart.drawings.fromJSON(layout.drawings[chart.market.symbol]);
-      for(const item of layout.studies||[])if(item.type){const h=chart.addNativeIndicator(item.type,{inputs:item.inputs||{}});visibility.current.rules.set(h.id,{maximum:item.maximum||'',visible:item.visible!==false})}
+      for(const item of layout.studies||[])if(item.type&&item.type!=='volume'){const h=chart.addNativeIndicator(item.type,{inputs:item.inputs||{}});visibility.current.rules.set(h.id,{maximum:item.maximum||'',visible:item.visible!==false})}
       visibility.current.apply(chart,current.timeframe);
       const native=chart.renderer.renderer;
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
@@ -183,6 +185,22 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     }).catch(e=>{if(chartRef.current===chart&&e.name!=='AbortError'){setError(e.message);setBusy(false)}}).finally(()=>{recordTiming('switch:'+timeframe,switchStarted);marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
   }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
 
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!ready || !chart || !twoCharts) return;
+    const previous = chart.drawings.getStayMode();
+    chart.drawings.setStayMode(true);
+    const unsubscribe = chart.on('drawing:stay', () => {
+      if (!chart.drawings.getStayMode()) chart.drawings.setStayMode(true);
+    });
+    return () => {
+      unsubscribe();
+      if (chartRef.current === chart) chart.drawings.setStayMode(previous);
+    };
+  }, [ready, twoCharts]);
+
+  useEffect(()=>{if(!busy&&(ready||error))reportReady(paneId)},[ready,busy,error,paneId,reportReady]);
+
   useEffect(()=>{if(!ready||busy)return;const timer=setTimeout(()=>historyFeed.current.prefetch(symbol),250);return()=>clearTimeout(timer)},[ready,busy,symbol]);
 
   async function loadEdge(chart){
@@ -220,7 +238,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     layoutDirty.current=false;const started=performance.now();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,sessionRanges:sessionRangeOptions,clockDisplayVersion:2,drawings:drawings.current,favoriteBarPosition:favoriteBarPosition.current,drawingFavorites:layout.drawingFavorites||[],drawingToolFavorites:chart.drawings.favorites(),drawingTemplates:chart.drawings.toolTemplates(),drawingDefaults:chart.drawings.toolDefaults(),config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType).map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:visibility.current.rules.get(h.id)?.visible??h.visible,maximum:visibility.current.rules.get(h.id)?.maximum||''})),...patch};
+    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,sessionRanges:sessionRangeOptions,clockDisplayVersion:2,drawings:drawings.current,favoriteBarPosition:favoriteBarPosition.current,drawingFavorites:layout.drawingFavorites||[],drawingToolFavorites:chart.drawings.favorites(),drawingTemplates:chart.drawings.toolTemplates(),drawingDefaults:chart.drawings.toolDefaults(),config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType&&h.nativeType!=='volume').map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:visibility.current.rules.get(h.id)?.visible??h.visible,maximum:visibility.current.rules.get(h.id)?.maximum||''})),...patch};
     const encoded=JSON.stringify(value);recordTiming('drawings:layout-snapshot',started);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
@@ -252,7 +270,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
     setPicker(false);
     requestAnimationFrame(() => chartRef.current?.renderer.openIndicatorSettings(id));
   }
-  const matches = catalog.filter(item => `${item.title} ${item.type}`.toLowerCase().includes(search.trim().toLowerCase()))
+  const matches = catalog.filter(item => (item.type !== "volume" || search.trim()) && `${item.title} ${item.type}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a,b) => (popular.includes(a.type) ? 0 : 1) - (popular.includes(b.type) ? 0 : 1) || a.title.localeCompare(b.title));
 
   return <div className={`backtesting-workspace bt-chart-pane ${selected?'is-selected':''}`} data-pane-id={paneId} onPointerDownCapture={e=>{if(e.currentTarget.contains(e.target))onSelect()}}>
@@ -265,7 +283,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
       <div className="bt-tools">{<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
-        <Feedback owner={owner}/><button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button><button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
+        <Feedback owner={owner}/>{!secondary&&<button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button>}<button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Chart settings" title="Chart settings" onClick={() => chartRef.current?.renderer.openSettings()}><Settings2 size={18}/></button>
         <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
@@ -277,7 +295,7 @@ export default function BacktestingChart({theme, onThemeToggle, sample, session,
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
-      {ready&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
+      {ready&&!secondary&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
       {ready&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}

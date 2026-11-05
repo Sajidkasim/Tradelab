@@ -9,6 +9,12 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
+class JournalAccount(StrictModel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    starting_balance: Annotated[float, Field(gt=0)]
+    account_type: Literal["Funded", "Eval", "Personal"]
+
+
 class AccountAccess(StrictModel):
     allowed: bool = Field(strict=True)
 
@@ -170,6 +176,7 @@ class TourProgress(StrictModel):
 
 
 class JournalTrade(StrictModel):
+    account_id: int | None = Field(default=None, gt=0)
     setup_grade: Literal['', 'A+', 'A', 'B'] = ''
     level: str = Field(default=edge.UNKNOWN, max_length=120)
     timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
@@ -191,7 +198,13 @@ class JournalTradeLink(StrictModel):
     trade_id: int | None = Field(default=None, gt=0)
 
 
+class WeeklyReflection(StrictModel):
+    repeat: str = Field(default='', max_length=12000)
+    change: str = Field(default='', max_length=12000)
+
+
 class DailyEntry(StrictModel):
+    plan_followed: Literal['Yes', 'Partly', 'No'] | None = None
     plan: str = Field(default='', max_length=12000)
     notes: str = Field(default='', max_length=20000)
     lesson: str = Field(default='', max_length=12000)

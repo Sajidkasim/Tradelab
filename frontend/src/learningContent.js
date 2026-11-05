@@ -56,83 +56,102 @@ export const GLOSSARY = [
   [
     "Ask",
     "The price at which a seller is offering to sell. A market buy can execute at the ask or another available price.",
+    "Entries",
   ],
   [
     "Backtest",
     "A historical simulation of defined trading rules. Its results depend on data, costs and fill assumptions.",
+    "Research",
   ],
   [
     "Bid",
     "The price at which a buyer is offering to buy. The difference between bid and ask is the spread.",
+    "Entries",
   ],
   [
     "Break-even",
     "A result of zero. Specify whether you mean before or after fees; costs can turn a flat price exit into a net loss.",
+    "Risk",
   ],
   [
     "Confirmation",
     "A condition you require alongside the main setup. Define it precisely so it can be recorded or tested consistently.",
+    "Entries",
   ],
   [
     "Drawdown",
     "The decline from an earlier equity peak to a later value. Check whether a report expresses this in dollars, percentages or R.",
+    "Risk",
   ],
   [
     "Expectancy",
     "The average outcome per trade in a defined sample, expressed in dollars or R. An estimate from history, not a promise.",
+    "Research",
   ],
   [
     "Key level / PDA",
     "A price area selected for a possible reaction. PDA means price delivery array in some trading approaches; record which specific level you mean.",
+    "Structure",
   ],
   [
     "Look-ahead bias",
     "Using information in a historical decision that was only available later, making a simulation unrealistically informed.",
+    "Research",
   ],
   [
     "Margin",
     "Funds required to open or maintain a leveraged futures position. It does not cap the amount you can lose.",
+    "Risk",
   ],
   [
     "OHLCV",
     "Open, high, low, close and volume: the values used to summarise a candle.",
+    "Structure",
   ],
   [
     "Out-of-sample",
     "Data kept separate from strategy development, used to evaluate the already-defined rules. Repeated tuning on it weakens that separation.",
+    "Research",
   ],
   [
     "R-multiple",
     "A realised trade outcome divided by its original monetary risk. +2R means a gain twice that risk; realised R may include costs.",
+    "Risk",
   ],
   [
     "Reward-to-risk / target RR",
     "The planned reward compared with planned risk, such as risking 1 to aim for 3. A 1:3 target is not a recorded +3R result.",
+    "Risk",
   ],
   [
     "Session",
     "A defined trading time window. Its timezone, daylight-saving rules and overnight boundaries affect which candles belong to it.",
+    "Structure",
   ],
   [
     "Slippage",
     "The difference between an expected execution price and the price actually received or assumed in a simulation.",
+    "Entries",
   ],
   [
     "Stop-loss",
     "An exit instruction intended to limit losses. A stop price is not a guaranteed fill price.",
+    "Risk",
   ],
   [
     "Tick / point",
     "A tick is the smallest permitted price increment for an instrument. A point is a full price unit; tick size and dollar value vary by contract.",
+    "Structure",
   ],
   [
     "Win rate",
     "The proportion of counted trades that are winners. Primus Strategy Lab excludes break-even trades from its win-rate calculation.",
+    "Research",
   ],
 ];
 export function searchGlossary(query) {
   const q = query.trim().toLowerCase();
-  return GLOSSARY.filter(([term, meaning]) =>
-    `${term} ${meaning}`.toLowerCase().includes(q),
+  return GLOSSARY.filter(([term, meaning, category]) =>
+    `${term} ${meaning} ${category ?? ""}`.toLowerCase().includes(q),
   );
 }

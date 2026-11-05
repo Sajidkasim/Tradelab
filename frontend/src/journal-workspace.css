@@ -162,3 +162,35 @@
 .pt-calendar-grid>button .pj-day-dot {position:absolute;bottom:3px;left:calc(50% - 3px)}
 .pj-calendar-legend {display:flex;gap:12px;flex-wrap:wrap}
 .pj-calendar-legend span {display:inline-flex;gap:5px;align-items:center}
+
+.pj-plan-field { padding: 1rem 0; max-width: 18rem; }
+.pj-field > select { width: 100%; min-width: 0; }
+.pj-workspace .pt-journal-sidebar > .pj-field { grid-column: 1 / -1; margin-block: .5rem; }
+.pt-calendar-grid button .pj-plan-marker {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: .6rem;
+  line-height: 1;
+}
+.pj-review-panel {
+  margin-top: 2rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--pt-line);
+  border-radius: 12px;
+}
+.pj-review-panel > * + * { margin-top: 1rem; }
+.pj-review-panel > .pj-field { max-width: 22rem; }
+.pj-week-nav, .pj-equity-dates { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; }
+.pj-week-notes { display: grid; gap: .8rem; }
+.pj-week-notes article { border-bottom: 1px solid var(--pt-line); padding-bottom: .7rem; }
+.pj-week-notes h4 { margin: 0 0 .4rem; }
+.pj-week-notes p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.pj-reflection { display: grid; gap: .75rem; justify-items: start; }
+.pj-reflection label { width: 100%; }
+.pj-reflection textarea { min-height: 5rem; width: 100%; }
+.pj-equity { margin-inline: 0; }
+.pj-equity svg { display: block; width: 100%; height: auto; min-height: 100px; }
+.pj-equity polyline { fill: none; stroke: currentColor; stroke-width: 2; }
+.pj-equity-grid { fill: none; stroke: currentColor; opacity: .18; }
+.pj-equity-dates { justify-content: space-between; }

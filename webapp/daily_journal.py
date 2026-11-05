@@ -12,6 +12,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 PREFIX = 'primus_daily_entry:'
 MAX_UPLOAD = 8 * 1024 * 1024
 MAX_IMAGES = 6
+WEEK_PREFIX = 'primus_journal_week:'
 
 
 def entry(database, day):
@@ -19,13 +20,14 @@ def entry(database, day):
     if stored.get('deleted_at'):
         stored = {}
     return with_day_result(database, {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
-            'images': [], 'trades': [], 'updated_at': None, **stored})
+            'images': [], 'trades': [], 'updated_at': None, 'plan_followed': None, **stored})
 
 
 def save(database, day, values):
     result = {**entry(database, day), **values, 'day': day,
               'updated_at': datetime.now(timezone.utc).isoformat()}
     result.pop('day_result', None)
+    result.pop('trade_results', None)
     database.set_setting(PREFIX + day, result)
     return with_day_result(database, result)
 
@@ -41,6 +43,7 @@ def with_day_result(database, row):
     from core.metrics import daily_pnl
     trades = row.get('trades', [])
     amounts = []
+    trade_results = []
     seen = set()
     for card in trades:
         linked = card.get('lab_trade_id')
@@ -53,12 +56,13 @@ def with_day_result(database, row):
         else:
             net = card.get('net_pnl')
         amounts.append(net)
+        trade_results.append({'account_id': card.get('account_id'), 'net_pnl': net})
     recorded = [amount for amount in amounts if amount is not None]
     total = None
     if amounts and len(recorded) == len(amounts):
         frame = pd.DataFrame({'net_pnl': recorded, 'exit_time': [row['day']] * len(recorded)})
         total = float(daily_pnl(frame).iloc[0])
-    return {**row, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
+    return {**row, 'trade_results': trade_results, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
                                  'recorded_trades': len(recorded), 'total_trades': len(amounts)}}
 
 
@@ -117,7 +121,11 @@ def save_day(database, day, values):
             raise ValueError('Each journal trade needs its own reference.')
         old = {t['id']: t for t in previous['trades']}
         cards = []
+        account_ids = {account.id for account in database.accounts()}
         for item in incoming:
+            account_id = item.get('account_id')
+            if account_id is not None and account_id not in account_ids:
+                raise ValueError('Choose an account from your Journal.')
             linked_id = old.get(item['id'], {}).get('lab_trade_id')
             card = {'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'',
                     'outcome':'not_recorded', 'confirmations':[], 'level':'Not recorded',
@@ -223,3 +231,11 @@ def restore_entry(database, archive_id):
     database.set_setting(PREFIX + stored['day'], restored)
     database.set_setting(TRASH_PREFIX + archive_id, {})
     return restored
+
+
+def references_account(database, account_id):
+    for prefix in (PREFIX, TRASH_PREFIX):
+        for row in database.settings_with_prefix(prefix).values():
+            if isinstance(row, dict) and any(card.get('account_id') == account_id for card in row.get('trades', [])):
+                return True
+    return False

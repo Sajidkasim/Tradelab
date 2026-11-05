@@ -31,13 +31,11 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={29} strokeWidth={1.2}/><span>PRIMUS<span>TRADER</span></span></a>
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
     <nav className={open?'is-open':''} aria-label="Primus navigation">
-      <a href="/" aria-current={active==='home'?'page':undefined}>Home</a>
+      <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
       <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn</a>
-      <a href="/market-lab" aria-current={active==='market-lab'?'page':undefined}>Market Lab (Beta)</a>
-      <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}

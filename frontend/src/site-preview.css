@@ -356,3 +356,8 @@
 }
 
 .pt-tool-backtesting{grid-column:1/-1;min-height:0}
+
+.pj-accounts{margin:0 0 24px;padding:14px 0;border-block:1px solid var(--pt-line)}
+.pj-accounts>summary{cursor:pointer;font-weight:600}
+.pj-accounts[open]>summary{margin-bottom:12px}
+.pj-account-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 0;border-top:1px solid var(--pt-line)}

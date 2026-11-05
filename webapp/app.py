@@ -1,6 +1,7 @@
 """Same-origin React application and private Python API. No broker write endpoints."""
 from contextlib import asynccontextmanager
 from datetime import date
+from dataclasses import asdict, replace
 import hmac
 import ipaddress
 import json
@@ -17,10 +18,11 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from core import edge
-from core.models import Source
+from core.models import Account, Source
+from .schemas import JournalAccount, WeeklyReflection
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
@@ -143,6 +145,51 @@ def create_app(config: Settings | None = None):
     def db(request, member):
         return request.app.state.workspaces.database(member["key"])
 
+    @app.get("/api/journal-accounts")
+    def journal_accounts(request: Request, member=Depends(workspace)):
+        return [asdict(account) for account in db(request, member).accounts()]
+
+    def write_journal_account(database, payload, account_id=None):
+        values = payload.model_dump()
+        values["name"] = values["name"].strip()
+        if not values["name"]:
+            raise HTTPException(422, "Enter an account name.")
+        if account_id is None:
+            account = Account(**values, daily_loss_limit=0, max_trailing_drawdown=0)
+        else:
+            existing = next((item for item in database.accounts() if item.id == account_id), None)
+            if existing is None:
+                raise HTTPException(404, "Account not found.")
+            account = replace(existing, **values)
+        try:
+            account.id = database.upsert_account(account)
+        except IntegrityError:
+            raise HTTPException(409, "An account with that name already exists.") from None
+        return asdict(account)
+
+    @app.post("/api/journal-accounts", status_code=201)
+    def add_journal_account(payload: JournalAccount, request: Request, member=Depends(workspace)):
+        return write_journal_account(db(request, member), payload)
+
+    @app.put("/api/journal-accounts/{account_id}")
+    def edit_journal_account(account_id: int, payload: JournalAccount, request: Request, member=Depends(workspace)):
+        return write_journal_account(db(request, member), payload, account_id)
+
+    @app.delete("/api/journal-accounts/{account_id}")
+    def remove_journal_account(account_id: int, request: Request, member=Depends(workspace)):
+        database = db(request, member)
+        with app.state.workspaces.lock:
+            if daily_journal.references_account(database, account_id):
+                raise HTTPException(409, "This account has linked Journal trades and cannot be deleted.")
+            if not database.delete_unused_account(account_id):
+                accounts = database.accounts()
+                if not any(account.id == account_id for account in accounts):
+                    raise HTTPException(404, "Account not found.")
+                if len(accounts) == 1:
+                    raise HTTPException(409, "Keep at least one account for trades and imports.")
+                raise HTTPException(409, "This account has linked trades and cannot be deleted.")
+        return {"deleted": account_id}
+
     @app.get("/health")
     def health():
         return {"status": "ok", "application": "PrimusLab"}
@@ -264,11 +311,32 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             return daily_journal.entries(db(request, member))
 
+    @app.get('/api/journal/weeks/{monday}')
+    def journal_week(monday: date, request: Request, member=Depends(workspace)):
+        journal_preview()
+        if monday.weekday() != 0:
+            raise HTTPException(422, 'Choose a Monday to start the week.')
+        return db(request, member).get_setting(daily_journal.WEEK_PREFIX + monday.isoformat(),
+                                              {'repeat': '', 'change': ''})
+
+    @app.put('/api/journal/weeks/{monday}')
+    def save_journal_week(monday: date, payload: WeeklyReflection, request: Request, member=Depends(workspace)):
+        journal_preview()
+        if monday.weekday() != 0:
+            raise HTTPException(422, 'Choose a Monday to start the week.')
+        reflection = payload.model_dump()
+        with app.state.workspaces.lock:
+            db(request, member).set_setting(daily_journal.WEEK_PREFIX + monday.isoformat(), reflection)
+        return reflection
+
     @app.get('/api/journal/export')
     def export_journal(request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.lock:
-            content = json.dumps({'entries': daily_journal.entries(db(request, member)),
+            database = db(request, member)
+            reflections = database.settings_with_prefix(daily_journal.WEEK_PREFIX)
+            content = json.dumps({'entries': daily_journal.entries(database),
+                                  'weekly_reflections': {key.removeprefix(daily_journal.WEEK_PREFIX): value for key, value in reflections.items()},
                                   'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
         return Response(content, media_type='application/json', headers={'Content-Disposition':'attachment; filename="primus-journal-notes.json"'})
 
@@ -291,7 +359,7 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             result = daily_journal.restore_entry(db(request, member), archive_id)
             app.state.workspaces.bump(member['key'])
-            return result
+            return daily_journal.with_day_result(db(request, member), result)
 
     @app.put('/api/journal/{day}')
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
@@ -300,7 +368,10 @@ def create_app(config: Settings | None = None):
             values = payload.model_dump(exclude_unset=True)
             if values.get('trades') is None:
                 values.pop('trades', None)
-            result = daily_journal.save_day(db(request, member), day.isoformat(), values)
+            try:
+                result = daily_journal.save_day(db(request, member), day.isoformat(), values)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
             app.state.workspaces.bump(member['key'])
             return result
 

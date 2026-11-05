@@ -35,6 +35,7 @@ accounts_t = Table(
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("name", String(120), nullable=False, unique=True),
     Column("starting_balance", Float, nullable=False),
+    Column("account_type", String(16), nullable=False, default="Personal", server_default="Personal"),
     Column("daily_loss_limit", Float, nullable=False),
     Column("max_trailing_drawdown", Float, nullable=False),
     Column("max_contracts", Integer, default=5),
@@ -307,6 +308,14 @@ class Database:
     def delete_account(self, account_id: int) -> None:
         with self.engine.begin() as conn:
             conn.execute(accounts_t.delete().where(accounts_t.c.id == account_id))
+
+    def delete_unused_account(self, account_id: int) -> bool:
+        with self.engine.begin() as conn:
+            in_use = select(trades_t.c.id).where(trades_t.c.account_id == account_id).exists()
+            other = accounts_t.alias("other")
+            has_other = select(other.c.id).where(other.c.id != account_id).exists()
+            result = conn.execute(accounts_t.delete().where(accounts_t.c.id == account_id, ~in_use, has_other))
+            return result.rowcount == 1
 
     # ---- setups ----------------------------------------------------------
     def upsert_setup(self, s: Setup) -> int:

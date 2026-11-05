@@ -778,3 +778,26 @@ def test_uk_journal_clock_preserves_trades_and_filters_whole_dst_calendar_days(l
     assert client.get('/api/trades').json() == before
     assert client.get('/api/metadata').json()['journal_preferences']['timezone'] == 'Europe/London'
     assert client.put('/api/journal-preferences', json={'timezone': 'invalid'}).status_code == 422
+
+
+def test_journal_accounts_reuse_trade_accounts_and_protect_linked_trades(local):
+    client, _ = local
+    original = client.get('/api/journal-accounts').json()[0]
+    assert original['account_type'] == 'Personal'
+    assert client.delete(f"/api/journal-accounts/{original['id']}").status_code == 409
+    values = {'name': 'Evaluation', 'starting_balance': 25000, 'account_type': 'Eval'}
+    response = client.post('/api/journal-accounts', json=values)
+    assert response.status_code == 201, response.text
+    account = response.json()
+    assert client.post('/api/journal-accounts', json=values).status_code == 409
+    assert client.post('/api/journal-accounts', json={**values, 'account_type': 'Other'}).status_code == 422
+    url = f"/api/journal-accounts/{account['id']}"
+    edited = client.put(url, json={**values, 'name': 'Funded account', 'account_type': 'Funded'})
+    assert edited.json()['account_type'] == 'Funded'
+    assert client.delete(url).json() == {'deleted': account['id']}
+    assert client.get('/api/journal-accounts').json() == [original]
+    assert client.post('/api/trades', json=trade_payload()).status_code == 200
+    other = client.post('/api/journal-accounts', json=values)
+    assert other.status_code == 201
+    assert client.delete(f"/api/journal-accounts/{original['id']}").status_code == 409
+    assert len(client.get('/api/trades').json()) == 1
