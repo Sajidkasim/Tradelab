@@ -110,3 +110,34 @@ def test_journal_coach_checks_csrf_and_reads_only_the_signed_in_workspace(draft,
     assert calls[1][0] == "Trader"
     assert "Owner private note" not in calls[1][1]
     assert calls[1][2] == []
+
+
+def test_aura_logs_gemini_status_without_private_error_body(monkeypatch, capsys):
+    monkeypatch.setattr(ai_coach, "load_dotenv", lambda: None)
+    monkeypatch.setenv("COACH_API_KEY", "test-secret")
+    monkeypatch.delenv("COACH_GEMINI_MODEL", raising=False)
+
+    def post(url, **kwargs):
+        assert url.endswith("/gemini-3.8-flash:generateContent")
+        response = ai_coach.requests.Response()
+        response.status_code = 503
+        response._content = b'{"error":{"status":"UNAVAILABLE","message":"private note and test-secret"}}'
+        return response
+
+    monkeypatch.setattr(ai_coach.requests, "post", post)
+    result = ai_coach.aura_coach({"database": None, "account": None, "trader_name": "Trader"}, model="ignored")
+    assert result == ai_coach.REVIEW_ERROR
+    assert capsys.readouterr().out == "Gemini API Error: HTTP 503 UNAVAILABLE\n"
+
+
+def test_aura_passes_a_private_question_to_the_provider(draft, monkeypatch):
+    client, app, state = draft
+    monkeypatch.setattr("webapp.app.load_extensions", lambda folder: {})
+    monkeypatch.setitem(COACH_PROVIDERS, ai_coach.NAME, lambda brief: brief["question"])
+    url = "/api/journal/coach?day=2026-11-05"
+    assert client.post(url, json={"question": "Why?"}).status_code == 401
+    login(client, state)
+    assert client.post(url, json={"question": "Why?"}, headers={"X-Primus-CSRF": ""}).status_code == 403
+    assert client.post(url, json={"question": "a" * 1001}).status_code == 422
+    response = client.post(url, json={"question": "  Why did my entry matter?  "})
+    assert response.json() == {"markdown": "Why did my entry matter?"}

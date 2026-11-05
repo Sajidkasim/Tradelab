@@ -5,6 +5,7 @@ test('Aura drags, opens without sending, and renders a requested review', async 
   let requests = 0;
   await page.route('**/api/journal/coach?*', async route => {
     requests += 1;
+    expect(route.request().postDataJSON()).toEqual({question: 'How was my entry timing?'});
     expect(route.request().headers()['x-primus-csrf']).toBeTruthy();
     await route.fulfill({json:{markdown:'### Risk check\nReview your **entry timing**.'}});
   });
@@ -27,7 +28,8 @@ test('Aura drags, opens without sending, and renders a requested review', async 
   const bounds = await panel.boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
-  await panel.getByRole('button', {name:'Ask Aura'}).click();
+  await panel.getByLabel('Your question').fill('How was my entry timing?');
+  await panel.getByRole('button', {name:'Send question'}).click();
   await expect(panel.getByRole('heading', {name:'Risk check'})).toBeVisible();
   await expect(panel.locator('strong')).toHaveText('entry timing');
   expect(requests).toBe(1);

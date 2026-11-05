@@ -10,7 +10,7 @@ from pathlib import Path
 from secrets import token_urlsafe
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Request, Body, Depends, HTTPException, UploadFile, File, Form
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -315,10 +315,11 @@ def create_app(config: Settings | None = None):
             return daily_journal.entries(db(request, member))
 
     @app.get('/api/journal/coach')
+    @app.post('/api/journal/coach')
     def journal_coach(day: date, request: Request, account_id: int | None = None,
-                      member=Depends(workspace)):
+                      member=Depends(workspace), question: str = Body("", embed=True, max_length=1000)):
         journal_preview()
-        check_write(request, allow_missing_origin=True)
+        check_write(request, allow_missing_origin=request.method == "GET")
         load_extensions(Path(__file__).resolve().parents[1] / 'extensions')
         provider = COACH_PROVIDERS.get('Aura - Trading Assistant')
         if provider is None:
@@ -340,6 +341,7 @@ def create_app(config: Settings | None = None):
             'database': database, 'account': account,
             'trader_name': matches[0] if len(matches) == 1 else 'Trader',
             'notes': f'Journal date: {journal_day}\n{notes}',
+            'question': question.strip() if request.method == 'POST' else '',
             'image_ids': [image['id'] for image in entry['images']],
             'read_image': lambda image_id: app.state.image_storage.read(member['key'], journal_day, image_id),
         })

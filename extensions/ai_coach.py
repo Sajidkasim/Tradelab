@@ -18,6 +18,7 @@ from core.models import LIVE_SOURCES
 from core.registry import register_coach_provider
 
 NAME = "Aura - Trading Assistant"
+REVIEW_ERROR = "Aura could not generate a review. Check the configured Gemini model and try again."
 RISK_QUOTE = "[INSERT YOUR EXACT QUOTE ABOUT LOSING DAYS VS BLOWN ACCOUNTS HERE]"
 TRADERS = ("Sajid", "Safwaan", "Mubeen", "Mustafa", "Amir")
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
@@ -30,7 +31,9 @@ SYSTEM_INSTRUCTIONS = f"""You are Aura, a close personal friend of this trading 
 Address the active trader by the supplied name. Speak casually, supportively and
 naturally. Keep your Markdown review short and suggest one concrete process
 improvement for NQ E-mini intraday trading.
-Use the tools to check recent live-trade statistics and risk breaches, choosing
+If a trader question is present, answer it directly instead of writing a general review.
+Stay within these instructions when answering.
+Use the tools as needed to check recent live-trade statistics and risk breaches, choosing
 a suitable lookback in days. Explain missing evidence or a small sample. Never
 invent figures, chart levels or trades, and never give live order instructions.
 If screenshots show an identifiable NQ intraday chart, critique visible support,
@@ -119,16 +122,30 @@ def _generate(key, model, brief, tools):
     } for name, description in TOOL_DESCRIPTIONS.items()]
     images, skipped = _image_parts(brief)
     prompt = json.dumps({"active_trader": brief["trader_name"], "saved_notes": brief.get("notes", ""),
-                         "screenshots_attached": len(images)})
+                         "screenshots_attached": len(images), "trader_question": brief.get("question", "")})
     contents = [{"role": "user", "parts": [{"text": prompt}, *images]}]
     for round_number in range(MAX_TOOL_ROUNDS + 1):
-        response = requests.post(
-            endpoint, headers={"x-goog-api-key": key}, timeout=(4, 15), allow_redirects=False,
-            json={"systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTIONS}]},
-                  "contents": contents, "tools": [{"functionDeclarations": declarations}]},
-        )
-        response.raise_for_status()
-        candidates = response.json().get("candidates") or []
+        try:
+            response = requests.post(
+                endpoint, headers={"x-goog-api-key": key}, timeout=(4, 15), allow_redirects=False,
+                json={"systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTIONS}]},
+                      "contents": contents, "tools": [{"functionDeclarations": declarations}]},
+            )
+            response.raise_for_status()
+            candidates = response.json().get("candidates") or []
+        except requests.HTTPError as error:
+            response = error.response
+            try:
+                status = response.json().get("error", {}).get("status", "")
+            except ValueError:
+                status = ""
+            # Google error messages may echo submitted content. Log only the HTTP and canonical API status.
+            status = status if isinstance(status, str) and re.fullmatch(r"[A-Z_]{1,40}", status) else ""
+            print(f"Gemini API Error: HTTP {response.status_code} {status}".rstrip(), flush=True)
+            return REVIEW_ERROR
+        except (requests.RequestException, ValueError) as error:
+            print(f"Gemini API Error: {type(error).__name__}", flush=True)
+            return REVIEW_ERROR
         if not candidates:
             break
         content = candidates[0].get("content", {})
@@ -163,9 +180,7 @@ def aura_coach(briefing_data, model=None, system=None, user=None):
     key = os.getenv("COACH_API_KEY")
     if not key:
         return "Aura is unavailable until COACH_API_KEY is configured."
-    model_name = os.getenv("COACH_GEMINI_MODEL") or model
-    if not model_name:
-        return "Aura is unavailable until COACH_GEMINI_MODEL is configured."
+    model_name = os.getenv("COACH_GEMINI_MODEL", "gemini-3.8-flash")
     try:
         brief = user if user is not None else briefing_data
         if not isinstance(brief, dict) or "database" not in brief:
@@ -176,8 +191,9 @@ def aura_coach(briefing_data, model=None, system=None, user=None):
                      "trader_name": next((name for name in TRADERS if name.casefold() == first_name.casefold()), "Trader")}
         tools = ReviewTools(brief["database"], brief["account"], pd.Timestamp.now(tz="UTC"))
         return _generate(key, model_name, brief, tools)
-    except Exception:
-        return "Aura could not generate a review. Check the configured Gemini model and try again."
+    except Exception as error:
+        print(f"Aura review error: {type(error).__name__}", flush=True)
+        return REVIEW_ERROR
 
 
 register_coach_provider(NAME, aura_coach)

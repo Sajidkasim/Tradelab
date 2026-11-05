@@ -21,6 +21,7 @@ function CoachMarkdown({text}) {
 }
 
 function AuraReview({day, account, dirty, titleId, onClose}) {
+  const [question, setQuestion] = useState('');
   const [markdown, setMarkdown] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,8 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
   const request = useRef(null);
   useEffect(() => () => request.current?.abort(), []);
 
-  async function review() {
+  async function review(event) {
+    event.preventDefault();
     if (loading) return;
     const controller = new AbortController();
     request.current = controller;
@@ -38,7 +40,7 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
     const query = new URLSearchParams({day});
     if (account != null) query.set('account_id', account);
     try {
-      const result = await api(`/journal/coach?${query}`, {cache: 'no-store', signal: controller.signal});
+      const result = await api(`/journal/coach?${query}`, {method: 'POST', body: {question: question.trim()}, cache: 'no-store', signal: controller.signal});
       setMarkdown(result.markdown);
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure.message);
@@ -54,9 +56,15 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
     </header>
     <p>Ask Aura to send this day’s saved notes and screenshots to Google Gemini. Gemini can request recent live-trade summaries and risk checks for the selected account. If you’re viewing all accounts, Aura uses the first account.</p>
     {dirty && <p>Save your entry to include your latest notes.</p>}
-    <button type="button" className="pt-btn pt-btn-dark" onClick={review} aria-disabled={loading}>
-      {loading ? 'Preparing review…' : 'Ask Aura'}
-    </button>
+    <form onSubmit={review} className="pj-field">
+      <label htmlFor={titleId + '-question'}>Your question</label>
+      <textarea id={titleId + '-question'} value={question} maxLength={1000} rows={3}
+        placeholder="What could I improve about my entry timing?"
+        onChange={event => setQuestion(event.target.value)}/>
+      <button type="submit" className="pt-btn pt-btn-dark" aria-disabled={loading}>
+        {loading ? 'Thinking…' : question.trim() ? 'Send question' : 'Ask Aura'}
+      </button>
+    </form>
     {loading && <p role="status">Aura is reviewing your session.</p>}
     {error && <p role="alert">{error}</p>}
     {markdown && <div className="pj-coach-review" aria-live="polite"><CoachMarkdown text={markdown}/></div>}
