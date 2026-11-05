@@ -1,21 +1,72 @@
 import {AccountSelector} from './JournalReview';
-import React, {useRef} from 'react';
+import React, {useRef,useState} from 'react';
 import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical} from 'lucide-react';
 import {Select} from './components';
 import VocabularySelect from './VocabularySelect';
+import {money} from './format';
 
 export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,onView,label='Upload screenshot',canUpload=true}){
   const input=useRef();
+  const [clipboardHint,setClipboardHint]=useState('');
+  const [reading,setReading]=useState(false);
+  const disabled=busy||allImages.length>=6;
+  const supported=['image/png','image/jpeg','image/webp'];
+
+  async function pasteImage(event){
+    const area=event.currentTarget.closest('.pt-dropzone');
+    setReading(true);
+    setClipboardHint('');
+    try{
+      const items=await navigator.clipboard.read();
+      for(const item of items){
+        const type=supported.find(value=>item.types.includes(value));
+        if(!type)continue;
+        const blob=await item.getType(type);
+        if(area.isConnected&&!input.current?.disabled){
+          onUpload(new File([blob],`clipboard.${type.split('/')[1]}`,{type}));
+        }
+        return;
+      }
+      setClipboardHint('Copy a screenshot first, then try Paste image again.');
+    }catch{
+      if(area.isConnected)area.focus();
+      setClipboardHint('Press Ctrl+V or ⌘V here to paste your screenshot.');
+    }finally{
+      setReading(false);
+    }
+  }
+
   return <div className="pj-screenshots">
-    {canUpload?<div className="pt-dropzone" tabIndex={0} aria-label={label==='Upload screenshot'?'Screenshot drop area':`${label} drop area`} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();onUpload(e.dataTransfer.files[0])}} onPaste={e=>{const file=e.clipboardData.files[0];if(file){e.preventDefault();onUpload(file)}}} onKeyDown={e=>{if(e.key==='Enter')input.current?.click()}}>
-      <ImagePlus size={23}/><div><strong>Drop or paste a chart, or <button type="button" disabled={busy||allImages.length>=6} onClick={()=>input.current?.click()}>choose an image</button></strong><small>PNG, JPEG, WebP · up to 8 MB · six screenshots per day</small></div>
+    {canUpload?<div key={day} className="pt-dropzone" tabIndex={0} aria-label={label==='Upload screenshot'?'Screenshot drop area':`${label} drop area`}
+      onDragOver={e=>e.preventDefault()}
+      onDrop={e=>{e.preventDefault();if(!disabled)onUpload(e.dataTransfer.files[0])}}
+      onPaste={e=>{
+        const file=Array.from(e.clipboardData.files).find(item=>supported.includes(item.type));
+        if(file){e.preventDefault();if(!disabled){setClipboardHint('');onUpload(file)}}
+      }}
+      onKeyDown={e=>{if(e.target===e.currentTarget&&e.key==='Enter')input.current?.click()}}>
+      <ImagePlus size={23}/><div><strong>Drop a chart, <button type="button" disabled={disabled||reading} onClick={pasteImage}>Paste image</button> or <button type="button" disabled={disabled} onClick={()=>input.current?.click()}>choose an image</button></strong><small>PNG, JPEG, WebP · up to 8 MB · six screenshots per day</small>{clipboardHint&&<small role="status">{clipboardHint}</small>}</div>
       <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" aria-label={label} hidden disabled={busy||allImages.length>=6} onChange={e=>{onUpload(e.target.files[0]);e.target.value=''}}/>
     </div>:<p className="pj-image-pending">Screenshot uploads will be available once private cloud storage is connected.</p>}
     {!!images.length&&<div className="pt-image-grid">{images.map(item=>{const n=allImages.findIndex(i=>i.id===item.id)+1,url=`/api/journal/${day}/images/${item.id}`;return <figure key={item.id}><button type="button" className="pt-image-open" aria-label={`Open screenshot ${n}`} onClick={()=>onView(url)}><img src={url} alt={`Trading screenshot ${n}`} loading="lazy"/></button><figcaption><span>Chart {n}</span><a href={url} download="primus-screenshot.webp" aria-label={`Download screenshot ${n}`}><Download size={16}/></a><button type="button" disabled={busy} aria-label={`Remove screenshot ${n}`} onClick={()=>onRemove(item.id)}><Trash2 size={16}/></button></figcaption></figure>})}</div>}
   </div>;
 }
 
-export default function JournalTradeCards({entry,meta,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId}){
+function TradeMetrics({trade}){
+  const setupValue=value=>value&&value!=='Not recorded'?value:'—';
+  const metrics=[
+    ['Key level',setupValue(trade.level)],
+    ['Level timeframe',setupValue(trade.timeframe)],
+    ['Entry timeframe',setupValue(trade.entry_timeframe)],
+    ['Original risk',money(trade.risk_amount).replace(/^\+/, '')],
+    ['Net P&L',money(trade.net_pnl)],
+  ];
+  return <dl className="pj-trade-metrics">{metrics.map(([label,value])=><div key={label}>
+    <dt>{label}</dt><dd>{value}</dd>
+  </div>)}</dl>;
+}
+
+export default function JournalTradeCards({entry,meta,palette,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId}){
   const visibleTrades=entry.trades.filter(trade=>accountFilter==null||trade.account_id===accountFilter);
   const choices=meta?.strategies||[];
   const markets=Object.keys(meta?.instruments||{});
@@ -24,7 +75,8 @@ export default function JournalTradeCards({entry,meta,accounts,accountFilter,bus
     <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{visibleTrades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone==='Europe/London'?'UK time':meta?.journal_preferences?.timezone==='Etc/GMT+4'?'fixed UTC−4':'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy||entry.trades.length>=30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
     {!visibleTrades.length&&<div className="pj-trades-empty"><FlaskConical size={24}/><div><strong>{accountFilter==null?'What did you trade?':'No trades for this account'}</strong><p>{accountFilter==null?'Add the trades you took, or leave this empty for a no-trade day.':'Choose All accounts to see or assign unassigned trades.'}</p></div></div>}
     <div className="pj-trade-list">{visibleTrades.map((trade,index)=>{const open=expanded===trade.id;return <article key={trade.id} className={`pj-trade-card ${open?'is-open':''} ${trade.id===freshTradeId?'is-new':''}`} aria-label={`Journal trade ${index+1}`}>
-      <button type="button" className="pj-trade-summary" aria-expanded={open} onClick={()=>setExpanded(open?null:trade.id)}><span className="pj-trade-index">{String(index+1).padStart(2,'0')}</span><span className="pj-trade-name"><strong>{trade.symbol||'New trade'} <em>{trade.direction==='long'?'Buy':trade.direction==='short'?'Sell':''}</em></strong><small>{trade.strategy||'Choose a strategy'}{trade.time?` · ${trade.time}`:''} · {accounts?.find(account=>account.id===trade.account_id)?.name || 'Unassigned'}</small></span>{trade.outcome&&trade.outcome!=='not_recorded'&&<span className={`pj-outcome-badge ${trade.outcome}`}>{outcomes.find(item=>item.value===trade.outcome)?.label}</span>}<span className={`pj-trade-state ${trade.lab_trade_id?'linked':''}`}>{trade.lab_trade_id?'In Strategy Lab':`${entry.images.filter(i=>i.trade_id===trade.id).length} charts`}</span><ChevronDown size={18}/></button>
+      <button type="button" className="pj-trade-summary" aria-expanded={open} onClick={()=>setExpanded(open?null:trade.id)}><span className="pj-trade-index">{String(index+1).padStart(2,'0')}</span><span className="pj-trade-name"><strong>{trade.symbol||'New trade'} <em>{trade.direction==='long'?'Buy':trade.direction==='short'?'Sell':''}</em></strong><small>{trade.strategy||'Choose a strategy'}{trade.time?` · ${trade.time}`:''} · {accounts?.find(account=>account.id===trade.account_id)?.name || 'Unassigned'}</small></span>{trade.outcome&&trade.outcome!=='not_recorded'&&<span className={`pj-outcome-badge ${trade.outcome}`} style={{'--pj-outcome-tone':trade.outcome==='win'?palette?.good:trade.outcome==='loss'?palette?.critical:palette?.axis}}>{outcomes.find(item=>item.value===trade.outcome)?.label}</span>}<span className={`pj-trade-state ${trade.lab_trade_id?'linked':''}`}>{trade.lab_trade_id?'In Strategy Lab':`${entry.images.filter(i=>i.trade_id===trade.id).length} charts`}</span><ChevronDown size={18}/></button>
+      <TradeMetrics trade={trade}/>
       {open&&<div className="pj-trade-body">
         <fieldset className="pj-outcome"><legend>Trade outcome</legend><div>{outcomes.map(item=><button key={item.value} type="button" aria-pressed={(trade.outcome||'not_recorded')===item.value} disabled={busy||!!trade.lab_trade_id} onClick={()=>onChange(trade.id,'outcome',item.value)} className={item.value}>{(trade.outcome||'not_recorded')===item.value&&<span aria-hidden="true">✓ </span>}{item.label}</button>)}</div></fieldset>
         <div className="pj-trade-fields">

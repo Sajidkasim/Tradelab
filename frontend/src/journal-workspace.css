@@ -182,3 +182,29 @@
   .pj-workspace .pt-journal-sidebar > .pj-field {grid-row:2;grid-column:1/-1}
   .pj-workspace .pt-journal-sidebar > .pt-calendar {grid-row:3}
 }
+
+@media(min-width:801px){
+  .pj-workspace .pt-journal-sidebar{
+    align-self:start;
+    max-height:calc(100dvh - 48px);
+    overflow:auto;
+    padding:16px;
+    border:1px solid var(--pt-line);
+    border-radius:12px;
+    background:var(--tl-surface,var(--pt-white));
+  }
+}
+
+.pj-trade-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0;padding:0 16px 14px}
+.pj-trade-metrics>div{padding:7px 9px;border-radius:7px;background:var(--pt-paper);min-width:0}
+.pj-trade-metrics dt{color:var(--pt-muted);font-size:11px}
+.pj-trade-metrics dd{margin:2px 0 0;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pj-trade-summary .pj-outcome-badge{border-radius:999px;box-shadow:inset 0 0 0 1px var(--pj-outcome-tone,transparent);flex:none}
+.pj-trade-card .pj-screenshots .pt-image-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.pj-trade-card .pj-screenshots .pt-image-open>img{height:auto;width:100%;aspect-ratio:1;object-fit:cover}
+@media(max-width:950px){
+  .pj-trade-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:650px){
+  .pj-trade-metrics,.pj-trade-card .pj-screenshots .pt-image-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
