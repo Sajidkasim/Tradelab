@@ -5,6 +5,7 @@ from dataclasses import asdict, replace
 import hmac
 import ipaddress
 import json
+import os
 from pathlib import Path
 from secrets import token_urlsafe
 from urllib.parse import urlsplit
@@ -327,13 +328,20 @@ def create_app(config: Settings | None = None):
         account = next((item for item in accounts if account_id is None or item.id == account_id), None)
         if account is None:
             raise HTTPException(404, 'Choose an available Journal account.')
-        entry = daily_journal.entry(database, day.isoformat())
+        journal_day = day.isoformat()
+        entry = daily_journal.entry(database, journal_day)
         notes = '\n'.join(f'{label}: {entry.get(field) or ""}' for label, field in (
             ('Plan', 'plan'), ('Observations', 'notes'), ('Review', 'lesson'),
         ))
+        email = (member.get('email') or (config.owner_email if not config.google_required else '')).strip().casefold()
+        matches = [name for name in ('Sajid', 'Safwaan', 'Mubeen', 'Mustafa', 'Amir')
+                   if email and email == os.getenv(f'COACH_{name.upper()}_EMAIL', '').strip().casefold()]
         markdown = provider({
-            'database': database, 'account': account, 'trader_name': member['name'],
-            'notes': f'Journal date: {day.isoformat()}\n{notes}',
+            'database': database, 'account': account,
+            'trader_name': matches[0] if len(matches) == 1 else 'Trader',
+            'notes': f'Journal date: {journal_day}\n{notes}',
+            'image_ids': [image['id'] for image in entry['images']],
+            'read_image': lambda image_id: app.state.image_storage.read(member['key'], journal_day, image_id),
         })
         return {'markdown': markdown}
 

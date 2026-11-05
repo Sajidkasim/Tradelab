@@ -251,7 +251,7 @@ class GoogleAccess:
         if not isinstance(token, str) or not 40 <= len(token) <= 100:
             raise LoginError()
         with self.database.engine.begin() as connection:
-            row = connection.execute(sa.select(sessions.c.key, sessions.c.last_seen).join(identities).where(
+            row = connection.execute(sa.select(sessions.c.key, sessions.c.last_seen, identities.c.email).join(identities).where(
                 sessions.c.token_hash == hashlib.sha256(token.encode()).hexdigest(),
                 sessions.c.version == self.version, sessions.c.expires_at > now_utc(), identities.c.active.is_(True))).mappings().first()
             if not row:
@@ -262,7 +262,7 @@ class GoogleAccess:
                 details = connection_details(user_agent, client_ip)
                 connection.execute(sessions.update().where(sessions.c.token_hash == hashlib.sha256(token.encode()).hexdigest()).values(last_seen=now, **details))
                 connection.execute(identities.update().where(identities.c.key == key).values(last_seen=now, **details))
-        return {'key': key, 'name': 'My lab', 'slot': 0, 'owner': key == 'owner'}
+        return {'key': key, 'name': 'My lab', 'slot': 0, 'owner': key == 'owner', 'email': row['email']}
 
     def revoke(self, token):
         if isinstance(token, str):

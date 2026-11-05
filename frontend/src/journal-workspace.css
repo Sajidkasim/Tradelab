@@ -209,7 +209,14 @@
   .pj-trade-metrics,.pj-trade-card .pj-screenshots .pt-image-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
-.pj-coach.card{margin:16px clamp(12px,3vw,30px);padding:clamp(16px,3vw,26px);background:var(--tl-surface,var(--pt-white));color:var(--pt-ink);border-color:var(--pt-line)}
+.pj-aura{position:fixed;z-index:20;width:58px;height:58px}
+.pj-aura-orb{width:100%;height:100%;border-radius:50%;border:1px solid var(--pt-line);color:var(--pt-ink);background:var(--tl-surface,var(--pt-white));background:color-mix(in srgb,var(--tl-surface,var(--pt-white)) 85%,transparent);backdrop-filter:blur(12px);font:inherit;font-weight:650;touch-action:none;user-select:none;cursor:grab}
+.pj-aura-orb[data-dragging=true]{cursor:grabbing}
+.pj-aura-orb:focus-visible{outline:2px solid var(--pt-ink);outline-offset:3px}
+.pj-aura-panel{position:absolute;overflow:auto;overscroll-behavior:contain;background:var(--tl-surface,var(--pt-white));border:1px solid var(--pt-line);border-radius:12px}
+.pj-coach.card{padding:clamp(16px,3vw,24px);background:var(--tl-surface,var(--pt-white));color:var(--pt-ink)}
+.pj-coach header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pj-coach header .pt-btn{margin-top:0}
 .pj-coach p{margin:8px 0;overflow-wrap:anywhere}
 .pj-coach .pt-btn{margin-top:8px}
 .pj-coach-review{margin-top:16px;padding-top:12px;border-top:1px solid var(--pt-line)}
