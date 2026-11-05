@@ -332,3 +332,24 @@ def test_compact_wire_is_opt_in_and_does_not_leak_to_legacy_requests(local,candl
     legacy=client.get(f'/api/backtesting/sessions/{sid}').json()
     assert isinstance(legacy['projection']['frames'],list)
     assert legacy['projection']['frames']==created['projection']['frames']
+
+
+def test_drawing_template_lifecycle_and_workspace_isolation(google):
+    client, app, state = google
+    login(client, state)
+    root = '/api/backtesting/drawing-templates'
+    template = {'name': 'PDH', 'type': 'hray', 'style': {'lineWidth': 2}, 'text': {'value': 'PDH', 'bold': True}}
+    response = client.post(root, json=template)
+    assert response.status_code == 200, response.text
+    saved, = response.json()
+    assert {key: saved[key] for key in template} == template
+    assert client.post(root, json={**template, 'anchors': []}).status_code == 422
+    assert client.post(root, json={**template, 'name': 'pdh'}).status_code == 409
+    path = f"{root}/{saved['id']}"
+    assert client.patch(path, json={'name': 'PDL'}).json()[0]['name'] == 'PDL'
+    login(client, state, 'friend@example.com', 'different-friend-sub')
+    assert client.get(root).json() == []
+    assert client.delete(path).status_code == 404
+    login(client, state)
+    assert client.get(root).json()[0]['name'] == 'PDL'
+    assert client.delete(path).json() == []

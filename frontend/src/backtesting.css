@@ -128,3 +128,17 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-favorite-tool{display:flex;gap:10px;align-items:center;padding:8px}
 .bt-template-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-bottom:1px solid var(--bt-border)}
 .bt-template-row>span{flex:1;min-width:140px}
+
+.bt-drawing-stay,.bt-drawing-actions {
+  position:absolute;z-index:4;display:flex;align-items:center;gap:8px;
+  padding:6px 8px;background:var(--bt-surface);
+  border:1px solid var(--bt-border);border-radius:6px;font-size:.8rem;
+}
+.bt-drawing-stay {left:54px;bottom:38px}
+.bt-drawing-actions {top:12px;right:12px;flex-wrap:wrap;max-width:calc(100% - 70px)}
+.bt-drawing-actions button {font-size:inherit}
+.bt-drawing-editor {display:grid;gap:12px}
+.bt-drawing-editor label {display:grid;gap:4px}
+.bt-drawing-editor label:has(input[type="checkbox"]) {display:flex}
+/* Primus exposes the shared stay preference as a checkbox. */
+.bt-chart-pane .vela-dtb-btn[aria-label="Stay in drawing mode"] {display:none}

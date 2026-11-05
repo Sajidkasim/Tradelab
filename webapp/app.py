@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from core import edge
 from core.models import Account, Source
-from .schemas import JournalAccount, WeeklyReflection
+from .schemas import JournalAccount
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
@@ -311,32 +311,12 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             return daily_journal.entries(db(request, member))
 
-    @app.get('/api/journal/weeks/{monday}')
-    def journal_week(monday: date, request: Request, member=Depends(workspace)):
-        journal_preview()
-        if monday.weekday() != 0:
-            raise HTTPException(422, 'Choose a Monday to start the week.')
-        return db(request, member).get_setting(daily_journal.WEEK_PREFIX + monday.isoformat(),
-                                              {'repeat': '', 'change': ''})
-
-    @app.put('/api/journal/weeks/{monday}')
-    def save_journal_week(monday: date, payload: WeeklyReflection, request: Request, member=Depends(workspace)):
-        journal_preview()
-        if monday.weekday() != 0:
-            raise HTTPException(422, 'Choose a Monday to start the week.')
-        reflection = payload.model_dump()
-        with app.state.workspaces.lock:
-            db(request, member).set_setting(daily_journal.WEEK_PREFIX + monday.isoformat(), reflection)
-        return reflection
-
     @app.get('/api/journal/export')
     def export_journal(request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.lock:
             database = db(request, member)
-            reflections = database.settings_with_prefix(daily_journal.WEEK_PREFIX)
             content = json.dumps({'entries': daily_journal.entries(database),
-                                  'weekly_reflections': {key.removeprefix(daily_journal.WEEK_PREFIX): value for key, value in reflections.items()},
                                   'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
         return Response(content, media_type='application/json', headers={'Content-Disposition':'attachment; filename="primus-journal-notes.json"'})
 

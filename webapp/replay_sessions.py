@@ -134,6 +134,17 @@ class LayoutInput(BaseModel):
     model_config=ConfigDict(extra='forbid')
     layout:dict
 
+class DrawingTemplateName(BaseModel):
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=80)
+
+
+class DrawingTemplateInput(DrawingTemplateName):
+    type: Literal['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position']
+    style: dict[str, str | float | bool] = Field(default_factory=dict)
+    text: dict[str, str | bool] = Field(default_factory=dict)
+
+
 class TicketPreviewInput(ProgressInput):
     price:float=Field(gt=0,allow_inf_nan=False)
 
@@ -384,6 +395,49 @@ def mount(app,config,workspace):
         with app.state.workspaces.lock:
             database(member).set_setting(DEFAULTS,payload.layout);app.state.workspaces.bump(member['key'])
         return {'saved':True}
+    template_key = 'primus_replay_drawing_templates'
+
+    @app.get('/api/backtesting/drawing-templates')
+    def drawing_templates(member=Depends(workspace)):
+        local_only()
+        return database(member).get_setting(template_key, [])
+
+    def write_template(member, template_id=None, name=None, appearance=None):
+        local_only()
+        with app.state.workspaces.lock:
+            db = database(member)
+            templates = db.get_setting(template_key, [])
+            current = next((item for item in templates if item['id'] == template_id), None)
+            if template_id and current is None:
+                raise HTTPException(404, 'Drawing template not found.')
+            if name and any(item['name'].casefold() == name.casefold() and item is not current for item in templates):
+                raise HTTPException(409, 'That template name is already in use.')
+            if appearance is not None:
+                if len(templates) >= 100:
+                    raise HTTPException(422, 'Remove a template before adding another.')
+                templates.append({'id': str(uuid4()), 'name': name, **appearance})
+            elif name is not None:
+                current['name'] = name
+            else:
+                templates.remove(current)
+            db.set_setting(template_key, templates)
+        return templates
+
+    @app.post('/api/backtesting/drawing-templates')
+    def create_drawing_template(payload: DrawingTemplateInput, member=Depends(workspace)):
+        appearance = payload.model_dump(exclude={'name'})
+        if len(json.dumps(appearance)) > 5000:
+            raise HTTPException(422, 'This template exceeds the size limit.')
+        return write_template(member, name=payload.name, appearance=appearance)
+
+    @app.patch('/api/backtesting/drawing-templates/{template_id}')
+    def rename_drawing_template(template_id: UUID, payload: DrawingTemplateName, member=Depends(workspace)):
+        return write_template(member, template_id=str(template_id), name=payload.name)
+
+    @app.delete('/api/backtesting/drawing-templates/{template_id}')
+    def delete_drawing_template(template_id: UUID, member=Depends(workspace)):
+        return write_template(member, template_id=str(template_id))
+
     @app.get('/api/backtesting/sessions/{sid}/layouts')
     def session_layouts(sid:str,member=Depends(workspace)):
         local_only();db=database(member);get_record(db,sid)

@@ -198,11 +198,6 @@ class JournalTradeLink(StrictModel):
     trade_id: int | None = Field(default=None, gt=0)
 
 
-class WeeklyReflection(StrictModel):
-    repeat: str = Field(default='', max_length=12000)
-    change: str = Field(default='', max_length=12000)
-
-
 class DailyEntry(StrictModel):
     plan_followed: Literal['Yes', 'Partly', 'No'] | None = None
     plan: str = Field(default='', max_length=12000)

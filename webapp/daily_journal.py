@@ -12,7 +12,6 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 PREFIX = 'primus_daily_entry:'
 MAX_UPLOAD = 8 * 1024 * 1024
 MAX_IMAGES = 6
-WEEK_PREFIX = 'primus_journal_week:'
 
 
 def entry(database, day):

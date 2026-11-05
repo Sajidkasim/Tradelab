@@ -525,6 +525,9 @@ test('one toolbar targets the active pane, retains both charts and restores spli
  await indicators.getByRole('button',{name:'Add Volume',exact:true}).click();
  await expect(indicators.getByRole('button',{name:'Add Volume',exact:true})).toBeDisabled();
  await indicators.getByRole('button',{name:'Done',exact:true}).click();
+ const stay=first.getByRole('checkbox',{name:'Stay in drawing mode'});
+ await expect(stay).not.toBeChecked();
+ await stay.check();
  await first.getByRole('button',{name:'Lines',exact:true}).click();
  for (const pane of [first,second]) {
   await pane.locator('.replay-chart').click({position:{x:240,y:220}});

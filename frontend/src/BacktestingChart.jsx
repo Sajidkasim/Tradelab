@@ -17,6 +17,8 @@ import {nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel
 import {Modal, Button, Select, Field} from './components';
 import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
+import {installDrawingGeometry} from './replayDrawingGeometry';
+import DrawingActions from './DrawingActions';
 
 const chartTheme = mode => ({
   background: mode === 'dark' ? '#16191c' : '#fcfcfb',
@@ -29,7 +31,8 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({reportReady,stayDrawing,updateStayDrawing,drawingTool,selectDrawingTool,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+  const drawingGeometry=useRef(null);
   const symbol=paneState.symbol,timeframe=paneState.timeframe;
   const setSymbol=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{symbol:value})};
   const setTimeframe=value=>{historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
@@ -128,7 +131,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
       unsubscribers.push(installFreeReplayNavigation(chart,host.current));
-      unsubscribers.push(installDrawingPerformance(chart));
+      drawingGeometry.current=installDrawingGeometry(chart);
+      unsubscribers.push(drawingGeometry.current,installDrawingPerformance(chart));
       for(const event of ['drawing:favorites','drawing:templates','drawing:defaults','drawing:created','drawing:edited','drawing:removed','drawing:selected','indicator:added','indicator:removed','indicator:inputs','indicator:visibility','indicator:moved','pane:changed','priceStyle:change','viewport:changed'])unsubscribers.push(chart.on(event,dirtyLayout));
       // Includes settings edits, undo/redo and wheel/price-scale gestures. A layout
       // snapshot is never constructed while a pointer is held down.
@@ -180,24 +184,17 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     historyFeed.current.anchor=snapshot?.to??null;
     marketRequest.current={symbol:wanted,timeframe};
     const switchStarted=performance.now();
-    marketSettled.current=historyFeed.current.initial(symbol,timeframe).then(()=>{if(selection.current.symbol!==symbol||selection.current.timeframe!==timeframe)return;return chart.setMarket({symbol:wanted,timeframe})}).then(()=>{
-      if(chartRef.current===chart&&selection.current.symbol===symbol&&selection.current.timeframe===timeframe){restoreReplayView(chart,snapshot);lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
+    marketSettled.current=historyFeed.current.initial(symbol,timeframe).then(()=>{if(selection.current.symbol!==symbol||selection.current.timeframe!==timeframe)return;drawingGeometry.current?.trace?.('before');return chart.setMarket({symbol:wanted,timeframe})}).then(()=>{
+      if(chartRef.current===chart&&selection.current.symbol===symbol&&selection.current.timeframe===timeframe){restoreReplayView(chart,snapshot);drawingGeometry.current?.trace?.('after');lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
     }).catch(e=>{if(chartRef.current===chart&&e.name!=='AbortError'){setError(e.message);setBusy(false)}}).finally(()=>{recordTiming('switch:'+timeframe,switchStarted);marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
   }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
 
   useEffect(() => {
     const chart = chartRef.current;
-    if (!ready || !chart || !twoCharts) return;
-    const previous = chart.drawings.getStayMode();
-    chart.drawings.setStayMode(true);
-    const unsubscribe = chart.on('drawing:stay', () => {
-      if (!chart.drawings.getStayMode()) chart.drawings.setStayMode(true);
-    });
-    return () => {
-      unsubscribe();
-      if (chartRef.current === chart) chart.drawings.setStayMode(previous);
-    };
-  }, [ready, twoCharts]);
+    if (!ready || !chart) return;
+    if (chart.drawings.getStayMode() !== stayDrawing) chart.drawings.setStayMode(stayDrawing);
+    return chart.on('drawing:stay', () => updateStayDrawing(chart.drawings.getStayMode()));
+  }, [ready, stayDrawing, updateStayDrawing]);
 
   useEffect(()=>{if(!busy&&(ready||error))reportReady(paneId)},[ready,busy,error,paneId,reportReady]);
 
@@ -295,6 +292,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
+      {ready&&<DrawingActions chart={chartRef.current}/>}
+      {ready&&!secondary&&<label className="bt-drawing-stay"><input type="checkbox" checked={stayDrawing} onChange={event=>updateStayDrawing(event.target.checked)}/> Stay in drawing mode</label>}
       {ready&&!secondary&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
       {ready&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}

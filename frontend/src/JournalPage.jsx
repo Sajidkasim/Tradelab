@@ -25,9 +25,9 @@ const sections=[
 ];
 
 import JournalAccounts from "./JournalAccounts";
-import {AccountSelector, WeeklyReview, JournalEquity, accountResults, recordedTotal} from "./JournalReview";
+import {AccountSelector, JournalEquity, accountResults, recordedTotal} from "./JournalReview";
 
-export default function JournalPage(){
+export default function JournalPage({theme = "light"}){
   const today=ymd(new Date());
   const requested=new URLSearchParams(location.search).get('day');
   const initialDay=requested&&/^\d{4}-\d{2}-\d{2}$/.test(requested)&&!Number.isNaN(dayDate(requested).getTime())&&ymd(dayDate(requested))===requested?requested:today;
@@ -104,7 +104,7 @@ export default function JournalPage(){
         <aside className="pt-journal-sidebar" aria-label="Journal calendar and history">
           <button className="pt-btn pt-btn-dark" onClick={()=>selectDay(today)} disabled={busy}><NotebookPen size={17}/> Today’s entry <ArrowUpRight size={16}/></button>
           <label className="pt-mobile-date">Go to date<input type="date" aria-label="Journal date" value={day} disabled={busy} onChange={e=>selectDay(e.target.value)}/></label>
-          <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar and review account" disabled={!accounts}/>
+          <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar account" disabled={!accounts}/>
           <div className="pt-calendar"><div className="pt-calendar-heading"><button aria-label="Previous month" disabled={busy} onClick={()=>shiftMonth(-1)}><ChevronLeft size={18}/></button><label className="pj-month"><span>{monthDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span><input type="month" aria-label="Browse month" value={month} disabled={busy} onChange={e=>{if(e.target.value)setMonth(e.target.value)}}/></label><button aria-label="Next month" disabled={busy} onClick={()=>shiftMonth(1)}><ChevronRight size={18}/></button></div>
             <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={followed?`${label} · Plan followed: ${followed}`:label} aria-description={followed?`Plan followed: ${followed}`:undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}
                 {followed&&<span className="pj-plan-marker" aria-hidden="true">{followed[0]}</span>}</button>})}</div><p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p><p>Dots use the saved total of the day’s trades. Enter P&amp;L for every trade in the selected account to see a dot. Y / P / N marks whether you followed the plan.</p>
@@ -118,20 +118,22 @@ export default function JournalPage(){
           {(error||notice)&&<div className="pj-day-feedback">{error&&<div className="pt-journal-error" role="alert">{error}</div>}{notice&&<div className="pt-journal-success" role="status">{notice}{undoId&&<button className="pj-undo" onClick={()=>restoreDay(undoId)} disabled={busy}><Undo2 size={15}/> Undo</button>}</div>}</div>}
           <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">{sections.map((item,index)=><button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section===item.id} onClick={()=>setSection(item.id)}><span>0{index+1}</span>{item.label}{entry[item.id]?.trim()&&<Check size={14}/>}</button>)}</div>
           <div className="pt-writing-area" role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}><span className="pt-overline">SESSION NOTES</span><h3>{current.title}</h3><p>{current.hint}</p><textarea aria-label={current.label} value={entry[section]} maxLength={section==='notes'?20000:12000} placeholder={current.placeholder} onChange={e=>edit(section,e.target.value)} disabled={busy}/><div className="pt-writing-footer"><span>{section==='lesson'?'Your review of the whole session. Trade-by-trade details go below.':'A few lines are enough. You can come back to this later.'}</span><span>{entry[section].length.toLocaleString()} characters</span></div></div>
-          <label className="pj-field pj-plan-field">Plan followed?
-            <select aria-label="Plan followed?" disabled={busy} value={entry.plan_followed??''} onChange={e=>edit('plan_followed',e.target.value||null)}>
-              <option value="">Not recorded</option>
-              {['Yes','Partly','No'].map(option=><option key={option}>{option}</option>)}
-            </select>
-          </label>
+          <div className="pt-mindset pj-plan-field">
+            <h3>Plan followed?</h3>
+            <div role="group" aria-label="Plan followed?">
+              {['Yes', 'Partly', 'No'].map(option => <button key={option} type="button" disabled={busy}
+                aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
+                {option}
+              </button>)}
+            </div>
+          </div>
           <JournalTradeCards accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId}/>
           {(identity.images_enabled??localSitePreview())&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>
           <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Notes stay in your Journal. Only trades you add to the Lab affect results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>
         </section>
       </div>
-      <WeeklyReview rows={rows} account={account} today={today}/>
-      <JournalEquity rows={rows} accounts={accounts}/>
+      <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme}/>
     </main>
     {deleting&&<Modal title="Delete journal entry?" onClose={()=>setDeleting(false)} className="pj-link-modal"><p className="pj-modal-hint">Move the entry for {niceDay(day)}, its trade cards and screenshots to Deleted entries? You can restore it later. Linked Strategy Lab trades stay saved.</p>{error&&<p role="alert">{error}</p>}<div className="pj-modal-actions"><button className="pt-btn" onClick={()=>setDeleting(false)} disabled={busy}>Keep entry</button><button className="pt-btn pj-danger" onClick={deleteDay} disabled={busy}>Delete entry</button></div></Modal>}
     {trash&&<Modal title="Deleted entries" onClose={()=>setTrash(null)} className="pj-link-modal"><p className="pj-modal-hint">Restore an entry with its notes, cards and screenshots. Your Lab trades are unaffected.</p>{!trash.length&&<p>No deleted entries.</p>}{trash.map(item=><div className="pj-trash-row" key={item.id}><span>{niceDay(item.day)}</span><button className="pt-btn" disabled={busy} onClick={()=>restoreDay(item.id)}><Undo2 size={15}/> Restore</button></div>)}{error&&<p role="alert">{error}</p>}</Modal>}

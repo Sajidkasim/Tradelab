@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 
-test('Journal accounts, plan, weekly reflections and equity use saved entries', async ({page}) => {
+test('Journal accounts, plan chips and equity use saved entries', async ({page}) => {
   const origin = 'http://127.0.0.1:8119';
   const day = new Date().toLocaleDateString('sv-SE');
   await page.goto(origin + '/journal?day=' + day);
@@ -23,11 +23,12 @@ test('Journal accounts, plan, weekly reflections and equity use saved entries', 
   await expect(trade).toContainText('Unassigned');
   await trade.locator('button').first().click();
   await trade.getByLabel('Trade account').selectOption(String(account.id));
-  const plan = page.getByLabel('Plan followed?', {exact:true});
+  const plan = page.getByRole('group', {name:'Plan followed?', exact:true});
   const save = page.getByRole('button', {name:'Save entry', exact:true}).first();
   const daily = page.getByLabel('Day profit and loss');
   for (const status of ['Yes', 'Partly', 'No', '']) {
-    await plan.selectOption(status);
+    await plan.getByRole('button', {name: status || 'No', exact:true}).click();
+    await expect(plan.getByRole('button', {name:status || 'No', exact:true})).toHaveAttribute('aria-pressed', String(!!status));
     const response = page.waitForResponse(res => res.url().endsWith('/api/journal/' + day) && res.request().method() === 'PUT');
     await save.click();
     const payload = await (await response).json();
@@ -37,27 +38,23 @@ test('Journal accounts, plan, weekly reflections and equity use saved entries', 
     if (status) await expect(daily).toContainText('Plan followed: ' + status);
     else await expect(daily).not.toContainText('Plan followed:');
   }
-  const weekly = page.getByRole('region', {name:'Weekly Review'});
-  await expect(weekly).toContainText('$100');
-  await page.getByLabel('Calendar and review account').selectOption(String(account.id));
+  await expect(page.getByRole('heading', {name:'Weekly Review'})).toHaveCount(0);
+  await page.getByLabel('Calendar account').selectOption(String(account.id));
   await expect(page.getByRole('article', {name:'Journal trade 2', exact:true})).toHaveCount(0);
   await expect(daily).toContainText('$125');
-  await expect(weekly).toContainText('$125');
-  await expect(weekly).toContainText('Wait for a clean setup');
-  await weekly.getByLabel('What should I repeat?').fill('Wait for confirmation');
-  await weekly.getByLabel('What will I change?').fill('Use a checklist');
-  await weekly.getByRole('button', {name:'Save weekly review'}).click();
-  await expect(weekly).toContainText('Weekly review saved.');
-  await weekly.getByRole('button', {name:'Next week'}).click();
-  await expect(weekly).toContainText('No recorded results');
-  await expect(weekly.getByLabel('What should I repeat?')).toHaveValue('');
-  await weekly.getByRole('button', {name:'Previous week'}).click();
-  await expect(weekly.getByLabel('What should I repeat?')).toHaveValue('Wait for confirmation');
-
   const equity = page.getByRole('region', {name:'Journal equity curve'});
-  const combined = await equity.getByRole('img').getAttribute('aria-label');
-  await equity.getByLabel('Equity curve account').selectOption(String(account.id));
-  await expect(equity.getByRole('img')).not.toHaveAttribute('aria-label', combined);
+  await expect(equity).toContainText('Total P&L +$100');
+  await equity.getByRole('group', {name:'Equity curve account'}).getByRole('button', {name:account.name, exact:true}).click();
+  await expect(equity).toContainText('Total P&L +$125');
+  await equity.getByRole('button', {name:'1W', exact:true}).click();
+  await expect(equity.getByRole('button', {name:'1W', exact:true})).toHaveAttribute('aria-pressed','true');
+  const empty = await page.request.post(origin + '/api/journal-accounts', {
+    headers, data:{name:'Empty account', starting_balance:10000, account_type:'Eval'},
+  });
+  expect(empty.ok()).toBeTruthy();
+  await page.reload();
+  await equity.getByRole('button', {name:'Empty account', exact:true}).click();
+  await expect(equity).toContainText('No recorded Journal trade results');
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });

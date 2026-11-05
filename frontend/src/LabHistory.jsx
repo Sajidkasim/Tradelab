@@ -15,7 +15,7 @@ function blend(first, second, weight) {
   return `rgb(${a.map((v, i) => Math.round(v * weight + b[i] * (1 - weight))).join(",")})`;
 }
 
-export default function LabHistory({ figure, latest, palette, netResult }) {
+export default function LabHistory({ figure, latest, palette, netResult, journal = false }) {
   const [drawdown, setDrawdown] = useState(false);
   const display = useMemo(() => {
     const equity = figure.data[0];
@@ -26,7 +26,7 @@ export default function LabHistory({ figure, latest, palette, netResult }) {
         ...equity,
         name: "Cumulative result",
         line: { ...equity.line, color: line, width: 3, shape: "linear" },
-        fill: "tozeroy",
+        fill: journal ? "tonexty" : "tozeroy",
         fillcolor: alpha(tone, 0.11),
         fillgradient: {
           type: "vertical",
@@ -35,10 +35,15 @@ export default function LabHistory({ figure, latest, palette, netResult }) {
             [1, alpha(tone, 0.19)],
           ],
         },
-        hovertemplate:
-          "<b>%{x|%d %b %Y · %H:%M}</b><br>Cumulative result: $%{y:,.2f}<extra></extra>",
+        hovertemplate: journal
+          ? "<b>%{x|%d %b %Y}</b><br>Balance: $%{y:,.2f}<br>%{customdata}<extra></extra>"
+          : "<b>%{x|%d %b %Y · %H:%M}</b><br>Cumulative result: $%{y:,.2f}<extra></extra>",
       },
     ];
+    if (journal) {
+      const floor = equity.y.reduce((minimum, value) => Math.min(minimum, value), Infinity);
+      traces.unshift({type: "scatter", x: equity.x, y: equity.x.map(() => floor), mode: "lines", line: {width: 0}, hoverinfo: "skip"});
+    }
     if (drawdown) traces.push(...figure.data.slice(1));
     if (latest)
       traces.push({
@@ -110,11 +115,11 @@ export default function LabHistory({ figure, latest, palette, netResult }) {
         tickfont: { color: palette.muted, size: 10 },
       };
     return { data: traces, layout };
-  }, [figure, latest, palette, netResult, drawdown]);
+  }, [figure, latest, palette, netResult, drawdown, journal]);
   return (
     <div className={`lab-history ${netResult < 0 ? "is-loss" : ""}`}>
       <Chart figure={display} height={drawdown ? 380 : 340} />
-      <div className="history-footer">
+      {!journal && <div className="history-footer">
         <span>
           <i className="history-point" />
           Latest closed trade
@@ -127,7 +132,7 @@ export default function LabHistory({ figure, latest, palette, netResult }) {
           />{" "}
           Show drawdown
         </label>
-      </div>
+      </div>}
       <p className="history-hint">
         Hover or tap along the line to inspect your results.
       </p>

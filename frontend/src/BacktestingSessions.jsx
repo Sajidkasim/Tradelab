@@ -18,6 +18,11 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [opening,setOpening]=useState(false);
  const [renderedPanes,setRenderedPanes]=useState({});
  const reportReady=useCallback(id=>setRenderedPanes(panes=>panes[id]?panes:{...panes,[id]:true}),[]);
+ const [stayDrawing,setStayDrawing]=useState(()=>localStorage.getItem('primus:stay-drawing')==='true');
+ const updateStayDrawing=useCallback(value=>{
+  setStayDrawing(value);
+  localStorage.setItem('primus:stay-drawing',String(value));
+ },[]);
  const drawingTool=useRef(null);
  const selectDrawingTool=useCallback((type)=>{
   drawingTool.current=type;
@@ -55,7 +60,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
   setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.layout?.symbol||data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.layout_secondary?.symbol||'ES',timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
-  setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}`)
+  setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}${new URLSearchParams(location.search).get('drawingDebug')==='1'?'&drawingDebug=1':''}`)
  }
  useEffect(()=>{
   let alive=true;
@@ -108,7 +113,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={reportReady,stayDrawing,updateStayDrawing,drawingTool,selectDrawingTool,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div className={twoCharts?'bt-panes bt-panes-split':'bt-panes'}>
