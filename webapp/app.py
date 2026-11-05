@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from core import edge
 from core.models import Account, Source
+from core.registry import COACH_PROVIDERS, load_extensions
 from .schemas import JournalAccount
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
@@ -115,11 +116,12 @@ def create_app(config: Settings | None = None):
         # SQLAlchemy exception text can include the database URL and submitted records.
         return JSONResponse({"detail": "The database is unavailable. Your unsaved changes are still on this page. Please retry."}, status_code=503)
 
-    def check_write(request):
+    def check_write(request, *, allow_missing_origin=False):
         token = request.headers.get("X-Primus-CSRF", "")
         if not token or not hmac.compare_digest(token, request.session.get("csrf", "")):
             raise HTTPException(403, "Refresh the page before saving.")
-        if request.headers.get("Origin") != config.public_url.rstrip("/"):
+        origin = request.headers.get("Origin")
+        if origin != config.public_url.rstrip("/") and not (allow_missing_origin and origin is None):
             raise HTTPException(403, "Saving requires the PrimusLab website.")
 
     def workspace(request: Request):
@@ -310,6 +312,30 @@ def create_app(config: Settings | None = None):
         journal_preview()
         with app.state.workspaces.lock:
             return daily_journal.entries(db(request, member))
+
+    @app.get('/api/journal/coach')
+    def journal_coach(day: date, request: Request, account_id: int | None = None,
+                      member=Depends(workspace)):
+        journal_preview()
+        check_write(request, allow_missing_origin=True)
+        load_extensions(Path(__file__).resolve().parents[1] / 'extensions')
+        provider = COACH_PROVIDERS.get('Aura - Trading Assistant')
+        if provider is None:
+            raise HTTPException(503, 'Aura is unavailable.')
+        database = db(request, member)
+        accounts = database.accounts()
+        account = next((item for item in accounts if account_id is None or item.id == account_id), None)
+        if account is None:
+            raise HTTPException(404, 'Choose an available Journal account.')
+        entry = daily_journal.entry(database, day.isoformat())
+        notes = '\n'.join(f'{label}: {entry.get(field) or ""}' for label, field in (
+            ('Plan', 'plan'), ('Observations', 'notes'), ('Review', 'lesson'),
+        ))
+        markdown = provider({
+            'database': database, 'account': account, 'trader_name': member['name'],
+            'notes': f'Journal date: {day.isoformat()}\n{notes}',
+        })
+        return {'markdown': markdown}
 
     @app.get('/api/journal/export')
     def export_journal(request: Request, member=Depends(workspace)):

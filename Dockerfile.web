@@ -12,6 +12,7 @@ WORKDIR /app
 COPY requirements.txt requirements-web.txt ./
 RUN pip install --no-cache-dir -r requirements-web.txt
 COPY core/ core/
+COPY extensions/ extensions/
 COPY services/ services/
 COPY strategies/ strategies/
 COPY webapp/ webapp/

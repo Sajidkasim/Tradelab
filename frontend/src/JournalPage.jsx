@@ -9,6 +9,7 @@ import TradeForm from './TradeForm';
 import ReleaseNotes from './ReleaseNotes';
 import useTradeDismissal from './useTradeDismissal';
 import {money} from './format';
+import CoachPanel from './CoachPanel';
 import JournalTradeCards,{JournalScreenshots} from './JournalTradeCards';
 import './journal-workspace.css';
 
@@ -128,9 +129,10 @@ export default function JournalPage({theme = "light"}){
             </div>
           </div>
           <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId}/>
+          <CoachPanel key={`${day}:${account}`} day={day} account={account} dirty={dirty}/>
           {(identity.images_enabled??localSitePreview())&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>
-          <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Notes stay in your Journal. Only trades you add to the Lab affect results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>
+          <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Save your notes here. Only trades you add to the Lab affect Lab results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>
         </section>
       </div>
       <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme}/>

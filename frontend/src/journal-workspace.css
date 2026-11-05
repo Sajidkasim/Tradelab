@@ -208,3 +208,10 @@
 @media(max-width:650px){
   .pj-trade-metrics,.pj-trade-card .pj-screenshots .pt-image-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+.pj-coach.card{margin:16px clamp(12px,3vw,30px);padding:clamp(16px,3vw,26px);background:var(--tl-surface,var(--pt-white));color:var(--pt-ink);border-color:var(--pt-line)}
+.pj-coach p{margin:8px 0;overflow-wrap:anywhere}
+.pj-coach .pt-btn{margin-top:8px}
+.pj-coach-review{margin-top:16px;padding-top:12px;border-top:1px solid var(--pt-line)}
+.pj-coach-review h4{margin-top:12px}
+.pj-coach-review blockquote{margin:10px 0;padding-inline-start:12px;border-inline-start:2px solid var(--pt-line)}
