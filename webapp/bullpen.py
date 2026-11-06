@@ -7,9 +7,11 @@ import os
 import time
 from uuid import NAMESPACE_URL, uuid5
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
 from fastapi import HTTPException, Request
 
-JITSI_DOMAIN = "meet.jit.si"
 TOPIC = "primus:bullpen:v1"
 TEAM = ("Sajid", "Safwaan", "Mubeen", "Mustafa", "Amir")
 LIFETIME = 600
@@ -24,6 +26,14 @@ def _sign(secret, claims):
     body = _segment(json.dumps(claims, separators=(",", ":")).encode())
     unsigned = header + b"." + body
     return (unsigned + b"." + _segment(hmac.digest(secret.encode(), unsigned, hashlib.sha256))).decode()
+
+
+def _jaas_token(key, kid, claims):
+    header = _segment(json.dumps({"alg": "RS256", "kid": kid, "typ": "JWT"}).encode())
+    body = _segment(json.dumps(claims, separators=(",", ":")).encode())
+    unsigned = header + b"." + body
+    signature = key.sign(unsigned, padding.PKCS1v15(), hashes.SHA256())
+    return (unsigned + b"." + _segment(signature)).decode()
 
 
 def _team_name(email):
@@ -53,7 +63,17 @@ def mount(app, config, workspace, check_write):
         check_write(request, allow_missing_origin=True)
 
         realtime_secret = os.getenv("BULLPEN_SUPABASE_JWT_SECRET", "")
-        if os.getenv("BULLPEN_ENABLED") != "1" or len(realtime_secret) < 32:
+        app_id = os.getenv("BULLPEN_JAAS_APP_ID", "").strip()
+        kid = os.getenv("BULLPEN_JAAS_KEY_ID", "").strip()
+        private_pem = os.getenv("BULLPEN_JAAS_PRIVATE_KEY", "").strip().replace("\\n", "\n")
+        if (os.getenv("BULLPEN_ENABLED") != "1" or len(realtime_secret) < 32
+                or not app_id or not kid.startswith(app_id + "/") or not private_pem):
+            return {"name": name, "configured": False}
+        try:
+            key = serialization.load_pem_private_key(private_pem.encode(), password=None)
+        except (ValueError, TypeError):
+            return {"name": name, "configured": False}
+        if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
             return {"name": name, "configured": False}
         now = int(time.time())
         subject = str(uuid5(NAMESPACE_URL, f"{config.supabase_url}/primus-bullpen/{member['key']}"))
@@ -68,8 +88,17 @@ def mount(app, config, workspace, check_write):
             version = os.getenv("BULLPEN_ROOM_VERSION", "1")
             suffix = hmac.digest(config.secret.encode(), f"primus-bullpen-room:{version}".encode(),
                                  hashlib.sha256).hex()
+            room = f"PrimusLab-Bullpen-Live-{suffix}"
             result["meeting"] = {
-                "domain": JITSI_DOMAIN,
-                "roomName": f"PrimusLab-Bullpen-Live-{suffix}",
+                "appId": app_id,
+                "roomName": room,
+                "jwt": _jaas_token(key, kid, {
+                    **expires, "aud": "jitsi", "iss": "chat", "sub": app_id, "room": room,
+                    "context": {"user": {"id": subject, "name": name,
+                                         "moderator": "true" if member["key"] == "owner" else "false"},
+                                "features": {"recording": False, "livestreaming": False,
+                                             "transcription": False, "outbound-call": False},
+                                "room": {"regex": False}},
+                }),
             }
         return result

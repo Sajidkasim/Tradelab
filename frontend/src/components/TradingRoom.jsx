@@ -4,7 +4,7 @@ import {Button, Notice} from '../components';
 import {REACTIONS, useBullpen} from '../hooks/usePresence';
 import '../trading-room.css';
 
-const JitsiMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JitsiMeeting})));
+const JaaSMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JaaSMeeting})));
 const configOverwrite = {
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
@@ -70,15 +70,13 @@ export default function TradingRoom({meeting, onLeave, tradeFeed=[]}) {
       <div><span className="pt-overline">PRIMUS TEAM ROOM</span><h1>Live Trading Floor</h1></div>
       {joined&&<span className="bullpen-live">LIVE</span>}
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
-      <a className="button" href={`https://${meeting.domain}/${encodeURIComponent(meeting.roomName)}`}
-        target="_blank" rel="noopener noreferrer">Open in Jitsi</a>
       <Button onClick={onLeave}>Leave Call</Button>
     </header>
     {videoError&&<Notice error>{videoError}</Notice>}
     <div className="bullpen-split" ref={layout} style={{'--bullpen-ratio':split/100}}>
       <div className="bullpen-video">
         <Suspense fallback={<p role="status">Opening video…</p>}>
-          <JitsiMeeting roomName={meeting.roomName} domain={meeting.domain}
+          <JaaSMeeting roomName={meeting.roomName} appId={meeting.appId} jwt={meeting.jwt}
             userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
             interfaceConfigOverwrite={{
               DEFAULT_BACKGROUND:getComputedStyle(document.documentElement).getPropertyValue('--tl-surface').trim(), SHOW_JITSI_WATERMARK:false,

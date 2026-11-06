@@ -11,10 +11,10 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
     return route.fulfill({json:{
       name:'Sajid',configured:true,topic:'primus:bullpen:v1',
       url:'https://primus-test.supabase.co',publishableKey:'test-key',token,
-      ...(join?{meeting:{domain:'meet.jit.si',roomName:'PrimusLab-Bullpen-Live-synthetic'}}:{}),
+      ...(join?{meeting:{appId:'vpaas-magic-cookie-test',jwt:'test-meeting-token',roomName:'PrimusLab-Bullpen-Live-synthetic'}}:{}),
     }});
   });
-  await page.route('https://meet.jit.si/external_api.js',route=>route.fulfill({
+  await page.route('https://8x8.vc/**/external_api.js',route=>route.fulfill({
     contentType:'text/javascript',
     body:`window.JitsiMeetExternalAPI=class {
       constructor(domain, options){
@@ -63,7 +63,7 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
   await page.goto('http://127.0.0.1:8119/learn');
   await page.getByRole('button',{name:'Join Live Trading Floor'}).click();
   await expect(page.getByTitle('Test video room')).toBeVisible();
-  expect(await page.evaluate(()=>window.testRoom)).toBe('PrimusLab-Bullpen-Live-synthetic');
+  expect(await page.evaluate(()=>window.testRoom)).toBe('vpaas-magic-cookie-test/PrimusLab-Bullpen-Live-synthetic');
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toBeVisible();
   const divider=page.getByRole('separator',{name:'Resize video and sidebar'});
   await divider.press('ArrowLeft');
