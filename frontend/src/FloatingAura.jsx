@@ -22,7 +22,7 @@ function CoachMarkdown({text}) {
 
 function AuraReview({day, account, dirty, titleId, onClose}) {
   const [question, setQuestion] = useState('');
-  const [markdown, setMarkdown] = useState('');
+  const [turns, setTurns] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -35,13 +35,16 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
     const controller = new AbortController();
     request.current = controller;
     setError('');
-    setMarkdown('');
+    const submitted = question.trim() || 'What stands out from my journal today?';
     setLoading(true);
     const query = new URLSearchParams({day});
     if (account != null) query.set('account_id', account);
     try {
-      const result = await api(`/journal/coach?${query}`, {method: 'POST', body: {question: question.trim()}, cache: 'no-store', signal: controller.signal});
-      setMarkdown(result.markdown);
+      const result = await api(`/journal/coach?${query}`, {method: 'POST', body: {question: submitted, history: turns.slice(-3).map(turn => ({question: turn.question.slice(0, 400), answer: turn.answer.slice(0, 650)}))}, cache: 'no-store', signal: controller.signal});
+      if (!controller.signal.aborted) {
+        setTurns(previous => [...previous.slice(-19), {question: submitted, answer: result.markdown}]);
+        setQuestion(current => current.trim() === question.trim() ? '' : current);
+      }
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure.message);
     } finally {
@@ -54,8 +57,14 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
       <h3 id={titleId}>Aura - Trading Assistant</h3>
       <button type="button" className="pt-btn" onClick={onClose} aria-label="Close Aura">Close</button>
     </header>
-    <p>Ask Aura to send this day’s saved notes and screenshots to Google Gemini. Gemini can request recent live-trade summaries and risk checks for the selected account. If you’re viewing all accounts, Aura uses the first account.</p>
+    <p>Aura uses this day’s saved notes and trade details to answer. Sending a question shares that context and recent chat turns with Cloudflare Workers AI. Screenshots stay private. Account-level stats use the selected account, or the first account in All accounts.</p>
     {dirty && <p>Save your entry to include your latest notes.</p>}
+    {turns.length > 0 && <div className="pj-coach-review" role="log" aria-label="Conversation with Aura">
+      {turns.map((turn, index) => <article key={index}>
+        <p><strong>You</strong> · {turn.question}</p>
+        <div aria-label="Aura"><CoachMarkdown text={turn.answer}/></div>
+      </article>)}
+    </div>}
     <form onSubmit={review} className="pj-field">
       <label htmlFor={titleId + '-question'}>Your question</label>
       <textarea id={titleId + '-question'} value={question} maxLength={1000} rows={3}
@@ -65,9 +74,8 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
         {loading ? 'Thinking…' : question.trim() ? 'Send question' : 'Ask Aura'}
       </button>
     </form>
-    {loading && <p role="status">Aura is reviewing your session.</p>}
+    {loading && <p role="status">Aura is thinking…</p>}
     {error && <p role="alert">{error}</p>}
-    {markdown && <div className="pj-coach-review" aria-live="polite"><CoachMarkdown text={markdown}/></div>}
   </section>;
 }
 

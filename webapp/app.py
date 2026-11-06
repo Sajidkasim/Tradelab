@@ -320,10 +320,17 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             return daily_journal.entries(db(request, member))
 
+    from pydantic import BaseModel, Field
+
+    class AuraTurn(BaseModel):
+        question: str = Field(max_length=400)
+        answer: str = Field(max_length=650)
+
     @app.get('/api/journal/coach')
     @app.post('/api/journal/coach')
     def journal_coach(day: date, request: Request, account_id: int | None = None,
-                      member=Depends(workspace), question: str = Body("", embed=True, max_length=1000)):
+                      member=Depends(workspace), question: str = Body("", embed=True, max_length=1000),
+                      history: list[AuraTurn] | None = Body(None, max_length=3)):
         journal_preview()
         check_write(request, allow_missing_origin=request.method == "GET")
         load_extensions(Path(__file__).resolve().parents[1] / 'extensions')
@@ -348,6 +355,13 @@ def create_app(config: Settings | None = None):
             'trader_name': matches[0] if len(matches) == 1 else 'Trader',
             'notes': f'Journal date: {journal_day}\n{notes}',
             'question': question.strip() if request.method == 'POST' else '',
+            'history': [turn.model_dump() for turn in (history or [])],
+            'journal_trades': [
+                {field: str(trade.get(field) or "")[:220] if field != "net_pnl" else trade.get(field)
+                 for field in ("symbol", "direction", "strategy", "outcome", "net_pnl", "notes")}
+                for trade in entry['trades']
+                if account_id is None or trade.get('account_id') == account_id
+            ][:6],
             'image_ids': [image['id'] for image in entry['images']],
             'read_image': lambda image_id: app.state.image_storage.read(member['key'], journal_day, image_id),
         })

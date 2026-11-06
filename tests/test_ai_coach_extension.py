@@ -8,6 +8,11 @@ from extensions import ai_coach
 from tests.test_daily_journal import draft, login, picture
 
 
+@pytest.fixture(autouse=True)
+def legacy_provider(monkeypatch):
+    monkeypatch.setenv("COACH_PROVIDER", "gemini")
+
+
 def test_missing_key_is_safe(monkeypatch):
     monkeypatch.setattr(ai_coach, "load_dotenv", lambda: None)
     monkeypatch.delenv("COACH_API_KEY", raising=False)
@@ -147,3 +152,31 @@ def test_aura_passes_a_private_question_to_the_provider(draft, monkeypatch):
 def test_aura_answers_greeting_without_gemini(monkeypatch):
     monkeypatch.setattr(ai_coach, "load_dotenv", lambda: pytest.fail("Greeting should stay local"))
     assert ai_coach.aura_coach({"question": "Hello!"}).startswith("Hey!")
+
+
+def test_cloudflare_aura_sends_bounded_follow_up_without_images(monkeypatch):
+    monkeypatch.setenv("COACH_PROVIDER", "cloudflare")
+    monkeypatch.setenv("COACH_CLOUDFLARE_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("COACH_CLOUDFLARE_API_TOKEN", "test-token")
+
+    def post(url, *, headers, json, timeout):
+        assert url.endswith("/ai/v1/chat/completions")
+        assert json["max_tokens"] == 320
+        assert [message["role"] for message in json["messages"]] == [
+            "system", "user", "assistant", "user"
+        ]
+        assert len(json["messages"][1]["content"]) == 400
+        assert "Waited for a retest" in json["messages"][-1]["content"]
+        assert "image-id" not in str(json)
+        response = ai_coach.requests.Response()
+        response.status_code = 200
+        response._content = b'{"choices":[{"message":{"content":"Give the retest time."}}]}'
+        return response
+
+    monkeypatch.setattr(ai_coach.requests, "post", post)
+    assert ai_coach.aura_coach({
+        "database": None, "account": None, "trader_name": "Trader",
+        "notes": "Waited for a retest", "question": "What would you change?",
+        "history": [{"question": "x" * 900, "answer": "Earlier reply"}],
+        "image_ids": ["image-id"],
+    }) == "Give the retest time."
