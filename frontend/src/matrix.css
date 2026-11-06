@@ -1,0 +1,14 @@
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./MatrixPage.jsx";
+
+/* Keep the terminal independent of the site's editorial heading rules. */
+.pt-site .matrix-terminal :is(h1,h2,h3,p,dl,dd) { margin: 0; }
+.pt-site .matrix-terminal :is(h1,h2,h3) {
+  letter-spacing: normal;
+  line-height: 1.25;
+  font-weight: 600;
+}
+.pt-site .matrix-terminal dd { margin: 0; }
+

@@ -196,6 +196,24 @@ def create_app(config: Settings | None = None):
                 raise HTTPException(409, "This account has linked trades and cannot be deleted.")
         return {"deleted": account_id}
 
+    @app.get("/api/matrix/snapshot")
+    def matrix_snapshot():
+        import requests
+
+        if not (config.site_preview or config.site_enabled) or not config.supabase_url or not config.supabase_key:
+            return {"snapshot": None}
+        try:
+            response = requests.get(
+                f"{config.supabase_url}/rest/v1/macro_scorecard",
+                params={"id": "eq.matrix", "select": "snapshot"},
+                headers={"apikey": config.supabase_key}, timeout=4,
+            )
+            response.raise_for_status()
+            rows = response.json()
+            return {"snapshot": rows[0]["snapshot"] if rows else None}
+        except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+            raise HTTPException(503, "The macro snapshot could not be read.") from None
+
     @app.get("/health")
     def health():
         return {"status": "ok", "application": "PrimusLab"}
@@ -223,7 +241,7 @@ def create_app(config: Settings | None = None):
         if not config.google_required:
             raise HTTPException(404)
         check_write(request)
-        allowed_returns = ('/lab', '/journal', '/learn', '/market-lab', '/mindset') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
+        allowed_returns = ('/lab', '/journal', '/learn', '/market-lab', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
         if config.local or config.replay_enabled:allowed_returns=(*allowed_returns,'/backtesting')
         if return_to and return_to not in allowed_returns:
             raise HTTPException(422, 'Choose a Primus page to return to.')
@@ -941,7 +959,7 @@ def create_app(config: Settings | None = None):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'journal', 'journal/', 'learn', 'market-lab', 'mindset') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'journal', 'journal/', 'learn', 'market-lab', 'mindset', 'matrix') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():

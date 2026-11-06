@@ -2,6 +2,7 @@ import React, { lazy, Suspense, createContext, useContext, useEffect, useState }
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
 import LearningTrail from './LearningTrail';
+import MatrixLoading from './MatrixLoading';
 import JournalPage from './JournalPage';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
@@ -12,6 +13,7 @@ import {useBullpen} from './hooks/usePresence';
 export const localSitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
 export const sitePreview = () => localSitePreview() || document.querySelector('meta[name="primus-site-enabled"]')?.content === 'true';
 
+const MatrixPage=lazy(()=>import('./MatrixPage'));
 const LearnPage=lazy(()=>import('./LearnPage'));
 const MindsetPage=lazy(()=>import('./MindsetPage'));
 const MarketLabPage=lazy(()=>import('./MarketLabPage'));
@@ -38,6 +40,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
       <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
+      <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
@@ -143,5 +146,5 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{['/learn','/market-lab','/mindset'].includes(location.pathname)?<Suspense fallback={<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
 }
