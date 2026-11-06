@@ -8,7 +8,6 @@ import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHist
 import DrawingFavoritesBar,{toolNames} from './DrawingFavoritesBar';
 import Feedback from './Feedback';
 import {indicatorVisible,intervalChoices,visibilityController} from './replayPreferences';
-import ReplayDailyPivots from './ReplayDailyPivots';
 import SessionRanges,{SessionRangeSettings} from './SessionRanges';
 import {sessionOptions} from './replaySessionRanges';
 import {recordTiming} from './replayTiming';
@@ -35,7 +34,6 @@ const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'te
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
 export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
-  const [dailyPivots,setDailyPivots]=useState(false);
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -305,7 +303,6 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
         initialTab={drawingEditor.tab} initialTemplate={drawingEditor.template} onClose={()=>setDrawingEditor(null)}/>}
       {ready&&!secondary&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
       {ready&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
-      {ready&&dailyPivots&&<ReplayDailyPivots chart={chartRef.current} sessionId={session.id} symbol={symbol} cursor={cursor} replayTime={replayTime}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
@@ -354,7 +351,6 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
         const present = studies.some(study => study.type === item.type);
         return <div className="bt-study-row" key={item.type}><div><strong>{item.title}</strong>{!item.supported && <small>Not available for this sample</small>}</div><button aria-label={`Add ${item.title}`} disabled={!item.supported || (present && !item.multiInstance)} onClick={() => addStudy(item)}>{present && !item.multiInstance ? 'Added' : <><Plus size={15}/> Add</>}</button></div>;
       })}{matches.length === 0 && !'sessions'.includes(search.toLowerCase()) && <p>No indicators match “{search}”.</p>}</div>
-      <label><input type="checkbox" checked={dailyPivots} onChange={event=>setDailyPivots(event.target.checked)}/> Pivot Points Standard · Traditional daily</label>
       <div className="bt-indicator-footer"><small>Indicators only use candles revealed so far. Daily pivots may need earlier sessions.</small><Button onClick={() => setPicker(false)}>Done</Button></div>
     </Modal>}
   </div>;
