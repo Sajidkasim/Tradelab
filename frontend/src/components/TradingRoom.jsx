@@ -19,8 +19,8 @@ const constrain = value=>Math.max(40,Math.min(80,value));
 
 const marketWidgets = {
   chart: {
-    title:'NQ chart', script:'advanced-chart', url:'https://www.tradingview.com/symbols/CME_MINI-NQ1!/',
-    settings:{symbol:'CME_MINI:NQ1!',interval:'5',timezone:'America/New_York',theme:'dark',style:'1',autosize:true,allow_symbol_change:false},
+    title:'Market chart', script:'advanced-chart',
+    settings:{interval:'5',timezone:'America/New_York',theme:'dark',style:'1',autosize:true,allow_symbol_change:true},
   },
   heatmap: {
     title:'Stock heatmap', script:'stock-heatmap', url:'https://www.tradingview.com/heatmap/stock/',
@@ -29,15 +29,25 @@ const marketWidgets = {
 };
 
 function MarketWidget({kind}){
+  const [symbol,setSymbol]=useState('NASDAQ:QQQ');
   const {title,script,url,settings}=marketWidgets[kind];
+  const chart=kind==='chart';
+  const externalUrl=chart?`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`:url;
+  const configuration=chart?{...settings,symbol}:settings;
   const source=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <style>html,body,.tradingview-widget-container{height:100%;margin:0}.tradingview-widget-container__widget{height:100%}</style>
     <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
-    <script async src="https://s3.tradingview.com/external-embedding/embed-widget-${script}.js">${JSON.stringify({width:'100%',height:'100%',locale:'en',...settings})}</script></div></html>`;
-  return <section className="bullpen-market-widget" aria-label={title}>
+    <script async src="https://s3.tradingview.com/external-embedding/embed-widget-${script}.js">${JSON.stringify({width:'100%',height:'100%',locale:'en',...configuration})}</script></div></html>`;
+  return <section className={chart?'bullpen-market-widget bullpen-symbol-chart':'bullpen-market-widget'} aria-label={title}>
+    {chart&&<label>Chart symbol <select value={symbol} onChange={event=>setSymbol(event.target.value)}>
+      <option value="NASDAQ:QQQ">QQQ</option>
+      <option value="CME_MINI:NQ1!">NQ futures</option>
+      <option value="CME_MINI:ES1!">ES futures</option>
+      <option value="AMEX:SPY">SPY</option>
+    </select></label>}
     <iframe title={title} srcDoc={source} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"/>
-    <a href={url} target="_blank" rel="noopener noreferrer">{title} by TradingView</a>
-    {kind==='chart'&&<small>Market data may be delayed.</small>}
+    <a href={externalUrl} target="_blank" rel="noopener noreferrer">{chart?'Open chart in TradingView':'Stock heatmap by TradingView'}</a>
+    {chart&&<small>Market data may be delayed.</small>}
   </section>;
 }
 
@@ -106,7 +116,7 @@ export default function TradingRoom({meeting, onLeave}) {
     </header>
     <div className="bullpen-tabs" role="group" aria-label="Main panel">
       <button type="button" aria-pressed={view==='call'} onClick={()=>setView('call')}>Call</button>
-      <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>NQ chart</button>
+      <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>Chart</button>
     </div>
     {videoError&&<Notice error>{videoError}</Notice>}
     <div className="bullpen-split" ref={layout} style={{'--bullpen-ratio':split/100}}>
