@@ -129,16 +129,47 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-template-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-bottom:1px solid var(--bt-border)}
 .bt-template-row>span{flex:1;min-width:140px}
 
-.bt-drawing-stay,.bt-drawing-actions {
-  position:absolute;z-index:4;display:flex;align-items:center;gap:8px;
-  padding:6px 8px;background:var(--bt-surface);
-  border:1px solid var(--bt-border);border-radius:6px;font-size:.8rem;
-}
-.bt-drawing-stay {left:54px;bottom:38px}
-.bt-drawing-actions {top:12px;right:12px;flex-wrap:wrap;max-width:calc(100% - 70px)}
-.bt-drawing-actions button {font-size:inherit}
 .bt-drawing-editor {display:grid;gap:12px}
 .bt-drawing-editor label {display:grid;gap:4px}
 .bt-drawing-editor label:has(input[type="checkbox"]) {display:flex}
-/* Primus exposes the shared stay preference as a checkbox. */
+/* The shared tool stays armed until Select drawings or Escape. */
 .bt-chart-pane .vela-dtb-btn[aria-label="Stay in drawing mode"] {display:none}
+
+.bt-panes-split{position:relative;grid-template-columns:minmax(0,calc((100% - 12px) * var(--bt-split-ratio,.5))) minmax(0,1fr)}
+.bt-split-handle{position:absolute;inset-block:12px;left:calc(18px + (100% - 36px) * var(--bt-split-ratio,.5));width:12px;transform:translateX(-50%);z-index:4;cursor:col-resize;touch-action:none;display:grid;place-items:center}
+.bt-split-handle::after{content:'';width:3px;height:42px;border-radius:4px;background:var(--bt-muted)}
+.bt-split-handle:is(:hover,:focus-visible)::after{background:var(--bt-accent)}
+.bt-chart-pane .vela-dpop{display:none!important}
+@media(max-width:900px){.bt-panes-split{grid-template-columns:minmax(0,1fr)}.bt-split-handle{display:none}}
+.bt-ticket-line{right:var(--bt-price-gutter,64px)}
+
+.bt-drawing-modal{width:min(510px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}
+.bt-drawing-tabs{display:flex;border-bottom:1px solid var(--bt-border);gap:4px;margin-block:12px}
+.bt-drawing-tabs button{flex:1;min-width:0;padding:10px 2px;border:0;border-bottom:2px solid transparent;background:none;color:var(--bt-muted);font:inherit;font-size:clamp(11px,2.5vw,14px);cursor:pointer}
+.bt-drawing-tabs [aria-selected=true]{border-bottom-color:var(--bt-accent);color:var(--bt-ink);font-weight:650}
+.bt-drawing-editor{min-height:215px;align-content:start}
+.bt-drawing-fields{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.bt-drawing-fields>.field{flex:1 1 105px;min-width:0;margin:0}
+.bt-drawing-format,.bt-drawing-bands{display:flex;flex-wrap:wrap;gap:8px}
+.bt-drawing-format [aria-pressed=true]{background:var(--bt-selected);border-color:var(--bt-accent)}
+.bt-drawing-editor textarea{min-height:120px;resize:vertical}
+.bt-drawing-footer{display:flex;justify-content:space-between;align-items:end;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--bt-border)}
+.bt-drawing-footer>.field{margin:0;min-width:140px;max-width:210px}
+.bt-drawing-footer .settings-actions{margin:0}
+.bt-template-name{margin-block:12px}
+
+.bt-object-menu{position:fixed;z-index:1000;width:min(274px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:7px 8px;border:1px solid var(--tl-border);border-radius:13px;background:var(--tl-ink);color:var(--tl-surface);box-shadow:0 12px 30px color-mix(in srgb,var(--tl-ink) 30%,transparent)}
+[data-theme=dark] .bt-object-menu{background:var(--tl-page);color:var(--tl-ink)}
+.bt-object-menu button{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:9px;width:100%;min-height:34px;padding:5px 9px;border:0;border-radius:5px;background:none;color:inherit;font:inherit;font-size:14px;text-align:left;cursor:pointer}
+.bt-object-menu button:is(:hover,:focus-visible){background:color-mix(in srgb,currentColor 13%,transparent)}
+.bt-object-menu-icon{display:flex;align-items:center}
+.bt-object-menu kbd,.bt-object-menu svg{opacity:.65}
+.bt-object-menu hr{border:0;border-top:1px solid color-mix(in srgb,currentColor 15%,transparent);margin:5px 0}
+.bt-object-menu p{padding:0 9px;font-size:12px}
+.bt-clock-footer{display:flex;justify-content:flex-end;align-items:center;gap:5px;padding:4px 8px;border-top:1px solid var(--bt-border);font-size:11px;flex-shrink:0}
+.bt-clock-footer .field{margin:0;min-width:0}
+.bt-clock-footer button,.bt-clock-footer .picker-trigger{border:0;border-radius:999px;min-height:27px;height:auto;padding:4px 9px;background:var(--bt-bg);color:var(--bt-ink);font:inherit;cursor:pointer}
+.bt-clock-footer button[aria-pressed=true]{background:var(--bt-selected);color:var(--bt-accent)}
+.bt-clock-footer time{white-space:nowrap;font-variant-numeric:tabular-nums}
+.bt-chart-announcements{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.bt-clock-footer .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}

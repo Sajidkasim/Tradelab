@@ -209,7 +209,7 @@ test('chart clocks, speed slider and saved session jump work without replay data
  const clock=page.getByLabel('Replay time',{exact:true});
  await expect(clock).toContainText('08:30:00');
  await page.getByRole('combobox',{name:'Chart timezone',exact:true}).click();
- await expect(page.getByRole('option',{name:'UTC',exact:true})).toHaveCount(0);await page.getByRole('option',{name:'London',exact:true}).click();
+ await expect(page.getByRole('option',{name:'UTC',exact:true})).toBeVisible();await page.getByRole('option',{name:'London',exact:true}).click();
  await expect(clock).toContainText('13:30:00');
  await page.getByRole('slider',{name:'Replay speed',exact:true}).fill('5');
  await expect(page.locator('.bt-speed-slider output')).toHaveText('8×');
@@ -226,7 +226,9 @@ test('chart clocks, speed slider and saved session jump work without replay data
  await page.reload();
  await expect(clock).toContainText('14:30:00');
  await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('London');
- await clock.click();await expect(page.getByRole('combobox',{name:'Chart timezone',exact:true})).toContainText('New York');
+ await page.getByRole('combobox',{name:'Chart timezone',exact:true}).click();
+ await page.getByRole('option',{name:'UTC',exact:true}).click();
+ await expect(clock).toContainText('(UTC+0)'); await page.getByRole('combobox',{name:'Chart timezone',exact:true}).click(); await page.getByRole('option',{name:'New York',exact:true}).click();
  await expect(clock).toContainText('(UTC-5)');
  await page.screenshot({path:testInfo.outputPath('clock-speed-jump.png')});
 });
@@ -512,12 +514,27 @@ test('order appears before slow acknowledgement; drag keeps replay moving, Escap
 test('one toolbar targets the active pane, retains both charts and restores split layout',async({page},testInfo)=>{
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ const esHistory=page.waitForResponse(response=>{
+  const url=new URL(response.url());
+  return url.pathname.endsWith('/chart-history')&&url.searchParams.get('root')==='ES'&&url.searchParams.get('timeframe')==='1'&&response.ok();
+ });
  await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
  const first=page.locator('[data-pane-id="primary"]'),second=page.locator('[data-pane-id="secondary"]');
  await expect(second.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByRole('group',{name:'Chart timeframe',exact:true})).toHaveCount(1);
  await expect(first.getByRole('button',{name:'Lines',exact:true})).toBeVisible();
  await expect(second.getByRole('button',{name:'Lines',exact:true})).toHaveCount(0);
+ const divider=page.getByRole('separator',{name:'Resize split charts'});
+ const startWidth=(await first.boundingBox()).width;
+ const handleBounds=await divider.boundingBox();
+ await page.mouse.move(handleBounds.x+handleBounds.width/2,handleBounds.y+handleBounds.height/2);
+ await page.mouse.down();
+ await page.mouse.move(handleBounds.x+handleBounds.width/2+130,handleBounds.y+handleBounds.height/2,{steps:6});
+ await page.mouse.up();
+ await expect.poll(async()=>(await first.boundingBox()).width).toBeGreaterThan(startWidth+90);
+ await divider.dblclick();
+ await expect.poll(async()=>Math.abs((await first.boundingBox()).width-startWidth)).toBeLessThan(2);
+
  await page.getByRole('button',{name:'Indicators',exact:true}).click();
  const indicators=page.getByRole('dialog',{name:'Indicators',exact:true});
  await expect(indicators.getByRole('region',{name:'Indicators on chart'})).toHaveCount(0);
@@ -526,10 +543,13 @@ test('one toolbar targets the active pane, retains both charts and restores spli
  await expect(indicators.getByRole('button',{name:'Add Volume',exact:true})).toBeDisabled();
  await indicators.getByRole('button',{name:'Done',exact:true}).click();
  const stay=first.getByRole('checkbox',{name:'Stay in drawing mode'});
- await expect(stay).not.toBeChecked();
- await stay.check();
- await first.getByRole('button',{name:'Lines',exact:true}).click();
+ await expect(stay).toHaveCount(0);
+ const magnet=first.getByRole('button',{name:'Magnet snap',exact:true});
+ await magnet.hover();
+ await first.getByRole('button',{name:'Magnet snap — more',exact:true}).press('Enter');
+ await page.getByText('Strong',{exact:true}).click();
  for (const pane of [first,second]) {
+  await first.getByRole('button',{name:'Lines',exact:true}).click();
   await pane.locator('.replay-chart').click({position:{x:240,y:220}});
   await pane.locator('.replay-chart').click({position:{x:420,y:260}});
  }
@@ -542,6 +562,13 @@ test('one toolbar targets the active pane, retains both charts and restores spli
   return [countDrawings(layouts.layout),countDrawings(layouts.layout_secondary)];
  }).toEqual([1,1]);
  const layouts=await readLayouts();
+ const esBars=new Map((await (await esHistory).json()).bars.map(bar=>[bar.time,bar]));
+ const esAnchors=Object.values(layouts.layout_secondary.drawings).flatMap(doc=>doc.drawings)[0].anchors;
+ for(const anchor of esAnchors){
+  const bar=esBars.get(anchor.time);
+  expect(bar).toBeDefined();
+  expect([bar.open,bar.high,bar.low,bar.close]).toContain(anchor.price);
+ }
  for (const layout of [layouts.layout,layouts.layout_secondary]) {
   expect(layout.studies.some(study=>study.type==='volume')).toBe(false);
  }
@@ -579,7 +606,7 @@ test('full calendar coverage, bounded 4h pages and free navigation preserve repl
  }
  await page.getByRole('button',{name:'4h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
  expect(await count()).toBeLessThanOrEqual(750);
- await expect(page.getByLabel('Dataset coverage',{exact:true})).toContainText('2010-06-06');
+ await expect(page.getByLabel('Dataset coverage',{exact:true})).toHaveCount(0);
  const before=pages;
  // Pan well past the loaded left edge. The viewport stays free and older pages arrive.
  await page.mouse.move(650,350);await page.mouse.wheel(0,500);await page.mouse.wheel(0,500);

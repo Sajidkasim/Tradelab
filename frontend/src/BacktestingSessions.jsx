@@ -18,11 +18,19 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [opening,setOpening]=useState(false);
  const [renderedPanes,setRenderedPanes]=useState({});
  const reportReady=useCallback(id=>setRenderedPanes(panes=>panes[id]?panes:{...panes,[id]:true}),[]);
- const [stayDrawing,setStayDrawing]=useState(()=>localStorage.getItem('primus:stay-drawing')==='true');
- const updateStayDrawing=useCallback(value=>{
-  setStayDrawing(value);
-  localStorage.setItem('primus:stay-drawing',String(value));
+ const [splitPercent,setSplitPercent]=useState(50);
+ const splitHost=useRef(null);
+ const magnetMode=useRef('off');
+ const selectMagnetMode=useCallback(mode=>{
+  magnetMode.current=mode;
+  for(const chart of Object.values(chartInstances.current)){
+   if(chart&&chart.drawings.getSnapMode()!==mode)chart.drawings.setSnapMode(mode);
+  }
  },[]);
+ function resizeSplit(event){
+  const rect=splitHost.current.getBoundingClientRect();
+  setSplitPercent(Math.min(80,Math.max(20,100*(event.clientX-rect.left-18)/(rect.width-36))));
+ }
  const drawingTool=useRef(null);
  const selectDrawingTool=useCallback((type)=>{
   drawingTool.current=type;
@@ -113,10 +121,16 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,stayDrawing,updateStayDrawing,drawingTool,selectDrawingTool,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
-   <div className={twoCharts?'bt-panes bt-panes-split':'bt-panes'}>
+   <div ref={splitHost} className={twoCharts?'bt-panes bt-panes-split':'bt-panes'} style={{'--bt-split-ratio':splitPercent/100}}>
+    {twoCharts&&<div className="bt-split-handle" role="separator" aria-label="Resize split charts"
+      aria-orientation="vertical" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(splitPercent)} tabIndex={0}
+      onPointerDown={event=>{if(event.button===0)event.currentTarget.setPointerCapture(event.pointerId)}}
+      onPointerMove={event=>{if(event.currentTarget.hasPointerCapture(event.pointerId))resizeSplit(event)}}
+      onDoubleClick={()=>setSplitPercent(50)}
+      onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();setSplitPercent(value=>event.key==='Home'?20:event.key==='End'?80:Math.max(20,Math.min(80,value+(event.key==='ArrowLeft'?-2:2))))}}/>}
     {chartWorkspace.charts.filter(pane=>pane.id==='primary'||twoCharts).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id==='secondary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>layoutSavers.current[pane.id==='primary'?'secondary':'primary']?.()||Promise.resolve()}/>)}
    </div>
    <div className="bt-shared-playback" ref={setControlsHost}/>

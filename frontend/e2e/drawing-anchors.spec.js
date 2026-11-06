@@ -43,6 +43,7 @@ test('magnet drawing keeps anchors across intervals and templates change only ap
   const daily = await switchInterval('1D','1D');
   expect(anchorValues(daily)).toEqual(original);
 
+  await page.getByRole('button',{name:'Select drawings',exact:true}).click();
   const hours = await switchInterval('1h','60');
   const anchor = hours[0].anchors[0];
   const bounds = await chart.boundingBox();
@@ -65,22 +66,17 @@ test('magnet drawing keeps anchors across intervals and templates change only ap
   }
   expect(anchorValues(await switchInterval('1h','60'))).toEqual(anchorValues(changed));
   const point = logs.at(-1).drawings[0].anchors[0];
-  await chart.click({position:{x:point.x + toolbarWidth,y:point.y}});
-  const actions = page.getByRole('toolbar',{name:'Selected drawing actions'});
-  await actions.getByRole('button',{name:'Template',exact:true}).click();
-  const dialog = page.getByRole('dialog',{name:'Drawing template & text'});
-  await dialog.getByLabel('Label',{exact:true}).fill('Previous day high');
+  await chart.dblclick({position:{x:point.x + toolbarWidth,y:point.y}});
+  const dialog = page.getByRole('dialog',{name:'Line',exact:true});
+  await dialog.getByRole('tab',{name:'Text'}).click();
+  await dialog.getByLabel('Drawing text',{exact:true}).fill('Previous day high');
+  await dialog.getByRole('combobox',{name:'Template'}).click();
+  await page.getByRole('option',{name:'Save as…',exact:true}).click();
   await dialog.getByLabel('Template name').fill('PDH');
-  await dialog.getByRole('button',{name:'Save as template'}).click();
-  await expect(dialog.getByRole('button',{name:'Use PDH'})).toBeVisible();
-  await dialog.getByRole('button',{name:'Apply to drawing'}).click();
+  await dialog.getByRole('button',{name:'Save template',exact:true}).click();
+  await expect(dialog.getByLabel('Template name')).toHaveCount(0);
+  await dialog.getByRole('button',{name:'OK',exact:true}).click();
   expect(anchorValues(await switchInterval('1D','1D'))).toEqual(anchorValues(changed));
-  const stay = page.getByRole('checkbox',{name:'Stay in drawing mode'});
-  await stay.check();
-  await page.reload();
-  await expect(stay).toBeChecked();
-  await stay.uncheck();
-  await page.reload();
-  await expect(stay).not.toBeChecked();
+  await expect(page.getByRole('checkbox',{name:'Stay in drawing mode'})).toHaveCount(0);
   await testInfo.attach('drawing-timeframe-trace.json',{body:JSON.stringify(logs,null,2),contentType:'application/json'});
 });

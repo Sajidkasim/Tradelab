@@ -16,12 +16,12 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
 
  useEffect(()=>{
   if(!ticket){setGeometry(null);return}let raf;const update=()=>{const proj=replayProjector(chart);const pane=proj?.paneRect('price');
-   if(proj&&pane&&ticket){const g={top:pane.top,bottom:pane.top+pane.height,entry:proj.yOf(ticket.reference,'price'),stop:proj.yOf(ticket.stop_price,'price'),target:proj.yOf(ticket.target_price,'price')};setGeometry(old=>JSON.stringify(old)===JSON.stringify(g)?old:g)}
+   if(proj&&pane&&ticket){const g={axis:Math.max(0,host.current.clientWidth-proj.width),top:pane.top,bottom:pane.top+pane.height,entry:proj.yOf(ticket.reference,'price'),stop:proj.yOf(ticket.stop_price,'price'),target:proj.yOf(ticket.target_price,'price')};setGeometry(old=>JSON.stringify(old)===JSON.stringify(g)?old:g)}
    raf=requestAnimationFrame(update)};update();return()=>cancelAnimationFrame(raf);
  },[chart,ticket]);
  useEffect(()=>{
   const el=host.current;if(!el)return;
-  const context=e=>{const bounds=el.getBoundingClientRect(),proj=replayProjector(chart);if(!proj||proj.paneIdAtY(e.clientY-bounds.top)!=='price')return;e.preventDefault();e.stopImmediatePropagation();pause();const point=proj.pxToPoint(e.clientX-bounds.left,e.clientY-bounds.top,'price');setMenu({x:Math.max(8,Math.min(e.clientX-bounds.left,bounds.width-245)),y:Math.max(8,Math.min(e.clientY-bounds.top,bounds.height-235)),price:Math.round(point.price*4)/4})};
+  const context=e=>{const bounds=el.getBoundingClientRect(),proj=replayProjector(chart);const pointOnChart=chart.renderer.renderer.input.local(e);if(!proj||pointOnChart.x<0||pointOnChart.x>=proj.width||proj.paneIdAtY(pointOnChart.y)!=='price')return;e.preventDefault();e.stopImmediatePropagation();pause();const point=proj.pxToPoint(pointOnChart.x,pointOnChart.y,'price');setMenu({x:Math.max(8,Math.min(e.clientX-bounds.left,bounds.width-245)),y:Math.max(8,Math.min(e.clientY-bounds.top,bounds.height-235)),price:Math.round(point.price*4)/4})};
   el.addEventListener('contextmenu',context,true);return()=>el.removeEventListener('contextmenu',context,true);
  },[chart,host,pause]);
  useEffect(()=>{if(!menu)return;const close=e=>{if(e.key==='Escape'||(e.type==='pointerdown'&&!menuRef.current?.contains(e.target)))setMenu(null)};document.addEventListener('pointerdown',close);document.addEventListener('keydown',close);menuRef.current?.focus();return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',close)}},[menu]);
@@ -30,7 +30,7 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
  function atPointer(e){const started=performance.now();const r=host.current.getBoundingClientRect();const value=Math.max(tick,Math.round(replayProjector(chart).pxToPoint(e.clientX-r.left,e.clientY-r.top-(latestDrag.current?.offset||0),'price').price/tick)*tick);recordTiming('pointer handler',started);return value}
  function place(side){const type=side==='buy'?(menu.price<=price?'limit':'stop'):(menu.price>=price?'limit':'stop');send('order',{side,type,qty:Number(qty),price:menu.price});setMenu(null)}
  return <>
- {ticket&&geometry&&<div className="bt-ticket-layer" aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['stop','target'].map(kind=>{const value=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:ticket[kind+'_price'];const y=replayProjector(chart)?.yOf(value,'price');return y==null?null:<div key={kind+'zone'} className={`bt-risk-zone ${kind}`} style={{top:Math.min(y,geometry.entry),height:Math.abs(y-geometry.entry)}}/>})}{frame.position&&<button className="bt-break-even" onClick={()=>amend('stop',frame.position.entry)}>SL to break-even</button>}{['entry','stop','target'].map(kind=>{
+ {ticket&&geometry&&<div className="bt-ticket-layer" style={{'--bt-price-gutter': geometry.axis+'px'}} aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['stop','target'].map(kind=>{const value=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:ticket[kind+'_price'];const y=replayProjector(chart)?.yOf(value,'price');return y==null?null:<div key={kind+'zone'} className={`bt-risk-zone ${kind}`} style={{top:Math.min(y,geometry.entry),height:Math.abs(y-geometry.entry)}}/>})}{frame.position&&<button className="bt-break-even" onClick={()=>amend('stop',frame.position.entry)}>SL to break-even</button>}{['entry','stop','target'].map(kind=>{
  const active=kind==='entry'||(kind==='stop'?ticket.stop_result:ticket.target_result)!=null;
  const level=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:kind==='entry'?ticket.reference:ticket[kind+'_price'];
  const amount=(level-ticket.reference)*(ticket.side==='buy'?1:-1)*multiplier*ticket.qty;
@@ -48,8 +48,8 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
  const started=performance.now();try{
  if(latestDrag.current?.kind!==kind)return;
  let value=atPointer(e);const sign=ticket.side==='buy'?1:-1;
- if(kind==='stop'){const edge=ticket.reference-(ticket.pending?sign*tick:0);value=sign===1?Math.min(value,edge):Math.max(value,edge)}
- if(kind==='target')value=sign===1?Math.max(value,ticket.reference+tick):Math.min(value,ticket.reference-tick);
+ if(ticket.pending&&kind==='stop'){const edge=ticket.reference-(ticket.pending?sign*tick:0);value=sign===1?Math.min(value,edge):Math.max(value,edge)}
+ if(ticket.pending&&kind==='target')value=sign===1?Math.max(value,ticket.reference+tick):Math.min(value,ticket.reference-tick);
  latestDrag.current={...latestDrag.current,kind,price:value};
  if(dragRaf.current==null)dragRaf.current=requestAnimationFrame(()=>{dragRaf.current=null;setDrag(latestDrag.current)});
  }finally{recordTiming('drag move handler',started)}

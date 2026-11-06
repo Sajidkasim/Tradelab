@@ -137,10 +137,10 @@ def test_break_even_edit_is_future_only_and_preserves_original_risk(side):
     assert plan['trades'][0]['exit_cursor']==2
     assert plan['trades'][0]['net']==-1 # break-even price still pays both commissions
 
-@pytest.mark.parametrize('side,stop',[('buy',101.25),('sell',100.75)])
-def test_edit_cannot_move_stop_to_wrong_side_of_entry(side,stop):
+@pytest.mark.parametrize('side,stop',[('buy',101.25),('sell',99.75)])
+def test_pending_edit_cannot_move_stop_to_wrong_side_of_entry(side,stop):
     with pytest.raises(ValueError,match='loss side'):
-        project(BARS,SPEC,[command(0,side=side),{'at':1,'kind':'amend','order':{'stop':stop}}])
+        project(BARS,SPEC,[command(0,side=side),{'at':0,'kind':'amend','order':{'stop':stop}}])
 
 
 def test_partial_level_edits_preserve_other_bracket_and_explicit_remove():
@@ -162,3 +162,21 @@ def test_compact_frames_are_lossless_for_fills_edits_fees_and_snapshot_mutation(
     assert compact['trades']==original['trades'] and compact['fills']==original['fills']
     frame=compact['frames'][1];frame['position']['entry']=-99
     assert compact['frames'][1]==original['frames'][1]
+
+
+@pytest.mark.parametrize(('side','trailing_stop'), [('buy',102), ('sell',100)])
+def test_open_position_can_trail_stop_into_profit(side,trailing_stop):
+    result=project(BARS,SPEC,[command(0,side=side),
+        {'at':1,'kind':'amend','order':{'stop':trailing_stop}}])
+    assert result['frames'][1]['position']['stop']==trailing_stop
+    assert result['frames'][1]['ticket']['stop_result']==2
+    assert result['trades'][0]['exit_cursor']==2
+    assert result['trades'][0]['reason']=='stop'
+
+
+def test_open_position_can_move_target_past_entry_and_reject_off_tick_price():
+    def amend(target):
+        return project(BARS,SPEC,[command(0),{'at':1,'kind':'amend','order':{'target':target}}])
+    assert amend(100)['frames'][1]['position']['target']==100
+    with pytest.raises(ValueError, match='ticks'):
+        amend(100.1)

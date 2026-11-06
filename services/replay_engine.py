@@ -10,7 +10,7 @@ from core.instruments import instrument_map, round_to_tick
 
 INSTRUMENTS = {k:v for k,v in instrument_map().items() if k in ('MNQ','NQ','MES','ES')}
 
-def validate_order(order, reference, spec, allow_break_even=False):
+def validate_order(order, reference, spec, *, open_position=False):
     if order.get('side') not in ('buy','sell') or order.get('type') not in ('market','limit','stop'):
         raise ValueError('Choose Buy / Sell and Market / Limit / Stop.')
     qty=order.get('qty')
@@ -28,9 +28,9 @@ def validate_order(order, reference, spec, allow_break_even=False):
         raise ValueError('A buy limit goes at/below price; a sell limit goes at/above price.')
     if order['type']=='stop' and (price-reference)*sign<0:
         raise ValueError('A buy stop goes at/above price; a sell stop goes at/below price.')
-    if order.get('stop') is not None and ((price-order['stop'])*sign<0 or (not allow_break_even and price==order['stop'])):
+    if not open_position and order.get('stop') is not None and (price-order['stop'])*sign<=0:
         raise ValueError('The stop loss must be on the loss side of entry.')
-    if order.get('target') is not None and (order['target']-price)*sign<=0:
+    if not open_position and order.get('target') is not None and (order['target']-price)*sign<=0:
         raise ValueError('The target must be on the profit side of entry.')
     return {k:order.get(k) for k in ('side','type','qty','price','stop','target')}
 
@@ -107,7 +107,7 @@ def project(bars, spec, commands, *, compact=False):
                     order['submitted']=submitted
                     continue
                 if not position or closing:raise ValueError('There is no editable open position.')
-                proposed=validate_order({**position,**command['order'],'side':position['side'],'type':'market','qty':position['qty']},position['entry'],spec,allow_break_even=True)
+                proposed=validate_order({**position,**command['order'],'side':position['side'],'type':'market','qty':position['qty']},position['entry'],spec,open_position=True)
                 position['stop']=proposed['stop'];position['target']=proposed['target']
             elif kind=='cancel':
                 if order:fill_event(i,'cancel',reason='Cancelled by you')
