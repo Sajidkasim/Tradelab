@@ -469,6 +469,25 @@ def create_app(config: Settings | None = None):
         app.state.workspaces.bump(account_key)
         return {'ok': True}
 
+    @app.post("/api/learn/risk-matrix")
+    def learn_risk_matrix(
+        balance: float = Body(gt=0, le=1_000_000_000),
+        risk_percent: float = Body(gt=0, le=100),
+        stop_ticks: int = Body(ge=1, le=4_000_000),
+    ):
+        from core import risk
+        from core.instruments import instrument_map
+
+        instruments = instrument_map()
+        results = {}
+        for symbol in ("NQ", "MNQ"):
+            instrument = instruments[symbol]
+            results[symbol] = risk.position_size(
+                0, stop_ticks * instrument.tick_size, instrument.multiplier,
+                instrument.tick_size, balance, risk_pct=risk_percent,
+            )
+        return results
+
     @app.post('/api/tools/position-size')
     def position_size(payload: PositionSize, request: Request, member=Depends(workspace)):
         from core import risk

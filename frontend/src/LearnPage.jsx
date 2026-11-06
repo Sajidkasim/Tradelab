@@ -3,6 +3,7 @@ import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
 import {PrimusHeader} from './SiteExperience';
 import LearnFoundations from './LearnFoundations';
+import NqRiskMatrix from './NqRiskMatrix';
 import ResourceLibrary from './ResourceLibrary';
 import {Button, Notice} from './components';
 import {api} from './api';
@@ -51,6 +52,8 @@ export default function LearnPage() {
       {error&&<Notice error>{error}</Notice>}
     </section>}
     <LearnFoundations identity={identity}/>
+    <NqRiskMatrix/>
+
     <ResourceLibrary section="learn" identity={identity}/>
     <section className="wp-panel wp-links"><h2>Bring the lesson to your own process.</h2>
       <a href="/backtesting">Practise in Backtesting ↗</a><a href="/lab">Explore your results ↗</a>
