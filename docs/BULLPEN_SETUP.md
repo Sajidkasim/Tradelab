@@ -10,10 +10,7 @@ of {id, label} entries and is currently empty.
 
 From the repository root:
 
-```sh
-cd frontend
-npm install @jitsi/react-sdk @supabase/supabase-js
-npm run build
+
 ```
 
 Both dependencies are included in the package and lock files, so existing
