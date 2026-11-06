@@ -173,3 +173,5 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-clock-footer time{white-space:nowrap;font-variant-numeric:tabular-nums}
 .bt-chart-announcements{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .bt-clock-footer .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+.bt-daily-pivots{position:absolute;pointer-events:none;z-index:2}

@@ -545,6 +545,37 @@ def mount(app,config,workspace):
             result=transfer(db,record,trade,payload.destination,payload.strategy,payload.setup.model_dump() if payload.setup else None)
             app.state.workspaces.bump(member['key']);return result
 
+    @app.get("/api/backtesting/sessions/{sid}/daily-pivots")
+    def replay_daily_pivots(sid: str, root: Literal["NQ", "ES"], cursor: int, member=Depends(workspace)):
+        from services.replay_chart_history import bucket
+        from .replay_pivots import daily_segments
+
+        local_only()
+        with app.state.workspaces.lock:
+            record = get_record(database(member), sid)
+            if not record["spec"]["start_cursor"] <= cursor <= record["last_cursor"]:
+                raise HTTPException(422, "Invalid replay cursor.")
+            data = checked_data(record)
+            cutoff = data["markets"][record["root"]]["bars"][cursor]["time"]
+        opened = bucket(cutoff, "1D")
+        index = ROOT / "replay-index.db"
+        rows = []
+        if config.local and index.is_file():
+            import sqlite3
+            with sqlite3.connect(index) as db:
+                if db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_daily_ny'").fetchone():
+                    rows = db.execute(
+                        "SELECT time,open,high,low,close,volume,end FROM chart_daily_ny "
+                        "WHERE root=? AND time<? AND end<=? ORDER BY time DESC LIMIT 2",
+                        (root, opened, cutoff + 60000),
+                    ).fetchall()[::-1]
+        elif archive():
+            digest = archive().manifest.get("charts_calendar_ny")
+            if digest:
+                rows = [row for row in archive().chunk(digest)[root]
+                        if row[0] < opened and row[6] <= cutoff + 60000][-2:]
+        return daily_segments(rows, cutoff)
+
     @app.get('/api/backtesting/sessions/{sid}/chart-history')
     def chart_history(sid:str,root:Literal['NQ','ES'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
         local_only()
