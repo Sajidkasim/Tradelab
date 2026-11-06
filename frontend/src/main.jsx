@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import BullpenProvider from "./components/BullpenProvider";
 import SiteExperience, { sitePreview } from './SiteExperience';
 import "./theme.css";
 import "./styles.css";
@@ -28,6 +29,8 @@ class ErrorBoundary extends React.Component {
 }
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
-    {sitePreview() && ['/', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset'].includes(location.pathname) ? <SiteExperience/> : <App />}
+    <BullpenProvider>
+      {sitePreview() && ['/', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset'].includes(location.pathname) ? <SiteExperience/> : <App />}
+    </BullpenProvider>
   </ErrorBoundary>,
 );

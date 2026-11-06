@@ -7,6 +7,7 @@ import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
 import './site-preview.css';
 import './workspace-pages.css';
+import {useBullpen} from './hooks/usePresence';
 
 export const localSitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
 export const sitePreview = () => localSitePreview() || document.querySelector('meta[name="primus-site-enabled"]')?.content === 'true';
@@ -20,6 +21,7 @@ const SiteThemeContext = createContext(null);
 
 export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle }) {
   const [open, setOpen] = useState(false);
+  const bullpen=useBullpen();
   const siteTheme = useContext(SiteThemeContext);
   const currentTheme=theme||siteTheme?.theme;
   const toggleTheme=onThemeToggle||siteTheme?.toggle;
@@ -35,7 +37,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
-      <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn</a>
+      <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}

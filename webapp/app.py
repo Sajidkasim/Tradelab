@@ -142,6 +142,9 @@ def create_app(config: Settings | None = None):
         # A single owner; neither request bodies nor cookies can select a trader.
         return {'key': 'owner', 'name': 'My lab', 'slot': 0}
 
+    from . import bullpen
+    bullpen.mount(app, config, workspace, check_write)
+
     # Expose dependency to tests, never an impersonation route.
     app.state.workspace_dependency = workspace
 
