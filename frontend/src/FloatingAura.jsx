@@ -54,23 +54,26 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
 
   return <section className="pj-coach card" aria-labelledby={titleId}>
     <header>
-      <h3 id={titleId}>Aura - Trading Assistant</h3>
-      <button type="button" className="pt-btn" onClick={onClose} aria-label="Close Aura">Close</button>
+      <h3 id={titleId}>Aura</h3>
+      <button type="button" className="pt-btn" onClick={onClose} aria-label="Close Aura">×</button>
     </header>
-    <p>Aura uses this day’s saved notes and trade details to answer. Sending a question shares that context and recent chat turns with Cloudflare Workers AI. Screenshots stay private. Account-level stats use the selected account, or the first account in All accounts.</p>
+    <details className="pj-aura-context">
+      <summary>Journal context</summary>
+      <p>Cloudflare receives this day’s saved notes, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
+    </details>
     {dirty && <p>Save your entry to include your latest notes.</p>}
     {turns.length > 0 && <div className="pj-coach-review" role="log" aria-label="Conversation with Aura">
       {turns.map((turn, index) => <article key={index}>
-        <p><strong>You</strong> · {turn.question}</p>
-        <div aria-label="Aura"><CoachMarkdown text={turn.answer}/></div>
+        <p className="pj-aura-question">{turn.question}</p>
+        <div className="pj-aura-answer" aria-label="Aura"><CoachMarkdown text={turn.answer}/></div>
       </article>)}
     </div>}
     <form onSubmit={review} className="pj-field">
       <label htmlFor={titleId + '-question'}>Your question</label>
-      <textarea id={titleId + '-question'} value={question} maxLength={1000} rows={3}
+      <textarea id={titleId + '-question'} value={question} maxLength={1000} rows={2}
         placeholder="What could I improve about my entry timing?"
         onChange={event => setQuestion(event.target.value)}/>
-      <button type="submit" className="pt-btn pt-btn-dark" aria-disabled={loading}>
+      <button type="submit" className="pt-btn pt-btn-dark" disabled={loading}>
         {loading ? 'Thinking…' : question.trim() ? 'Send question' : 'Ask Aura'}
       </button>
     </form>

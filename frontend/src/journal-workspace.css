@@ -222,3 +222,8 @@
 .pj-coach-review{margin-top:16px;padding-top:12px;border-top:1px solid var(--pt-line)}
 .pj-coach-review h4{margin-top:12px}
 .pj-coach-review blockquote{margin:10px 0;padding-inline-start:12px;border-inline-start:2px solid var(--pt-line)}
+.pj-aura-context{font-size:.8rem;color:var(--pt-muted)}
+.pj-coach-review article{display:grid;gap:6px;margin-bottom:14px}
+.pj-coach-review .pj-aura-question{justify-self:end;background:var(--pt-paper);padding:7px 11px;border-radius:10px;margin:0}
+.pj-aura-answer{padding-inline:2px}
+.pj-coach textarea{resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere}

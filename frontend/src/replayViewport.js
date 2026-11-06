@@ -37,12 +37,12 @@ export function installFreeReplayNavigation(chart,host){
   if(e.target!==host&&e.target.tagName!=='CANVAS')return;
   const r=host.getBoundingClientRect(),x=e.clientX-r.left;if(x>n.coords.width)return;
   e.preventDefault();e.stopImmediatePropagation();const v=n.coords.getViewport(),unit=e.deltaMode===1?16:e.deltaMode===2?host.clientHeight:1;
-  if(e.shiftKey||Math.abs(e.deltaX)>Math.abs(e.deltaY))n.applyViewport({...v,rightOffset:v.rightOffset+(e.shiftKey?e.deltaY:e.deltaX)*unit/n.coords.pxPerBar()});
-  else n.zoomTo(v.barSpacing*Math.exp(-Math.max(-500,Math.min(500,e.deltaY*unit))*.003),n.coords.xToLogical(x),x);
+  if(e.shiftKey||Math.abs(e.deltaX)>Math.abs(e.deltaY))n.applyViewport({...v,rightOffset:v.rightOffset+(e.shiftKey?e.deltaY:e.deltaX)*unit*.85/n.coords.pxPerBar()});
+  else n.zoomTo(v.barSpacing*Math.exp(-Math.max(-500,Math.min(500,e.deltaY*unit))*.0024),n.coords.xToLogical(x),x);
  };
  const touches=new Map();let pinch=null;
  const down=e=>{if(e.pointerType!=='touch')return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});if(touches.size===2){const [a,b]=[...touches.values()];const x=(a.x+b.x)/2-host.getBoundingClientRect().left;pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),spacing:n.coords.getViewport().barSpacing,x,logical:n.coords.xToLogical(x)}}};
- const move=e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});if(touches.size!==2||!pinch)return;e.preventDefault();e.stopImmediatePropagation();const [a,b]=[...touches.values()];n.zoomTo(pinch.spacing*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),pinch.logical,pinch.x)};
+ const move=e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,{x:e.clientX,y:e.clientY});if(touches.size!==2||!pinch)return;e.preventDefault();e.stopImmediatePropagation();const [a,b]=[...touches.values()];n.zoomTo(pinch.spacing*Math.pow(Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance),.85),pinch.logical,pinch.x)};
  const up=e=>{touches.delete(e.pointerId);pinch=null};
  host.addEventListener('wheel',wheel,{capture:true,passive:false});host.addEventListener('pointerdown',down,true);host.addEventListener('pointermove',move,{capture:true,passive:false});host.addEventListener('pointerup',up,true);host.addEventListener('pointercancel',up,true);
  return ()=>{n.clampViewport=clamp;n.beginPricePan=begin;host.removeEventListener('wheel',wheel,true);host.removeEventListener('pointerdown',down,true);host.removeEventListener('pointermove',move,true);host.removeEventListener('pointerup',up,true);host.removeEventListener('pointercancel',up,true)};

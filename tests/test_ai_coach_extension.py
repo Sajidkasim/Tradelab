@@ -160,7 +160,7 @@ def test_cloudflare_aura_sends_bounded_follow_up_without_images(monkeypatch):
     monkeypatch.setenv("COACH_CLOUDFLARE_API_TOKEN", "test-token")
 
     def post(url, *, headers, json, timeout):
-        assert url.endswith("/ai/v1/chat/completions")
+        assert url.endswith("/ai/run/@cf/meta/llama-3.1-8b-instruct")
         assert json["max_tokens"] == 320
         assert [message["role"] for message in json["messages"]] == [
             "system", "user", "assistant", "user"
@@ -170,7 +170,7 @@ def test_cloudflare_aura_sends_bounded_follow_up_without_images(monkeypatch):
         assert "image-id" not in str(json)
         response = ai_coach.requests.Response()
         response.status_code = 200
-        response._content = b'{"choices":[{"message":{"content":"Give the retest time."}}]}'
+        response._content = b'{"success":true,"result":{"response":"Give the retest time."}}'
         return response
 
     monkeypatch.setattr(ai_coach.requests, "post", post)
