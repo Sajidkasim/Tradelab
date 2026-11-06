@@ -42,7 +42,7 @@ export default function LearnPage() {
     intro="Take an idea from understanding to practice. Start with the basics, find the words, then explore videos and guides from the Primus team.">
     {access&&<section className="wp-panel bullpen-entry">
       <div><span className="pt-overline">TEAM WORKSPACE</span><h2>Live Trading Bullpen</h2>
-        <p>{access.configured?'Share your screen, discuss setups and follow the session together.':'The private video and chat services still need to be configured.'}</p>
+        <p>{access.configured?'Share your screen, discuss setups and follow the session together.':'Private team chat still needs to be configured.'}</p>
       </div>
       <Button variant="primary" busy={busy} disabled={!access.configured||!bullpen.connected} onClick={join}>
         <Radio size={17}/> Join Live Trading Floor

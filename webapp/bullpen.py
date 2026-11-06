@@ -4,13 +4,12 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import time
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import HTTPException, Request
 
-ROOM = "PrimusLab-Live-Trading-Floor"
+JITSI_DOMAIN = "meet.jit.si"
 TOPIC = "primus:bullpen:v1"
 TEAM = ("Sajid", "Safwaan", "Mubeen", "Mustafa", "Amir")
 LIFETIME = 600
@@ -53,14 +52,8 @@ def mount(app, config, workspace, check_write):
             return None
         check_write(request, allow_missing_origin=True)
 
-        domain = os.getenv("BULLPEN_JITSI_DOMAIN", "").strip().lower()
-        jitsi_app = os.getenv("BULLPEN_JITSI_APP_ID", "").strip()
-        jitsi_secret = os.getenv("BULLPEN_JITSI_APP_SECRET", "")
         realtime_secret = os.getenv("BULLPEN_SUPABASE_JWT_SECRET", "")
-        if (os.getenv("BULLPEN_ENABLED") != "1" or
-                not re.fullmatch(r"(?:[a-z0-9-]+\.)+[a-z0-9-]+", domain) or
-                domain in {"meet.jit.si", "8x8.vc", "stage.8x8.vc"} or
-                not jitsi_app or len(jitsi_secret) < 32 or len(realtime_secret) < 32):
+        if os.getenv("BULLPEN_ENABLED") != "1" or len(realtime_secret) < 32:
             return {"name": name, "configured": False}
         now = int(time.time())
         subject = str(uuid5(NAMESPACE_URL, f"{config.supabase_url}/primus-bullpen/{member['key']}"))
@@ -72,8 +65,11 @@ def mount(app, config, workspace, check_write):
                        "role": "primus_bullpen", "primus_bullpen": True}),
         }
         if join:
-            result["meeting"] = {"domain": domain, "jwt": _sign(jitsi_secret, {
-                **expires, "iss": jitsi_app, "aud": "jitsi", "sub": domain, "room": ROOM,
-                "context": {"user": {"id": subject, "name": name}},
-            })}
+            version = os.getenv("BULLPEN_ROOM_VERSION", "1")
+            suffix = hmac.digest(config.secret.encode(), f"primus-bullpen-room:{version}".encode(),
+                                 hashlib.sha256).hex()
+            result["meeting"] = {
+                "domain": JITSI_DOMAIN,
+                "roomName": f"PrimusLab-Bullpen-Live-{suffix}",
+            }
         return result

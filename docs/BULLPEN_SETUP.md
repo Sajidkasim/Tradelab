@@ -19,38 +19,29 @@ npm run build
 Both dependencies are included in the package and lock files, so existing
 checkouts can use npm ci.
 
-## Private services
+## Public video trial and private team chat
 
-1. Use a trusted, TLS-enabled Jitsi deployment with token authentication
-   required for **all** participants, no anonymous guest access, and empty
-   tokens disabled. Configure the issuer to accept the app ID, the audience
-   to accept jitsi, and the subject to match the meeting domain. Match the
-   app secret on both servers. The JWT is restricted to
-   PrimusLab-Live-Trading-Floor. Verify directly that opening that room URL
-   without a JWT cannot join. Never use the public meet.jit.si service for
-   this fixed room. Jitsi's external API script runs on the Primus page, so
-   only use a host you administer or trust. Configure any remaining branding
-   and iframe colors on the Jitsi host for the installed Jitsi version.
-2. Apply BULLPEN_REALTIME.sql to the existing Supabase project. Disable
+1. Apply BULLPEN_REALTIME.sql to the existing Supabase project. Disable
    **Allow public access** in Realtime settings to prevent public connections
-   to the topic. Review any unrelated existing channels before changing this
-   project-wide setting. Verify that an ordinary authenticated user cannot
-   join the private topic. Use the project's legacy JWT signing secret only
-   if enabled and accepted by your Realtime configuration. Keep it server-side.
-   The Bullpen role must have no grants to application tables.
-3. In Render set BULLPEN_JITSI_DOMAIN (hostname only),
-   BULLPEN_JITSI_APP_ID, BULLPEN_JITSI_APP_SECRET, and
-   BULLPEN_SUPABASE_JWT_SECRET. Set BULLPEN_SAJID_EMAIL, BULLPEN_SAFWAAN_EMAIL,
-   BULLPEN_MUBEEN_EMAIL, BULLPEN_MUSTAFA_EMAIL, and BULLPEN_AMIR_EMAIL to the
-   exact verified Google addresses. Each falls back to the corresponding
-   COACH_*_EMAIL when omitted. Use a different secret for each service.
-4. After verifying both private access checks, set BULLPEN_ENABLED=1 and
-   deploy. Sign in to Learn on two team accounts to test video, screen share,
-   presence, chat and Leave Call. The LIVE badge reflects joined participants
-   and appears in the shared site navigation for eligible team members.
+   to the topic. Review unrelated channels before changing this project-wide
+   setting. Verify an ordinary authenticated user cannot join the topic.
+   Use the legacy JWT signing secret only if accepted by your Realtime
+   configuration. Keep the secret server-side and grant the Bullpen role
+   access to Realtime only.
+2. In Render set BULLPEN_SUPABASE_JWT_SECRET and the five exact Google addresses
+   BULLPEN_SAJID_EMAIL, BULLPEN_SAFWAAN_EMAIL, BULLPEN_MUBEEN_EMAIL,
+   BULLPEN_MUSTAFA_EMAIL, and BULLPEN_AMIR_EMAIL. Each falls back to the
+   corresponding COACH_*_EMAIL. Set BULLPEN_ENABLED=1 after checking the
+   Realtime policy. This setup requires no Jitsi JWT or Jitsi environment variables.
+3. Sign in to Learn on two team accounts. Try video, screen sharing, presence,
+   chat and Leave Call. Public Jitsi requires a signed-in moderator to start
+   the room. Use Open in Jitsi if public hosting blocks or limits the embed.
 
-Chat and reaction events are shared with the private team channel. Member names
-are derived from verified sign-in when the app issues credentials. Jitsi
-moderation, screen-sharing resolution and bandwidth depend on the host and
-browser. Rotating the Supabase signing secret affects other uses of that secret
-in the project.
+The room name is derived from the server secret and returned only to verified
+team members opening the room. If the link is shared, the Primus login cannot
+protect the public Jitsi room. Use Jitsi's lobby where available. Change
+BULLPEN_ROOM_VERSION to a new value and restart the service to rotate the name.
+This does not terminate a call already running at the old link.
+
+Jitsi documents public embedding for integration testing. Treat this setup as
+a trial. Jitsi controls meeting duration, authentication, and branding.

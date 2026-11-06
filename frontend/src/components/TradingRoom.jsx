@@ -5,12 +5,11 @@ import {REACTIONS, useBullpen} from '../hooks/usePresence';
 import '../trading-room.css';
 
 const JitsiMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JitsiMeeting})));
-const ROOM = 'PrimusLab-Live-Trading-Floor';
 const configOverwrite = {
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
   desktopSharingFrameRate:{min:5,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
-  hideLobbyButton:true, disableInviteFunctions:true, disableThirdPartyRequests:true,
+  disableInviteFunctions:true, disableThirdPartyRequests:true,
   toolbarButtons:['microphone','camera','desktop','fullscreen','tileview','settings','hangup'],
 };
 const frameSize = node=>{node.style.width='100%';node.style.height='100%'};
@@ -68,16 +67,18 @@ export default function TradingRoom({meeting, onLeave, tradeFeed=[]}) {
 
   return <section className="bullpen-room" aria-label="Live Trading Bullpen">
     <header className="bullpen-room-head">
-      <div><span className="pt-overline">PRIVATE TEAM ROOM</span><h1>Live Trading Floor</h1></div>
+      <div><span className="pt-overline">PRIMUS TEAM ROOM</span><h1>Live Trading Floor</h1></div>
       {joined&&<span className="bullpen-live">LIVE</span>}
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
+      <a className="button" href={`https://${meeting.domain}/${encodeURIComponent(meeting.roomName)}`}
+        target="_blank" rel="noopener noreferrer">Open in Jitsi</a>
       <Button onClick={onLeave}>Leave Call</Button>
     </header>
     {videoError&&<Notice error>{videoError}</Notice>}
     <div className="bullpen-split" ref={layout} style={{'--bullpen-ratio':split/100}}>
       <div className="bullpen-video">
         <Suspense fallback={<p role="status">Opening video…</p>}>
-          <JitsiMeeting roomName={ROOM} domain={meeting.domain} jwt={meeting.jwt}
+          <JitsiMeeting roomName={meeting.roomName} domain={meeting.domain}
             userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
             interfaceConfigOverwrite={{
               DEFAULT_BACKGROUND:getComputedStyle(document.documentElement).getPropertyValue('--tl-surface').trim(), SHOW_JITSI_WATERMARK:false,
