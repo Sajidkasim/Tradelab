@@ -3,8 +3,6 @@ import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
 import {PrimusHeader} from './SiteExperience';
 import LearnFoundations from './LearnFoundations';
-import LearnCapitalPath from './LearnCapitalPath';
-import SetupGallery from './SetupGallery';
 import ResourceLibrary from './ResourceLibrary';
 import {Button, Notice} from './components';
 import {api} from './api';
@@ -53,8 +51,6 @@ export default function LearnPage() {
       {error&&<Notice error>{error}</Notice>}
     </section>}
     <LearnFoundations identity={identity}/>
-    <LearnCapitalPath/>
-    {access&&<SetupGallery name={access.name}/>}
 
 
     <ResourceLibrary section="learn" identity={identity}/>

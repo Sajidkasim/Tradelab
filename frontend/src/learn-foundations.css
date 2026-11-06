@@ -81,11 +81,15 @@
   letter-spacing: -1px;
   margin: 20px 0 10px;
 }
-.learn-guide-heading > svg {
-  margin-top: auto;
-  padding-top: 20px;
-  color: var(--pt-focus);
+.learn-guide-diagram {
+  display: block;
+  width: 100%;
+  max-width: 380px;
+  margin-top: 24px;
+  color: var(--pt-ink);
 }
+.learn-guide-diagram :is(rect, circle) { fill: var(--pt-white); }
+.learn-guide-diagram text { fill: currentColor; stroke: none; font-size: 12px; }
 .learn-guide-body {
   padding: 32px 36px;
   display: flex;
@@ -207,9 +211,6 @@
   }
   .learn-guide {
     grid-template-columns: 1fr;
-  }
-  .learn-guide-heading > svg {
-    display: none;
   }
   .learn-guide-heading,
   .learn-guide-body {

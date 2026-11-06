@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowUpRight, BookOpen, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "lucide-react";
 import { STARTER_GUIDES, GLOSSARY, searchGlossary } from "./learningContent";
 import "./learn-foundations.css";
+import StarterGuideDiagram from "./StarterGuideDiagram";
 import { api } from "./api";
 export default function LearnFoundations({ identity }) {
   const requested = new URLSearchParams(location.search).get("lesson");
@@ -130,7 +131,7 @@ export default function LearnFoundations({ identity }) {
             </span>
             <h3 id="learn-guide-title">{guide.title}</h3>
             <p>{guide.summary}</p>
-            <BookOpen size={42} strokeWidth={1} aria-hidden="true" />
+            <StarterGuideDiagram guideId={guide.id} />
           </div>
           <div className="learn-guide-body">
             <p>{guide.body}</p>
