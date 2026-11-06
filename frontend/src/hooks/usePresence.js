@@ -30,6 +30,7 @@ export function usePresence() {
   useEffect(()=>{
     const controller=new AbortController();
     let refresh;
+    let alertChannel;
     const signal=controller.signal;
     const disconnect=()=>{
       clearInterval(refresh);
@@ -64,14 +65,23 @@ export function usePresence() {
         config:{private:true,presence:{enabled:true},broadcast:{ack:true,self:true}},
       });
       channelRef.current=channel;
+      const receiveMessage=payload=>{
+        if(signal.aborted||!inCallRef.current||typeof payload?.text!=='string'||payload.text.length>400||
+           typeof payload.id!=='string'||payload.id.length>80)return;
+        setMessages(list=>list.some(item=>item.id===payload.id)?list:[...list.slice(-99),payload]);
+      };
+      if(credentials.alertTopic){
+        alertChannel=client.channel(credentials.alertTopic,{config:{private:true}})
+          .on('broadcast',{event:'alert'},({payload})=>{
+            if(payload?.name==='System')receiveMessage(payload);
+          }).subscribe();
+      }
       channel.on('presence',{event:'sync'},()=>{
         if(signal.aborted)return;
         const active=Object.values(channel.presenceState()).flat().map(item=>item.name);
         setPeople(TEAM.filter(name=>active.includes(name)));
       }).on('broadcast',{event:'chat'},({payload})=>{
-        if(signal.aborted||!inCallRef.current||!TEAM.includes(payload?.name)||typeof payload.text!=='string'||payload.text.length>400||
-           typeof payload.id!=='string'||payload.id.length>80)return;
-        setMessages(list=>list.some(item=>item.id===payload.id)?list:[...list.slice(-99),payload]);
+        if(TEAM.includes(payload?.name))receiveMessage(payload);
       }).on('broadcast',{event:'reaction'},({payload})=>{
         if(!signal.aborted&&inCallRef.current&&REACTIONS.includes(payload?.emoji))setReaction({emoji:payload.emoji,id:crypto.randomUUID()});
       }).subscribe(status=>{
@@ -98,6 +108,8 @@ export function usePresence() {
       channelRef.current=null;
       sdkRef.current=null;
       if(channel&&client)void client.removeChannel(channel);
+      if(alertChannel&&client)void client.removeChannel(alertChannel);
+      alertChannel=null;
     };
     const logout=()=>{disconnect();closeChannel()};
     window.addEventListener('primus:logout',logout);

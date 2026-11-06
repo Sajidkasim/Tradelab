@@ -70,3 +70,51 @@ def test_bullpen_requires_verified_team_email_and_issues_scoped_tokens(draft, mo
     assert client.get("/api/bullpen?join=true").json() == {"name": "Sajid", "configured": False}
     monkeypatch.setenv("BULLPEN_ENABLED", "0")
     assert client.get("/api/bullpen?join=true").json() == {"name": "Sajid", "configured": False}
+
+
+def test_live_alert_checks_team_and_suppresses_reconnects(draft, monkeypatch):
+    client, _, state = draft
+    for key, value in {
+        "BULLPEN_ENABLED": "1",
+        "BULLPEN_SAJID_EMAIL": "owner@example.com",
+        "BULLPEN_AMIR_EMAIL": "amir@example.com",
+        "BULLPEN_TEAM_EMAILS": "owner@example.com, AMIR@example.com, outsider@example.com",
+        "BULLPEN_GMAIL_ADDRESS": "desk@gmail.com",
+        "BULLPEN_GMAIL_APP_PASSWORD": "test password",
+    }.items():
+        monkeypatch.setenv(key, value)
+    sent = []
+    monkeypatch.setattr(bullpen, "_send_live_alert", lambda *args: sent.append(args))
+    login(client, state, "friend@example.com", "friend-sub")
+    assert client.post("/api/alert-team").status_code == 403
+    login(client, state)
+    assert client.post("/api/alert-team", headers={"X-Primus-CSRF": ""}).status_code == 403
+    assert client.post("/api/alert-team").json() == {"queued": True}
+    assert client.post("/api/alert-team").json() == {"queued": False}
+    assert sent == [("desk@gmail.com", "testpassword", ["amir@example.com"], "Sajid")]
+
+
+def test_tradingview_webhook_publishes_only_valid_alerts(draft, monkeypatch):
+    client, _, _ = draft
+    secret = "s" * 40
+    monkeypatch.setenv("BULLPEN_ENABLED", "1")
+    monkeypatch.setenv("BULLPEN_TV_WEBHOOK_SECRET", secret)
+    monkeypatch.setenv("BULLPEN_TV_SUPABASE_KEY", "test-server-key")
+    published = []
+
+    async def publish(self, url, **kwargs):
+        published.extend(kwargs["json"]["messages"])
+        return bullpen.httpx.Response(202, request=bullpen.httpx.Request("POST", url))
+
+    monkeypatch.setattr(bullpen.httpx.AsyncClient, "post", publish)
+    endpoint = "/api/tv-webhook"
+    assert client.post(endpoint, json={"secret": "wrong", "text": "NQ"}).status_code == 403
+    assert client.post(endpoint, json={"secret": secret, "text": ""}).status_code == 422
+    assert client.post(endpoint, content="x" * 4097).status_code == 413
+    assert client.post(endpoint, json={"secret": secret, "text": " NQ 15m FVG touched "}).json() == {"published": True}
+    assert len(published) == 1
+    alert = published[0]
+    assert alert["topic"] == bullpen.ALERT_TOPIC and alert["private"] is True
+    assert alert["payload"]["name"] == "System"
+    assert alert["payload"]["text"] == "NQ 15m FVG touched"
+    assert "secret" not in alert["payload"]

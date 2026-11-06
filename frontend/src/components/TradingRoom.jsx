@@ -2,6 +2,8 @@ import React, {lazy, Suspense, useEffect, useRef, useState} from 'react';
 import {MessageSquare, Rows3} from 'lucide-react';
 import {Button, Notice} from '../components';
 import {REACTIONS, useBullpen} from '../hooks/usePresence';
+import {api} from '../api';
+import BullpenMacroFeed from './BullpenMacroFeed';
 import '../trading-room.css';
 
 const JaaSMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JaaSMeeting})));
@@ -15,7 +17,7 @@ const configOverwrite = {
 const frameSize = node=>{node.style.width='100%';node.style.height='100%'};
 const constrain = value=>Math.max(40,Math.min(80,value));
 
-export default function TradingRoom({meeting, onLeave, tradeFeed=[]}) {
+export default function TradingRoom({meeting, onLeave}) {
   const {access,connected,people,messages,reaction,error,setInCall,send}=useBullpen();
   const [tab,setTab]=useState('chat');
   const [split,setSplit]=useState(70);
@@ -39,7 +41,12 @@ export default function TradingRoom({meeting, onLeave, tradeFeed=[]}) {
 
   function ready(instance){
     handlers.current?.();
-    const didJoin=()=>{setJoined(true);setInCall(true);setVideoError('')};
+    const didJoin=()=>{
+      setJoined(true);
+      setInCall(true);
+      setVideoError('');
+      api('/alert-team',{method:'POST'}).catch(()=>{});
+    };
     const didLeave=()=>{setInCall(false);leave.current()};
     const didError=event=>{
       if(event?.isFatal) setVideoError('The video room could not connect. Leave and try joining again.');
@@ -122,10 +129,7 @@ export default function TradingRoom({meeting, onLeave, tradeFeed=[]}) {
             {REACTIONS.map((emoji,index)=><Button key={emoji} disabled={!connected||!joined}
               aria-label={['Fire','Applause','On target'][index]} onClick={()=>void send('reaction',{emoji})}>{emoji}</Button>)}
           </div>
-        </>:<section className="bullpen-feed" aria-label="Trade feed">
-          {tradeFeed.length ? <ul>{tradeFeed.map(item=><li key={item.id}>{item.label}</li>)}</ul>:
-            <p>No trade feed is connected to this room.</p>}
-        </section>}
+        </>:<BullpenMacroFeed/>}
       </aside>
     </div>
   </section>;

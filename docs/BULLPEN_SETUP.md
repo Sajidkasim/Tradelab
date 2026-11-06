@@ -37,3 +37,31 @@ Primus issues a short-lived JaaS JWT tied to the exact room, using the
 authenticated workspace identity. Render does not process media. There is
 no public Jitsi fallback in this build. If the JaaS settings are missing or
 invalid, the Join button remains disabled.
+
+## Optional Gmail go-live alerts
+
+In Render, add BULLPEN_GMAIL_ADDRESS (the sending Gmail address),
+BULLPEN_GMAIL_APP_PASSWORD (a Google app password), and BULLPEN_TEAM_EMAILS
+(the comma-separated recipient list). The recipient list is intersected with
+the existing named team settings. The joining trader is excluded.
+Gmail requires 2-Step Verification for app passwords. Render free web
+services block SMTP port 465, so this setup requires SMTP-capable hosting.
+
+The browser requests an alert after JaaS reports that the trader joined.
+Email sends in the background. Each trader has a 15-minute cooldown per
+server process. Alert requests are best effort and are not retried.
+
+## TradingView alerts
+
+Run BULLPEN_TV_REALTIME.sql in Supabase SQL Editor. In Render, set
+BULLPEN_TV_WEBHOOK_SECRET to a randomly generated secret of at least 32
+characters and BULLPEN_TV_SUPABASE_KEY to the Supabase legacy service_role
+key. Keep both server-side except for the webhook secret in the private
+TradingView alert message. Use the HTTPS webhook URL
+https://primustrader.co.uk/api/tv-webhook and a JSON message:
+
+    {"secret":"YOUR_PRIVATE_WEBHOOK_SECRET","text":"NQ 15m FVG touched"}
+
+TradingView requires two-factor authentication for webhooks. Alerts appear
+as System messages for members currently in the call. The feed uses
+private Realtime broadcasts and has no persisted chat history.
