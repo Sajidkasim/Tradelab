@@ -11,7 +11,23 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(path, options = {}) {
+let pendingSession;
+
+export function api(path, options = {}) {
+  if (path !== "/session" || (options.method && options.method !== "GET")) {
+    return request(path, options);
+  }
+  // Concurrent startup requests must share the same session cookie and CSRF token.
+  // A component unmounting must not cancel the request for the other callers.
+  if (!pendingSession) {
+    pendingSession = request(path, { ...options, signal: undefined }).finally(() => {
+      pendingSession = undefined;
+    });
+  }
+  return pendingSession;
+}
+
+async function request(path, options) {
   const { body, ...rest } = options;
   const form = body instanceof FormData;
   const headers = {

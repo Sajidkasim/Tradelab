@@ -5,7 +5,7 @@ test('Aura drags, opens without sending, and renders a requested review', async 
   let requests = 0;
   await page.route('**/api/journal/coach?*', async route => {
     requests += 1;
-    expect(route.request().postDataJSON()).toEqual({question: 'How was my entry timing?'});
+    expect(route.request().postDataJSON()).toEqual({question: 'How was my entry timing?', history: []});
     expect(route.request().headers()['x-primus-csrf']).toBeTruthy();
     await route.fulfill({json:{markdown:'### Risk check\nReview your **entry timing**.'}});
   });
@@ -22,7 +22,7 @@ test('Aura drags, opens without sending, and renders a requested review', async 
 
   await orb.focus();
   await page.keyboard.press('Enter');
-  const panel = page.getByRole('region', {name:'Aura - Trading Assistant'});
+  const panel = page.getByRole('region', {name:'Aura',exact:true});
   await expect(panel).toBeVisible();
   expect(requests).toBe(0);
   const bounds = await panel.boundingBox();
@@ -31,9 +31,9 @@ test('Aura drags, opens without sending, and renders a requested review', async 
   await panel.getByLabel('Your question').fill('How was my entry timing?');
   await panel.getByRole('button', {name:'Send question'}).click();
   await expect(panel.getByRole('heading', {name:'Risk check'})).toBeVisible();
-  await expect(panel.locator('strong')).toHaveText('entry timing');
+  await expect(panel.getByLabel('Aura',{exact:true}).locator('strong')).toHaveText('entry timing');
   expect(requests).toBe(1);
-  await page.keyboard.press('Escape');
+  await panel.getByLabel('Your question').press('Escape');
   await expect(panel).toHaveCount(0);
   await expect(orb).toBeFocused();
 });
