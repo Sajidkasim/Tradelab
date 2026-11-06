@@ -57,3 +57,12 @@
 .learn-risk-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,165px),1fr));gap:14px;margin:16px 0;align-items:end}
 .learn-risk-fields label{display:grid;gap:6px}
 .learn-risk-fields input{width:100%;min-width:0;padding:9px;border:1px solid var(--pt-line);border-radius:6px;background:var(--pt-white);color:inherit}
+
+.learn-drill-chart{display:block;width:100%;max-height:260px;margin-block:12px;border:1px solid var(--pt-line)}
+.learn-candle-up{color:var(--tl-positive,var(--pt-ink))}
+.learn-candle-down{color:var(--tl-negative,var(--pt-ink))}
+.learn-risk-fields select{width:100%;padding:9px;color:inherit;background:var(--pt-white);border:1px solid var(--pt-line);border-radius:6px}
+.learn-gallery{columns:2 240px;gap:16px;margin-top:16px}
+.learn-gallery figure{break-inside:avoid;margin:0 0 16px}
+.learn-gallery img{display:block;width:100%;height:auto;border-radius:6px}
+.learn-gallery figcaption{padding-block:6px}

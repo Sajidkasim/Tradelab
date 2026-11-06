@@ -3,7 +3,8 @@ import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
 import {PrimusHeader} from './SiteExperience';
 import LearnFoundations from './LearnFoundations';
-import NqRiskMatrix from './NqRiskMatrix';
+import LearnCapitalPath from './LearnCapitalPath';
+import SetupGallery from './SetupGallery';
 import ResourceLibrary from './ResourceLibrary';
 import {Button, Notice} from './components';
 import {api} from './api';
@@ -52,7 +53,9 @@ export default function LearnPage() {
       {error&&<Notice error>{error}</Notice>}
     </section>}
     <LearnFoundations identity={identity}/>
-    <NqRiskMatrix/>
+    <LearnCapitalPath/>
+    {access&&<SetupGallery name={access.name}/>}
+
 
     <ResourceLibrary section="learn" identity={identity}/>
     <section className="wp-panel wp-links"><h2>Bring the lesson to your own process.</h2>

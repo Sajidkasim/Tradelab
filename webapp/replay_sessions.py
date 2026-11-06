@@ -232,6 +232,19 @@ def mount(app,config,workspace):
                 return {'contract':contract[0],'bars':[dict(zip(('time','open','high','low','close','volume'),r)) for r in rows]}
         data=(archive().execution_history(day)[0] if archive() else history(day)[0])
         return data['markets'].get(root)
+    @app.get("/api/learn/replay-drill")
+    def replay_drill(member=Depends(workspace)):
+        local_only()
+        days = research_days()
+        if not days:
+            raise HTTPException(404, "No replay data is available.")
+        # Choose a completed date so the drill has candles to step through.
+        day = days[-2] if len(days) > 1 else days[-1]
+        market = research_day(day, "NQ")
+        if not market or len(market["bars"]) < 24:
+            raise HTTPException(404, "No NQ drill is available for this date.")
+        return {"day": day, "contract": market["contract"], "bars": market["bars"][:120]}
+
     from . import market_lab
     market_lab.mount(app,config,workspace,research_days,research_day)
     def get_record(db,sid):

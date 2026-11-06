@@ -293,6 +293,9 @@ def create_app(config: Settings | None = None):
     replay_sessions.mount(app, config, workspace)
     from . import learning
     learning.mount(app, config, workspace)
+    from . import setup_gallery
+    setup_gallery.mount(app, config, workspace)
+
 
     @app.get('/api/backtesting/sample')
     def local_chart_sample(member=Depends(workspace)):

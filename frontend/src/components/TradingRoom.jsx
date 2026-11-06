@@ -51,11 +51,25 @@ function MarketWidget({kind}){
   </section>;
 }
 
+function readDeskLayout(name){
+  try{
+    const saved=JSON.parse(localStorage.getItem(`primus:bullpen:layout:${name}`));
+    return {split:Number.isFinite(saved?.split)?constrain(saved.split):70, sidebarLeft:saved?.sidebarLeft===true};
+  }catch{return {split:70,sidebarLeft:false}}
+}
+
 export default function TradingRoom({meeting, onLeave}) {
   const {access,connected,people,messages,reaction,error,setInCall,send}=useBullpen();
   const [tab,setTab]=useState('chat');
   const [view,setView]=useState('call');
-  const [split,setSplit]=useState(70);
+  const [split,setSplit]=useState(()=>readDeskLayout(access.name).split);
+  const [sidebarLeft,setSidebarLeft]=useState(()=>readDeskLayout(access.name).sidebarLeft);
+  useEffect(()=>{
+    const timer=setTimeout(()=>{
+      try{localStorage.setItem(`primus:bullpen:layout:${access.name}`,JSON.stringify({split,sidebarLeft}))}catch{}
+    },250);
+    return ()=>clearTimeout(timer);
+  },[access.name,split,sidebarLeft]);
   const [draft,setDraft]=useState('');
   const [sending,setSending]=useState(false);
   const [joined,setJoined]=useState(false);
@@ -112,6 +126,7 @@ export default function TradingRoom({meeting, onLeave}) {
       <div><span className="pt-overline">PRIMUS TEAM ROOM</span><h1>Live Trading Floor</h1></div>
       {joined&&<span className="bullpen-live">LIVE</span>}
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
+      <Button onClick={()=>setSidebarLeft(value=>!value)}>Move sidebar {sidebarLeft?'right':'left'}</Button>
       <Button onClick={onLeave}>Leave Call</Button>
     </header>
     <div className="bullpen-tabs" role="group" aria-label="Main panel">
@@ -119,7 +134,7 @@ export default function TradingRoom({meeting, onLeave}) {
       <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>Chart</button>
     </div>
     {videoError&&<Notice error>{videoError}</Notice>}
-    <div className="bullpen-split" ref={layout} style={{'--bullpen-ratio':split/100}}>
+    <div className={sidebarLeft?'bullpen-split bullpen-sidebar-left':'bullpen-split'} ref={layout} style={{'--bullpen-ratio':split/100}}>
       <div className="bullpen-video">
         <div className="bullpen-call-frame" aria-hidden={view!=='call'}>
         <Suspense fallback={<p role="status">Opening video…</p>}>
@@ -143,12 +158,13 @@ export default function TradingRoom({meeting, onLeave}) {
         onPointerMove={event=>{
           if(!event.currentTarget.hasPointerCapture(event.pointerId))return;
           const bounds=layout.current.getBoundingClientRect();
-          setSplit(constrain(100*(event.clientX-bounds.left-5)/(bounds.width-10)));
+          const percent=100*(event.clientX-bounds.left-5)/(bounds.width-10);
+          setSplit(constrain(sidebarLeft?100-percent:percent));
         }}
         onKeyDown={event=>{
           if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
           event.preventDefault();
-          setSplit(value=>event.key==='Home'?40:event.key==='End'?80:constrain(value+(event.key==='ArrowLeft'?-2:2)));
+          setSplit(value=>event.key==='Home'?40:event.key==='End'?80:constrain(value+(event.key==='ArrowLeft'?-2:2)*(sidebarLeft?-1:1)));
         }}/>
       <aside className="bullpen-side" aria-label="Bullpen sidebar">
         <div className="bullpen-tabs" role="group" aria-label="Sidebar view">
