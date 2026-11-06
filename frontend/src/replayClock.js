@@ -35,6 +35,6 @@ export function nextSessionCursor(bars,cursor,time){
 }
 
 export function replayClockLabel(time,zone){
- const offset=new Intl.DateTimeFormat('en-GB',{timeZone:zone,timeZoneName:'shortOffset'}).formatToParts(time).find(p=>p.type==='timeZoneName').value.replace('GMT','UTC').replace('−','-');
+ const offset=new Intl.DateTimeFormat('en-GB',{timeZone:zone,timeZoneName:'shortOffset'}).formatToParts(time).find(p=>p.type==='timeZoneName').value.replace('GMT','UTC').replace('−','-').replace(/^UTC[+-]0(?::00)?$/,'UTC');
  return `${clockParts(time,zone).time} (${offset})`;
 }
