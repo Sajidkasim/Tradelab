@@ -16,7 +16,7 @@ import './journal-workspace.css';
 const ymd=date=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 const dayDate=day=>new Date(day+'T12:00:00');
 const niceDay=day=>dayDate(day).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-const blank=day=>({day,plan:'',notes:'',lesson:'',mindset:'Not set',plan_followed:null,images:[],trades:[]});
+const blank=day=>({day,plan:'',notes:'',lesson:'',mindset:'Not set',plan_followed:null,traded_today:null,images:[],trades:[]});
 const normalize=row=>({...blank(row.day),...row,trades:row.trades||[]});
 const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','risk_amount','net_pnl','setup_grade','account_id'].map(key=>[key,trade[key]]));
 const sections=[
@@ -60,7 +60,7 @@ export default function JournalPage({theme = "light"}){
   const timezone=meta?.journal_preferences?.timezone||'America/New_York';
   function upsert(value){const row=normalize(value);setRows(old=>[...old.filter(item=>item.day!==row.day),row].sort((a,b)=>b.day.localeCompare(a.day)));setEntry(row);setDirty(false)}
   function selectDay(value){if(busy||!value)return;if(dirty&&!window.confirm('Leave this day without saving your changes?'))return;setDay(value);setEntry(rows.find(row=>row.day===value)||blank(value));setDirty(false);setNotice('');setError('');setMonth(value.slice(0,7));setExpanded(null)}
-  const body=()=>({plan:entry.plan,notes:entry.notes,lesson:entry.lesson,mindset:entry.mindset,plan_followed:entry.plan_followed,trades:entry.trades.map(narrative)});
+  const body=()=>({plan:entry.plan,notes:entry.notes,lesson:entry.lesson,mindset:entry.mindset,plan_followed:entry.plan_followed,traded_today:entry.traded_today,trades:entry.trades.map(narrative)});
   async function persist(){const saved=await api(`/journal/${day}`,{method:'PUT',body:body()});upsert(saved);return saved}
   async function save(){setBusy(true);setError('');try{await persist();setNotice(localSitePreview()?'Entry saved for this local preview.':'Entry saved.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function upload(file,tradeId=''){
@@ -108,8 +108,8 @@ export default function JournalPage({theme = "light"}){
           <label className="pt-mobile-date">Go to date<input type="date" aria-label="Journal date" value={day} disabled={busy} onChange={e=>selectDay(e.target.value)}/></label>
           <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar account" disabled={!accounts}/>
           <div className="pt-calendar"><div className="pt-calendar-heading"><button aria-label="Previous month" disabled={busy} onClick={()=>shiftMonth(-1)}><ChevronLeft size={18}/></button><label className="pj-month"><span>{monthDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span><input type="month" aria-label="Browse month" value={month} disabled={busy} onChange={e=>{if(e.target.value)setMonth(e.target.value)}}/></label><button aria-label="Next month" disabled={busy} onClick={()=>shiftMonth(1)}><ChevronRight size={18}/></button></div>
-            <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={followed?`${label} · Plan followed: ${followed}`:label} aria-description={followed?`Plan followed: ${followed}`:undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}
-                {followed&&<span className="pj-plan-marker" aria-hidden="true">{followed[0]}</span>}</button>})}</div><p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p><p>Dots use the saved total of the day’s trades. Enter P&amp;L for every trade in the selected account to see a dot. Y / P / N marks whether you followed the plan.</p>
+            <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,traded=row?.traded_today,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';const markers=[followed&&`Plan followed: ${followed}`,traded&&`Traded: ${traded}`].filter(Boolean).join(' · ');return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={markers?`${label} · ${markers}`:label} aria-description={markers||undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}
+                {traded&&<span className="pj-traded-marker" aria-hidden="true">{traded==='Yes'?'✓':'–'}</span>}{followed&&<span className="pj-plan-marker" aria-hidden="true">{followed[0]}</span>}</button>})}</div><p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p><p>Dots use the saved total of the day’s trades. Enter P&amp;L for every trade in the selected account to see a dot. Y / P / N marks whether you followed the plan. ✓ traded · – did not trade.</p>
           </div>
           <details className="pj-history" open><summary>Entries this month <span>{monthRows.length}</span></summary><div className="pt-recent-entries">{monthRows.map(row=><button key={row.day} aria-label={`Open entry ${niceDay(row.day)}`} aria-pressed={row.day===day} disabled={busy} onClick={()=>selectDay(row.day)}><CalendarDays size={18}/><span><strong>{dayDate(row.day).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong><small>{row.trades.length?`${row.trades.length} trade${row.trades.length===1?'':'s'} · `:''}{row.lesson||row.notes||row.plan||'Session saved'}</small></span><ArrowUpRight size={14}/></button>)}{!monthRows.length&&<p>No saved entries this month. Pick a day to start, or browse another month.</p>}</div></details>
           <a className="pt-download-notes" href="/api/journal/export"><Download size={16}/> Download your Journal</a>
@@ -125,6 +125,15 @@ export default function JournalPage({theme = "light"}){
             <div role="group" aria-label="Plan followed?">
               {['Yes', 'Partly', 'No'].map(option => <button key={option} type="button" disabled={busy}
                 aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
+                {option}
+              </button>)}
+            </div>
+          </div>
+          <div className="pt-mindset pj-plan-field">
+            <h3>Did you trade today?</h3>
+            <div role="group" aria-label="Did you trade today?">
+              {['Yes', 'No'].map(option => <button key={option} type="button" disabled={busy}
+                aria-pressed={entry.traded_today === option} onClick={() => edit('traded_today', entry.traded_today === option ? null : option)}>
                 {option}
               </button>)}
             </div>

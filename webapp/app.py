@@ -353,7 +353,7 @@ def create_app(config: Settings | None = None):
         markdown = provider({
             'database': database, 'account': account,
             'trader_name': matches[0] if len(matches) == 1 else 'Trader',
-            'notes': f'Journal date: {journal_day}\n{notes}',
+            'notes': f'Journal date: {journal_day}\nDid you trade today? {entry.get("traded_today") or "Not recorded"}\n{notes}',
             'question': question.strip() if request.method == 'POST' else '',
             'history': [turn.model_dump() for turn in (history or [])],
             'journal_trades': [

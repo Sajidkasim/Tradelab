@@ -200,6 +200,7 @@ class JournalTradeLink(StrictModel):
 
 class DailyEntry(StrictModel):
     plan_followed: Literal['Yes', 'Partly', 'No'] | None = None
+    traded_today: Literal['Yes', 'No'] | None = None
     plan: str = Field(default='', max_length=12000)
     notes: str = Field(default='', max_length=20000)
     lesson: str = Field(default='', max_length=12000)

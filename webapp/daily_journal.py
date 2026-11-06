@@ -19,7 +19,7 @@ def entry(database, day):
     if stored.get('deleted_at'):
         stored = {}
     return with_day_result(database, {'day': day, 'plan': '', 'notes': '', 'lesson': '', 'mindset': 'Not set',
-            'images': [], 'trades': [], 'updated_at': None, 'plan_followed': None, **stored})
+            'images': [], 'trades': [], 'updated_at': None, 'plan_followed': None, 'traded_today': None, **stored})
 
 
 def save(database, day, values):

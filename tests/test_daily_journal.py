@@ -279,3 +279,15 @@ def test_invalid_journal_grade_is_rejected(draft):
     client,app,state=draft
     login(client,state)
     assert client.put('/api/journal/2026-11-03',json={'trades':[{'id':uuid4().hex,'setup_grade':'C'}]}).status_code==422
+
+
+def test_traded_today_is_optional_and_preserved_on_partial_updates(draft):
+    client, _, state = draft
+    login(client, state)
+    url = "/api/journal/2026-11-06"
+    assert client.put(url, json={}).json()["traded_today"] is None
+    for answer in ("Yes", "No"):
+        assert client.put(url, json={"traded_today": answer}).json()["traded_today"] == answer
+        assert client.put(url, json={"notes": "Saved separately"}).json()["traded_today"] == answer
+    assert client.put(url, json={"traded_today": None}).json()["traded_today"] is None
+    assert client.put(url, json={"traded_today": "Maybe"}).status_code == 422
