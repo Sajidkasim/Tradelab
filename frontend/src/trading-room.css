@@ -42,3 +42,9 @@
   .bullpen-room{animation:none}
   .bullpen-flying-reaction{animation-name:bullpen-enter}
 }
+.bullpen-call-frame,.bullpen-video>.bullpen-market-widget{grid-area:1/1;min-width:0;min-height:0}
+.bullpen-call-frame[aria-hidden="true"]{visibility:hidden}
+.bullpen-market-widget{display:grid;grid-template-rows:minmax(0,1fr) auto auto;flex:1;min-height:0;padding:8px;gap:4px}
+.bullpen-market-widget iframe{width:100%;height:100%;border:0}
+.bullpen-market-widget a,.bullpen-market-widget small{color:var(--tl-ink);font-size:.8rem}
+.bullpen-tabs{flex-wrap:wrap}

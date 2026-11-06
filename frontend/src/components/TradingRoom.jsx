@@ -10,16 +10,41 @@ const JaaSMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:m
 const configOverwrite = {
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
-  desktopSharingFrameRate:{min:5,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
+  desktopSharingFrameRate:{min:30,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
   disableInviteFunctions:true, disableThirdPartyRequests:true,
   toolbarButtons:['microphone','camera','desktop','fullscreen','tileview','settings','hangup'],
 };
 const frameSize = node=>{node.style.width='100%';node.style.height='100%'};
 const constrain = value=>Math.max(40,Math.min(80,value));
 
+const marketWidgets = {
+  chart: {
+    title:'NQ chart', script:'advanced-chart', url:'https://www.tradingview.com/symbols/CME_MINI-NQ1!/',
+    settings:{symbol:'CME_MINI:NQ1!',interval:'5',timezone:'America/New_York',theme:'dark',style:'1',autosize:true,allow_symbol_change:false},
+  },
+  heatmap: {
+    title:'Stock heatmap', script:'stock-heatmap', url:'https://www.tradingview.com/heatmap/stock/',
+    settings:{dataSource:'SPX500',grouping:'sector',blockSize:'market_cap_basic',blockColor:'change',colorTheme:'dark',hasTopBar:true,isDataSetEnabled:true,isZoomEnabled:true,hasSymbolTooltip:true},
+  },
+};
+
+function MarketWidget({kind}){
+  const {title,script,url,settings}=marketWidgets[kind];
+  const source=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>html,body,.tradingview-widget-container{height:100%;margin:0}.tradingview-widget-container__widget{height:100%}</style>
+    <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
+    <script async src="https://s3.tradingview.com/external-embedding/embed-widget-${script}.js">${JSON.stringify({width:'100%',height:'100%',locale:'en',...settings})}</script></div></html>`;
+  return <section className="bullpen-market-widget" aria-label={title}>
+    <iframe title={title} srcDoc={source} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"/>
+    <a href={url} target="_blank" rel="noopener noreferrer">{title} by TradingView</a>
+    {kind==='chart'&&<small>Market data may be delayed.</small>}
+  </section>;
+}
+
 export default function TradingRoom({meeting, onLeave}) {
   const {access,connected,people,messages,reaction,error,setInCall,send}=useBullpen();
   const [tab,setTab]=useState('chat');
+  const [view,setView]=useState('call');
   const [split,setSplit]=useState(70);
   const [draft,setDraft]=useState('');
   const [sending,setSending]=useState(false);
@@ -79,9 +104,14 @@ export default function TradingRoom({meeting, onLeave}) {
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
       <Button onClick={onLeave}>Leave Call</Button>
     </header>
+    <div className="bullpen-tabs" role="group" aria-label="Main panel">
+      <button type="button" aria-pressed={view==='call'} onClick={()=>setView('call')}>Call</button>
+      <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>NQ chart</button>
+    </div>
     {videoError&&<Notice error>{videoError}</Notice>}
     <div className="bullpen-split" ref={layout} style={{'--bullpen-ratio':split/100}}>
       <div className="bullpen-video">
+        <div className="bullpen-call-frame" aria-hidden={view!=='call'}>
         <Suspense fallback={<p role="status">Opening video…</p>}>
           <JaaSMeeting roomName={meeting.roomName} appId={meeting.appId} jwt={meeting.jwt}
             userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
@@ -92,7 +122,9 @@ export default function TradingRoom({meeting, onLeave}) {
             }}
             getIFrameRef={frameSize} onApiReady={ready} onReadyToClose={()=>leave.current()}/>
         </Suspense>
-        {reaction&&joined&&<span className="bullpen-flying-reaction" key={reaction.id} aria-hidden="true">{reaction.emoji}</span>}
+        </div>
+        {view==='chart'&&<MarketWidget kind="chart"/>}
+        {view==='call'&&reaction&&joined&&<span className="bullpen-flying-reaction" key={reaction.id} aria-hidden="true">{reaction.emoji}</span>}
       </div>
       <div className="bullpen-divider" role="separator" tabIndex={0} aria-label="Resize video and sidebar"
         aria-orientation="vertical" aria-valuemin={40} aria-valuemax={80} aria-valuenow={Math.round(split)}
@@ -112,6 +144,7 @@ export default function TradingRoom({meeting, onLeave}) {
         <div className="bullpen-tabs" role="group" aria-label="Sidebar view">
           <button type="button" aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}><MessageSquare size={16}/> Live Chat &amp; Reactions</button>
           <button type="button" aria-pressed={tab==='trades'} onClick={()=>setTab('trades')}><Rows3 size={16}/> Trade Feed</button>
+          <button type="button" aria-pressed={tab==='heatmap'} onClick={()=>setTab('heatmap')}>Heatmap</button>
         </div>
         {tab==='chat'?<>
           <div className="bullpen-messages" role="log" aria-label="Team chat">
@@ -129,7 +162,7 @@ export default function TradingRoom({meeting, onLeave}) {
             {REACTIONS.map((emoji,index)=><Button key={emoji} disabled={!connected||!joined}
               aria-label={['Fire','Applause','On target'][index]} onClick={()=>void send('reaction',{emoji})}>{emoji}</Button>)}
           </div>
-        </>:<BullpenMacroFeed/>}
+        </>:tab==='trades'?<BullpenMacroFeed/>:<MarketWidget kind="heatmap"/>}
       </aside>
     </div>
   </section>;
