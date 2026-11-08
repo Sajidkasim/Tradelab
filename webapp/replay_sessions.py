@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 from functools import lru_cache
 from hashlib import sha256
 import json
+import re
 from pathlib import Path
 import threading
 import asyncio
@@ -22,6 +23,18 @@ ROOT=Path(__file__).resolve().parents[1]/'data/private'
 INDEX='primus_replay_sessions'
 PREFIX='primus_replay:'
 DATA_LOCK=threading.RLock()
+
+# A continuous spot pair has no expiry to roll. Keep unknown instruments and all
+# explicitly dated futures conservative; this does not enable new trading assets.
+_SPOT_CURRENCIES=frozenset(('USD','EUR','GBP','JPY','CHF','CAD','AUD','NZD','CNH','CNY','HKD','SGD','NOK','SEK','DKK','ZAR','MXN','TRY','PLN'))
+_SPOT_BASES=_SPOT_CURRENCIES|{'XAU','XAG','XPT','XPD','BTC','ETH'}
+def contract_roll_required(symbol,previous,following):
+    if previous==following:return False
+    if any(re.fullmatch(r'[A-Z0-9]+[FGHJKMNQUVXZ][0-9]{1,4}',str(contract).upper()) for contract in (previous,following)):
+        return True
+    pair=re.sub(r'[/_-]','',str(symbol).upper())
+    continuous=len(pair)==6 and pair[:3] in _SPOT_BASES and pair[3:] in _SPOT_CURRENCIES and pair[:3]!=pair[3:]
+    return not continuous
 
 class SessionInput(BaseModel):
     model_config=ConfigDict(extra='forbid',allow_inf_nan=False)
@@ -223,8 +236,8 @@ def mount(app,config,workspace):
     def research_day(day,root):
         index=ROOT/'replay-index.db'
         if config.local and index.is_file():
-            import sqlite3
-            with sqlite3.connect(index) as con:
+            from .replay_index import index_connection
+            with index_connection(index) as con:
                 contract=con.execute('SELECT symbol FROM active_contracts WHERE day=? AND root=?',(day,root)).fetchone()
                 if not contract:return None
                 rows=con.execute('SELECT time,open,high,low,close,volume FROM bars WHERE day=? AND symbol=? ORDER BY time LIMIT 2001',(day,contract[0])).fetchall()
@@ -489,7 +502,7 @@ def mount(app,config,workspace):
                     day=next_day(record)
                     if not day:break
                     extra,digest=history(day)
-                    if (state['position'] or state['order']) and extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract']:
+                    if (state['position'] or state['order']) and contract_roll_required(record['root'],last_data['markets'][record['root']]['contract'],extra['markets'][record['root']]['contract']):
                         if added:break
                         raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
                     if any(extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time'] for root,market in combined['markets'].items()):

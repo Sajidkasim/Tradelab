@@ -1111,3 +1111,74 @@ research summaries use existing per-user settings, with no cross-user reads.
 Market Lab calls core.backtest and the existing example_orb strategy; no formulas,
 replay fills or broker behavior change. Scans cap at ten calendar days / 16,000
 raw bars, reject rolls and serialize execution. Candle downloads are not exposed.
+
+## Bounded replay and refresh-synced playback — 8 November 2026
+
+Local changes only. ReplayHistoryFeed caps each symbol/interval window at 3,000
+candles, trims the live window to 2,250 on overflow, and pages evicted context back
+on demand. Paging left evicts the right edge; paging right restores it, including
+refreshing the formerly partial edge candle. Calendar history is paged too.
+BacktestingChart uses replayClock.startReplayClock (requestAnimationFrame elapsed
+time, fractional steps, one cursor update per display frame). Speeds remain replay
+steps/second; a 120 Hz display does not mean 120 candles/second. Pause, loading,
+hidden tabs, cancellation and asynchronous continuation do not accumulate work.
+Ordinary updates use practice-provider callbacks; occasional window eviction uses
+the existing replaceReplayHistory seam. No playback setMarket calls or busy-state
+flashing. Vela remains pinned at 0.9.3; replayViewport.js is unchanged. No rewind.
+All execution, order evaluation and P&L remain in the unchanged Python engine.
+
+Owner confirmed daily/weekly/monthly buckets open at 17:00 America/New_York,
+following DST (22:00 UTC winter / 21:00 UTC summer). backtestingBars and the live
+feed share one calendar helper, matching services/replay_chart_history.py. The
+existing NY 4H schedule is unchanged. Chart preparation records session_hour=17;
+legacy 18:00 prepared calendar rows/bundles are rejected rather than mixed with
+new live bars. The local chart indexes were rebuilt with:
+
+    .venv/bin/python tools/precompute_replay_timeframes.py
+
+This rebuild changes chart tables only, never source minutes, saved sessions,
+commands or financial records. Before a future hosted release, prepare the chart
+calendar and timeframe bundles with the updated packaging tools and publish the
+verified archive manifest containing calendar_session_hour=17. Do not deploy the
+new calendar reader against the old 18:00 manifest. No upload/deployment is part
+of this work; existing per-day execution digests and signatures stay unchanged.
+
+pytest.ini limits discovery to the maintained tests/ suite; ignored private
+rollback snapshots are recovery files, not a second active test suite. Existing
+calendar and drawing tests retain their assertions with 17:00 fixture timestamps.
+
+Validation: 397 pytest passed (4 existing dependency/datetime deprecation warnings),
+86 Vitest checks passed, production frontend build passed, and five browser flows
+passed: panned playback, overnight position/save/reopen, split-chart toolbar,
+calendar/4H paging, and rapid interval cancellation. Clock tests simulate both
+60 Hz and 120 Hz; actual hardware FPS is not guaranteed. The recovered owner
+session reopened successfully through the local API, including minute/daily
+history. Restored preview is available on http://127.0.0.1:8133/backtesting.
+
+## Local SQLite tuning and spot roll guard — 8 November 2026
+
+The existing 3,000-candle active window, historical paging and refresh-synced
+clock remain in place. The clock batches all due steps into one cursor update
+per RAF frame, including speeds above 8 steps/second. Chart containers now use
+contain: layout style; canvas geometry stays explicitly sized and Vela overlays
+are not paint-clipped by strict containment.
+
+webapp.replay_index.index_connection applies journal_mode=WAL,
+synchronous=NORMAL and cache_size=-64000 to every index connection and closes
+handles deterministically. Index listing/history, chart windows and local research
+reads share it. Tests verify settings on reopen and concurrent WAL reader/writer
+visibility. The actual local replay-index.db was checked with the same settings;
+the minute query still uses the covering daily_symbol index.
+
+webapp.replay_sessions.contract_roll_required exempts recognized continuous spot
+currency/metal/crypto pairs from label-only contract changes. Explicit dated
+futures and unknown instruments retain conservative roll protection, including
+open positions and pending orders. This adds no FX trading instruments, price
+feeds or financial calculations; NQ/ES remain the currently exposed replay
+markets. No engine or pinned Vela adapter edits, rewind, boundary changes,
+dependency updates or deployment are part of this follow-up.
+
+Follow-up validation: 413 pytest passed (4 existing deprecation warnings),
+86 Vitest checks passed, production build passed, and four browser flows passed
+(playback with containment/canvas sizing, right-click menus, split charts and rapid
+interval changes). Protected engine, adapter and dependency files remain unchanged.

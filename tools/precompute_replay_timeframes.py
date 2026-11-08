@@ -5,7 +5,7 @@ import argparse,sqlite3,sys,time,json,calendar
 from pathlib import Path
 from datetime import datetime,timedelta
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from services.replay_chart_history import aggregate,NY
+from services.replay_chart_history import aggregate,NY,require_calendar
 ROOT=Path(__file__).resolve().parents[1]
 def end_of(t,tf):
  if tf not in ('1D','1W','1M'):return t+int(tf)*60000
@@ -18,6 +18,7 @@ def end_of(t,tf):
 def build(path,minutes):
  start=time.perf_counter()
  with sqlite3.connect(path) as db:
+  require_calendar(db)
   db.execute('DROP TABLE IF EXISTS chart_precomputed_build');db.execute('CREATE TABLE chart_precomputed_build(root TEXT,tf TEXT,time INTEGER,end INTEGER,open REAL,high REAL,low REAL,close REAL,volume INTEGER,PRIMARY KEY(root,tf,time)) WITHOUT ROWID')
   for root in ('NQ','ES'):
    pending={tf:None for tf in minutes};batch=[]

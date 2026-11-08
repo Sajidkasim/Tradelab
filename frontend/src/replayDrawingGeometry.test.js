@@ -8,7 +8,7 @@ test('hourly edit keeps its exact anchor and maps to the existing Daily candle t
   vi.stubGlobal('cancelAnimationFrame', () => {});
   const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
   const anchor = {time: Date.parse('2023-09-12T20:00:00Z'), price: 15422.75};
-  const daily = Date.parse('2023-09-11T22:00:00Z');
+  const daily = Date.parse('2023-09-11T21:00:00Z');
   const original = {time: daily, price: anchor.price};
   const native = {
     bars: [],
@@ -40,10 +40,10 @@ test('hourly edit keeps its exact anchor and maps to the existing Daily candle t
     switchTo('1D');
     expect(drawing.anchors).toEqual([anchor]);
     expect(native.userDrawings.deps.projector().xOf(anchor.time)).toBe(native.drawingProjector().xOf(daily));
-    expect(native.drawingProjector().xOf(anchor.time)).toBe(99.8);
+    expect(native.drawingProjector().xOf(anchor.time)).toBe(100.7);
     const [,phase,timeframe,rows] = debug.mock.lastCall;
     expect([phase,timeframe]).toEqual(['after','1D']);
-    expect(JSON.parse(rows)[0].anchors[0]).toMatchObject({...anchor, barOpen: daily, legacyX:99.8, x:80});
+    expect(JSON.parse(rows)[0].anchors[0]).toMatchObject({...anchor, barOpen: daily, legacyX:100.7, x:80});
     const space = {time:anchor.time + 1,price:100};
     expect(native.snapToCandle(space,'price','strong',{x:1000})).toBe(space);
   } finally {
@@ -54,7 +54,7 @@ test('hourly edit keeps its exact anchor and maps to the existing Daily candle t
 });
 
 test('missing periods do not remap an anchor onto another candle', () => {
-  const open = Date.parse('2023-03-12T22:00:00Z');
+  const open = Date.parse('2023-03-12T21:00:00Z');
   const sunday = Date.parse('2023-03-12T23:00:00Z');
   expect(containingDrawingBar([{time:open}], sunday, '1D')).toBe(open);
   expect(containingDrawingBar([{time:open - 86400000}], sunday, '1D')).toBe(sunday);

@@ -19,5 +19,5 @@ def test_precomputed_windows_match_raw_ohlcv_and_keep_future_hidden(tmp_path):
  for tf in ['5','15','60','240','1D','1W','1M']:
   result=window(str(path),path.stat().st_mtime_ns,'NQ',tf,cutoff+1,cutoff)
   assert result['bars']==[dict(zip(FIELDS,row)) for row in aggregate(rows[:12],tf)],tf
- opened=int(datetime(2023,2,28,23,tzinfo=timezone.utc).timestamp()*1000)
- assert end_of(opened,'1M')==int(datetime(2023,3,31,22,tzinfo=timezone.utc).timestamp()*1000)
+ opened=int(datetime(2023,2,28,22,tzinfo=timezone.utc).timestamp()*1000)
+ assert end_of(opened,'1M')==int(datetime(2023,3,31,21,tzinfo=timezone.utc).timestamp()*1000)

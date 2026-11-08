@@ -108,6 +108,7 @@ def test_hosted_chart_windows_are_paged_and_calendar_never_reveals_future():
     earlier=archive.chart_window('NQ','1',minute['bars'][0]['time'],cut,2)
     assert earlier['bars'][-1]['time']<minute['bars'][0]['time']
     with pytest.raises(ValueError,match='calendar bundle'):archive.chart_window('NQ','1D',cut+1,cut)
+    manifest['calendar_session_hour']=17
     manifest['charts_calendar_ny']=store.add({root:[[1590962400000,100,110,90,105,100,1591048800000]] for root in ('NQ','ES')})
     result=Archive(manifest,store,'private').chart_window('NQ','1D',cut+1,cut)
     assert result['bars'][-1]['close']==103
@@ -119,3 +120,25 @@ def test_execution_reader_preserves_frozen_signature_without_chart_copies():
     for root in ('NQ','ES'):
         assert new['markets'][root]['bars']==old['markets'][root]['bars']
         assert set(new['markets'][root])=={'contract','bars'}
+
+def test_calendar_archive_pages_are_bounded_and_legacy_boundary_is_not_mixed():
+    from services.replay_chart_history import bucket
+    store,manifest=bundles();cut=1591056120000;opened=bucket(cut,'1D')
+    rows=[[opened-(10-i)*86400000,100,110,90,105,1,opened-(9-i)*86400000] for i in range(10)]
+    pages=[]
+    for start in range(0,len(rows),3):
+        chunk=rows[start:start+3]
+        pages.append({'first':chunk[0][0],'last':chunk[-1][0],'digest':store.add(chunk)})
+    manifest['timeframe_chunks']={'NQ':{'1D':pages}}
+    archive=Archive(manifest,store,'private')
+    with pytest.raises(ValueError,match='17:00 New York chart calendar bundle'):
+        archive.chart_window('NQ','1D',cut+1,cut,3)
+    manifest['calendar_session_hour']=17
+    archive=Archive(manifest,store,'private')
+    recent=archive.chart_window('NQ','1D',cut+1,cut,3)
+    older=archive.chart_window('NQ','1D',recent['bars'][0]['time'],cut,3)
+    right=archive.chart_window('NQ','1D',cut+1,cut,3,older['bars'][-1]['time'])
+    assert len(recent['bars'])==len(older['bars'])==3
+    assert not recent['exhausted']
+    assert right['bars']==recent['bars']
+    assert recent['bars'][-1]['high']==104 # forming candle excludes future minute highs

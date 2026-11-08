@@ -111,6 +111,9 @@ test('play preserves a zoomed and panned historical viewport',async({page},testI
  await page.getByLabel('Session name',{exact:true}).fill('Viewport check');
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ expect(await page.locator('.replay-chart').evaluate(node=>getComputedStyle(node).contain)).toBe('layout style');
+ const canvas=await page.locator('.replay-chart canvas').first().boundingBox();
+ expect(canvas.width).toBeGreaterThan(0);expect(canvas.height).toBeGreaterThan(0);
  await page.mouse.move(650,400);await page.mouse.wheel(0,-600);
  await page.mouse.move(500,400);await page.mouse.down();await page.mouse.move(1000,400,{steps:20});await page.mouse.up();
  await page.mouse.move(1410,300);await page.mouse.down();await page.mouse.move(1410,400,{steps:10});await page.mouse.up();
@@ -597,14 +600,23 @@ test('one toolbar targets the active pane, retains both charts and restores spli
 });
 
 test('full calendar coverage, bounded 4h pages and free navigation preserve replay cutoff',async({page},testInfo)=>{
- let pages=0;page.on('request',r=>{if(r.url().includes('/chart-history?'))pages++});
+ let pages=0;const loaded=new Map();let selected='1';
+ page.on('request',r=>{if(r.url().includes('/chart-history?'))pages++});
+ page.on('response',async response=>{
+  if(!response.url().includes('/chart-history?')||!response.ok())return;
+  const query=new URL(response.url()).searchParams;if(query.get('root')!=='NQ')return;
+  const {bars}=await response.json(),tf=query.get('timeframe');
+  expect(bars.length).toBeLessThanOrEqual(750);
+  const times=loaded.get(tf)||new Set();for(const bar of bars)times.add(bar.time);loaded.set(tf,times);
+ });
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- const count=async()=>Number((await page.locator('.bt-bar-count').textContent()).replace(/[^0-9]/g,''));
- for(const [tf,min] of [['1D',3000],['1W',600],['1M',150]]){
-  await page.getByRole('button',{name:tf,exact:true}).click();await expect.poll(count).toBeGreaterThan(min);
+ // Count fetched context: there is no candle-count label in the current UI.
+ const count=async()=>loaded.get(selected)?.size||0;
+ for(const [tf,min] of [['1D',700],['1W',600],['1M',150]]){
+  selected=tf;await page.getByRole('button',{name:tf,exact:true}).click();await expect.poll(count).toBeGreaterThan(min);
  }
- await page.getByRole('button',{name:'4h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
+ selected='240';await page.getByRole('button',{name:'4h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
  expect(await count()).toBeLessThanOrEqual(750);
  await expect(page.getByLabel('Dataset coverage',{exact:true})).toHaveCount(0);
  const before=pages;

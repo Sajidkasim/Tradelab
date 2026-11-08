@@ -4,7 +4,7 @@ import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
-import {holdReplayViewport,captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
+import {captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
 import DrawingFavoritesBar,{toolNames} from './DrawingFavoritesBar';
 import Feedback from './Feedback';
 import {indicatorVisible,intervalChoices,visibilityController} from './replayPreferences';
@@ -13,7 +13,8 @@ import {sessionOptions} from './replaySessionRanges';
 import {recordTiming} from './replayTiming';
 import {installDrawingPerformance,latestLayoutWriter} from './replayDrawingPerformance';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
-import {nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
+import {streamReplayBars} from './replayChartStream';
+import {startReplayClock,nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
 import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
@@ -171,22 +172,16 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     if (!ready || !chart || !market) return;
     if(marketRequest.current)return;
     if (chart.market.symbol === `practice:${market.contract}` && chart.market.timeframe === timeframe && lastRendered.current===bars) return;
-    setBusy(true); setError('');
     const previousSymbol = chart.market.symbol;
     const wanted=`practice:${market.contract}`;
     const same=previousSymbol===wanted&&chart.market.timeframe===timeframe;
     const previousBars=lastRendered.current;
-    lastRendered.current=bars;
     if(same&&previousBars){
-      // Streaming updates retain candle spacing, horizontal pan and manual price scale.
-      const last=previousBars.at(-1)?.time??-Infinity;
-      let low=0,high=bars.length;while(low<high){const middle=(low+high)>>>1;if(bars[middle].time<last)low=middle+1;else high=middle}const updates=bars.slice(low);
-      const restoreView=!follow&&!jumpToLatest.current?holdReplayViewport(chart,updates.filter(bar=>bar.time>last).length):()=>{};
-      for(const bar of updates)for(const cb of feed.current||[])cb(bar);
-      restoreView();
-      if(jumpToLatest.current){chart.panBy(10000);jumpToLatest.current=false}
-      setBusy(false);return;
+      streamReplayBars(chart,feed.current,previousBars,bars,{follow,jump:jumpToLatest.current});
+      jumpToLatest.current=false;
+      lastRendered.current=bars;return;
     }
+    setBusy(true);setError('');
     if(previousSymbol!==wanted){
       drawings.current[previousSymbol]=chart.drawings.toJSON();
       chart.drawings.fromJSON(drawings.current[wanted]||{version:1,drawings:[]});
@@ -209,7 +204,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   async function loadEdge(chart){
     if(edgeBusy.current||chartRef.current!==chart)return;
     const selected=selection.current,slot=historyFeed.current.slot(selected.symbol,selected.timeframe);
-    if(!slot?.bars.length||['1D','1W','1M'].includes(selected.timeframe))return;
+    if(!slot?.bars.length)return;
     const range=captureReplayView(chart);if(!range)return;
     const count=slot.bars.length,margin=Math.min(100,Math.floor(count/4));
     const direction=range.from<=slot.bars[margin].time&&!slot.leftDone?'left':range.to>=slot.bars[count-1-margin].time&&!slot.rightDone?'right':null;
@@ -226,13 +221,31 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setError(e.message)};return}
     onCursor(nextReplayCursor(timeline,cursor,Number(step)));
   }
+  const playback=useRef(null),continuing=useRef(null);
+  playback.current={enabled:playing&&!secondary&&ready&&!busy&&!sessionBusy&&!saveError,speed,step,timeline,cursor,finished,nextDay:session.next_day,lastCursor:session.last_cursor,onCursor,onContinue};
   useEffect(()=>{
-    if(saveError||(finished&&!session.next_day)){setPlaying(false);return}
-    if(secondary||!playing||!ready||sessionBusy)return;
-    if(finished){next();return}
-    const timer=setTimeout(()=>onCursor(nextReplayCursor(timeline,cursor,Number(step))),1000/Number(speed));
-    return()=>clearTimeout(timer);
-  },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
+    if(saveError||(finished&&!session.next_day))setPlaying(false);
+  },[saveError,finished,session.next_day]);
+  useEffect(()=>{
+    if(secondary||!playing)return;
+    continuing.current=null;
+    return startReplayClock({read:()=>({...playback.current,enabled:playback.current.enabled&&!document.hidden}),advance:steps=>{
+      const state=playback.current;
+      if(state.finished){
+        if(!state.nextDay||continuing.current)return;
+        continuing.current=state.timeline.at(-1).time;
+        return Promise.resolve().then(()=>state.onContinue()).then(()=>{
+          state.onCursor(state.cursor+1);
+        }).catch(e=>{setError(e.message);setPlaying(false)});
+      }
+      // Multiple due ticks become a single React/chart update for this frame.
+      let at=state.cursor;
+      for(let i=0;i<steps&&at<state.lastCursor;i++)at=nextReplayCursor(state.timeline,at,Number(state.step));
+      state.cursor=at;state.finished=at===state.lastCursor;
+      state.onCursor(at);
+    }});
+  },[playing,secondary,session.id]);
+  useEffect(()=>{continuing.current=null},[timeline]);
 
   function saveLayout(force=true,patch={}){
     const chart=chartRef.current;if(!ready||!chart)return Promise.resolve();

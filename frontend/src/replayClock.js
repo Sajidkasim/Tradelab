@@ -38,3 +38,31 @@ export function replayClockLabel(time,zone){
  const offset=new Intl.DateTimeFormat('en-GB',{timeZone:zone,timeZoneName:'shortOffset'}).formatToParts(time).find(p=>p.type==='timeZoneName').value.replace('GMT','UTC').replace('−','-').replace(/^UTC[+-]0(?::00)?$/,'UTC');
  return `${clockParts(time,zone).time} (${offset})`;
 }
+
+// Speeds are replay steps/second, independent of the display refresh rate.
+// Keep fractional elapsed time across frames; coalesce due steps into one update.
+export function startReplayClock({read,advance,requestFrame=cb=>window.requestAnimationFrame(cb),cancelFrame=id=>window.cancelAnimationFrame(id)}){
+ let frame,previous=null,credit=0,stopped=false,pending=false;
+ function tick(now){
+  if(stopped)return;
+  const state=read();
+  if(!state.enabled||pending){previous=null;credit=0}
+  else{
+   if(previous!==null){
+    const elapsed=Math.max(now-previous,0);
+    if(elapsed>1000)credit=0; // A suspended tab resumes without a replay avalanche.
+    else credit+=elapsed*Number(state.speed)/1000;
+   }
+   previous=now;
+   const steps=Math.floor(credit+1e-9);
+   if(steps){
+    credit=Math.max(0,credit-steps);
+    const result=advance(steps);
+    if(result?.then){pending=true;previous=null;credit=0;Promise.resolve(result).then(()=>{pending=false},()=>{pending=false})}
+   }
+  }
+  if(!stopped)frame=requestFrame(tick);
+ }
+ frame=requestFrame(tick);
+ return()=>{stopped=true;cancelFrame(frame)};
+}

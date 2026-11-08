@@ -27,16 +27,27 @@ export function nyFourHourOpen(time){
  const bucket=Date.UTC(Number(p.year),Number(p.month)-1,Number(p.day),2+4*Math.floor((hour-2)/4));
  return bucket-(local-Math.floor(time/60000)*60000);
 }
-function bucketOpen(bar,timeframe){
- if(String(timeframe)==='240')return nyFourHourOpen(bar.time);
- if(['1D','1W','1M'].includes(timeframe)){
-  const date=new Date(bar.time);date.setUTCHours(0,0,0,0);
-  if(timeframe==='1W')date.setUTCDate(date.getUTCDate()-(date.getUTCDay()+6)%7);
-  if(timeframe==='1M')date.setUTCDate(1);
-  return date.getTime();
+// Chart session opens at 17:00 New York: 22:00 UTC winter, 21:00 UTC summer.
+function nyEpoch(year,month,day,hour){
+ let guess=Date.UTC(year,month,day,hour);
+ for(let i=0;i<3;i++){
+  const p=Object.fromEntries(nyClock.formatToParts(guess).map(x=>[x.type,x.value]));
+  guess+=Date.UTC(year,month,day,hour)-Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute);
  }
- return Math.floor(bar.time/(Number(timeframe)*60000))*Number(timeframe)*60000;
+ return guess;
 }
+export function replayBucketOpen(time,timeframe){
+ const tf=String(timeframe);
+ if(tf==='240')return nyFourHourOpen(time);
+ if(!['1D','1W','1M'].includes(tf))return Math.floor(time/(Number(tf)*60000))*Number(tf)*60000;
+ const p=Object.fromEntries(nyClock.formatToParts(time).map(x=>[x.type,x.value]));
+ const day=new Date(Date.UTC(+p.year,+p.month-1,+p.day+(+p.hour>=17?1:0)));
+ if(tf==='1W')day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);
+ if(tf==='1M')day.setUTCDate(1);
+ day.setUTCDate(day.getUTCDate()-1);
+ return nyEpoch(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate(),17);
+}
+const bucketOpen=(bar,timeframe)=>replayBucketOpen(bar.time,timeframe);
 export function aggregateMinuteBars(bars,timeframe){
  if(!validTimeframe(timeframe))throw Error('Unsupported sample timeframe');
  const result=[];let previous=-Infinity;

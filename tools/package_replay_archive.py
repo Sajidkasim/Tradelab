@@ -4,6 +4,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from webapp.replay_archive import pack,key,unpack
+from services.replay_chart_history import require_calendar,SESSION_HOUR
 ROOT=Path(__file__).resolve().parents[1]
 
 def build(index,target):
@@ -32,6 +33,8 @@ def build(index,target):
             ny_digest,ny_body=pack(ny);(target/(ny_digest+'.json.gz')).write_bytes(ny_body);manifest['charts_ny']=ny_digest
     with sqlite3.connect(index) as db:
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_daily_ny'").fetchone():
+            require_calendar(db)
+            manifest['calendar_session_hour']=SESSION_HOUR
             calendar={root:db.execute('SELECT time,open,high,low,close,volume,end FROM chart_daily_ny WHERE root=? ORDER BY time',(root,)).fetchall() for root in ('NQ','ES')}
             digest,body=pack(calendar);(target/(digest+'.json.gz')).write_bytes(body);manifest['charts_calendar_ny']=digest
     (target/'manifest.json').write_text(json.dumps(manifest,separators=(',',':')))

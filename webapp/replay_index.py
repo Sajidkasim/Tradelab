@@ -1,13 +1,25 @@
 """Read bounded chart windows from the offline full-archive index."""
 import sqlite3
+from contextlib import contextmanager
 from datetime import date,timedelta,datetime,timezone
 
+@contextmanager
+def index_connection(path):
+ """Tune every local price-index reader; always release its SQLite handle."""
+ con=sqlite3.connect(path)
+ try:
+  con.execute('PRAGMA journal_mode = WAL')
+  con.execute('PRAGMA synchronous = NORMAL')
+  con.execute('PRAGMA cache_size = -64000')
+  with con:yield con
+ finally:con.close()
+
 def days(path):
- with sqlite3.connect(path) as con:return [r[0] for r in con.execute("SELECT day FROM volumes GROUP BY day HAVING COUNT(DISTINCT SUBSTR(symbol,1,2))=2 ORDER BY day")]
+ with index_connection(path) as con:return [r[0] for r in con.execute("SELECT day FROM volumes GROUP BY day HAVING COUNT(DISTINCT SUBSTR(symbol,1,2))=2 ORDER BY day")]
 
 def load(path,day):
  end=date.fromisoformat(day);start=(end-timedelta(days=370)).isoformat();context_start=(end-timedelta(days=14)).isoformat()
- with sqlite3.connect(path) as con:
+ with index_connection(path) as con:
   volumes=con.execute('SELECT day,symbol,volume FROM volumes WHERE day>=? AND day<=? ORDER BY day,symbol',(start,day)).fetchall()
   markets={}
   for root in ('NQ','ES'):
@@ -30,7 +42,7 @@ def load(path,day):
 
 def four_hour_history(path,day):
  cutoff=int(datetime.fromisoformat(day).replace(tzinfo=timezone.utc).timestamp()*1000)
- with sqlite3.connect(path) as con:
+ with index_connection(path) as con:
   if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='chart_4h_ny'").fetchone():return {}
   result={root:[] for root in ('NQ','ES')}
   for root,t,o,h,l,c,v in con.execute('SELECT root,time,open,high,low,close,volume FROM chart_4h_ny WHERE time+14400000<=? ORDER BY root,time',(cutoff,)):

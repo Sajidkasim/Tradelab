@@ -2,7 +2,7 @@
 from pathlib import Path
 import sqlite3,sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from services.replay_chart_history import aggregate,NY
+from services.replay_chart_history import aggregate,NY,SESSION_HOUR
 from datetime import datetime,timedelta
 
 def build(path):
@@ -14,5 +14,9 @@ def build(path):
             bars=aggregate(rows,'1D')
             db.executemany('INSERT INTO chart_daily_ny_build VALUES(?,?,?,?,?,?,?,?)',[(root,t,int((datetime.fromtimestamp(t/1000,NY)+timedelta(days=1)).timestamp()*1000),o,h,l,c,v) for t,o,h,l,c,v in bars])
             print(root,len(bars),'NY daily candles',flush=True)
+        db.execute('CREATE TABLE IF NOT EXISTS chart_settings(key TEXT PRIMARY KEY,value TEXT)')
+        db.execute("INSERT OR REPLACE INTO chart_settings VALUES('session_hour',?)",(str(SESSION_HOUR),))
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_precomputed'").fetchone():
+            db.execute("DELETE FROM chart_precomputed WHERE tf IN ('1D','1W','1M')")
         db.execute('DROP TABLE IF EXISTS chart_daily_ny');db.execute('ALTER TABLE chart_daily_ny_build RENAME TO chart_daily_ny')
 if __name__=='__main__':build(Path(__file__).resolve().parents[1]/'data/private/replay-index.db')

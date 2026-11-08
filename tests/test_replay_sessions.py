@@ -353,3 +353,16 @@ def test_drawing_template_lifecycle_and_workspace_isolation(google):
     login(client, state)
     assert client.get(root).json()[0]['name'] == 'PDL'
     assert client.delete(path).json() == []
+
+@pytest.mark.parametrize('symbol',['EURUSD','GBPUSD','XAUUSD','EUR/USD','gbp_usd','AUDJPY','XAGUSD','BTCUSD'])
+def test_continuous_spot_symbols_do_not_invent_expiry_rolls(symbol):
+    assert not replay_sessions.contract_roll_required(symbol,symbol,symbol+'.spot')
+
+@pytest.mark.parametrize('symbol,previous,following',[
+    ('NQ','NQM0','NQU0'),('ES','ESH26','ESM26'),('MNQ','MNQZ6','MNQH7'),
+    ('6E','6EH26','6EM26'),('GC','GCJ26','GCM26'),
+    ('EURUSD','6EH26','6EM26'),('unknown','old','new'),
+])
+def test_dated_futures_and_unknown_symbols_keep_contract_roll_protection(symbol,previous,following):
+    assert replay_sessions.contract_roll_required(symbol,previous,following)
+    assert not replay_sessions.contract_roll_required(symbol,previous,previous)

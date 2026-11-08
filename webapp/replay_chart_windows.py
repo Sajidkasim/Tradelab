@@ -1,8 +1,8 @@
 """Paged chart history, separate from immutable execution-session snapshots."""
-import sqlite3
+from .replay_index import index_connection
 from functools import lru_cache
 from datetime import datetime,timezone
-from services.replay_chart_history import aggregate,FIELDS
+from services.replay_chart_history import aggregate,FIELDS,CALENDAR_LABEL,require_calendar
 from .replay_timing import timed
 from .byte_cache import byte_cache
 
@@ -24,27 +24,28 @@ def forming(db,root,tf,opened,cutoff):
 @byte_cache(4*1024*1024,entries=8)
 @timed("indexed chart query + forming candle")
 def window(path,stamp,root,tf,before,cutoff,limit=750,after=None):
-    with sqlite3.connect(path) as db:
+    with index_connection(path) as db:
         available=db.execute('SELECT MIN(day),MAX(day) FROM active_contracts WHERE root=?',(root,)).fetchone()
         # Exact source bounds, not a calendar guess or a provider allowance.
         def edge(day,order):
             symbol=db.execute('SELECT symbol FROM active_contracts WHERE day=? AND root=?',(day,root)).fetchone()[0]
             return db.execute(f'SELECT time FROM bars WHERE day=? AND symbol=? ORDER BY time {order} LIMIT 1',(day,symbol)).fetchone()[0]
         first,last=edge(available[0],'ASC'),edge(available[1],'DESC')
+        if tf in ('1D','1W','1M'):require_calendar(db)
         precomputed=db.execute("SELECT 1 FROM sqlite_master WHERE name='chart_precomputed'").fetchone()
         if precomputed and db.execute('SELECT 1 FROM chart_precomputed WHERE root=? AND tf=? LIMIT 1',(root,tf)).fetchone():
             from services.replay_chart_history import bucket
             calendar=tf in ('1D','1W','1M')
-            sql='SELECT time,open,high,low,close,volume FROM chart_precomputed WHERE root=? AND tf=? AND time<? AND time>? AND end<=? ORDER BY time '+('ASC' if calendar or after is not None else 'DESC')
+            sql='SELECT time,open,high,low,close,volume FROM chart_precomputed WHERE root=? AND tf=? AND time<? AND time>? AND end<=? ORDER BY time '+('ASC' if after is not None else 'DESC')
             params=[root,tf,before,after if after is not None else -1,cutoff+60000]
-            if not calendar:sql+=' LIMIT ?';params.append(limit+1)
+            sql+=' LIMIT ?';params.append(limit+1)
             rows=db.execute(sql,params).fetchall();candles={row[0]:list(row) for row in rows}
             opened=bucket(cutoff,tf)
-            if opened is not None and opened<before and (after is None or opened>after) and opened not in candles and (calendar or after is None or len(rows)<=limit):
+            if opened is not None and opened<before and (after is None or opened>after) and opened not in candles and (after is None or len(rows)<=limit):
                 partial=forming(db,root,tf,opened,cutoff)
                 if partial:candles[opened]=partial
-            candles=sorted(candles.values());selected=candles if calendar else candles[:limit] if after is not None else candles[-limit:]
-            return {'bars':_records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(candles)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}
+            candles=sorted(candles.values());selected=candles[:limit] if after is not None else candles[-limit:]
+            return {'bars':_records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':len(candles)<=limit,'timezone':'America/New_York','calendar':CALENDAR_LABEL}
         if tf in ('1D','1W','1M'):
             daily=db.execute('SELECT time,open,high,low,close,volume,end FROM chart_daily_ny WHERE root=? AND end<=? ORDER BY time',(root,cutoff+60000)).fetchall()
             start=daily[-1][6] if daily else first
@@ -67,5 +68,5 @@ def window(path,stamp,root,tf,before,cutoff,limit=750,after=None):
                 if len(candles)>limit:break
         candles=[bar for bar in candles if bar[0]<before and bar[0]<=cutoff and (after is None or bar[0]>after)]
         calendar=tf in ('1D','1W','1M')
-        selected=candles if calendar else (candles[:limit] if after is not None else candles[-limit:])
-        return {'bars':_records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(candles)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}
+        selected=candles[:limit] if after is not None else candles[-limit:]
+        return {'bars':_records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':len(candles)<=limit,'timezone':'America/New_York','calendar':CALENDAR_LABEL}

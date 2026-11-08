@@ -16,7 +16,8 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-tools{display:flex;align-items:center;gap:4px;margin-left:auto;border-left:1px solid var(--bt-border);padding-left:10px}
 .bt-toolbar .bt-icon{width:36px;padding:0}
 .bt-canvas-area{position:relative;flex:1;min-height:0;min-width:0;overflow:hidden;background:var(--bt-bg)}
-.backtesting-workspace .replay-chart{width:100%;height:100%;position:relative;z-index:0}
+/* Isolate canvas layout/style without clipping Vela menus or sizing overlays. */
+.backtesting-workspace .replay-chart{width:100%;height:100%;position:relative;z-index:0;contain:layout style}
 .bt-statusbar{display:flex;align-items:center;gap:18px;padding:0 16px;min-height:32px;flex-shrink:0;border-top:1px solid var(--bt-border);background:var(--bt-surface);font-size:11px;color:var(--bt-muted)}
 .bt-statusbar>div{display:flex;gap:12px;align-items:center}.bt-statusbar strong{font-size:11px;font-weight:600;color:var(--bt-ink)}
 .bt-chart-status{margin-left:auto}.bt-attribution{color:inherit;text-decoration:none;font-size:10px}.bt-attribution:hover{text-decoration:underline}

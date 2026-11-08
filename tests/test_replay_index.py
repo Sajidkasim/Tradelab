@@ -32,3 +32,23 @@ def test_four_hour_index_contains_full_archive_without_future_bars(tmp_path):
     assert len(history['NQ'])==3
     assert sum(b['volume'] for b in history['NQ'])==4800
     assert all(b['time']<1591056000000 for b in history['ES'])
+
+def test_index_connections_apply_tuning_and_release_handles(tmp_path):
+    import pytest
+    from webapp.replay_index import index_connection
+    path=tmp_path/'tuned.db'
+    with index_connection(path) as con:
+        assert con.execute('PRAGMA journal_mode').fetchone()[0]=='wal'
+        assert con.execute('PRAGMA synchronous').fetchone()[0]==1
+        assert con.execute('PRAGMA cache_size').fetchone()[0]==-64000
+        con.execute('CREATE TABLE prices(value INTEGER)')
+    with pytest.raises(sqlite3.ProgrammingError):con.execute('SELECT 1')
+    # Non-persistent connection settings must be reapplied on the next open.
+    with index_connection(path) as writer,index_connection(path) as reader:
+        assert reader.execute('PRAGMA synchronous').fetchone()[0]==1
+        assert reader.execute('PRAGMA cache_size').fetchone()[0]==-64000
+        writer.execute('BEGIN IMMEDIATE')
+        writer.execute('INSERT INTO prices VALUES(1)')
+        assert reader.execute('SELECT count(*) FROM prices').fetchone()[0]==0
+        writer.commit()
+        assert reader.execute('SELECT count(*) FROM prices').fetchone()[0]==1
