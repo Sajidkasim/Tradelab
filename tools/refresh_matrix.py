@@ -8,6 +8,7 @@ import requests
 
 FRED = "https://api.stlouisfed.org/fred/series/observations"
 CFTC = "https://publicreporting.cftc.gov/resource/gpe5-46if.json"
+NASDAQ_CFTC_CODE = "209742"
 
 
 def observations(series, limit=14):
@@ -30,16 +31,18 @@ def observations(series, limit=14):
 
 def cftc_position():
     response = requests.get(CFTC, params={
-        "cftc_contract_market_code": "090741",
+        "cftc_contract_market_code": NASDAQ_CFTC_CODE,
         "$order": "report_date_as_yyyy_mm_dd DESC", "$limit": 1,
     }, timeout=12)
     if not response.ok:
         raise ValueError(f"CFTC returned HTTP {response.status_code}")
     row = response.json()[0]
-    net = int(row["asset_mgr_positions_long_all"]) - int(row["asset_mgr_positions_short_all"])
+    if row.get('cftc_contract_market_code') != NASDAQ_CFTC_CODE or 'NASDAQ' not in row.get('market_and_exchange_names', '').upper():
+        raise ValueError('CFTC did not return the Nasdaq futures market. Previous snapshot retained.')
+    net = int(row["asset_mgr_positions_long"]) - int(row["asset_mgr_positions_short"])
     pct = 100 * net / int(row["open_interest_all"])
     return {"id": "cot", "value": f"{pct:+.1f}%",
-            "detail": f"CFTC · {row['report_date_as_yyyy_mm_dd'][:10]} · Net asset manager contracts / open interest"}
+            "detail": f"CFTC · Nasdaq-100 E-mini · {row['report_date_as_yyyy_mm_dd'][:10]} · Net asset manager contracts / open interest"}
 
 
 def update_row(rows, reading):
