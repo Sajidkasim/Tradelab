@@ -101,7 +101,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     if (!sample) return;
     let alive = true, chart;
     const unsubscribers = [];
-    setError(''); setReady(false); setBusy(true);
+    setError(''); setReady(false); setBusy(true);setFollow(false);
     import('@luxalgo/vela').then(async vela => {
       const {Vela}=vela;
       if (!alive) return;
@@ -141,9 +141,10 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       visibility.current.apply(chart,current.timeframe);
       setPriceScale(chart.renderer.getConfig().priceScale);
       const native=chart.renderer.renderer;
+      // Clamp saved zoom before the first projection, while retaining horizontal pan.
+      unsubscribers.push(installFreeReplayNavigation(chart,host.current));
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
-      unsubscribers.push(installFreeReplayNavigation(chart,host.current));
       drawingGeometry.current=installDrawingGeometry(chart);
       const removeDrawingPerformance=installDrawingPerformance(chart);
       unsubscribers.push(drawingGeometry.current,()=>{removeDrawingPerformance();removeDrawingInteractions()});

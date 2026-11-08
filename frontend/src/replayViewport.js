@@ -1,3 +1,5 @@
+import {MAX_CHART_BARS} from './ReplayHistoryFeed';
+
 // Compatibility seam for the pinned Vela native renderer (0.9.3).
 // Its public time range rounds/clamps to complete candles; restoring that range
 // repeatedly changes candle spacing. Preserve the exact logical viewport instead.
@@ -13,7 +15,7 @@ export function holdReplayViewport(chart, appended) {
 // projector respects manual scales, log mode, inversion and separate study panes.
 export function replayProjector(chart){return chart?.renderer?.renderer?.drawingProjector?.()??null}
 
-// Pinned Vela 0.9.3 compatibility: public API has no unbounded-navigation option
+// Pinned Vela 0.9.3 compatibility: public API has no horizontal-pan-only option
 // or arbitrary two-sided history insertion. Keep these seams isolated and tested.
 export function captureReplayView(chart){
  const n=chart.renderer?.renderer,c=n?.coords;if(!c?.barCount)return null;
@@ -31,7 +33,15 @@ export function replaceReplayHistory(chart,bars){
 export function installFreeReplayNavigation(chart,host){
  const n=chart.renderer?.renderer;if(!n?.clampViewport)return ()=>{};
  const clamp=n.clampViewport,begin=n.beginPricePan;
- n.clampViewport=(spacing,offset)=>({barSpacing:Number.isFinite(spacing)&&spacing>0?spacing:8,rightOffset:Number.isFinite(offset)?offset:0});
+ // Retain the 2 November native zoom bounds (including its width/data-aware
+ // minimum and maximum). Only horizontal pan offsets bypass the native limits.
+ n.clampViewport=(spacing,offset)=>{
+  const safeSpacing=Number.isFinite(spacing)&&spacing>0?spacing:8;
+  const scale=n.coords.spacingScale||1;
+  const windowMinimum=n.coords.width>0?n.coords.width/(MAX_CHART_BARS*scale):0;
+  const bounded=clamp.call(n,Math.max(safeSpacing,windowMinimum),0);
+  return {barSpacing:bounded.barSpacing,rightOffset:Number.isFinite(offset)?offset:0};
+ };
  n.beginPricePan=function(y){const pane=this.paneNodeAtY(y);if(pane&&!pane.manualScale)pane.manualScale={...pane.scale};return begin.call(this,y)};
  const wheel=e=>{
   if(e.target!==host&&e.target.tagName!=='CANVAS')return;

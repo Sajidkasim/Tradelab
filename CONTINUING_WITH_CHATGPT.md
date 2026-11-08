@@ -1182,3 +1182,28 @@ Follow-up validation: 413 pytest passed (4 existing deprecation warnings),
 86 Vitest checks passed, production build passed, and four browser flows passed
 (playback with containment/canvas sizing, right-click menus, split charts and rapid
 interval changes). Protected engine, adapter and dependency files remain unchanged.
+
+## Restore locked viewport zoom bounds — 8 November 2026
+
+Owner explicitly requested restoring the 2 November viewport baseline, authorising
+this focused edit to the pinned Vela 0.9.3 adapter. The later free-navigation clamp
+had bypassed both zoom and pan bounds. It now delegates bar spacing to Vela's
+original width/data-aware clamp (absolute bounds 0.5–1000), applying the 3,000-slot
+zoom floor before that clamp. Only horizontal rightOffset remains unrestricted,
+so dragging/paging does not require excessive zoom-out. Wheel, pinch, saved layout
+restoration and streaming all use the same native clamp. Native coordinate and
+candle/drawing projectors are retained, including vertical/log/inverted scales.
+
+holdReplayViewport retains the exact original 2 November implementation: save
+barSpacing and subtract appended-bar count from rightOffset. View locked is the
+explicit default on session initialization. Navigation bounds are installed before
+restoring saved viewports, so previously unbounded saved zoom is corrected on
+open. The 3,000-candle memory window, historical paging, RAF playback and 17:00 NY
+calendar remain intact. No financial engine, source-data, saved-trade, dependency,
+push or deployment changes are included in this viewport correction.
+
+Validation: 413 pytest passed (4 existing deprecation warnings), 90 Vitest checks
+passed and production build passed. Four browser checks passed: locked/panned
+playback, split-chart switching, historical paging and native zoom extremes.
+New unit checks cover wheel/pinch bounds, horizontal offsets, projector identity,
+cleanup, 3,000-slot zoom coverage and exact locked spacing/offset preservation.

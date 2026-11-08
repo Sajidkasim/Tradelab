@@ -621,7 +621,7 @@ test('full calendar coverage, bounded 4h pages and free navigation preserve repl
  await expect(page.getByLabel('Dataset coverage',{exact:true})).toHaveCount(0);
  const before=pages;
  // Pan well past the loaded left edge. The viewport stays free and older pages arrive.
- await page.mouse.move(650,350);await page.mouse.wheel(0,500);await page.mouse.wheel(0,500);
+ await page.mouse.move(650,350);await page.mouse.wheel(-12000,0);
  await expect.poll(()=>pages).toBeGreaterThan(before);await expect.poll(count).toBeGreaterThan(750);
  const clock=await page.getByLabel('Replay time',{exact:true}).getAttribute('datetime');
  await page.getByRole('button',{name:'1h',exact:true}).click();await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready');
@@ -683,4 +683,37 @@ test('Sync intervals follows either pane, persists and returns to independent in
  const sid=new URL(page.url()).searchParams.get('session');
  await expect.poll(async()=>{const saved=await (await page.request.get(`http://127.0.0.1:8119/api/backtesting/sessions/${sid}/layouts`)).json();return [saved.layout?.timeframe,saved.layout_secondary?.timeframe,saved.layout?.chartGroup?.syncIntervals]}, {timeout:15000}).toEqual(['15','15',true]);
  await page.reload();await expect(sync).toHaveAttribute('aria-pressed','true',{timeout:15000});await expect(page.getByRole('button',{name:'ES · 15m',exact:true})).toBeVisible();await sync.click();await bar.getByRole('button',{name:'5m',exact:true}).click();await expect(page.getByRole('button',{name:'NQ · 15m',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'ES · 5m',exact:true})).toBeVisible();
+});
+
+test('native zoom limits keep the locked viewport sharp while horizontal paging stays free',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await expect(page.getByRole('button',{name:'Follow price',exact:true})).toHaveAttribute('aria-pressed','false');
+ const sid=new URL(page.url()).searchParams.get('session');
+ const snapshot=async()=>{
+  await page.getByRole('button',{name:'Save session',exact:true}).click();
+  await expect(page.locator('.bt-save-status')).toHaveText('Saved');
+  return (await (await page.request.get('http://127.0.0.1:8119/api/backtesting/sessions/'+sid+'/layouts')).json()).layout;
+ };
+ await page.mouse.move(650,350);
+ for(let i=0;i<10;i++)await page.mouse.wheel(0,500);
+ const wide=await snapshot();expect(wide.viewport.barSpacing).toBeGreaterThanOrEqual(.5);
+ const area=await page.locator('.replay-chart').boundingBox();
+ expect(area.width/wide.viewport.barSpacing).toBeLessThanOrEqual(3000);
+ await page.mouse.move(650,350);
+ for(let i=0;i<10;i++)await page.mouse.wheel(0,-500);
+ const zoomed=await snapshot();expect(zoomed.viewport.barSpacing).toBeLessThanOrEqual(1000);
+ expect(zoomed.viewport.barSpacing).toBeGreaterThan(wide.viewport.barSpacing);
+ // Horizontal wheel keeps both candle spacing and the stored vertical scale.
+ await page.mouse.move(650,350);await page.mouse.wheel(-500,0);const panned=await snapshot();
+ expect(panned.viewport.barSpacing).toBe(zoomed.viewport.barSpacing);
+ expect(panned.viewport.rightOffset).not.toBe(zoomed.viewport.rightOffset);
+ expect(panned.priceScale).toEqual(zoomed.priceScale);
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ const appended=await snapshot();expect(appended.viewport.barSpacing).toBe(panned.viewport.barSpacing);
+ expect(appended.priceScale).toEqual(panned.priceScale);
+ await expect(page.getByRole('alert')).toHaveCount(0);
 });
