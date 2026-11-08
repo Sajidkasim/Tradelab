@@ -768,27 +768,20 @@ test('a stationary zoomed-out viewport stops paging and keeps its saved fraction
 
 });
 
-test('60-minute steps cross the New York maintenance break in the mounted chart and reopen cleanly',async({page})=>{
- await page.goto('http://127.0.0.1:8119/backtesting');
- await page.getByRole('button',{name:'New session',exact:true}).click();
- await page.getByLabel('Trading date',{exact:true}).fill('2010-06-07');
- await page.getByLabel('Start time (UTC)',{exact:true}).fill('20:55');
- await page.getByRole('button',{name:'Open session',exact:true}).click();
- const status=page.getByRole('status',{name:'Chart status',exact:true});
- await expect(status).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('button',{name:'Buy',exact:true}).click();
- await page.getByRole('combobox',{name:'Replay step',exact:true}).click();
- await page.getByRole('option',{name:'60m step',exact:true}).click();
- const clock=page.getByLabel('Replay time',{exact:true});
- const original=await clock.getAttribute('datetime');
- for(let i=0;i<3;i++)await page.getByRole('button',{name:'Next candle',exact:true}).click();
- const after=await clock.getAttribute('datetime');
- expect(Date.parse(after)-Date.parse(original)).toBeGreaterThanOrEqual(120*60000);
- await expect(status).toHaveText('Chart ready');
- await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
- await page.getByRole('button',{name:'Save session',exact:true}).click();
- await expect(page.locator('.bt-save-status')).toHaveText('Saved');await page.reload();
- await expect(status).toHaveText('Chart ready',{timeout:15000});await expect(clock).toHaveAttribute('datetime',after);
- await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
- await expect(page.getByRole('alert')).toHaveCount(0);
+test('economic news drawer shows replay-date events and masks future actuals',async({page})=>{
+ await page.route('**/api/replay/news?**',async route=>{
+  const day=new URL(route.request().url()).searchParams.get('date');
+  await route.fulfill({json:day==='2023-09-12'?[{id:1,timestamp_utc:Date.parse('2023-09-12T12:30:00Z'),date_ny:day,time_ny:'08:30',currency:'USD',impact:'High',event:'CPI m/m',actual:'0.3%',forecast:'0.2%',previous:'0.1%'},{id:2,timestamp_utc:Date.parse('2023-09-12T18:00:00Z'),date_ny:day,time_ny:'14:00',currency:'USD',impact:'Medium',event:'Budget statement',actual:'999',forecast:'100',previous:'90'}]:[]});
+ });
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Economic news',exact:true}).click();
+ const drawer=page.getByRole('complementary',{name:'Economic news',exact:true});
+ await expect(drawer.getByText('CPI m/m',{exact:true})).toBeVisible();await expect(drawer.getByText('0.3%',{exact:true})).toBeVisible();
+ await expect(drawer.getByText('999',{exact:true})).toHaveCount(0);
+ await expect(drawer.getByRole('img',{name:'High impact',exact:true})).toBeVisible();
+ await drawer.getByRole('button',{name:'News for 2023-09-13',exact:true}).click();await expect(drawer.getByText('No economic events stored for this date.')).toBeVisible();
+ await drawer.getByRole('button',{name:'Back to replay',exact:true}).click();await expect(drawer.getByText('CPI m/m',{exact:true})).toBeVisible();
+ await drawer.getByRole('button',{name:'Close economic news',exact:true}).click();await expect(drawer).toHaveCount(0);
 });

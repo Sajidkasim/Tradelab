@@ -1,8 +1,10 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2} from 'lucide-react';
+import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2, Newspaper} from 'lucide-react';
 import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
+import ReplayNewsDrawer from './ReplayNewsDrawer';
+import {replayNewsDay} from './replayNews';
 import ReplayCanvasTools from './ReplayCanvasTools';
 import {captureReplayView,restoreReplayView,installFreeReplayNavigation} from './replayViewport';
 import DrawingFavoritesBar,{toolNames} from './DrawingFavoritesBar';
@@ -14,8 +16,7 @@ import {recordTiming} from './replayTiming';
 import {installDrawingPerformance,latestLayoutWriter} from './replayDrawingPerformance';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {streamReplayBars} from './replayChartStream';
-import {subscribePractice} from './replayPracticeProvider';
-import {startReplayClock,nextReplayCursor,nextContinuedReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
+import {startReplayClock,nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
 import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
@@ -51,6 +52,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   const [toolsEditor,setToolsEditor]=useState(false);
   const favoriteBarPosition=useRef(layout.favoriteBarPosition||{x:70,y:70});
   const visibility=useRef(null);if(!visibility.current)visibility.current=visibilityController();
+  const [newsOpen,setNewsOpen]=useState(false);
+  useEffect(()=>{if(selected===false)setNewsOpen(false)},[selected]);
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
   const timeline=sample.markets[session.root].bars;
@@ -108,7 +111,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>subscribePractice(chart,subscribers,cb)};
+      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
@@ -230,7 +233,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
   useEffect(() => {document.title = `${session.name} — Primus Backtesting`}, [session.name]);
   async function next(){
-    if(finished&&session.next_day){try{const reply=await onContinue();onCursor(nextContinuedReplayCursor(reply,session.root,cursor,Number(step)))}catch(e){setError(e.message)};return}
+    if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setError(e.message)};return}
     onCursor(nextReplayCursor(timeline,cursor,Number(step)));
   }
   const playback=useRef(null),continuing=useRef(null);
@@ -246,8 +249,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if(state.finished){
         if(!state.nextDay||continuing.current)return;
         continuing.current=state.timeline.at(-1).time;
-        return Promise.resolve().then(()=>state.onContinue()).then(reply=>{
-          state.onCursor(nextContinuedReplayCursor(reply,session.root,state.cursor,Number(state.step),steps));
+        return Promise.resolve().then(()=>state.onContinue()).then(()=>{
+          state.onCursor(state.cursor+1);
         }).catch(e=>{setError(e.message);setPlaying(false)});
       }
       // Multiple due ticks become a single React/chart update for this frame.
@@ -310,6 +313,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
         {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
       <div className="bt-tools"><button onClick={()=>selectDrawingTool(null)} title="Stop drawing and select objects">Select drawings</button>{<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
+        <button aria-label="Economic news" aria-expanded={newsOpen} onClick={()=>setNewsOpen(v=>!v)}><Newspaper size={16}/><span>News</span></button>
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
         <Feedback owner={owner}/>{!secondary&&<button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button>}<button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>
@@ -332,6 +336,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
+    {createPortal(<ReplayNewsDrawer open={newsOpen} onClose={()=>setNewsOpen(false)} replayDate={replayNewsDay(replayTime+60000)} replayTime={replayTime+60000}/>,document.body)}
     {!secondary&&controlsHost&&createPortal(<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
     <footer className="bt-clock-footer">
       <time dateTime={new Date(replayTime+60000).toISOString()} aria-label="Replay time">{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>

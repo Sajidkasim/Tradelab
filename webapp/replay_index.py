@@ -48,3 +48,30 @@ def four_hour_history(path,day):
   for root,t,o,h,l,c,v in con.execute('SELECT root,time,open,high,low,close,volume FROM chart_4h_ny WHERE time+14400000<=? ORDER BY root,time',(cutoff,)):
    result[root].append({'time':t,'open':o,'high':h,'low':l,'close':c,'volume':v})
   return result
+
+NEWS_SCHEMA='''CREATE TABLE IF NOT EXISTS economic_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ timestamp_utc INTEGER NOT NULL,
+ date_ny TEXT NOT NULL,
+ time_ny TEXT NOT NULL,
+ currency TEXT NOT NULL,
+ impact TEXT NOT NULL,
+ event TEXT NOT NULL,
+ actual TEXT,
+ forecast TEXT,
+ previous TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_news_date ON economic_events(date_ny);'''
+
+def ensure_economic_events(path):
+ with index_connection(path) as con:con.executescript(NEWS_SCHEMA)
+
+def economic_events(path,day):
+ # Dates are validated even for an installation without a local archive.
+ day=date.fromisoformat(day).isoformat()
+ from pathlib import Path
+ if not Path(path).is_file():return []
+ ensure_economic_events(path)
+ with index_connection(path) as con:
+  con.row_factory=sqlite3.Row
+  return [dict(row) for row in con.execute('SELECT * FROM economic_events WHERE date_ny=? ORDER BY timestamp_utc ASC,id ASC',(day,))]

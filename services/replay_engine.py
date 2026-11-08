@@ -59,7 +59,6 @@ def project(bars, spec, commands, *, compact=False):
                        'gross':round(gross,2),'fees':round(2*fee*position['qty'],2),'net':round(gross-2*fee*position['qty'],2)})
         fill_event(i,'exit',side=position['side'],price=price,qty=position['qty'],reason=reason)
         position=None;closing=False
-    frame_batch=[]
     for i in range(start,len(bars)):
         bar=bars[i];new_intrabar=False
         if closing and position:exit_position(i,bar['open']-slip*(1 if position['side']=='buy' else -1),'close')
@@ -131,13 +130,8 @@ def project(bars, spec, commands, *, compact=False):
             for field in ('stop','target'):
                 price=active.get(field)
                 ticket[field+'_result']=None if price is None else round((price-reference)*direction*instrument.multiplier*active['qty'],2)
-        frame={'ticket':ticket,'cursor':i,'balance':round(balance,2),'equity':round(balance+unrealized,2),'unrealized':round(unrealized,2),
-                       'position':visible_position,'order':deepcopy(order)}
-        if compact:
-            frame_batch.append(frame)
-            if len(frame_batch)==60:frames.extend(frame_batch);frame_batch.clear()
-        else:frames.append(frame)
-    if frame_batch:frames.extend(frame_batch)
+        frames.append({'ticket':ticket,'cursor':i,'balance':round(balance,2),'equity':round(balance+unrealized,2),'unrealized':round(unrealized,2),
+                       'position':visible_position,'order':deepcopy(order)})
     return {'frames':frames,'trades':trades,'fills':fills}
 
 

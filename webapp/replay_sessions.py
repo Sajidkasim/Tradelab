@@ -1,20 +1,17 @@
 """Private replay sessions. Hosted history is explicitly enabled and read from R2."""
 from copy import deepcopy
 from contextvars import ContextVar
-from contextlib import AsyncExitStack
 from .byte_cache import ByteCache,byte_cache
 COMPACT_WIRE=ContextVar("compact_replay_wire",default=False)
 from .replay_timing import timed
 from datetime import date, datetime, timezone
-from functools import lru_cache,wraps
+from functools import lru_cache
 from hashlib import sha256
 import json
 import re
 from pathlib import Path
 import threading
 import asyncio
-from weakref import WeakValueDictionary
-from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from typing import Literal
 from uuid import UUID, uuid4
@@ -189,40 +186,23 @@ def summary(record,plan):
         'clock':record['clock'],'finished':record['cursor']==record['last_cursor']}
 
 def mount(app,config,workspace):
-    simulation_slots=asyncio.Semaphore(2)
-    session_locks=WeakValueDictionary()
-    plans=ByteCache(16*1024*1024,entries=4)
-    def simulated(fn):
-        @wraps(fn)
-        async def run(*args,**kwargs):
-            sids=[kwargs['sid']] if 'sid' in kwargs else [str(value) for value in kwargs['payload'].ids]
-            locks=[session_locks.setdefault((kwargs['member']['key'],sid),asyncio.Lock()) for sid in sorted(set(sids))]
-            async with AsyncExitStack() as stack:
-                for lock in locks:await stack.enter_async_context(lock)
-                async with simulation_slots:
-                    # Engine work AND response encoding stay off the event loop.
-                    return await run_in_threadpool(lambda:JSONResponse(fn(*args,**kwargs)))
-        return run
+    replay_gate=asyncio.Semaphore(1)
     @app.middleware('http')
     async def replay_wire(request,call_next):
+        heavy='/api/backtesting/sessions' in request.url.path and not any(part in request.url.path for part in ('/chart-history','/layout','/journal'))
+        if heavy:
+            try:await asyncio.wait_for(replay_gate.acquire(),timeout=15)
+            except asyncio.TimeoutError:return JSONResponse({'detail':'Replay is busy. Please retry shortly.'},status_code=503,headers={'Retry-After':'1'})
         token=COMPACT_WIRE.set(request.headers.get('X-Primus-Replay-Wire')=='columns-v1')
         try:return await call_next(request)
-        finally:COMPACT_WIRE.reset(token)
-    def plan_key(member,record):
-        return (member['key'],record['id'],json.dumps([record['spec'],record['commands'],record['data_digest'],record.get('continuation_days',[]),record['last_cursor']],sort_keys=True))
-    def planned(member,record,data,publish=True):
-        key=plan_key(member,record);value=plans.get(key)
-        if value is None:
-            value=projection(record,data)
-            if publish:plans.put(key,value)
-        return value
-    def commit_plan(member,db,record,plan,data,version):
-        with app.state.workspaces.lock:
-            save(db,record,plan,data,expected_version=version)
-            app.state.workspaces.bump(member['key'])
-        # Only a successful atomic save publishes the new immutable frame batch.
-        key=plan_key(member,record)
-        if plans.get(key) is not plan:plans.put(key,plan)
+        finally:
+            COMPACT_WIRE.reset(token)
+            if heavy:replay_gate.release()
+    @app.get('/api/replay/news')
+    def replay_news(date:date,member=Depends(workspace)):
+        local_only()
+        from .replay_index import economic_events
+        return economic_events(ROOT/'replay-index.db',date.isoformat())
     def database(member): return app.state.workspaces.database(member["key"])
     def local_only():
         if not config.local and not getattr(config,'replay_enabled',False):raise HTTPException(404)
@@ -338,23 +318,12 @@ def mount(app,config,workspace):
         # Never bridge years between isolated hosted samples as an overnight gap.
         return following if following and (date.fromisoformat(following)-date.fromisoformat(last)).days<=7 else None
     @timed("save session including history read")
-    def save(db,record,plan,data=None,expected_version=None):
+    def save(db,record,plan,data=None):
         if data is None:data=checked_data(record)
         record['clock']=data['markets'][record['root']]['bars'][record['cursor']]['time']+60000
         record['updated']=datetime.now(timezone.utc).isoformat()
         record['summary']=summary(record,plan)
-        if expected_version is None:
-            db.set_setting(PREFIX+record['id'],record)
-        else:
-            from sqlalchemy import select
-            from core.db import settings_t
-            key=PREFIX+record['id']
-            with db.engine.begin() as connection:
-                raw=connection.execute(select(settings_t.c.value).where(settings_t.c.key==key).with_for_update()).scalar()
-                if raw is None or json.loads(raw).get('deleted'):raise HTTPException(404,'Session not found.')
-                if json.loads(raw)['version']!=expected_version:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
-                changed=connection.execute(settings_t.update().where(settings_t.c.key==key,settings_t.c.value==raw).values(value=json.dumps(record)))
-                if changed.rowcount!=1:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
+        db.set_setting(PREFIX+record['id'],record)
     @byte_cache(4*1024*1024,entries=1)
     def chart_context(day,stamp):
         from .replay_index import four_hour_history
@@ -412,7 +381,7 @@ def mount(app,config,workspace):
                         'extended':bool(data.get('history_version')),'instrument':payload.instrument,'root':root,'capital':round(payload.capital,2),'spec':{'capital':round(payload.capital,2),
                         'instrument':payload.instrument,'commission':payload.commission,'slippage':payload.slippage,'start_cursor':cursor,'close_at_end':False},
                         'cursor':cursor,'last_cursor':len(bars)-1,'version':0,'commands':[],'data_digest':digest,'clock':stamp,'created':now,'updated':now}
-                plan=planned(member,record,data);save(db,record,plan,data)
+                plan=projection(record,data);save(db,record,plan,data)
                 db.set_setting(INDEX,ids+[record['id']]);app.state.workspaces.bump(member['key'])
                 return {**result(record,plan,data),'layout':chart_defaults(db),'layout_secondary':chart_defaults(db)}
         except ValueError as e:raise HTTPException(422,str(e)) from None
@@ -429,7 +398,6 @@ def mount(app,config,workspace):
             connection.execute(settings_t.delete().where(settings_t.c.key.in_(names)))
             connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([sid for sid in saved_ids if sid not in ids])))
     @app.post('/api/backtesting/sessions/delete')
-    @simulated
     def bulk_delete(payload:BulkDeleteInput,member=Depends(workspace)):
         local_only();ids=[str(sid) for sid in payload.ids]
         if len(set(ids))!=len(ids) or payload.confirmation!=f'DELETE {len(ids)}':raise HTTPException(422,'Type DELETE followed by the exact number of sessions.')
@@ -437,10 +405,9 @@ def mount(app,config,workspace):
             remove_records(database(member),ids);app.state.workspaces.bump(member['key'])
         return {'permanently_deleted':len(ids)}
     @app.delete('/api/backtesting/sessions/{sid}')
-    async def delete_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
-        return await purge_session(sid=sid,payload=payload,member=member)
+    def delete_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+        return purge_session(sid,payload,member)
     @app.delete('/api/backtesting/sessions/{sid}/permanent')
-    @simulated
     def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
         local_only()
         with app.state.workspaces.lock:
@@ -512,77 +479,69 @@ def mount(app,config,workspace):
         try:
             with app.state.workspaces.lock:
                 record=get_record(database(member),sid);data=checked_data(record)
-                return {**result(record,planned(member,record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',chart_defaults(database(member))),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',chart_defaults(database(member))),'journal':database(member).get_setting(_key(sid)+':journal',{})}
+                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',chart_defaults(database(member))),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',chart_defaults(database(member))),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
-    @simulated
     def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
         local_only()
         with app.state.workspaces.lock:
-            db=database(member);record=deepcopy(get_record(db,sid))
-        if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
-        valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
-        data=checked_data(record);plan=planned(member,record,data,publish=False)
-        commit_plan(member,db,record,plan,data,payload.version)
-        return {'session':result(record,plan,include_projection=False)['session']}
+            db=database(member);record=get_record(db,sid)
+            if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
+            valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
+            data=checked_data(record);plan=projection(record,data);save(db,record,plan,data);app.state.workspaces.bump(member['key'])
+            return {'session':result(record,plan,include_projection=False)['session']}
     @app.post('/api/backtesting/sessions/{sid}/continue')
-    @simulated
     def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
         local_only()
         try:
             with app.state.workspaces.lock:
-                db=database(member);record=deepcopy(get_record(db,sid))
-            if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
-            valid_cursor(record,payload.cursor)
-            combined=checked_data(record)
-            state=planned(member,record,combined)['frames'][payload.cursor-record['spec']['start_cursor']]
-            previous=record.get('continuation_days',[])
-            last_data=history(previous[-1]['day'])[0] if previous else combined
-            # Copy each source array once, then append all continuation days in memory.
-            combined={**combined,'markets':{root:{**market,'bars':list(market['bars'])} for root,market in combined['markets'].items()}}
-            added=0
-            for _ in range(payload.days):
-                day=next_day(record)
-                if not day:break
-                extra,digest=history(day)
-                if (state['position'] or state['order']) and contract_roll_required(record['root'],last_data['markets'][record['root']]['contract'],extra['markets'][record['root']]['contract']):
-                    if added:break
-                    raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
-                if any(extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time'] for root,market in combined['markets'].items()):
-                    raise ValueError('The next candle file overlaps this session.')
-                for root,market in combined['markets'].items():market['bars'].extend(extra['markets'][root]['bars'])
-                record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
-                last_data=extra;added+=1
-            if not added:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
-            record['cursor']=payload.cursor;record['last_cursor']=len(combined['markets'][record['root']]['bars'])-1;record['version']+=1
-            plan=planned(member,record,combined,publish=False)
-            commit_plan(member,db,record,plan,combined,payload.version)
-            return result(record,plan,combined)
+                db=database(member);record=get_record(db,sid)
+                if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
+                valid_cursor(record,payload.cursor)
+                record=deepcopy(record);combined=checked_data(record)
+                state=projection(record,combined)['frames'][payload.cursor-record['spec']['start_cursor']]
+                previous=record.get('continuation_days',[])
+                last_data=history(previous[-1]['day'])[0] if previous else combined
+                added=0
+                for _ in range(payload.days):
+                    day=next_day(record)
+                    if not day:break
+                    extra,digest=history(day)
+                    if (state['position'] or state['order']) and contract_roll_required(record['root'],last_data['markets'][record['root']]['contract'],extra['markets'][record['root']]['contract']):
+                        if added:break
+                        raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
+                    if any(extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time'] for root,market in combined['markets'].items()):
+                        raise ValueError('The next candle file overlaps this session.')
+                    combined={**combined,'markets':{root:{**market,'bars':[*market['bars'],*extra['markets'][root]['bars']]} for root,market in combined['markets'].items()}}
+                    record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
+                    last_data=extra;added+=1
+                if not added:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
+                record['cursor']=payload.cursor
+                record['last_cursor']=len(combined['markets'][record['root']]['bars'])-1
+                record['version']+=1
+                plan=projection(record,combined);save(db,record,plan,combined);app.state.workspaces.bump(member['key'])
+                return result(record,plan,combined)
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.post('/api/backtesting/sessions/{sid}/action')
-    @simulated
     def action(sid:str,payload:ActionInput,member=Depends(workspace)):
         local_only()
         try:
             with app.state.workspaces.lock:
-                db=database(member);record=deepcopy(get_record(db,sid))
-            data=checked_data(record)
-            if any(c.get('event_id')==str(payload.event_id) for c in record['commands']):return result(record,planned(member,record,data))
-            if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
-            valid_cursor(record,payload.cursor)
-            if len(record['commands'])>=2000:raise ValueError('This session has reached its practice-action limit.')
-            command={'at':payload.cursor,'kind':payload.kind,'event_id':str(payload.event_id)}
-            if payload.kind in ('order','amend'):
-                if not payload.order:raise ValueError('Choose an order.')
-                command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
-            record['commands'].append(command);record['cursor']=payload.cursor
-            plan=planned(member,record,data,publish=False);record['version']+=1
-            commit_plan(member,db,record,plan,data,payload.version)
-            return result(record,plan)
+                db=database(member);record=get_record(db,sid);data=checked_data(record)
+                if any(c.get('event_id')==str(payload.event_id) for c in record['commands']):return result(record,projection(record,data))
+                if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
+                valid_cursor(record,payload.cursor)
+                if len(record['commands'])>=2000:raise ValueError('This session has reached its practice-action limit.')
+                command={'at':payload.cursor,'kind':payload.kind,'event_id':str(payload.event_id)}
+                if payload.kind in ('order','amend'):
+                    if not payload.order:raise ValueError('Choose an order.')
+                    command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
+                record=deepcopy(record);record['commands'].append(command);record['cursor']=payload.cursor
+                plan=projection(record,data);record['version']+=1;save(db,record,plan,data);app.state.workspaces.bump(member['key'])
+                return result(record,plan)
         except ValueError as e:raise HTTPException(422,str(e)) from None
 
     @app.put('/api/backtesting/sessions/{sid}/layout')
-    @simulated
     def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',defaults:bool=True,member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000:raise HTTPException(422,'Chart layout is too large.')
@@ -593,13 +552,12 @@ def mount(app,config,workspace):
             app.state.workspaces.bump(member['key'])
         return {'saved':True}
     @app.post('/api/backtesting/sessions/{sid}/export')
-    @simulated
     def export(sid:str,payload:ExportInput,member=Depends(workspace)):
         local_only()
         from .replay_transfer import transfer
         with app.state.workspaces.lock:
             db=database(member);record=get_record(db,sid)
-            plan=planned(member,record,checked_data(record))
+            plan=projection(record,checked_data(record))
             trade=next((t for t in plan['trades'] if t['entry_cursor']==payload.entry_cursor and t['exit_cursor']<=record['cursor']),None)
             if not trade:raise HTTPException(422,'Save progress after this trade closes before sending it.')
             result=transfer(db,record,trade,payload.destination,payload.strategy,payload.setup.model_dump() if payload.setup else None)
@@ -632,11 +590,10 @@ def mount(app,config,workspace):
         from services.replay_engine import ticket_result
         with app.state.workspaces.lock:
             record=get_record(database(member),sid);valid_cursor(record,payload.cursor)
-            plan=planned(member,record,checked_data(record));ticket=plan['frames'][payload.cursor-record['spec']['start_cursor']]['ticket']
+            plan=projection(record,checked_data(record));ticket=plan['frames'][payload.cursor-record['spec']['start_cursor']]['ticket']
             if not ticket:raise HTTPException(422,'No active ticket.')
             return {'amount':ticket_result(ticket['reference'],payload.price,ticket['side'],ticket['qty'],record['instrument'])}
     @app.put('/api/backtesting/sessions/{sid}/journal')
-    @simulated
     def journal(sid:str,payload:JournalInput,member=Depends(workspace)):
         local_only()
         with app.state.workspaces.lock:

@@ -1243,46 +1243,69 @@ viewport snapshots and no requests after settling. The final build passed this
 full-window regression again. Overshot pan completion is scheduled explicitly
 when the chart history changes; it does not depend on a redundant viewport event.
 
-## Responsive hour-step simulation and batched chart delivery — 8 November 2026
+## Replay economic-news drawer — 8 November 2026
 
-Owner requested performance changes across the 17:00–18:00 New York maintenance
-break, preserving sequential financial checks. Sync FastAPI routes were already
-threaded, but the global replay semaphore and workspace-wide simulation lock
-serialized unrelated sessions. Session mutations now await workspace/session-scoped
-async locks, then use run_in_threadpool for engine work and JSON encoding. Two
-worker slots bound concurrent mutation work; waiting does not occupy worker
-threads. Bulk deletion acquires session locks in sorted order. Layout/journal,
-export and deletion share the mutation locks. The workspace lock only surrounds
-short mutation snapshot/commit work in action/progress/continue.
+Local feature built on the restored pre-hour-step baseline. replay_index owns an
+idempotent economic_events table and idx_news_date index in replay-index.db.
+Timestamp values are Unix epoch milliseconds, matching replay candles. The
+workspace-authorized GET /api/replay/news?date=YYYY-MM-DD returns date-filtered rows
+in timestamp/id order; missing archives and empty dates return []. No news feed
+or sample events are imported into the user's archive.
 
-A workspace-scoped, byte-bounded 16 MiB/four-plan cache reuses immutable CompactFrames
-for cursor-only progress and idempotent actions. Keys include commands, spec,
-source digest, continuation digests and loaded end cursor; cursor/version alone
-do not require another financial replay. CompactFrames reports its actual column
-and state memory to the cache. Continuation copies each market array once and
-extends all requested days before creating one final projection.
+ReplayNewsDrawer is a 320px non-modal right drawer with week/day navigation,
+USD/EUR/GBP SVG flags, three-level impact indicators, event titles and values,
+loading/error/retry/empty states, Escape/close controls and reduced-motion support.
+Its session date follows the existing 17:00 New York rollover/DST convention.
+The selected day resets to the replay date when replay advances to another day;
+minute stepping does not refetch an unchanged date. Actual values stay hidden
+until release time to avoid revealing future results. Manual week browsing does
+not move the replay cursor. Only the selected pane can keep a drawer open.
+Optional timeline markers are deferred to preserve the pinned chart adapter.
 
-Financial formulas and minute iteration/order are unchanged. Completed frames are
-stored into CompactFrames in 60-frame column batches. CompactFrames remains an
-in-memory lossless projection, not a database table: authoritative commands and
-session summaries are saved in one database transaction. A row lock plus raw-value
-and version comparison rejects stale/cross-process writes and prevents deleted
-sessions being recreated by an in-flight simulation. Action/progress/continue
-plan caches publish only after successful mutation commits. Eviction safely rebuilds from source/commands.
+Validation: all original 413 pytest and 95 Vitest tests preserved; 415 pytest and
+98 Vitest checks pass, with 4 existing Python deprecation warnings. Build and the
+news browser test pass (date navigation, flags/impact, empty state, future-actual
+masking and close). No financial engine or viewport changes beyond the user's
+previous rollback; no candle/trade changes, API keys, external calendar ingestion,
+push or deployment. The local economic_events table is initialized but empty.
 
-Vela 0.9.3's provider callback accepts one candle only. replayPracticeProvider
-bridges appendMany into one bounded setBarSeries slice/concatenation and one study
-notification for a multi-candle reveal; single forming candles stay incremental.
-No setMarket call or chart remount is involved. The pinned replayViewport.js file
-is untouched. Continuation now preserves the chosen 60-minute step in manual and
-RAF playback instead of hardcoding cursor+1; only real available minute candles
-are stepped, and no missing maintenance-break bars are invented.
+## Economic calendar importer — 8 November 2026
 
-Validation: 422 pytest passed (4 existing deprecation warnings), 98 Vitest checks
-passed, build passed, and five browser flows passed. Tests cover minute-14 stops
-and targets across winter/summer breaks with later price reads prohibited,
-lossless frame batches, bounded cache accounting, same-session serialization,
-concurrent unrelated-session/health responsiveness, stale atomic commits, cached
-progress, one-write continuation, one-update 60-candle chart delivery, maintenance
-break stepping, open-position continuation and saved-session reopening. No chart
-calendar, dependency, source-candle or saved-trade edits; no rewind or deployment.
+`tools/import_economic_calendar.py` supports --seed-demo, --csv PATH and
+--fetch-recent. Default target is data/private/replay-index.db; --db permits a
+separate existing SQLite file. No financial/core code or source bars are edited.
+All event inserts and the unique (timestamp_utc,currency,event COLLATE NOCASE)
+index are committed in one BEGIN IMMEDIATE transaction. Repeated events use
+ON CONFLICT DO NOTHING: existing values are not overwritten. Preexisting duplicate
+events cause a clear failure without deleting any records. Malformed timed rows
+abort the import; All Day/Tentative/non-economic rows are counted and skipped.
+
+UTC timestamps use milliseconds. CSV source timezone defaults explicitly to
+America/New_York; use --timezone UTC or another IANA timezone when appropriate.
+Offset-aware ISO feed/CSV timestamps override that default. --date-order dmy
+handles day-first numeric dates; default is mdy. Ambiguous/nonexistent naive DST
+times require an explicit offset, rather than silently guessing. date_ny/time_ny
+are the release's New York calendar date and clock time. Values remain strings.
+BOM, comma/semicolon/tab headers, common date/time formats, case-insensitive
+field aliases, impact colours/icon names, and uppercase currencies are supported.
+
+Commands from repository root:
+
+    .venv/bin/python tools/import_economic_calendar.py --seed-demo
+    .venv/bin/python tools/import_economic_calendar.py --csv /path/calendar.csv --timezone America/New_York --date-order mdy
+    .venv/bin/python tools/import_economic_calendar.py --fetch-recent
+
+The recent helper reads only the public ForexFactory current-week JSON feed,
+with timeout and size limit; it is not a historical backfill API and does not run
+automatically. Demo fixtures are synthetic, including release dates and values,
+with [DEMO] prefixed to every title. 48 demo events were inserted across 2013-01-25,
+2020-06-02, 2024-05-15 and 2026-10-30: USD 28, EUR 8, GBP 8, CAD 4; High 28 and
+Medium 20. A second seed inserted zero and ignored 48 duplicates. The original
+11,297,816 source candle rows and saved-workspace file fingerprints were verified
+unchanged. No real CSV or recent feed imported, no push or deployment performed.
+
+Importer validation: 426 pytest passed (4 existing deprecation warnings), 98
+frontend unit checks passed. Importer tests cover repeat-safe seeding, source-table
+preservation, atomic invalid batches, string values, DST rejection/conversion,
+impact aliases, CSV BOM/delimiters/date order, epoch units and mocked public-feed
+fetching. Local API returned all 12 labelled demo events for 2024-05-15.

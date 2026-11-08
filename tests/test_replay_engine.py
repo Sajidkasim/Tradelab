@@ -180,39 +180,3 @@ def test_open_position_can_move_target_past_entry_and_reject_off_tick_price():
     assert amend(100)['frames'][1]['position']['target']==100
     with pytest.raises(ValueError, match='ticks'):
         amend(100.1)
-
-
-@pytest.mark.parametrize('opening',['2026-01-05T16:50:00-05:00','2026-07-06T16:50:00-04:00'])
-@pytest.mark.parametrize('reason',['stop','target'])
-def test_hour_step_across_ny_maintenance_exits_at_minute_14_without_later_price_checks(opening,reason,monkeypatch):
-    from datetime import datetime
-    from services.replay_frames import CompactFrames
-    start=int(datetime.fromisoformat(opening).timestamp()*1000)
-    class AfterExit(dict):
-        def __getitem__(self,key):
-            if key in ('open','high','low','close'):raise AssertionError('Exit checks continued after the position closed')
-            return super().__getitem__(key)
-    bars=[]
-    for i in range(70):
-        bar={'time':start+(i+(60 if i>=10 else 0))*60000,'open':100,'high':101,'low':99,'close':100,'volume':1}
-        if i==14:bar.update(low=97 if reason=='stop' else 99,high=111)
-        bars.append(AfterExit(bar) if i>14 else bar)
-    spec={**SPEC,'start_cursor':0,'close_at_end':False};cmds=[command(0,stop=98,target=110)]
-    expected=project(bars,spec,cmds)
-    sizes=[];extend=CompactFrames.extend
-    def batched(self,frames):sizes.append(len(frames));return extend(self,frames)
-    monkeypatch.setattr(CompactFrames,'extend',batched)
-    actual=project(bars,spec,cmds,compact=True)
-    assert sizes==[60,10]
-    assert actual['trades']==expected['trades'] and actual['fills']==expected['fills']
-    assert list(actual['frames'])==expected['frames']
-    assert len(actual['trades'])==1 and actual['trades'][0]['exit_cursor']==14 and actual['trades'][0]['reason']==reason
-    assert all(frame['position'] is None for frame in actual['frames'][14:])
-
-
-def test_compact_frame_cache_budget_accounts_for_column_storage():
-    from webapp.byte_cache import ByteCache
-    bars=[{**BARS[0],'time':i*60000} for i in range(1000)]
-    frames=project(bars,{**SPEC,'start_cursor':0,'close_at_end':False},[],compact=True)['frames']
-    cache=ByteCache(1024);cache.put('frames',frames)
-    assert cache.get('frames') is None

@@ -52,3 +52,13 @@ def test_index_connections_apply_tuning_and_release_handles(tmp_path):
         assert reader.execute('SELECT count(*) FROM prices').fetchone()[0]==0
         writer.commit()
         assert reader.execute('SELECT count(*) FROM prices').fetchone()[0]==1
+
+def test_economic_events_schema_index_date_filter_and_order(tmp_path):
+    from webapp.replay_index import ensure_economic_events,economic_events
+    path=tmp_path/'news.db';ensure_economic_events(path);ensure_economic_events(path)
+    with sqlite3.connect(path) as db:
+        db.executemany('INSERT INTO economic_events(timestamp_utc,date_ny,time_ny,currency,impact,event) VALUES(?,?,?,?,?,?)',[(200,'2026-07-06','14:00','USD','High','FOMC'),(100,'2026-07-06','08:30','USD','High','CPI'),(300,'2026-07-07','08:30','GBP','Medium','Employment')])
+        assert db.execute("SELECT name FROM sqlite_master WHERE name='idx_news_date'").fetchone()
+    assert [e['event'] for e in economic_events(path,'2026-07-06')]==['CPI','FOMC']
+    assert economic_events(path,'2026-07-08')==[]
+    assert economic_events(tmp_path/'missing.db','2026-07-06')==[]
