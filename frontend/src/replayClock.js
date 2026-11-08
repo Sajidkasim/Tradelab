@@ -6,6 +6,13 @@ export function nextReplayCursor(bars,cursor,minutes=1) {
  while(next+1<bars.length && bars[next+1].time<=target)next++;
  return next;
 }
+export function nextContinuedReplayCursor(reply,root,cursor,minutes=1,steps=1){
+ const bars=reply?.sample?.markets?.[root]?.bars;
+ if(!bars?.[cursor])throw Error('The following replay candles are unavailable.');
+ let at=cursor;
+ for(let i=0;i<steps&&at<bars.length-1;i++)at=nextReplayCursor(bars,at,minutes);
+ return at;
+}
 export function revealedBars(bars,clock){return bars.filter(bar=>bar.time<=clock)}
 
 export const REPLAY_ZONES=[{value:'America/New_York',label:'New York'},{value:'Europe/London',label:'London'},{value:'UTC',label:'UTC'}];

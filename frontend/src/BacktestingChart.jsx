@@ -14,7 +14,8 @@ import {recordTiming} from './replayTiming';
 import {installDrawingPerformance,latestLayoutWriter} from './replayDrawingPerformance';
 import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {streamReplayBars} from './replayChartStream';
-import {startReplayClock,nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
+import {subscribePractice} from './replayPracticeProvider';
+import {startReplayClock,nextReplayCursor,nextContinuedReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
 import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
@@ -107,7 +108,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
+      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>subscribePractice(chart,subscribers,cb)};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
@@ -229,7 +230,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
   useEffect(() => {document.title = `${session.name} — Primus Backtesting`}, [session.name]);
   async function next(){
-    if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setError(e.message)};return}
+    if(finished&&session.next_day){try{const reply=await onContinue();onCursor(nextContinuedReplayCursor(reply,session.root,cursor,Number(step)))}catch(e){setError(e.message)};return}
     onCursor(nextReplayCursor(timeline,cursor,Number(step)));
   }
   const playback=useRef(null),continuing=useRef(null);
@@ -245,8 +246,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if(state.finished){
         if(!state.nextDay||continuing.current)return;
         continuing.current=state.timeline.at(-1).time;
-        return Promise.resolve().then(()=>state.onContinue()).then(()=>{
-          state.onCursor(state.cursor+1);
+        return Promise.resolve().then(()=>state.onContinue()).then(reply=>{
+          state.onCursor(nextContinuedReplayCursor(reply,session.root,state.cursor,Number(state.step),steps));
         }).catch(e=>{setError(e.message);setPlaying(false)});
       }
       // Multiple due ticks become a single React/chart update for this frame.

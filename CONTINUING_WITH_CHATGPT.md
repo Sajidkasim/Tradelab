@@ -1242,3 +1242,47 @@ asserts no reciprocal automatic page requests, unchanged zoom, identical idle
 viewport snapshots and no requests after settling. The final build passed this
 full-window regression again. Overshot pan completion is scheduled explicitly
 when the chart history changes; it does not depend on a redundant viewport event.
+
+## Responsive hour-step simulation and batched chart delivery — 8 November 2026
+
+Owner requested performance changes across the 17:00–18:00 New York maintenance
+break, preserving sequential financial checks. Sync FastAPI routes were already
+threaded, but the global replay semaphore and workspace-wide simulation lock
+serialized unrelated sessions. Session mutations now await workspace/session-scoped
+async locks, then use run_in_threadpool for engine work and JSON encoding. Two
+worker slots bound concurrent mutation work; waiting does not occupy worker
+threads. Bulk deletion acquires session locks in sorted order. Layout/journal,
+export and deletion share the mutation locks. The workspace lock only surrounds
+short mutation snapshot/commit work in action/progress/continue.
+
+A workspace-scoped, byte-bounded 16 MiB/four-plan cache reuses immutable CompactFrames
+for cursor-only progress and idempotent actions. Keys include commands, spec,
+source digest, continuation digests and loaded end cursor; cursor/version alone
+do not require another financial replay. CompactFrames reports its actual column
+and state memory to the cache. Continuation copies each market array once and
+extends all requested days before creating one final projection.
+
+Financial formulas and minute iteration/order are unchanged. Completed frames are
+stored into CompactFrames in 60-frame column batches. CompactFrames remains an
+in-memory lossless projection, not a database table: authoritative commands and
+session summaries are saved in one database transaction. A row lock plus raw-value
+and version comparison rejects stale/cross-process writes and prevents deleted
+sessions being recreated by an in-flight simulation. Action/progress/continue
+plan caches publish only after successful mutation commits. Eviction safely rebuilds from source/commands.
+
+Vela 0.9.3's provider callback accepts one candle only. replayPracticeProvider
+bridges appendMany into one bounded setBarSeries slice/concatenation and one study
+notification for a multi-candle reveal; single forming candles stay incremental.
+No setMarket call or chart remount is involved. The pinned replayViewport.js file
+is untouched. Continuation now preserves the chosen 60-minute step in manual and
+RAF playback instead of hardcoding cursor+1; only real available minute candles
+are stepped, and no missing maintenance-break bars are invented.
+
+Validation: 422 pytest passed (4 existing deprecation warnings), 98 Vitest checks
+passed, build passed, and five browser flows passed. Tests cover minute-14 stops
+and targets across winter/summer breaks with later price reads prohibited,
+lossless frame batches, bounded cache accounting, same-session serialization,
+concurrent unrelated-session/health responsiveness, stale atomic commits, cached
+progress, one-write continuation, one-update 60-candle chart delivery, maintenance
+break stepping, open-position continuation and saved-session reopening. No chart
+calendar, dependency, source-candle or saved-trade edits; no rewind or deployment.

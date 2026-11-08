@@ -15,7 +15,10 @@ export function streamReplayBars(chart,subscribers,previous,bars,{follow=false,j
  while(low<high){const middle=(low+high)>>>1;if(bars[middle].time<last)low=middle+1;else high=middle}
  const updates=bars.slice(low);
  const restore=!follow&&!jump?holdReplayViewport(chart,updates.filter(bar=>bar.time>last).length):()=>{};
- for(const bar of updates)for(const callback of subscribers||[])callback(bar);
+ for(const callback of subscribers||[]){
+  if(updates.length>1&&callback.appendMany)callback.appendMany(updates);
+  else for(const bar of updates)callback(bar);
+ }
  restore();
  if(jump)chart.panBy(10000);
 }

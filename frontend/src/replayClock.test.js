@@ -41,3 +41,16 @@ it('labels the replay clock with a DST-aware UTC offset in 24h format',async()=>
  expect(replayClockLabel(Date.parse('2026-01-05T19:32:05Z'),'America/New_York')).toBe('14:32:05 (UTC-5)');
  expect(replayClockLabel(Date.parse('2026-07-06T18:32:05Z'),'UTC')).toBe('18:32:05 (UTC)');
 });
+
+it('continuation preserves the selected 60-minute step and processes only available candles across the NY break',async()=>{
+ const {nextContinuedReplayCursor}=await import('./replayClock');
+ for(const [day,offset] of [['2026-01-05','-05:00'],['2026-07-06','-04:00']]){
+  const start=Date.parse(day+'T16:59:00'+offset);
+  const bars=[{time:start},...Array.from({length:121},(_,i)=>({time:start+(61+i)*60000}))];
+  const reply={sample:{markets:{NQ:{bars}}}};
+  expect(nextContinuedReplayCursor(reply,'NQ',0,60)).toBe(1);
+  expect(nextContinuedReplayCursor(reply,'NQ',1,60)).toBe(61);
+  expect(nextContinuedReplayCursor(reply,'NQ',0,60,2)).toBe(61);
+  expect(()=>nextContinuedReplayCursor({},'NQ',0,60)).toThrow('unavailable');
+ }
+});

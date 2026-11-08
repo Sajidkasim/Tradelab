@@ -366,3 +366,68 @@ def test_continuous_spot_symbols_do_not_invent_expiry_rolls(symbol):
 def test_dated_futures_and_unknown_symbols_keep_contract_roll_protection(symbol,previous,following):
     assert replay_sessions.contract_roll_required(symbol,previous,following)
     assert not replay_sessions.contract_roll_required(symbol,previous,previous)
+
+
+def test_simulations_lock_one_session_without_blocking_health_or_other_sessions(local,candles,monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    client,app=local;first=create(client)['session']['id'];second=create(client)['session']['id']
+    entered=threading.Event();release=threading.Event();original=replay_sessions.projection
+    def slow(record,data):
+        if record['id']==first and record['commands']:
+            entered.set();assert release.wait(5)
+        return original(record,data)
+    monkeypatch.setattr(replay_sessions,'projection',slow)
+    def order(sid):return client.post(f'/api/backtesting/sessions/{sid}/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':1}})
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        running=pool.submit(order,first)
+        try:
+            assert entered.wait(2)
+            queued=pool.submit(order,first)
+            assert pool.submit(client.get,'/health').result(timeout=2).status_code==200
+            assert pool.submit(order,second).result(timeout=2).status_code==200
+            assert not queued.done()
+        finally:release.set()
+        assert running.result(timeout=2).status_code==200
+        assert queued.result(timeout=2).status_code==409
+    record=app.state.workspaces.database('owner').get_setting(replay_sessions.PREFIX+first)
+    assert record['version']==1 and len(record['commands'])==1
+
+
+def test_progress_reuses_frames_and_an_action_invalidates_only_its_plan(local,candles,monkeypatch):
+    client,app=local;sid=create(client)['session']['id'];url=f'/api/backtesting/sessions/{sid}'
+    original=replay_sessions.projection;calls=[]
+    def counted(record,data):calls.append(record['id']);return original(record,data)
+    monkeypatch.setattr(replay_sessions,'projection',counted)
+    for version,cursor in [(0,3),(1,4)]:assert client.put(url+'/progress',json={'version':version,'cursor':cursor}).status_code==200
+    assert calls==[]
+    assert client.post(url+'/action',json={'version':2,'cursor':4,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':1}}).status_code==200
+    assert client.put(url+'/progress',json={'version':3,'cursor':5}).status_code==200
+    assert calls==[sid]
+
+
+def test_continuation_builds_one_new_plan_and_saves_once(local,overnight,monkeypatch):
+    from sqlalchemy import event
+    client,app=local;created=create(client);sid=created['session']['id'];db=app.state.workspaces.database('owner')
+    original=replay_sessions.projection;calls=[];writes=[]
+    def counted(record,data):calls.append(len(data['markets'][record['root']]['bars']));return original(record,data)
+    def writing(conn,cursor,statement,parameters,context,many):
+        if statement.lstrip().upper().startswith('UPDATE SETTINGS '):writes.append(statement)
+    monkeypatch.setattr(replay_sessions,'projection',counted);event.listen(db.engine,'before_cursor_execute',writing)
+    try:response=client.post(f'/api/backtesting/sessions/{sid}/continue',json={'version':0,'cursor':5})
+    finally:event.remove(db.engine,'before_cursor_execute',writing)
+    assert response.status_code==200,response.text
+    assert calls==[12] and len(writes)==1
+    assert response.json()['sample']['markets']['NQ']['bars'][:6]==created['sample']['markets']['NQ']['bars']
+    assert client.get(f'/api/backtesting/sessions/{sid}').json()['projection']==response.json()['projection']
+
+
+def test_atomic_simulation_commit_cannot_overwrite_an_external_revision(local,candles,monkeypatch):
+    client,app=local;sid=create(client)['session']['id'];db=app.state.workspaces.database('owner');original=replay_sessions.projection
+    def intervening(record,data):
+        saved=db.get_setting(replay_sessions.PREFIX+sid);saved['version']=10;db.set_setting(replay_sessions.PREFIX+sid,saved)
+        return original(record,data)
+    monkeypatch.setattr(replay_sessions,'projection',intervening)
+    response=client.post(f'/api/backtesting/sessions/{sid}/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':1}})
+    assert response.status_code==409
+    saved=db.get_setting(replay_sessions.PREFIX+sid);assert saved['version']==10 and saved['commands']==[]

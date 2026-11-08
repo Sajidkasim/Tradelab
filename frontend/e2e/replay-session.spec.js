@@ -767,3 +767,28 @@ test('a stationary zoomed-out viewport stops paging and keeps its saved fraction
  await expect(page.getByRole('alert')).toHaveCount(0);
 
 });
+
+test('60-minute steps cross the New York maintenance break in the mounted chart and reopen cleanly',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2010-06-07');
+ await page.getByLabel('Start time (UTC)',{exact:true}).fill('20:55');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ const status=page.getByRole('status',{name:'Chart status',exact:true});
+ await expect(status).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Buy',exact:true}).click();
+ await page.getByRole('combobox',{name:'Replay step',exact:true}).click();
+ await page.getByRole('option',{name:'60m step',exact:true}).click();
+ const clock=page.getByLabel('Replay time',{exact:true});
+ const original=await clock.getAttribute('datetime');
+ for(let i=0;i<3;i++)await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ const after=await clock.getAttribute('datetime');
+ expect(Date.parse(after)-Date.parse(original)).toBeGreaterThanOrEqual(120*60000);
+ await expect(status).toHaveText('Chart ready');
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await page.getByRole('button',{name:'Save session',exact:true}).click();
+ await expect(page.locator('.bt-save-status')).toHaveText('Saved');await page.reload();
+ await expect(status).toHaveText('Chart ready',{timeout:15000});await expect(clock).toHaveAttribute('datetime',after);
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
+ await expect(page.getByRole('alert')).toHaveCount(0);
+});
