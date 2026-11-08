@@ -116,15 +116,27 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", choices=("fred", "cot", "calendar"))
     source = parser.parse_args().source
-    url = os.environ["MATRIX_SUPABASE_URL"].rstrip("/") + "/rest/v1/macro_scorecard"
-    key = os.environ["MATRIX_SUPABASE_SERVICE_KEY"]
+    database_url=os.getenv('MATRIX_DB_URL')
+    if database_url:
+        import psycopg
+        connection=psycopg.connect(database_url.replace('postgresql+psycopg://','postgresql://'),connect_timeout=15)
+        # Serialize all refresh writers so overlapping manual/scheduled runs cannot lose sections.
+        connection.execute('SELECT pg_advisory_xact_lock(748291)')
+        row=connection.execute("SELECT snapshot FROM public.macro_scorecard WHERE id='matrix'").fetchone()
+        snapshot=row[0] if row else {}
+    else:
+        connection=None
+        snapshot=None
+    url = os.getenv("MATRIX_SUPABASE_URL", "").rstrip("/") + "/rest/v1/macro_scorecard"
+    key = os.getenv("MATRIX_SUPABASE_SERVICE_KEY", "")
     headers = {"apikey": key}
     if key.count(".") == 2:
         headers["Authorization"] = f"Bearer {key}"
-    response = requests.get(url, params={"id": "eq.matrix", "select": "snapshot"}, headers=headers, timeout=15)
-    response.raise_for_status()
-    rows = response.json()
-    snapshot = rows[0]["snapshot"] if rows else {}
+    if snapshot is None:
+        response = requests.get(url, params={"id": "eq.matrix", "select": "snapshot"}, headers=headers, timeout=15)
+        response.raise_for_status()
+        rows = response.json()
+        snapshot = rows[0]["snapshot"] if rows else {}
     if source == "fred":
         changed = refresh_fred(snapshot)
     elif source == "cot":
@@ -138,6 +150,14 @@ def main():
     if not changed:
         raise SystemExit("No observations refreshed. Previous snapshot retained.")
     snapshot["asOf"] = datetime.now(timezone.utc).isoformat()
+    if connection:
+        from psycopg.types.json import Jsonb
+        try:
+            connection.execute("INSERT INTO public.macro_scorecard(id,snapshot) VALUES ('matrix',%s) ON CONFLICT(id) DO UPDATE SET snapshot=excluded.snapshot",(Jsonb(snapshot),))
+            connection.commit()
+        finally:
+            connection.close()
+        return
     response = requests.post(url, headers={**headers, "Prefer": "resolution=merge-duplicates"},
                              json={"id": "matrix", "snapshot": snapshot}, timeout=15)
     response.raise_for_status()

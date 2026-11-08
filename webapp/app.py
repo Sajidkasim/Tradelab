@@ -198,20 +198,17 @@ def create_app(config: Settings | None = None):
 
     @app.get("/api/matrix/snapshot")
     def matrix_snapshot():
-        import requests
-
-        if not (config.site_preview or config.site_enabled) or not config.supabase_url or not config.supabase_key:
+        if not (config.site_preview or config.site_enabled):
             return {"snapshot": None}
         try:
-            response = requests.get(
-                f"{config.supabase_url}/rest/v1/macro_scorecard",
-                params={"id": "eq.matrix", "select": "snapshot"},
-                headers={"apikey": config.supabase_key}, timeout=4,
-            )
-            response.raise_for_status()
-            rows = response.json()
-            return {"snapshot": rows[0]["snapshot"] if rows else None}
-        except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+            if config.local:
+                path=Path(__file__).resolve().parents[1]/'data/private/matrix-verified-snapshot.json'
+                return {'snapshot':json.loads(path.read_text()) if path.is_file() else None}
+            from sqlalchemy import text
+            with app.state.workspaces.root.engine.connect() as connection:
+                snapshot=connection.execute(text("SELECT snapshot FROM public.macro_scorecard WHERE id = 'matrix'")).scalar_one_or_none()
+            return {'snapshot':snapshot}
+        except (SQLAlchemyError, OSError, ValueError, TypeError):
             raise HTTPException(503, "The macro snapshot could not be read.") from None
 
     @app.get("/health")
