@@ -4,7 +4,7 @@ import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
-import {captureReplayView,restoreReplayView,replaceReplayHistory,installFreeReplayNavigation} from './replayViewport';
+import {captureReplayView,restoreReplayView,installFreeReplayNavigation} from './replayViewport';
 import DrawingFavoritesBar,{toolNames} from './DrawingFavoritesBar';
 import Feedback from './Feedback';
 import {indicatorVisible,intervalChoices,visibilityController} from './replayPreferences';
@@ -88,7 +88,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   const replayRead=useRef(null);replayRead.current={cursor,time:replayTime,markets:sample.markets};
   const historyFeed=useRef(null);if(!historyFeed.current)historyFeed.current=new ReplayHistoryFeed(session.id,()=>replayRead.current,value=>setHistoryStatus({...value}));
   const bars = useMemo(() => historyFeed.current.view(symbol,timeframe)||[], [sample,symbol,timeframe,replayTime,ready,marketVersion,historyStatus]);
-  const edgeTimer=useRef(null),edgeBusy=useRef(false);
+  const edgeTimer=useRef(null),edgeBusy=useRef(false),edgeNavigation=useRef(0);
   const market = sample?.markets[symbol];
   const timeframeName = timeframeLabel(timeframe);
   const syncStudies = useCallback(() => {
@@ -142,7 +142,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       setPriceScale(chart.renderer.getConfig().priceScale);
       const native=chart.renderer.renderer;
       // Clamp saved zoom before the first projection, while retaining horizontal pan.
-      unsubscribers.push(installFreeReplayNavigation(chart,host.current));
+      unsubscribers.push(installFreeReplayNavigation(chart,host.current,()=>{edgeNavigation.current++;clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>loadEdge(chart),150)}));
       if(layout.viewport&&native?.applyViewport)native.applyViewport(layout.viewport);
       if(layout.priceScale&&native?.scene?.panes?.get('price'))native.scene.panes.get('price').manualScale=layout.priceScale;
       drawingGeometry.current=installDrawingGeometry(chart);
@@ -151,7 +151,10 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       for(const event of ['drawing:favorites','drawing:templates','drawing:defaults','drawing:created','drawing:edited','drawing:removed','drawing:selected','indicator:added','indicator:removed','indicator:inputs','indicator:visibility','indicator:moved','pane:changed','priceStyle:change','viewport:changed'])unsubscribers.push(chart.on(event,dirtyLayout));
       // Includes settings edits, undo/redo and wheel/price-scale gestures. A layout
       // snapshot is never constructed while a pointer is held down.
-      const start=()=>{gesture.current=true},end=()=>{if(gesture.current){gesture.current=false;dirtyLayout()}},wheel=()=>dirtyLayout();
+      const start=()=>{gesture.current=true;edgeNavigation.current++},end=()=>{if(gesture.current){gesture.current=false;dirtyLayout()}},wheel=()=>{edgeNavigation.current++;dirtyLayout()};
+      const navigate=e=>{if(e.type==='keydown'||e.buttons||e.pointerType==='touch')edgeNavigation.current++};
+      host.current.addEventListener('pointermove',navigate,true);host.current.addEventListener('keydown',navigate,true);
+      unsubscribers.push(()=>{element.removeEventListener('pointermove',navigate,true);element.removeEventListener('keydown',navigate,true)});
       const element=host.current;element.addEventListener('pointerdown',start,true);element.addEventListener('wheel',wheel,{passive:true});
       window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);window.addEventListener('blur',end);
       unsubscribers.push(()=>{element.removeEventListener('pointerdown',start,true);element.removeEventListener('wheel',wheel);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);window.removeEventListener('blur',end);clearTimeout(layoutTimer.current)});
@@ -178,9 +181,14 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     const same=previousSymbol===wanted&&chart.market.timeframe===timeframe;
     const previousBars=lastRendered.current;
     if(same&&previousBars){
+      const historyMoved=previousBars.length!==bars.length||previousBars[0]?.time!==bars[0]?.time;
       streamReplayBars(chart,feed.current,previousBars,bars,{follow,jump:jumpToLatest.current});
       jumpToLatest.current=false;
-      lastRendered.current=bars;return;
+      lastRendered.current=bars;
+      // A stable restore may emit no viewport event. Continue filling an
+      // overshot pan explicitly; feed hysteresis prevents reciprocal fetches.
+      if(historyMoved){clearTimeout(edgeTimer.current);edgeTimer.current=setTimeout(()=>loadEdge(chart),150)}
+      return;
     }
     setBusy(true);setError('');
     if(previousSymbol!==wanted){
@@ -207,12 +215,14 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     const selected=selection.current,slot=historyFeed.current.slot(selected.symbol,selected.timeframe);
     if(!slot?.bars.length)return;
     const range=captureReplayView(chart);if(!range)return;
-    const count=slot.bars.length,margin=Math.min(100,Math.floor(count/4));
-    const direction=range.from<=slot.bars[margin].time&&!slot.leftDone?'left':range.to>=slot.bars[count-1-margin].time&&!slot.rightDone?'right':null;
+    const navigation=edgeNavigation.current;
+    const direction=historyFeed.current.pagingDirection(selected.symbol,selected.timeframe,range,navigation);
     if(!direction)return;edgeBusy.current=true;
-    try{const loaded=await historyFeed.current.page(selected.symbol,selected.timeframe,direction);
-      if(loaded&&chartRef.current===chart&&selection.current.symbol===selected.symbol&&selection.current.timeframe===selected.timeframe){replaceReplayHistory(chart,loaded);lastRendered.current=loaded}
-    }catch(error){setError(error.message)}finally{edgeBusy.current=false}
+    try{
+      // onStatus renders the bounded series once through the existing stream effect.
+      await historyFeed.current.page(selected.symbol,selected.timeframe,direction,navigation);
+      if(chartRef.current===chart&&selection.current.symbol===selected.symbol&&selection.current.timeframe===selected.timeframe)setError('');
+    }catch(error){if(error.name!=='AbortError'&&chartRef.current===chart&&selection.current.symbol===selected.symbol&&selection.current.timeframe===selected.timeframe)setError(error.message)}finally{edgeBusy.current=false}
   }
 
   useEffect(()=>{if(ready)chartRef.current?.renderer.applyConfig({timeScale:{timezone:clockZone}});localStorage.setItem('primus-replay-clock-v2',clockZone)},[clockZone,ready]);

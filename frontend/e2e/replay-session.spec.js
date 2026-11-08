@@ -700,7 +700,7 @@ test('native zoom limits keep the locked viewport sharp while horizontal paging 
  };
  await page.mouse.move(650,350);
  for(let i=0;i<10;i++)await page.mouse.wheel(0,500);
- const wide=await snapshot();expect(wide.viewport.barSpacing).toBeGreaterThanOrEqual(.5);
+ const wide=await snapshot();expect(wide.viewport.barSpacing).toBeGreaterThanOrEqual(2.5);
  const area=await page.locator('.replay-chart').boundingBox();
  expect(area.width/wide.viewport.barSpacing).toBeLessThanOrEqual(3000);
  await page.mouse.move(650,350);
@@ -716,4 +716,54 @@ test('native zoom limits keep the locked viewport sharp while horizontal paging 
  const appended=await snapshot();expect(appended.viewport.barSpacing).toBe(panned.viewport.barSpacing);
  expect(appended.priceScale).toEqual(panned.priceScale);
  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a stationary zoomed-out viewport stops paging and keeps its saved fractional viewport',async({page})=>{
+ const requests=[],pending=new Set();page.on('request',request=>{
+  if(!request.url().includes('/chart-history?'))return;
+  const q=new URL(request.url()).searchParams;
+  if(q.get('timeframe')==='1'&&(q.has('before')||q.has('after'))){requests.push(request.url());pending.add(request)}
+ });
+ page.on('requestfinished',request=>pending.delete(request));page.on('requestfailed',request=>pending.delete(request));
+ const settled=async()=>expect.poll(async()=>{
+  const count=requests.length;await page.waitForTimeout(350);return pending.size===0&&requests.length===count;
+ },{timeout:15000}).toBe(true);
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ const status=page.getByRole('status',{name:'Chart status',exact:true});
+ await expect(status).toHaveText('Chart ready',{timeout:15000});
+ const sid=new URL(page.url()).searchParams.get('session');
+ const read=async()=>{
+  await page.getByRole('button',{name:'Save session',exact:true}).click();
+  await expect(page.locator('.bt-save-status')).toHaveText('Saved');
+  return (await (await page.request.get('http://127.0.0.1:8119/api/backtesting/sessions/'+sid+'/layouts')).json()).layout.viewport;
+ };
+ await page.mouse.move(650,350);
+ for(let i=0;i<16;i++)await page.mouse.wheel(0,1000);
+ await page.waitForTimeout(1000);const before=await read(),count=requests.length;
+ expect(before.barSpacing).toBeGreaterThanOrEqual(2.5);
+ await page.waitForTimeout(1500);const after=await read();
+ expect(after).toEqual(before);expect(requests.length).toBe(count);
+ await expect(status).toHaveText('Chart ready');await expect(page.getByRole('alert')).toHaveCount(0);
+ // Zooming at the floor does not generate another stream of page requests.
+ await page.mouse.move(650,350);for(let i=0;i<10;i++)await page.mouse.wheel(0,1000);
+ await page.waitForTimeout(1000);expect(requests.length).toBe(count);expect(await read()).toEqual(before);
+ // Cross the full 3000-bar memory window, including an actual opposite-edge trim.
+ await page.mouse.move(650,350);await page.mouse.wheel(-12000,0);
+ await expect.poll(()=>requests.length,{timeout:15000}).toBeGreaterThanOrEqual(count+4);await settled();
+ const leftRequests=requests.length,left=await read();
+ expect(requests.slice(count).every(url=>new URL(url).searchParams.has('before'))).toBe(true);
+ expect(left.barSpacing).toBe(before.barSpacing);
+ await page.waitForTimeout(1200);expect(requests.length).toBe(leftRequests);expect(await read()).toEqual(left);
+ // A real opposite pan can fetch newer history; replacement events cannot.
+ await page.mouse.move(650,350);await page.mouse.wheel(12000,0);
+ await expect.poll(()=>requests.length,{timeout:15000}).toBeGreaterThan(leftRequests);await settled();
+ const rightRequests=requests.length,right=await read();
+ expect(requests.slice(leftRequests).every(url=>new URL(url).searchParams.has('after'))).toBe(true);
+ expect(right.barSpacing).toBe(before.barSpacing);
+ await page.waitForTimeout(1200);expect(requests.length).toBe(rightRequests);expect(await read()).toEqual(right);
+ await expect(page.getByRole('alert')).toHaveCount(0);
+
 });

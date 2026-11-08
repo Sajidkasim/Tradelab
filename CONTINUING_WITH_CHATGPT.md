@@ -1207,3 +1207,38 @@ passed and production build passed. Four browser checks passed: locked/panned
 playback, split-chart switching, historical paging and native zoom extremes.
 New unit checks cover wheel/pinch bounds, horizontal offsets, projector identity,
 cleanup, 3,000-slot zoom coverage and exact locked spacing/offset preservation.
+
+## Stop zoom-out paging oscillation — 8 November 2026
+
+Owner requested a firmer anti-flicker floor after the baseline zoom restoration.
+The pinned 0.9.3 seam now enforces 2.5 CSS pixels of candle body spacing (adjusted
+for tight pitch multipliers), with native maximum zoom retained. The minimum no
+longer depends on currently loaded bar count. At most 1,500 logical slots are
+visible on wide displays, leaving two 750-bar pages of headroom inside the same
+3,000-candle active-memory ceiling. Wheel/pinch sensitivity is reduced; repeated
+zoom-out at the floor does not re-anchor or emit another zoom update.
+
+captureReplayView stores fractional logical bounds and a real candle anchor plus
+its logical delta. restoreReplayView avoids timestamp-extrapolation round trips
+and skips effectively identical viewport writes. Native candle/price projectors
+remain unchanged. History paging reads fractional bounds, enters within 80 bars,
+and rearms beyond a 200-bar buffer or a new user navigation. Overshooting beyond
+loaded context can continue fetching the same direction until the view is covered;
+automatic history replacements cannot reverse paging direction without user input.
+Failed page requests are gated until new navigation, and non-progressing responses
+mark their edge exhausted instead of retrying forever.
+
+BacktestingChart applies a loaded page once through its existing streaming effect;
+the duplicate direct replaceReplayHistory call was removed. Genuine wheel, pinch,
+keyboard and drag navigation are tracked separately from programmatic viewport
+notifications. Aborted/stale history requests do not show a new chart error. No
+financial/P&L logic, source-data, saved-trade, calendar, dependency or rewind
+changes. Local implementation only; no push or deployment is included.
+
+Validation: 413 pytest passed (4 existing deprecation warnings), 95 Vitest checks
+passed, production build passed, and five browser flows passed. The stationary
+viewport regression crosses the full 3,000-bar window and trims in both directions,
+asserts no reciprocal automatic page requests, unchanged zoom, identical idle
+viewport snapshots and no requests after settling. The final build passed this
+full-window regression again. Overshot pan completion is scheduled explicitly
+when the chart history changes; it does not depend on a redundant viewport event.

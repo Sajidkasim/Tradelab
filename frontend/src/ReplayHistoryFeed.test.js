@@ -61,3 +61,32 @@ test('returning from historical context refreshes a formerly partial higher-time
  expect(new URL(api.mock.calls.at(-1)[0],'http://local').searchParams.get('after')).toBe(String(t-1));
  expect(feed.view('NQ','5')).toEqual([updated]);
 });
+
+test('paging hysteresis prevents prepend/trim events from reversing direction in a stationary view',async()=>{
+ const minutes=Array.from({length:6000},(_,i)=>bar(t+i*60000,i)),now=minutes.at(-1).time;
+ api.mockResolvedValueOnce({bars:minutes.slice(3000),exhausted:false,replay_time:now});
+ const feed=new ReplayHistoryFeed('id',()=>({cursor:0,time:now,markets:{NQ:{bars:minutes}}}),()=>{});
+ await feed.initial('NQ','1');
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:79.99999,logicalTo:650},1)).toBe('left');
+ api.mockResolvedValueOnce({bars:minutes.slice(2250,3000),exhausted:false,replay_time:now});
+ await feed.page('NQ','1','left',1);
+ expect(feed.slot('NQ','1').bars).toHaveLength(3000);
+ for(let i=0;i<50;i++)expect(feed.pagingDirection('NQ','1',{logicalFrom:2400+i*1e-8,logicalTo:2990},1)).toBeNull();
+ expect(api).toHaveBeenCalledTimes(2);
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:2400,logicalTo:2990},2)).toBe('right');
+ // Left paging is rearmed only after moving well clear of its entry threshold.
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:150,logicalTo:650},2)).toBeNull();
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:79.99999,logicalTo:650},2)).toBe('left');
+});
+test('failed or non-progressing pages cannot turn viewport events into request storms',async()=>{
+ api.mockResolvedValueOnce({bars:[bar(t,100)],exhausted:false,replay_time:t});
+ const feed=new ReplayHistoryFeed('id',()=>({cursor:0,time:t,markets:{NQ:{bars:[]}}}),()=>{});
+ await feed.initial('NQ','1');api.mockRejectedValueOnce(new Error('Unable to load history'));
+ await expect(feed.page('NQ','1','left',1)).rejects.toThrow('Unable to load');
+ for(let i=0;i<30;i++)expect(feed.pagingDirection('NQ','1',{logicalFrom:-10,logicalTo:0},1)).toBeNull();
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:-10,logicalTo:0},2)).toBe('left');
+ api.mockResolvedValueOnce({bars:[],exhausted:false,replay_time:t});await feed.page('NQ','1','left',2);
+ expect(feed.slot('NQ','1').leftDone).toBe(true);
+ expect(feed.pagingDirection('NQ','1',{logicalFrom:-10,logicalTo:0},3)).toBeNull();
+ expect(api).toHaveBeenCalledTimes(3);
+});

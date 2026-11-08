@@ -3,6 +3,9 @@ import {api} from './api';
 import {replayBucketOpen} from './replayHistoryCalendar';
 const merge=(a,b)=>[...new Map([...a,...b].map(bar=>[bar.time,bar])).values()].sort((a,b)=>a.time-b.time);
 export const MAX_CHART_BARS=3000;
+export const HISTORY_PAGE_SIZE=750;
+export const MAX_VISIBLE_REPLAY_BARS=MAX_CHART_BARS-2*HISTORY_PAGE_SIZE;
+const PAGE_ENTER=80,PAGE_REARM=200;
 // Leave a page of headroom so native series replacement is occasional, not per tick.
 const PLAYBACK_WINDOW=MAX_CHART_BARS-750;
 function bound(slot,direction='right',limit=MAX_CHART_BARS){
@@ -16,7 +19,7 @@ export class ReplayHistoryFeed{
  key(root,tf){return `${root}:${tf}`}
  slot(root,tf){return this.slots.get(this.key(root,tf))}
  async fetch(root,tf,params={}){
-  const {cursor}=this.read(),query=new URLSearchParams({root,timeframe:String(tf),cursor:String(cursor),limit:'750',...params});
+  const {cursor}=this.read(),query=new URLSearchParams({root,timeframe:String(tf),cursor:String(cursor),limit:String(HISTORY_PAGE_SIZE),...params});
   const key=query.toString();if(this.requests.has(key))return this.requests.get(key);
   const controller=new AbortController();this.controllers.set(key,controller);const started=performance.now();const job=api(`/backtesting/sessions/${this.id}/chart-history?${query}`,{signal:controller.signal}).finally(()=>{recordTiming('history-request:'+tf,started);if(this.requests.get(key)===job){this.requests.delete(key);this.controllers.delete(key)}});this.requests.set(key,job);return job;
  }
@@ -47,18 +50,40 @@ export class ReplayHistoryFeed{
   }
   slot.seen=time;return slot.bars;
  }
- async page(root,tf,direction){
+ // Paging uses fractional logical indices, never rounded public visible ranges.
+ pagingDirection(root,tf,range,navigation=0){
+  const slot=this.slot(root,tf);if(!slot?.bars.length||slot.busy)return null;
+  const {logicalFrom,logicalTo}=range;
+  if(!Number.isFinite(logicalFrom)||!Number.isFinite(logicalTo))return null;
+  const gate=slot.paging??={armed:{left:true,right:true}};
+  const gaps={left:logicalFrom,right:slot.bars.length-1-logicalTo};
+  if(gate.failedNavigation!=null&&gate.failedNavigation!==navigation){gate.failedNavigation=null;gate.armed={left:true,right:true}}
+  for(const direction of ['left','right'])if(gaps[direction]>PAGE_REARM||gate.navigation!==navigation||direction===gate.lastDirection&&gaps[direction]<0)gate.armed[direction]=true;
+  if(gate.failedNavigation===navigation)return null;
+  const candidates=['left','right'].filter(d=>gaps[d]<=PAGE_ENTER&&gate.armed[d]&&!slot[d==='left'?'leftDone':'rightDone']);
+  candidates.sort((a,b)=>gaps[a]-gaps[b]);
+  const direction=candidates[0];
+  // A prepend/trim is not a user pan: never fetch the opposite edge in response.
+  if(direction&&gate.lastDirection&&direction!==gate.lastDirection&&gate.navigation===navigation)return null;
+  return direction||null;
+ }
+ async page(root,tf,direction,navigation=null){
   const slot=this.slot(root,tf);if(!slot||slot.busy||slot[direction==='left'?'leftDone':'rightDone'])return null;
   slot.busy=true;
+  const gate=slot.paging??={armed:{left:true,right:true}};
+  if(navigation!==null){gate.armed[direction]=false;gate.lastDirection=direction;gate.navigation=navigation}
   try{
    const seen=slot.seen;
    // Include the right edge again: its formerly partial candle may now be complete.
    const reply=await this.fetch(root,tf,direction==='left'?{before:String(slot.bars[0].time)}:{after:String(slot.bars.at(-1).time-1)});
    // Prefer the response on return to live history, unless a live tick arrived meanwhile.
-   slot.bars=direction==='right'&&slot.seen===seen?merge(slot.bars,reply.bars):merge(reply.bars,slot.bars);slot[direction==='left'?'leftDone':'rightDone']=reply.exhausted;
-   if(direction==='right'&&reply.exhausted){slot.atTail=true;slot.seen=reply.replay_time}
+   const edge=direction==='left'?slot.bars[0].time:slot.bars.at(-1).time;
+   const progressed=reply.bars.some(b=>direction==='left'?b.time<edge:b.time>edge);
+   slot.bars=direction==='right'&&slot.seen===seen?merge(slot.bars,reply.bars):merge(reply.bars,slot.bars);slot[direction==='left'?'leftDone':'rightDone']=reply.exhausted||!progressed;
+   if(direction==='right'&&(reply.exhausted||!progressed)){slot.atTail=true;slot.seen=reply.replay_time}
    bound(slot,direction);
    this.onStatus(slot);return slot.bars;
-  }finally{slot.busy=false}
+  }catch(error){if(navigation!==null)gate.failedNavigation=navigation;throw error}
+  finally{slot.busy=false}
  }
 }
