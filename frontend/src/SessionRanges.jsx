@@ -27,17 +27,7 @@ export default function SessionRanges({chart,sample,symbol,session,cursor,clock,
  }if(alive){setHistory({key:session.id+symbol,bars:collected});setStatus('')}
  })().catch(e=>{if(alive&&e.name!=='AbortError')setStatus('Session history unavailable. Reopen Session ranges to retry.')});return()=>{alive=false;controller.abort()};
  },[session.id,symbol,options.enabled,options.days,options.zone,shown]);
- const data=useMemo(()=>{if(!shown)return {ranges:[],days:[]};
-  const minutes=sample.markets[symbol].bars;let lo=0,hi=minutes.length;
-  while(lo<hi){const mid=(lo+hi)>>>1;if(minutes[mid].time<=clock)lo=mid+1;else hi=mid}
-  // A minute cannot occur twice in a trading day. Retain enough revealed
-  // minutes for the requested session days, with timezone/overnight padding.
-  // Avoid rescanning an entire multi-month execution timeline on every tick.
-  const count=(options.days+3)*1500;
-  const all=new Map((history.key===session.id+symbol?history.bars.slice(-count):[]).map(b=>[b.time,b]));
-  for(let i=Math.max(0,lo-count);i<lo;i++)all.set(minutes[i].time,minutes[i]);
-  return sessionRanges([...all.values()].sort((a,b)=>a.time-b.time).slice(-count),options,clock)
- },[history,sample,symbol,clock,options,session.id,shown]);
+ const data=useMemo(()=>{if(!shown)return {ranges:[],days:[]};const all=new Map((history.key===session.id+symbol?history.bars:[]).map(b=>[b.time,b]));for(const b of sample.markets[symbol].bars)if(b.time<=clock)all.set(b.time,b);return sessionRanges([...all.values()].sort((a,b)=>a.time-b.time),options,clock)},[history,sample,symbol,clock,options,session.id,shown]);
  useEffect(()=>{if(!chart||!shown)return;let raf;const paint=()=>{const p=replayProjector(chart),pane=p?.paneRect('price');if(p&&pane){const result={left:chart.renderer.renderer.plot?.offsetLeft||0,width:p.width,top:pane.top,height:pane.height,ranges:data.ranges.map(g=>({...g,x:p.xOf(g.first),right:p.xOf(g.last+60000),y:p.yOf(g.high,'price'),bottom:p.yOf(g.low,'price')})),days:data.days.map(([day,time])=>({day,x:p.xOf(time)}))};setGeometry(old=>JSON.stringify(old)===JSON.stringify(result)?old:result)}raf=requestAnimationFrame(paint)};paint();return()=>cancelAnimationFrame(raf)},[chart,data,shown]);
  if(!shown||!geometry)return null;
  const latest=options.sessions.filter(s=>s.enabled).map(s=>data.ranges.filter(g=>g.name===s.name).at(-1));

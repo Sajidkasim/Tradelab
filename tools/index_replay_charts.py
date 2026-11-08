@@ -5,7 +5,6 @@ import sqlite3
 def build(path):
  with sqlite3.connect(path) as c:
   c.execute('CREATE TABLE IF NOT EXISTS active_contracts(day TEXT,root TEXT,symbol TEXT,PRIMARY KEY(day,root))')
-  c.execute('CREATE INDEX IF NOT EXISTS active_contracts_root_day ON active_contracts(root,day,symbol)')
   rows=c.execute('SELECT day,symbol,volume FROM volumes ORDER BY day,symbol').fetchall();groups={}
   for d,s,v in rows:groups.setdefault((d,s[:2]),{})[s]=v
   previous={};selected=[]

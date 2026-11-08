@@ -33,7 +33,7 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({continuationBlock,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -176,19 +176,16 @@ export default function BacktestingChart({continuationBlock,reportReady,drawingT
     const wanted=`practice:${market.contract}`;
     const same=previousSymbol===wanted&&chart.market.timeframe===timeframe;
     const previousBars=lastRendered.current;
+    lastRendered.current=bars;
     if(same&&previousBars){
-      const paint=requestAnimationFrame(()=>{
-      lastRendered.current=bars;
       // Streaming updates retain candle spacing, horizontal pan and manual price scale.
       const last=previousBars.at(-1)?.time??-Infinity;
       let low=0,high=bars.length;while(low<high){const middle=(low+high)>>>1;if(bars[middle].time<last)low=middle+1;else high=middle}const updates=bars.slice(low);
       const restoreView=!follow&&!jumpToLatest.current?holdReplayViewport(chart,updates.filter(bar=>bar.time>last).length):()=>{};
-      if(updates.length>32||bars[0]?.time!==previousBars[0]?.time)replaceReplayHistory(chart,bars);
-      else for(const bar of updates)for(const cb of feed.current||[])cb(bar);
+      for(const bar of updates)for(const cb of feed.current||[])cb(bar);
       restoreView();
       if(jumpToLatest.current){chart.panBy(10000);jumpToLatest.current=false}
-      setBusy(false);
-      });return()=>cancelAnimationFrame(paint);
+      setBusy(false);return;
     }
     if(previousSymbol!==wanted){
       drawings.current[previousSymbol]=chart.drawings.toJSON();
@@ -226,16 +223,16 @@ export default function BacktestingChart({continuationBlock,reportReady,drawingT
   useEffect(() => {if (ready) chartRef.current?.setTheme(chartTheme(theme))}, [theme, ready]);
   useEffect(() => {document.title = `${session.name} — Primus Backtesting`}, [session.name]);
   async function next(){
-    if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setPlaying(false);setError(e.message)};return}
+    if(finished&&session.next_day){try{await onContinue();onCursor(cursor+1)}catch(e){setError(e.message)};return}
     onCursor(nextReplayCursor(timeline,cursor,Number(step)));
   }
   useEffect(()=>{
-    if(saveError||(finished&&(!session.next_day||continuationBlock))){setPlaying(false);return}
+    if(saveError||(finished&&!session.next_day)){setPlaying(false);return}
     if(secondary||!playing||!ready||sessionBusy)return;
     if(finished){next();return}
     const timer=setTimeout(()=>onCursor(nextReplayCursor(timeline,cursor,Number(step))),1000/Number(speed));
     return()=>clearTimeout(timer);
-  },[playing,busy,ready,sessionBusy,saveError,continuationBlock,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
+  },[playing,busy,ready,sessionBusy,saveError,cursor,finished,speed,step,onCursor,timeline,session.next_day]);
 
   function saveLayout(force=true,patch={}){
     const chart=chartRef.current;if(!ready||!chart)return Promise.resolve();
@@ -310,7 +307,7 @@ export default function BacktestingChart({continuationBlock,reportReady,drawingT
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span><button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
-    {!secondary&&controlsHost&&createPortal(<ReplayTrading continuationBlock={continuationBlock} journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
+    {!secondary&&controlsHost&&createPortal(<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
     <footer className="bt-clock-footer">
       <time dateTime={new Date(replayTime+60000).toISOString()} aria-label="Replay time">{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>
       <Select label="Chart timezone" values={REPLAY_ZONES} value={clockZone} onChange={e=>setClockZone(e.target.value)}/>

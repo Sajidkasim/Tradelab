@@ -115,10 +115,6 @@ def project(bars, spec, commands, *, compact=False):
             elif kind=='close':
                 if not position or closing:raise ValueError('There is no open position to close.')
                 closing=True
-            elif kind=='roll_close':
-                if not position and not order:raise ValueError('There is no position or pending order at this contract boundary.')
-                if position:exit_position(i,bar['close']-slip*(1 if position['side']=='buy' else -1),'contract roll')
-                if order:fill_event(i,'cancel',reason='Contract roll');order=None
             else:raise ValueError('Unknown replay action.')
         unrealized=0 if not position else (bar['close']-position['entry'])*(1 if position['side']=='buy' else -1)*instrument.multiplier*position['qty']
         visible_position=deepcopy(position)

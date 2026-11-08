@@ -45,19 +45,7 @@ def window(path,stamp,root,tf,before,cutoff,limit=750,after=None):
                 if partial:candles[opened]=partial
             candles=sorted(candles.values());selected=candles if calendar else candles[:limit] if after is not None else candles[-limit:]
             return {'bars':_records(selected),'earliest':first,'latest':last,'replay_time':cutoff,'exhausted':calendar or len(candles)<=limit,'timezone':'America/New_York','calendar':'New York 18:00 session; Monday trading week'}
-        if tf=='1':
-            # Bound the SQL read itself, not just the returned JSON. Never scan
-            # and aggregate a whole day for a 750-candle one-minute page.
-            end=min(cutoff,before-1);start=after if after is not None else -1
-            endday=datetime.fromtimestamp(end/1000,timezone.utc).date().isoformat()
-            startday=datetime.fromtimestamp(max(0,start)/1000,timezone.utc).date().isoformat()
-            rows=[];order='ASC' if after is not None else 'DESC'
-            for day,symbol in db.execute('SELECT day,symbol FROM active_contracts WHERE root=? AND day>=? AND day<=? ORDER BY day '+order,(root,startday,endday)).fetchall():
-                remaining=limit+1-len(rows)
-                if remaining<=0:break
-                rows.extend(db.execute('SELECT time,open,high,low,close,volume FROM bars WHERE day=? AND symbol=? AND time>? AND time<=? ORDER BY time '+order+' LIMIT ?',(day,symbol,start,end,remaining)).fetchall())
-            candles=sorted(rows)
-        elif tf in ('1D','1W','1M'):
+        if tf in ('1D','1W','1M'):
             daily=db.execute('SELECT time,open,high,low,close,volume,end FROM chart_daily_ny WHERE root=? AND end<=? ORDER BY time',(root,cutoff+60000)).fetchall()
             start=daily[-1][6] if daily else first
             rows=[row[:6] for row in daily]+list(_minutes(db,root,start,cutoff))
