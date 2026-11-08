@@ -1,7 +1,7 @@
 import {test,expect,vi,beforeEach} from 'vitest';
 vi.mock('./api',()=>({api:vi.fn()}));
 import {api} from './api';
-import {ReplayHistoryFeed} from './ReplayHistoryFeed';
+import {ReplayHistoryFeed,MAX_REPLAY_CHART_BARS} from './ReplayHistoryFeed';
 const t=Date.parse('2023-09-12T14:00:00Z');
 const bar=(time,close)=>({time,open:close,high:close+1,low:close-1,close,volume:2});
 beforeEach(()=>{api.mockReset()});
@@ -20,4 +20,18 @@ test('aborting a stale load removes its pending request and never caches it',asy
  const feed=new ReplayHistoryFeed('id',()=>({cursor:0,time:t,markets:{NQ:{bars:[]}}}),()=>{});
  api.mockImplementation((_url,options)=>new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')))));
  const job=feed.initial('NQ','240');feed.cancel();await expect(job).rejects.toHaveProperty('name','AbortError');expect(feed.slot('NQ','240')).toBeUndefined();expect(feed.requests.size).toBe(0);
+});
+test('playback retains a rolling chart window and paging evicts the opposite edge',async()=>{
+ const minutes=Array.from({length:MAX_REPLAY_CHART_BARS+100},(_,i)=>bar(t+i*60000,100+i));let now=t;
+ api.mockResolvedValue({bars:[minutes[0]],replay_time:t,exhausted:true});
+ const feed=new ReplayHistoryFeed('id',()=>({cursor:0,time:now,markets:{NQ:{bars:minutes}}}),()=>{});
+ await feed.initial('NQ','1');now=minutes.at(-1).time;
+ expect(feed.view('NQ','1').length).toBeLessThanOrEqual(MAX_REPLAY_CHART_BARS);
+ expect(feed.slot('NQ','1').leftDone).toBe(false);
+ // A full window can be paged left again without retaining both full edges.
+ feed.slot('NQ','1').bars=minutes.slice(-MAX_REPLAY_CHART_BARS);
+ api.mockResolvedValue({bars:minutes.slice(0,100),replay_time:now,exhausted:true});
+ const older=await feed.page('NQ','1','left');
+ expect(older).toHaveLength(MAX_REPLAY_CHART_BARS);expect(older[0].time).toBe(t);
+ expect(feed.slot('NQ','1').rightDone).toBe(false);expect(feed.slot('NQ','1').atTail).toBe(false);
 });

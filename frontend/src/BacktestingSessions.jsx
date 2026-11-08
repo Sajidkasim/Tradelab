@@ -7,7 +7,6 @@ import {Modal,Button,Notice,Select,Field} from './components';
 import BacktestingChart from './BacktestingChart';
 import Feedback from './Feedback';
 import compassLogo from '../../assets/primus-compass.png';
-import {prepareReplayCharts} from './prepareReplayCharts';
 import './backtesting.css';
 import {changePane,toggleIntervalSync} from './replayPreferences';
 const cash=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
@@ -40,6 +39,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  },[]);
  const [listing,setListing]=useState(null),[active,setActive]=useState(null),[cursor,setCursor]=useState(0);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null);
+ const [continuationBlock,setContinuationBlock]=useState('');
  const [selectedSessions,setSelectedSessions]=useState([]);
  const [purging,setPurging]=useState(null),[purgeName,setPurgeName]=useState('');
  const [twoCharts,setTwoCharts]=useState(false);
@@ -60,10 +60,9 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
  const list=useCallback(async()=>{setListing(await api('/backtesting/sessions'))},[]);
  async function opened(data){
-  if(data.session.next_day&&data.session.last_cursor-data.session.cursor<3000){
-   const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:3}});data={...data,...reply};
-  }
-  await prepareReplayCharts(data.sample);
+  // Opening must succeed even when speculative continuation reaches a contract roll.
+  // The paged chart provider replaces the old unused full-history worker cache.
+  setContinuationBlock('');
   setRenderedPanes({});
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
@@ -91,7 +90,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  async function action(kind,order){
   const background=kind==='amend';
   if(!background){locked.current=true;setBusy(true)}setSaveError('');
-  try{await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/action`,{method:'POST',body:{version:data.session.version,cursor:at,kind,event_id:crypto.randomUUID(),...(order?{order}: {})}});accept(reply)})}
+  try{await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/action`,{method:'POST',body:{version:data.session.version,cursor:at,kind,event_id:crypto.randomUUID(),...(order?{order}: {})}});accept(reply);setContinuationBlock('')})}
   catch(e){setSaveError(e.message);throw e}
   finally{if(!background){locked.current=false;setBusy(false)}}
  }
@@ -99,12 +98,12 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   if(prefetch.current)return prefetch.current;
   if(!background){locked.current=true;setBusy(true)}
   setSaveError('');
-  const task=enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at,days:3}});await prepareReplayCharts(reply.sample);accept(reply);return reply}).catch(e=>{setSaveError(e.message);throw e}).finally(()=>{prefetch.current=null;if(!background){locked.current=false;setBusy(false)}});
+  const task=enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:at,days:1}});accept(reply);setContinuationBlock('');return reply}).catch(e=>{if(e.code==='contract_roll')setContinuationBlock(e.message);else setSaveError(e.message);throw e}).finally(()=>{prefetch.current=null;if(!background){locked.current=false;setBusy(false)}});
   prefetch.current=task;return task;
  }
  useEffect(()=>{
-  if(active?.session.next_day&&active.session.last_cursor-cursor<2000&&!prefetch.current&&!saveError)continueSession(true).catch(()=>{});
- },[active?.sample,cursor,active?.session.next_day,saveError]);
+  if(active?.session.next_day&&active.session.last_cursor-cursor<750&&!prefetch.current&&!saveError&&!continuationBlock)continueSession(true).catch(()=>{});
+ },[active?.sample,cursor,active?.session.next_day,saveError,continuationBlock]);
  async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  function confirmDelete(items){setError('');setPurging(items);setPurgeName('')}
  async function purge(){setBusy(true);setError('');try{await api('/backtesting/sessions/delete',{method:'POST',body:{ids:purging.map(item=>item.id),confirmation:purgeName}});setPurging(null);setPurgeName('');setSelectedSessions([]);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -121,7 +120,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={continuationBlock,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div ref={splitHost} className={twoCharts?'bt-panes bt-panes-split':'bt-panes'} style={{'--bt-split-ratio':splitPercent/100}}>

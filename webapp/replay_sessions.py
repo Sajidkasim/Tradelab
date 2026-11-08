@@ -64,7 +64,7 @@ class PurgeInput(BaseModel):
     confirmation:str=Field(max_length=80)
 
 class ActionInput(ProgressInput):
-    kind:Literal['order','cancel','close','amend']
+    kind:Literal['order','cancel','close','amend','roll_close']
     event_id:UUID
     order:OrderInput|None=None
 
@@ -256,7 +256,7 @@ def mount(app,config,workspace):
                 value['spec']['legacy_end_cursors']=[value['last_cursor']]
             value['spec']['close_at_end']=False
         return value
-    price_cache=ByteCache(12*1024*1024,entries=2)
+    price_cache=ByteCache(64*1024*1024,entries=2)
     @timed("read + parse history")
     def checked_data(record):
         index=ROOT/'replay-index.db'
@@ -281,6 +281,7 @@ def mount(app,config,workspace):
                 if signature!=segment['digest']:raise HTTPException(409,'Saved continuation candles changed. Restore the original data.')
                 for root,market in data['markets'].items():
                     market['bars'].extend(extra['markets'][root]['bars'])
+                    market['contract']=extra['markets'][root]['contract']
         if cacheable:price_cache.put(identity,data)
         return data
 
@@ -489,12 +490,12 @@ def mount(app,config,workspace):
                     day=next_day(record)
                     if not day:break
                     extra,digest=history(day)
-                    if (state['position'] or state['order']) and extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract']:
+                    if extra['markets'][record['root']]['contract']!=last_data['markets'][record['root']]['contract'] and (payload.cursor!=record['last_cursor'] or state['position'] or state['order']):
                         if added:break
-                        raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
+                        return JSONResponse({'detail':'The next date changes futures contract. Continue to the last loaded candle, then close at the contract boundary before continuing.', 'code':'contract_roll'},status_code=422)
                     if any(extra['markets'][root]['bars'][0]['time']<=market['bars'][-1]['time'] for root,market in combined['markets'].items()):
                         raise ValueError('The next candle file overlaps this session.')
-                    combined={**combined,'markets':{root:{**market,'bars':[*market['bars'],*extra['markets'][root]['bars']]} for root,market in combined['markets'].items()}}
+                    combined={**combined,'markets':{root:{**market,'contract':extra['markets'][root]['contract'],'bars':[*market['bars'],*extra['markets'][root]['bars']]} for root,market in combined['markets'].items()}}
                     record.setdefault('continuation_days',[]).append({'day':day,'digest':digest})
                     last_data=extra;added+=1
                 if not added:raise ValueError('No following trading day is loaded. Your position remains saved; it has not been closed.')
@@ -513,6 +514,11 @@ def mount(app,config,workspace):
                 if any(c.get('event_id')==str(payload.event_id) for c in record['commands']):return result(record,projection(record,data))
                 if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
                 valid_cursor(record,payload.cursor)
+                if payload.kind=='roll_close':
+                    day=next_day(record)
+                    last_day=record.get('continuation_days',[{'day':record['day']}])[-1]['day']
+                    if payload.cursor!=record['last_cursor'] or not day or history(day)[0]['markets'][record['root']]['contract']==history(last_day)[0]['markets'][record['root']]['contract']:
+                        raise ValueError('Close at the contract boundary is available only on the last candle before a contract roll.')
                 if len(record['commands'])>=2000:raise ValueError('This session has reached its practice-action limit.')
                 command={'at':payload.cursor,'kind':payload.kind,'event_id':str(payload.event_id)}
                 if payload.kind in ('order','amend'):

@@ -314,6 +314,36 @@ def test_continuation_rejects_contract_roll_and_changed_saved_candles(local,over
     monkeypatch.setattr(replay_sessions,'load_history',lambda day:(deepcopy(overnight[day]),'changed'))
     assert client.get(root).status_code==409
 
+def test_roll_block_does_not_prevent_reopen_and_explicit_boundary_close(local,overnight):
+    client,app=local;created=create(client);root='/api/backtesting/sessions/'+created['session']['id']
+    overnight['2010-06-08']['markets']['NQ']['contract']='NQU0'
+    opened=client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':1}})
+    assert opened.status_code==200
+    blocked=client.post(root+'/continue',json={'version':1,'cursor':4})
+    assert blocked.status_code==422 and blocked.json()['code']=='contract_roll'
+    assert client.get(root).status_code==200
+    assert client.post(root+'/action',json={'version':1,'cursor':4,'kind':'roll_close','event_id':str(uuid4())}).status_code==422
+    closed=client.post(root+'/action',json={'version':1,'cursor':5,'kind':'roll_close','event_id':str(uuid4())})
+    assert closed.status_code==200,closed.text
+    trade=closed.json()['projection']['trades'][0]
+    assert trade['reason']=='contract roll' and trade['exit_cursor']==5
+    assert trade['exit']==106 and trade['net']==5
+    assert closed.json()['projection']['frames'][-1]['position'] is None
+    continued=client.post(root+'/continue',json={'version':2,'cursor':5})
+    assert continued.status_code==200,continued.text
+    assert continued.json()['projection']['trades']==closed.json()['projection']['trades']
+    assert client.get(root).status_code==200
+
+def test_flat_prefetch_cannot_load_a_new_contract_before_reaching_boundary(local,overnight):
+    client,app=local;created=create(client);root='/api/backtesting/sessions/'+created['session']['id']
+    overnight['2010-06-08']['markets']['NQ']['contract']='NQU0'
+    blocked=client.post(root+'/continue',json={'version':0,'cursor':4})
+    assert blocked.status_code==422 and blocked.json()['code']=='contract_roll'
+    continued=client.post(root+'/continue',json={'version':0,'cursor':5})
+    assert continued.status_code==200
+    assert continued.json()['sample']['markets']['NQ']['contract']=='NQU0'
+    assert client.get(root).json()['sample']['markets']['NQ']['contract']=='NQU0'
+
 
 def test_unfinished_legacy_sessions_upgrade_but_completed_exits_stay_unchanged(local,candles):
     client,app=local;state=create(client);sid=state['session']['id'];db=app.state.workspaces.database('owner')

@@ -5,9 +5,10 @@ export function setCsrf(value) {
 }
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -57,6 +58,7 @@ async function request(path, options) {
     throw new ApiError(
       data.detail || "That request could not be completed. Please retry.",
       response.status,
+      data.code,
     );
   }
   if(data.projection)data.projection={...data.projection,frames:replayFrames(data.projection.frames)};
