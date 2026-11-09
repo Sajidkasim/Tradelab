@@ -1,8 +1,8 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Play,Plus,ArrowUpRight,FlaskConical,CalendarDays,Trash2} from 'lucide-react';
-import Unlock from './Unlock';
+import {WorkspaceEntrance} from './PrimusSignIn';
 import {api,setCsrf} from './api';
-import {PrimusHeader} from './SiteExperience';
+import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
 import BacktestingChart from './BacktestingChart';
 import Feedback from './Feedback';
@@ -125,7 +125,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   <div className="pt-loading-logo"><img src={compassLogo} alt="Primus compass"/><span aria-hidden="true"/></div>
   <h1>Primus Trader</h1><p>{openingStage}</p><small>Saved trades and drawings stay in your session.</small><button className="button" onClick={()=>{openingTicket.current++;setOpening(false);setActive(null);history.replaceState({},'','/backtesting');list().catch(e=>setError(e.message))}}>Back to sessions</button><button className="button" onClick={()=>location.reload()}>Retry opening session</button>
  </div>;
- if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
+ const entrancePreview=localSitePreview()&&new URLSearchParams(location.search).get('preview')==='signin';
+ if(identity&&(!identity.authenticated||entrancePreview))return <WorkspaceEntrance workspace="backtesting" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={()=>location.reload()}/>;
  if(opening&&!active)return loading;
  if(active){
   const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};

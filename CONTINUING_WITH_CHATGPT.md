@@ -1520,3 +1520,24 @@ supported. No provider auth or permission changes; no deployment.
 Validation: build and 96 frontend tests passed. Browser checks cover password
 continuation, Google error recovery/return destination, correct branding and
 screenshots at 1440, 390 and 320px with no horizontal overflow or JS errors.
+
+## Workspace-specific entrances — 9 November 2026
+
+Journal, Strategy Lab and Backtesting now share the Primus Trader entrance shell
+and auth form while each has dedicated copy, illustration and workflow: Journal
+paper/reflection; Lab research/comparisons; Backtesting candles/replay transport.
+Removed the extra site header around these full-page entrances. Authenticated
+workspaces retain their original UI and data flow. Homepage /signin stays its own
+fourth variant. Shared auth uses parent sessions without duplicate session fetches.
+
+Google callback now uses the same server-side destination allowlist as login
+start; previously Backtesting could fall back to Lab after provider completion.
+Regression checks preserve /backtesting and reject external redirects. Password
+success runs the existing workspace boot/reload. No financial/viewport changes.
+Local ?preview=signin is supported on all three routes, with auth buttons disabled;
+the preview query is ignored outside local concept preview mode.
+
+Validation: 421 pytest (four existing warnings), 96 frontend tests, build and six
+auth/design browser checks passed. Desktop and 390/320px phone screenshots were
+reviewed, with distinct illustrations and no overflow. Preview safety is checked
+separately. Restarted local 8133; no push or deployment.

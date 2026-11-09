@@ -1,7 +1,7 @@
 import React, {useEffect,useRef,useState} from 'react';
 import {ArrowUpRight,CalendarDays,Check,ChevronLeft,ChevronRight,Download,LockKeyhole,NotebookPen,Save,X,Link2,Trash2,Undo2} from 'lucide-react';
 import {api,setCsrf} from './api';
-import Unlock from './Unlock';
+import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Select} from './components';
 import {JournalClock} from './JournalClock';
@@ -95,7 +95,7 @@ export default function JournalPage({theme = "light"}){
   const linkChoices=[...dayLabTrades,...labTrades.filter(trade=>!dayLabTrades.some(other=>other.id===trade.id))];
   if(!identity||(identity.authenticated&&!meta))return <div className="pt-journal"><PrimusHeader active="journal"/><main className="pt-journal-loading">{error?<><p role="alert">{error}</p><button className="pt-btn" onClick={boot}>Try again</button></>:'Opening your private Journal…'}</main></div>;
   const entrancePreview=localSitePreview()&&new URLSearchParams(location.search).get('preview')==='signin';
-  if(!identity.authenticated||entrancePreview)return <><PrimusHeader active="journal"/><Unlock workspace="journal" ready={!entrancePreview&&Boolean(identity.csrf)} authMode={entrancePreview?'google':identity.auth_mode} onUnlocked={boot}/></>;
+  if(!identity.authenticated||entrancePreview)return <WorkspaceEntrance workspace="journal" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={boot}/>;
   return <div className="pt-journal pj-workspace">
     <FloatingAura day={day} account={account} dirty={dirty}/>
     {meta.release_notes&&!meta.release_notes.seen&&<ReleaseNotes notes={meta.release_notes} onClose={()=>setMeta(m=>({...m,release_notes:{...m.release_notes,seen:true}}))} onSeen={async()=>{await api('/release-notes/seen',{method:'POST'});setMeta(m=>({...m,release_notes:{...m.release_notes,seen:true}}))}}/>}

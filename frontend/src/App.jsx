@@ -18,7 +18,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
-import Unlock from "./Unlock";
+import {WorkspaceEntrance} from "./PrimusSignIn";
 import Backup from "./Backup";
 import LabSettings from "./LabSettings";
 import Access from "./Access";
@@ -232,12 +232,11 @@ export default function App() {
   const entrancePreview=localSitePreview() && new URLSearchParams(location.search).get('preview')==='signin';
   if (!session.authenticated || entrancePreview)
     return (
-      <>{sitePreview()&&<PrimusHeader active="lab" theme={mode} onThemeToggle={()=>setMode(mode==='dark'?'light':'dark')}/>}<Unlock
-        workspace={sitePreview()?"lab":undefined}
-        ready={!entrancePreview&&Boolean(session.csrf)}
-        onUnlocked={boot}
-        authMode={entrancePreview?"google":session.auth_mode}
-      /></>
+      <WorkspaceEntrance workspace="lab"
+        session={entrancePreview?{...session,auth_mode:'google'}:session}
+        returnTo={sitePreview()?'/lab':'/'}
+        ready={!entrancePreview&&Boolean(session.csrf)} onUnlocked={boot}
+      />
     );
   return (
       <JournalClock.Provider

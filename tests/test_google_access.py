@@ -460,3 +460,14 @@ def test_existing_labs_receive_current_guide_once_without_resetting_settings(goo
     assert preferences['tour_version'] == journal_preferences.TOUR_VERSION
     assert preferences['timezone'] == 'Europe/London'
     assert client.get('/api/trades').json() == trades
+
+
+def test_google_callback_preserves_validated_backtesting_destination(google):
+    client,app,state=google
+    csrf(client)
+    assert client.post('/api/login/google?return_to=/backtesting').status_code==200
+    response=client.get('/auth/callback?code=single-use-test-code',follow_redirects=False)
+    assert response.status_code==303
+    assert response.headers['location']=='/backtesting'
+    csrf(client)
+    assert client.post('/api/login/google?return_to=https://example.invalid').status_code==422

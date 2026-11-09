@@ -239,13 +239,17 @@ def create_app(config: Settings | None = None):
                 'auth_mode': config.auth_mode, 'can_lock': config.password_required or config.google_required,
                 'csrf': request.session['csrf'], 'images_enabled': request.app.state.image_storage.enabled}
 
+    def google_return_paths():
+        paths = ('/lab', '/journal', '/learn', '/market-lab', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
+        if config.local or config.replay_enabled:paths=(*paths,'/backtesting')
+        return paths
+
     @app.post('/api/login/google')
     def start_google(request: Request, return_to: str = ""):
         if not config.google_required:
             raise HTTPException(404)
         check_write(request)
-        allowed_returns = ('/lab', '/journal', '/learn', '/market-lab', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
-        if config.local or config.replay_enabled:allowed_returns=(*allowed_returns,'/backtesting')
+        allowed_returns = google_return_paths()
         if return_to and return_to not in allowed_returns:
             raise HTTPException(422, 'Choose a Primus page to return to.')
         try:
@@ -263,7 +267,7 @@ def create_app(config: Settings | None = None):
         access = app.state.workspaces.google
         attempt = request.session.pop('google_attempt', None)
         destination = request.session.pop('google_return_to', config.lab_path or '/')
-        if destination not in ('/lab', '/journal', '/'):
+        if destination not in google_return_paths():
             destination = config.lab_path or '/'
         try:
             email, subject = access.exchange(attempt, request.query_params.get('code'))
