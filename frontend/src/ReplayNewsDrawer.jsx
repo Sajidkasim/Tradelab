@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {X,CalendarDays,RefreshCw} from 'lucide-react';
 import {api} from './api';
-import {newsWeek,newsImpact,newsActual} from './replayNews';
+import {newsWeek,newsImpact,newsActual,validNewsDate,safeNewsEvents,replayNewsDay} from './replayNews';
 import './replayNews.css';
 function Flag({currency}){
  return <svg className="rn-flag" viewBox="0 0 24 16" role="img" aria-label={currency}>
@@ -10,23 +10,26 @@ function Flag({currency}){
 }
 export default function ReplayNewsDrawer({open,onClose,replayDate,replayTime}){
  const [navigation,setNavigation]=useState(null),[events,setEvents]=useState([]),[loading,setLoading]=useState(false),[error,setError]=useState(''),[retry,setRetry]=useState(0);
- const selected=navigation?.cursorDay===replayDate?navigation.day:replayDate;
- const setSelected=day=>setNavigation({cursorDay:replayDate,day});
+ const cursorDate=validNewsDate(replayDate)?replayDate:replayNewsDay(replayTime);
+ const selected=navigation&&navigation.cursorDay===cursorDate&&validNewsDate(navigation.day)?navigation.day:cursorDate;
+ const activeDate=validNewsDate(selected)?selected:null;
+ const visibleEvents=safeNewsEvents(events);
+ const setSelected=day=>setNavigation({cursorDay:cursorDate,day});
  const close=useRef(null);
  useEffect(()=>{if(open)close.current?.focus()},[open]);
  useEffect(()=>{
-  if(!open)return;const controller=new AbortController();let active=true;
+  if(!open||!activeDate)return;const controller=new AbortController();let active=true;
   setLoading(true);setError('');setEvents([]);
-  api('/replay/news?date='+encodeURIComponent(selected),{signal:controller.signal}).then(rows=>{if(active)setEvents(rows)}).catch(e=>{if(active&&e.name!=='AbortError')setError(e.message)}).finally(()=>{if(active)setLoading(false)});
+  api('/replay/news?date='+encodeURIComponent(activeDate),{signal:controller.signal}).then(rows=>{if(active){if(!Array.isArray(rows)){setError('News data is unavailable. Please retry.');setEvents([])}else setEvents(safeNewsEvents(rows))}}).catch(e=>{if(active&&e?.name!=='AbortError')setError(e?.message||'Unable to load economic news.')}).finally(()=>{if(active)setLoading(false)});
   return()=>{active=false;controller.abort()};
- },[open,selected,retry]);
- return <aside className={`replay-news-drawer ${open?'is-open':''}`} aria-label="Economic news" aria-hidden={!open} inert={!open} onKeyDown={e=>{if(e.key==='Escape')onClose()}}>
+ },[open,activeDate,retry]);
+ return <aside className={`replay-news-drawer ${open?'is-open':''}`} aria-label="Economic news" aria-hidden={!open} inert={!open} onKeyDown={e=>{if(e.key==='Escape')onClose?.()}}>
   <header className="rn-header"><div><CalendarDays size={17}/><h2>Economic calendar</h2></div><button ref={close} onClick={onClose} aria-label="Close economic news"><X size={18}/></button></header>
   <div className="rn-subtitle">New York calendar · Replay synced</div>
-  <nav className="rn-week" aria-label="News week">{newsWeek(replayDate).map(day=><button key={day.date} aria-label={`News for ${day.date}`} aria-current={day.date===replayDate?'date':undefined} aria-pressed={selected===day.date} onClick={()=>setSelected(day.date)}><span>{day.label}</span><strong>{day.number}</strong></button>)}</nav>
-  <div className="rn-date"><span>{new Intl.DateTimeFormat('en-GB',{weekday:'long',year:'numeric',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(selected+'T12:00:00Z'))}</span>{selected!==replayDate&&<button onClick={()=>setSelected(replayDate)}>Back to replay</button>}</div>
-  <div className="rn-events" aria-busy={loading}>
-   {loading?<p role="status" className="rn-empty">Loading events…</p>:error?<div className="rn-empty" role="alert"><p>{error}</p><button onClick={()=>setRetry(n=>n+1)}><RefreshCw size={13}/> Retry</button></div>:!events.length?<div className="rn-empty"><CalendarDays size={26}/><p>No economic events stored for this date.</p></div>:events.map(event=><article className="rn-event" key={event.id}>
+  <nav className="rn-week" aria-label="News week">{newsWeek(cursorDate).map(day=><button key={day.date} aria-label={`News for ${day.date}`} aria-current={day.date===cursorDate?'date':undefined} aria-pressed={selected===day.date} onClick={()=>setSelected(day.date)}><span>{day.label}</span><strong>{day.number}</strong></button>)}</nav>
+  <div className="rn-date"><span>{activeDate?new Intl.DateTimeFormat('en-GB',{weekday:'long',year:'numeric',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(activeDate+'T12:00:00Z')):'Waiting for replay date…'}</span>{activeDate&&activeDate!==cursorDate&&<button onClick={()=>setSelected(cursorDate)}>Back to replay</button>}</div>
+  <div className="rn-events" aria-busy={loading||!activeDate}>
+   {(!activeDate||loading)?<p role="status" className="rn-empty">{activeDate?'Loading events…':'Waiting for replay date…'}</p>:error?<div className="rn-empty" role="alert"><p>{error}</p><button onClick={()=>setRetry(n=>n+1)}><RefreshCw size={13}/> Retry</button></div>:!visibleEvents.length?<div className="rn-empty"><CalendarDays size={26}/><p>No economic events stored for this date.</p></div>:visibleEvents.map(event=><article className="rn-event" key={event.id}>
     <div className="rn-event-meta"><time>{event.time_ny}</time><Flag currency={event.currency}/><span className={`rn-impact rn-${event.impact.toLowerCase()}`} role="img" aria-label={`${event.impact} impact`}>{[1,2,3].map(n=><i key={n} className={n<=newsImpact(event.impact)?'active':''}/>)}</span><span>{event.currency}</span></div>
     <div className="rn-event-detail"><h3 title={event.event}>{event.event}</h3><div className="rn-stats"><strong>{newsActual(event,replayTime)}</strong><small>F {event.forecast||'—'} · P {event.previous||'—'}</small></div></div>
    </article>)}

@@ -1331,3 +1331,16 @@ resets state. The existing local API uses a bound date_ny parameter, ordered by
 UTC timestamp and id, and returned 200 with the three seeded 2015-05-15 fixtures.
 The fixtures remain local SQLite data, not part of a hosted deployment. Unit tests
 cover 2015 dates after 17:00 and near midnight; frontend assets were rebuilt.
+
+## News drawer null-safety — 9 November 2026
+
+Guarded the null-navigation/undefined-date equality path that could read
+navigation.day from null. Missing, invalid or out-of-range cursor dates render a
+waiting state without formatting an invalid Date or requesting an undefined date.
+Valid replay timestamps remain the historical fallback, never the system year.
+Week helpers return an empty array for invalid input; event responses and fields
+are sanitized before rendering, with safe impact/title/value defaults. Non-array
+responses show a retryable drawer error. The shared API reader also tolerates a
+null JSON payload before checking projection/detail. Actual values remain hidden
+for invalid replay clocks/timestamps. SSR mount tests cover missing dates even
+when the drawer is hidden. No backend, financial or viewport changes.

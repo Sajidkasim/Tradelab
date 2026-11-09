@@ -55,10 +55,10 @@ async function request(path, options) {
     if (response.status === 401 && path !== "/unlock")
       window.dispatchEvent(new Event("primus:logout"));
     throw new ApiError(
-      data.detail || "That request could not be completed. Please retry.",
+      data?.detail || "That request could not be completed. Please retry.",
       response.status,
     );
   }
-  if(data.projection)data.projection={...data.projection,frames:replayFrames(data.projection.frames)};
+  if(data?.projection)data.projection={...data.projection,frames:replayFrames(data.projection.frames)};
   return data;
 }

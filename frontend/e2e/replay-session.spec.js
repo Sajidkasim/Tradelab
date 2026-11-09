@@ -801,3 +801,15 @@ test('2015 preview news displays the three seeded releases and correct impact ba
  await expect(drawer.locator('.rn-impact i.active')).toHaveCount(8);
  await expect(drawer.locator('.rn-event-meta time')).toHaveText(['08:30','09:15','10:00']);
 });
+
+test('malformed news response stays inside the drawer without crashing replay',async({page})=>{
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/api/replay/news?**',route=>route.fulfill({json:null}));
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Economic news',exact:true}).click();
+ await expect(page.getByText('News data is unavailable. Please retry.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Close economic news',exact:true})).toBeVisible();
+ expect(errors).toEqual([]);await expect(page.getByText('This page could not be displayed',{exact:false})).toHaveCount(0);
+});
