@@ -92,6 +92,14 @@ def demo_rows():
         for clock, currency, impact, event, actual, forecast, previous in events:
             yield {'Date':day,'Time':clock,'Currency':currency,'Impact':impact,'Event':'[DEMO] '+event,'Actual':actual,'Forecast':forecast,'Previous':previous}
 
+    # Owner-supplied preview fixtures; kept labelled separately from verified imports.
+    for clock,impact,event,actual,forecast,previous in (
+        ('08:30','Medium','Empire State Manufacturing Index','3.1','5.0','-1.2'),
+        ('09:15','High','Industrial Production m/m','-0.3%','0.1%','-0.3%'),
+        ('10:00','High','Prelim UoM Consumer Sentiment','88.6','95.8','95.9'),
+    ):
+        yield {'Date':'2015-05-15','Time':clock,'Currency':'USD','Impact':impact,'Event':'[DEMO] '+event,'Actual':actual,'Forecast':forecast,'Previous':previous}
+
 def import_rows(path, rows, zone=NY, date_order='mdy'):
     normalized=[];skipped=Counter()
     for number,row in enumerate(rows,1):
@@ -131,7 +139,7 @@ def fetch_recent():
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     mode=parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument('--seed-demo',action='store_true',help='Insert explicitly synthetic [DEMO] fixtures on four historical dates')
+    mode.add_argument('--seed-demo',action='store_true',help='Insert explicitly synthetic [DEMO] fixtures on five historical dates')
     mode.add_argument('--csv',type=Path,help='Calendar CSV with Date, Time, Currency, Impact, Event and optional values')
     mode.add_argument('--fetch-recent',action='store_true',help='Fetch the public current-week ForexFactory JSON feed (not historical backfill)')
     parser.add_argument('--db',type=Path,default=ROOT/'data/private/replay-index.db')

@@ -785,3 +785,17 @@ test('economic news drawer shows replay-date events and masks future actuals',as
  await drawer.getByRole('button',{name:'Back to replay',exact:true}).click();await expect(drawer.getByText('CPI m/m',{exact:true})).toBeVisible();
  await drawer.getByRole('button',{name:'Close economic news',exact:true}).click();await expect(drawer).toHaveCount(0);
 });
+
+test('2015 preview news displays the three seeded releases and correct impact bars',async({page})=>{
+ await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2015-05-15');await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('button',{name:'Economic news',exact:true}).click();
+ const drawer=page.getByRole('complementary',{name:'Economic news',exact:true});
+ await expect(drawer.getByText('[DEMO] Empire State Manufacturing Index',{exact:true})).toBeVisible();
+ await expect(drawer.locator('.rn-event')).toHaveCount(3);
+ await expect(drawer.getByRole('img',{name:'Medium impact',exact:true})).toHaveCount(1);
+ await expect(drawer.getByRole('img',{name:'High impact',exact:true})).toHaveCount(2);
+ await expect(drawer.locator('.rn-impact i.active')).toHaveCount(8);
+ await expect(drawer.locator('.rn-event-meta time')).toHaveText(['08:30','09:15','10:00']);
+});

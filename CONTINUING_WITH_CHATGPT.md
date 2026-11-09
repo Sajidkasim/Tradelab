@@ -1309,3 +1309,14 @@ frontend unit checks passed. Importer tests cover repeat-safe seeding, source-ta
 preservation, atomic invalid batches, string values, DST rejection/conversion,
 impact aliases, CSV BOM/delimiters/date order, epoch units and mocked public-feed
 fetching. Local API returned all 12 labelled demo events for 2024-05-15.
+
+## 2015-05-15 news preview fixtures — 9 November 2026
+
+Added three owner-supplied [DEMO] releases to --seed-demo: Empire State at 08:30
+(Medium, 3.1 / 5.0 / -1.2), Industrial Production at 09:15 (High, -0.3% / 0.1% /
+-0.3%), and Prelim UoM at 10:00 (High, 88.6 / 95.8 / 95.9). Existing 48 fixtures
+were ignored; three were inserted. Titles retain [DEMO] to distinguish fixtures
+from the separately verified historical import. DST conversion yields 12:30,
+13:15 and 14:00 UTC, stored as epoch milliseconds. Local API returned all three;
+browser verified 2/3/3 active impact bars and displayed NY times. 428 pytest and
+98 frontend checks passed (4 existing Python warnings). No deployment.

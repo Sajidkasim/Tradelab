@@ -11,11 +11,11 @@ def test_demo_idempotency_and_source_tables_untouched(tmp_path):
     with sqlite3.connect(path) as db:
         db.executescript('CREATE TABLE bars(time,close); INSERT INTO bars VALUES(1,100); CREATE TABLE trades(id,pnl); INSERT INTO trades VALUES(1,42);')
     first,duplicates,_=import_rows(path,demo_rows());second,again,_=import_rows(path,demo_rows())
-    assert len(first)==48 and duplicates==0 and second==[] and again==48
+    assert len(first)==51 and duplicates==0 and second==[] and again==51
     with sqlite3.connect(path) as db:
         assert db.execute('SELECT * FROM bars').fetchall()==[(1,100)]
         assert db.execute('SELECT * FROM trades').fetchall()==[(1,42)]
-        assert db.execute('SELECT count(*) FROM economic_events').fetchone()[0]==48
+        assert db.execute('SELECT count(*) FROM economic_events').fetchone()[0]==51
         assert db.execute("SELECT count(*) FROM economic_events WHERE event NOT LIKE '[DEMO] %'").fetchone()[0]==0
 
 def test_timezone_and_strings_preserved():
@@ -61,3 +61,12 @@ def test_recent_fetch_uses_bounded_public_json_response(monkeypatch):
     monkeypatch.setattr(importer,'urlopen',request)
     assert normalize(importer.fetch_recent()[0])[5]=='CPI'
     assert seen==[(importer.FEED,30)]
+
+
+def test_owner_supplied_2015_preview_releases_are_new_york_dst_normalized():
+    events=[normalize(r) for r in demo_rows() if r['Date']=='2015-05-15']
+    assert len(events)==3
+    assert [r[2] for r in events]==['08:30','09:15','10:00']
+    assert [r[4] for r in events]==['Medium','High','High']
+    assert [r[6:] for r in events]==[('3.1','5.0','-1.2'),('-0.3%','0.1%','-0.3%'),('88.6','95.8','95.9')]
+    assert datetime.fromtimestamp(events[0][0]/1000,timezone.utc).strftime('%H:%M')=='12:30'
