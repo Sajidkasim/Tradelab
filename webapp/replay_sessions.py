@@ -198,11 +198,6 @@ def mount(app,config,workspace):
         finally:
             COMPACT_WIRE.reset(token)
             if heavy:replay_gate.release()
-    @app.get('/api/replay/news')
-    def replay_news(date:date,member=Depends(workspace)):
-        local_only()
-        from .replay_index import economic_events
-        return economic_events(ROOT/'replay-index.db',date.isoformat())
     def database(member): return app.state.workspaces.database(member["key"])
     def local_only():
         if not config.local and not getattr(config,'replay_enabled',False):raise HTTPException(404)

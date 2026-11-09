@@ -768,48 +768,12 @@ test('a stationary zoomed-out viewport stops paging and keeps its saved fraction
 
 });
 
-test('economic news drawer shows replay-date events and masks future actuals',async({page})=>{
- await page.route('**/api/replay/news?**',async route=>{
-  const day=new URL(route.request().url()).searchParams.get('date');
-  await route.fulfill({json:day==='2023-09-12'?[{id:1,timestamp_utc:Date.parse('2023-09-12T12:30:00Z'),date_ny:day,time_ny:'08:30',currency:'USD',impact:'High',event:'CPI m/m',actual:'0.3%',forecast:'0.2%',previous:'0.1%'},{id:2,timestamp_utc:Date.parse('2023-09-12T18:00:00Z'),date_ny:day,time_ny:'14:00',currency:'USD',impact:'Medium',event:'Budget statement',actual:'999',forecast:'100',previous:'90'}]:[]});
- });
- await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
- await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('button',{name:'Economic news',exact:true}).click();
- const drawer=page.getByRole('complementary',{name:'Economic news',exact:true});
- await expect(drawer.getByText('CPI m/m',{exact:true})).toBeVisible();await expect(drawer.getByText('0.3%',{exact:true})).toBeVisible();
- await expect(drawer.getByText('999',{exact:true})).toHaveCount(0);
- await expect(drawer.getByRole('img',{name:'High impact',exact:true})).toBeVisible();
- await drawer.getByRole('button',{name:'News for 2023-09-13',exact:true}).click();await expect(drawer.getByText('No economic events stored for this date.')).toBeVisible();
- await drawer.getByRole('button',{name:'Back to replay',exact:true}).click();await expect(drawer.getByText('CPI m/m',{exact:true})).toBeVisible();
- await drawer.getByRole('button',{name:'Close economic news',exact:true}).click();await expect(drawer).toHaveCount(0);
-});
-
-test('2015 preview news displays the three seeded releases and correct impact bars',async({page})=>{
- await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
- await page.getByLabel('Trading date',{exact:true}).fill('2015-05-15');await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- const requested=page.waitForRequest(r=>r.url().includes('/api/replay/news?'));
- await page.getByRole('button',{name:'Economic news',exact:true}).click();
- expect(new URL((await requested).url()).searchParams.get('date')).toBe('2015-05-15');
- const drawer=page.getByRole('complementary',{name:'Economic news',exact:true});
- await expect(drawer.getByText('[DEMO] Empire State Manufacturing Index',{exact:true})).toBeVisible();
- await expect(drawer.locator('.rn-event')).toHaveCount(3);
- await expect(drawer.getByRole('img',{name:'Medium impact',exact:true})).toHaveCount(1);
- await expect(drawer.getByRole('img',{name:'High impact',exact:true})).toHaveCount(2);
- await expect(drawer.locator('.rn-impact i.active')).toHaveCount(8);
- await expect(drawer.locator('.rn-event-meta time')).toHaveText(['08:30','09:15','10:00']);
-});
-
-test('malformed news response stays inside the drawer without crashing replay',async({page})=>{
- const errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.route('**/api/replay/news?**',route=>route.fulfill({json:null}));
+test('replay chart runs without news controls or background news requests',async({page})=>{
+ const requests=[];page.on('request',r=>{if(r.url().includes('/api/replay/news'))requests.push(r.url())});
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('button',{name:'Economic news',exact:true}).click();
- await expect(page.getByText('News data is unavailable. Please retry.',{exact:true})).toBeVisible();
- await expect(page.getByRole('button',{name:'Close economic news',exact:true})).toBeVisible();
- expect(errors).toEqual([]);await expect(page.getByText('This page could not be displayed',{exact:false})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Economic news',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('complementary',{name:'Economic news',exact:true})).toHaveCount(0);
+ expect(requests).toEqual([]);
 });

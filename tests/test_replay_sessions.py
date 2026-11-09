@@ -367,14 +367,6 @@ def test_dated_futures_and_unknown_symbols_keep_contract_roll_protection(symbol,
     assert replay_sessions.contract_roll_required(symbol,previous,following)
     assert not replay_sessions.contract_roll_required(symbol,previous,previous)
 
-def test_replay_news_endpoint_validates_dates_and_handles_empty_calendar(local,candles):
-    from webapp.replay_index import ensure_economic_events,index_connection
+def test_removed_replay_news_endpoint_returns_not_found(local):
     client,app=local
-    assert client.get('/api/replay/news?date=2026-07-06').json()==[]
-    path=replay_sessions.ROOT/'replay-index.db';ensure_economic_events(path)
-    with index_connection(path) as db:
-        db.execute('INSERT INTO economic_events(timestamp_utc,date_ny,time_ny,currency,impact,event,actual,forecast,previous) VALUES(?,?,?,?,?,?,?,?,?)',(100,'2026-07-06','08:30','USD','High','CPI','0.3%','0.2%','0.1%'))
-    response=client.get('/api/replay/news?date=2026-07-06');assert response.status_code==200
-    assert response.json()[0]['actual']=='0.3%'
-    assert client.get('/api/replay/news?date=2026-07-07').json()==[]
-    assert client.get('/api/replay/news?date=not-a-date').status_code==422
+    assert client.get('/api/replay/news?date=2020-10-21').status_code==404

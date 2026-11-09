@@ -1381,3 +1381,46 @@ DST and epoch milliseconds. Inserted 2,318 events (1,431 High / 887 Medium); rer
 inserted zero and ignored 2,318 duplicates. Local news endpoint for 2020-10-21
 returned HTTP 200 with generated inventories/FOMC and the existing verified UK CPI.
 No source candles, saved trades, financial calculations or deployment changes.
+
+## Finnhub economic-calendar import — 9 November 2026
+
+Running tools/import_economic_calendar.py with no mode (or --finnhub) now fetches
+202 inclusive UTC monthly ranges from January 2010 through October 2026 using
+FINNHUB_API_KEY in the X-Finnhub-Token header. No scraping dependencies are used.
+US/EU/UK (plus GB alias) map to USD/EUR/GBP; high/medium map explicitly, low is
+excluded, unknown impact scales fail rather than guessing. Naive API times are
+UTC and offset-aware UTC strings are preserved, converted through the existing
+America/New_York normalizer to epoch milliseconds. estimate maps to forecast;
+previous or prev maps to previous. Null values stay absent and numeric zero is
+preserved as a string. Values retain source formatting, without invented units.
+
+All monthly requests (1.1s apart) and normalization finish before the database
+transaction. HTTP/auth/quota/schema/date-range failures or any month with no
+eligible releases stop without changing the database. Empty-month failure is a
+coverage guard, not proof that a plan supports the full historical range.
+The successful transaction deletes only titles containing literal [DEMO] and
+uses the existing conflict-ignore insertion. Existing real rows, candles and
+saved trades are preserved. Synthetic/CSV/recent modes remain explicitly selected.
+No live Finnhub import was run: the owner will supply the key and run the command.
+
+    FINNHUB_API_KEY=your_key .venv/bin/python tools/import_economic_calendar.py
+
+API access and historical coverage depend on Finnhub account entitlements. Tests
+mock network responses; they do not establish real subscription coverage.
+
+## Economic-calendar feature removed — 9 November 2026
+
+Owner abandoned economic-news ingestion entirely. This supersedes the news and
+Finnhub implementation notes above. Removed both importer scripts, optional
+scraper requirements, dedicated calendar-source downloads/cache, drawer/styles/
+helpers, toolbar control, fetching effect, storage schema/helpers and news API.
+Dropped economic_events from the local replay-index.db; all 11,297,816 source
+candles remain. Saved-trade and financial logic were not modified. Existing manual
+journal news labels remain journal data, independent of the removed calendar.
+Price chart calendar bundles are retained for daily/weekly/monthly candles.
+
+Removed obsolete feature tests and added regressions for endpoint 404 and chart
+startup without news controls or requests. Validation: 414 pytest passed (four
+existing warnings), 95 Vitest tests passed, production build passed, browser
+regression passed. Restarted local preview: / returns 200 and /api/replay/news
+returns 404. No ingestion processes were running. No push or deployment.
