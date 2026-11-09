@@ -25,6 +25,7 @@ const sections=[
   {id:'lesson',label:'After the session',title:'How did the session go?',hint:'What worked, what didn’t, and what you want to change. Keep it in your own words.',placeholder:'Looking back at today’s session…'},
 ];
 
+import JournalRules from './JournalRules';
 import JournalAccounts from "./JournalAccounts";
 import {AccountSelector, JournalEquity, accountResults, recordedTotal} from "./JournalReview";
 
@@ -106,6 +107,7 @@ export default function JournalPage({theme = "light"}){
         <aside className="pt-journal-sidebar" aria-label="Journal calendar and history">
           <button className="pt-btn pt-btn-dark" onClick={()=>selectDay(today)} disabled={busy}><NotebookPen size={17}/> Today’s entry <ArrowUpRight size={16}/></button>
           <label className="pt-mobile-date">Go to date<input type="date" aria-label="Journal date" value={day} disabled={busy} onChange={e=>selectDay(e.target.value)}/></label>
+          <JournalRules preferences={meta.journal_preferences} onSaved={value=>setMeta(old=>({...old,journal_preferences:value}))}/>
           <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar account" disabled={!accounts}/>
           <div className="pt-calendar"><div className="pt-calendar-heading"><button aria-label="Previous month" disabled={busy} onClick={()=>shiftMonth(-1)}><ChevronLeft size={18}/></button><label className="pj-month"><span>{monthDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span><input type="month" aria-label="Browse month" value={month} disabled={busy} onChange={e=>{if(e.target.value)setMonth(e.target.value)}}/></label><button aria-label="Next month" disabled={busy} onClick={()=>shiftMonth(1)}><ChevronRight size={18}/></button></div>
             <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,traded=row?.traded_today,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';const markers=[followed&&`Plan followed: ${followed}`,traded&&`Traded: ${traded}`].filter(Boolean).join(' · ');return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={markers?`${label} · ${markers}`:label} aria-description={markers||undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}

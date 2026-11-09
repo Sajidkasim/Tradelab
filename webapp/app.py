@@ -741,6 +741,7 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.lock:
             database = db(request, member)
             values = {**journal_preferences.read(database), 'timezone': payload.timezone}
+            if payload.trading_rules is not None:values['trading_rules'] = payload.trading_rules
             database.set_setting(journal_preferences.KEY, values)
             app.state.workspaces.bump(member['key'])
         return values
@@ -956,7 +957,7 @@ def create_app(config: Settings | None = None):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'journal', 'journal/', 'learn', 'market-lab', 'mindset', 'matrix') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'signin', 'journal', 'journal/', 'learn', 'market-lab', 'mindset', 'matrix') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():

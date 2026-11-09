@@ -389,3 +389,5 @@
   .pt-site .pt-study-process>span{align-items:flex-start;flex-direction:column;padding:7px 8px;border-radius:12px}
   .pt-site .pt-study-cta{justify-self:stretch;justify-content:center}
 }
+
+.pt-beta-badge{display:inline-flex;align-items:center;flex-shrink:0;margin-left:5px;padding:3px 6px;border:1px solid var(--pt-line);border-radius:4px;color:var(--pt-ink);background:var(--pt-paper);font-size:9px;font-weight:700;line-height:1;letter-spacing:.06em;text-transform:uppercase;vertical-align:middle}

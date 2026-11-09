@@ -2,6 +2,8 @@ import React, { lazy, Suspense, createContext, useContext, useEffect, useState }
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
 import LearningTrail from './LearningTrail';
+import PrimeSignIn from './PrimeSignIn';
+import BetaBadge from './BetaBadge';
 import MatrixLoading from './MatrixLoading';
 import JournalPage from './JournalPage';
 import { api, setCsrf } from './api';
@@ -38,12 +40,12 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
-      {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting (Beta)</a>}
-      <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
-      <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix</a>
+      {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting <BetaBadge/></a>}
+      <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn <BetaBadge/> {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
+      <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix <BetaBadge/></a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
-    {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/lab">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
+    {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/signin">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
   </header><LearningTrail/></>;
 }
 
@@ -146,5 +148,5 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname==='/signin'?<PrimeSignIn/>:['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

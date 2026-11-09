@@ -14,7 +14,8 @@ def read(database):
     zone = stored.get('timezone', 'America/New_York')
     status = stored.get('tour_status')
     tour_status = status if stored.get('tour_version') == TOUR_VERSION and status in ('pending', 'completed', 'skipped') else 'pending'
-    return {'timezone': zone if zone in ZONES else 'America/New_York',
+    return {'trading_rules': stored.get('trading_rules', '') if isinstance(stored.get('trading_rules', ''), str) else '',
+            'timezone': zone if zone in ZONES else 'America/New_York',
             'welcome_pending': stored.get('welcome_pending') is True,
             'personal_setup': stored.get('personal_setup') is True,
             'tour_status': tour_status, 'tour_version': TOUR_VERSION}

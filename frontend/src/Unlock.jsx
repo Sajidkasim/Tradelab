@@ -85,7 +85,7 @@ function MarketStudy() {
   );
 }
 
-export default function Unlock({ ready, onUnlocked, authMode = "password", workspace }) {
+export default function Unlock({ ready, onUnlocked, authMode = "password", workspace, prime = false }) {
   const google = authMode === "google";
   const loginStatus = new URLSearchParams(window.location.search).get("login");
   const [password, setPassword] = useState("");
@@ -123,7 +123,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
         <section className="login-story" aria-labelledby="login-story-title">
           <header className="login-brand">
             <img src={compass} alt="Primus" width="116" height="116" />
-            <span>{workspace==='journal'?"THE DAILY PRACTICE":"THE TRADING LAB"}</span>
+            <span>{prime?"PRIME TRADER":workspace==='journal'?"THE DAILY PRACTICE":"THE TRADING LAB"}</span>
           </header>
           <div className="login-story-copy">
             <span className="login-kicker">OBSERVE. RECORD. REFINE.</span>
@@ -142,15 +142,15 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
         </section>
         <section className="login-panel" aria-labelledby="login-title">
           <div className="login-panel-top">
-            <span>PRIMUSLAB</span>
+            <span>{prime?"PRIME TRADER":"PRIMUSLAB"}</span>
             <LockKeyhole size={16} aria-hidden="true" />
           </div>
           <form className="login-form" onSubmit={submit}>
             <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
-            <h1 id="login-title">{workspace?`Sign in to your ${workspace==='journal'?'Journal':workspace==='backtesting'?'Backtesting':'Strategy Lab'}.`:"Welcome back."}</h1>
+            <h1 id="login-title">{prime?"Sign in to Prime Trader.":workspace?`Sign in to your ${workspace==='journal'?'Journal':workspace==='backtesting'?'Backtesting':'Strategy Lab'}.`:"Welcome back."}</h1>
             <p>{workspace?"One Google sign-in. Your Journal and Strategy Lab, together and private.":"Your trades. Your research. Your next discovery."}</p>
             {!google && <div className="login-password-field">
-              <label htmlFor="journal-password">Lab password</label>
+              <label htmlFor="journal-password">{prime?"Password":"Lab password"}</label>
               <div className="login-password-control">
                 <input
                   id="journal-password"
@@ -184,7 +184,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
               busy={busy}
               disabled={!ready}
             >
-              {google ? "Continue with Google" : "Open my lab"} <ArrowRight size={18} aria-hidden="true" />
+              {google ? "Continue with Google" : prime ? "Continue" : "Open my lab"} <ArrowRight size={18} aria-hidden="true" />
             </Button>
             <div className="login-form-note">
               <LockKeyhole size={13} aria-hidden="true" />

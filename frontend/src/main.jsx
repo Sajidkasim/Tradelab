@@ -30,7 +30,7 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
     <BullpenProvider>
-      {sitePreview() && ['/', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
+      {sitePreview() && ['/', '/signin', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
     </BullpenProvider>
   </ErrorBoundary>,
 );

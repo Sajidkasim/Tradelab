@@ -1424,3 +1424,25 @@ startup without news controls or requests. Validation: 414 pytest passed (four
 existing warnings), 95 Vitest tests passed, production build passed, browser
 regression passed. Restarted local preview: / returns 200 and /api/replay/news
 returns 404. No ingestion processes were running. No push or deployment.
+
+## Sign-in and Journal polish — 9 November 2026
+
+Homepage Sign in now opens /signin, served by the existing website route and
+PrimeSignIn component. The dedicated Prime Trader entrance reuses the tested
+Unlock authentication transport with explicit Google return_to=/journal and
+password-success navigation to /journal. Already authenticated visitors go to
+the same private workspace. Google provider handling and access checks remain
+unchanged; browser regression exercises the password flow with mocked auth.
+
+Journal adds an expandable Rules / Trading plan editor below Today’s entry.
+Rules persist privately through journal-preferences (12,000-character limit),
+are included in metadata, and survive unrelated timezone updates. No trade or
+financial fields are modified. Sidebar selects/month/account controls have explicit
+44px minimum sizing and padding. The shared BetaBadge is used for Backtesting,
+Matrix and its adjacent Learn navigation link; this identifies the requested
+adjacent banner as Learn. Existing Learn live indicators remain independent.
+
+Validation: 415 pytest (4 existing warnings), 95 Vitest, production build and
+3 browser checks passed: password sign-in destination, saved rules across reload
+with desktop/phone control sizing, and shared Beta badges. Local preview restarted
+at http://127.0.0.1:8133. No deployment or production Google login performed.

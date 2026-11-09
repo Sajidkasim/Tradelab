@@ -801,3 +801,13 @@ def test_journal_accounts_reuse_trade_accounts_and_protect_linked_trades(local):
     assert other.status_code == 201
     assert client.delete(f"/api/journal-accounts/{original['id']}").status_code == 409
     assert len(client.get('/api/trades').json()) == 1
+
+
+def test_personal_trading_rules_persist_without_timezone_updates_erasing_them(local):
+    client, app = local
+    response = client.put('/api/journal-preferences', json={'timezone':'America/New_York','trading_rules':'Wait for my setup.\nStop after two losses.'})
+    assert response.status_code == 200
+    assert client.get('/api/metadata').json()['journal_preferences']['trading_rules']=='Wait for my setup.\nStop after two losses.'
+    assert client.put('/api/journal-preferences',json={'timezone':'Europe/London'}).json()['trading_rules'].startswith('Wait')
+    assert client.put('/api/journal-preferences',json={'timezone':'Europe/London','trading_rules':'x'*12001}).status_code==422
+    assert client.put('/api/journal-preferences',json={'timezone':'Europe/London','trading_rules':''}).json()['trading_rules']==''

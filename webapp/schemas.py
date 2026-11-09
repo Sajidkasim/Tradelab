@@ -162,6 +162,7 @@ class LabelMerge(StrictModel):
 
 
 class JournalPreferences(StrictModel):
+    trading_rules: str | None = Field(default=None, max_length=12000)
     timezone: Literal['America/New_York', 'Europe/London']
 
 
