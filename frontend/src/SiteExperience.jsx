@@ -2,6 +2,7 @@ import React, { lazy, Suspense, createContext, useContext, useEffect, useState }
 import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as MenuIcon, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import compass from '../../assets/primus-compass.png';
 import LearningTrail from './LearningTrail';
+import WorkspaceResume from './WorkspaceResume';
 import PrimeSignIn from './PrimeSignIn';
 import BetaBadge from './BetaBadge';
 import MatrixLoading from './MatrixLoading';
@@ -121,6 +122,7 @@ function HomePage(){
         </div>
       </section>
       <div className="pt-clock-strip"><div className="pt-wrap"><span>THE WORLD DOESN’T TRADE IN ONE TIME ZONE.</span><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit'})}</b></span><a href="#briefing">Your market briefing <ChevronDown size={14}/></a></div></div>
+      <WorkspaceResume/>
       <section className="pt-wrap pt-section" id="traders">
         <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">01</span><span className="pt-overline">01 / THE PEOPLE</span><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Primus starts with the people at the desk. Different perspectives, a shared place to study and a process that stays your own.</p></div>
         <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader"><div className="pt-profile-mark"><span>0{i+1}</span><Compass size={17} strokeWidth={1}/></div><div className="pt-monogram">{t.initials}<span>↗</span></div><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>

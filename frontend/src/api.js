@@ -1,3 +1,4 @@
+import {recordTiming} from './replayTiming';
 import {replayFrames} from './replayFrames';
 let csrf = "";
 export function setCsrf(value) {
@@ -38,6 +39,7 @@ async function request(path, options) {
       : {}),
     ...rest.headers,
   };
+  const started=performance.now();
   const response = await fetch(`/api${path}`, {
     ...rest,
     headers,
@@ -51,6 +53,7 @@ async function request(path, options) {
       response.status,
     );
   });
+  recordTiming('api:'+ (options.method||'GET')+':'+path.split('?')[0].replace(/sessions\/[^/]+/,'sessions/:id'),started);
   if (!response.ok) {
     if (response.status === 401 && path !== "/unlock")
       window.dispatchEvent(new Event("primus:logout"));

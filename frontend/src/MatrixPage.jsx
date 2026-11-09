@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {Activity, ArrowDownRight, ArrowUpRight, Clock3, Gauge, Layers3, Minus, ShieldCheck} from 'lucide-react';
 import {PrimusHeader, localSitePreview} from './SiteExperience';
 import {api} from './api';
+import {matrixFreshness} from './matrixFreshness';
 import MatrixLoading from './MatrixLoading';
 import './matrix.css';
 
@@ -93,7 +94,7 @@ function Desk({title, subtitle, icon:Icon, badge, metrics, readings, children}){
       {metrics.map(metric=>{
         const reading=readings?.find(item=>item.id===metric.id);
         return <div key={metric.id} className="tw:grid tw:grid-cols-[minmax(0,1fr)_auto] tw:items-center tw:gap-3 tw:px-3 tw:py-2">
-          <dt className="tw:text-xs">{metric.label}<span className={`tw:block ${muted}`}>{reading?.detail??metric.detail}</span></dt>
+          <dt className="tw:text-xs">{metric.label}<span className={`tw:block ${muted}`}>{reading?reading.detail||'Provider / observation date not supplied':'No reading available'}</span></dt>
           <dd className={`tw:text-sm tw:font-semibold ${number}`}>{reading?.value??'—'}</dd>
         </div>;
       })}
@@ -143,6 +144,7 @@ export default function MatrixPage(){
   const data=demo?demoSnapshot:snapshot;
   const unavailable=status==='unavailable'||(!data&&status!=='loading');
   const asOf=data?.asOf?new Date(data.asOf):null;
+  const freshness=matrixFreshness(data);
   const score=data?.swing?.score;
   const validScore=Number.isFinite(score)&&score>=0&&score<=100;
   const sizing=sizingLabels[data?.intraday?.sizing]??'UNAVAILABLE';
@@ -153,12 +155,12 @@ export default function MatrixPage(){
       <div className="tw:mx-auto tw:grid tw:max-w-[1600px] tw:gap-3 tw:px-3 tw:py-4 tw:sm:px-5">
         <header className="tw:flex tw:flex-wrap tw:items-end tw:justify-between tw:gap-3 tw:border-b tw:border-zinc-800 tw:pb-3">
           <div>
-            <p className={`tw:text-xs tw:font-semibold tw:uppercase tw:tracking-widest ${muted}`}>PrimusLab / Macro Desk</p>
+            <p className={`tw:text-xs tw:font-semibold tw:uppercase tw:tracking-widest ${muted}`}>PrimusTrader / Macro Desk</p>
             <h1 className="tw:text-2xl tw:font-semibold tw:tracking-tight">The Matrix</h1>
             <p className={`tw:text-xs ${muted}`}>NQ / MNQ · Macro context and session risk</p>
           </div>
           <div role="status" className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
-            <Badge demo={demo}>{unavailable?'Unavailable':statuses[status]??'Unavailable'}</Badge>
+            <Badge demo={demo}>{demo?'Demo data':unavailable?'Unavailable':freshness.label}</Badge>
             {!demo&&asOf&&Number.isFinite(asOf.getTime())&&<time dateTime={asOf.toISOString()} className={`tw:inline-flex tw:items-center tw:gap-1 tw:text-xs ${number} ${muted}`}>
               <Clock3 size={13} aria-hidden="true"/>{dateFormat.format(asOf)} ET
             </time>}
@@ -170,6 +172,11 @@ export default function MatrixPage(){
           <span>{data?'Refresh failed. Showing the last snapshot.':'Macro data is unavailable.'}</span>
           {onRetry&&<button type="button" className="tw:border tw:border-zinc-700 tw:px-2 tw:py-1 tw:hover:bg-zinc-800" onClick={onRetry}>Retry</button>}
         </div>}
+        {!demo&&data&&<section aria-label="Data freshness" className={`${panel} tw:p-3 tw:text-xs`}>
+          <p>{freshness.stale?'Check freshness before using this snapshot.':'This is a stored snapshot, not a live market feed.'} Each reading lists its provider and observation date when supplied. Daily, weekly and monthly series update at different frequencies.</p>
+          <p>Snapshot updated: {freshness.stamp?new Date(freshness.stamp).toLocaleString('en-GB',{timeZone:'America/New_York'})+' ET':'Unknown'}. Missing readings are shown as —.</p>
+          <button type="button" className="button" disabled={status==='loading'} onClick={onRetry}>Refresh snapshot</button>
+        </section>}
         <TickerBar readings={data?.tickers}/>
         <div className="tw:grid tw:gap-2 tw:lg:grid-cols-2">
           <Desk icon={Layers3} title="Swing Desk Scorecard" subtitle="Multi-day / weekly hold"

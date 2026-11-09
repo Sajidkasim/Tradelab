@@ -811,3 +811,15 @@ def test_personal_trading_rules_persist_without_timezone_updates_erasing_them(lo
     assert client.put('/api/journal-preferences',json={'timezone':'Europe/London'}).json()['trading_rules'].startswith('Wait')
     assert client.put('/api/journal-preferences',json={'timezone':'Europe/London','trading_rules':'x'*12001}).status_code==422
     assert client.put('/api/journal-preferences',json={'timezone':'Europe/London','trading_rules':''}).json()['trading_rules']==''
+
+
+def test_only_hashed_build_assets_receive_immutable_cache(local):
+    client, app = local
+    import re
+    page=client.get('/')
+    asset=re.search(r'src="(/assets/[^"]+\.js)"',page.text)
+    assert asset
+    assert client.get(asset[1]).headers['cache-control']=='public, max-age=31536000, immutable'
+    assert page.headers['cache-control']=='no-store'
+    assert client.get('/api/session').headers['cache-control']=='no-store'
+    assert 'immutable' not in client.get('/assets/not-found.js').headers.get('cache-control','')

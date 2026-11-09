@@ -16,6 +16,9 @@ const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',ho
 export default function BacktestingSessions({theme,onThemeToggle}) {
  const [identity,setIdentity]=useState(null);
  const [opening,setOpening]=useState(false);
+ const openingTicket=useRef(0);
+ const [openingStage,setOpeningStage]=useState('Fetching saved session…');
+ const [retryOpening,setRetryOpening]=useState(0);
  const [renderedPanes,setRenderedPanes]=useState({});
  const reportReady=useCallback(id=>setRenderedPanes(panes=>panes[id]?panes:{...panes,[id]:true}),[]);
  const [splitPercent,setSplitPercent]=useState(50);
@@ -59,11 +62,15 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  latest.current={data:active,cursor};
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
  const list=useCallback(async()=>{setListing(await api('/backtesting/sessions'))},[]);
- async function opened(data){
+ async function opened(data,ticket=openingTicket.current){
+  if(ticket!==openingTicket.current)return;
+  setOpeningStage('Preparing replay history…');
   if(data.session.next_day&&data.session.last_cursor-data.session.cursor<3000){
    const reply=await api(`/backtesting/sessions/${data.session.id}/continue`,{method:'POST',body:{version:data.session.version,cursor:data.session.cursor,days:3}});data={...data,...reply};
   }
   await prepareReplayCharts(data.sample);
+  if(ticket!==openingTicket.current)return;
+  setOpeningStage('Preparing candle chart…');
   setRenderedPanes({});
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
@@ -71,10 +78,10 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}${new URLSearchParams(location.search).get('drawingDebug')==='1'?'&drawingDebug=1':''}`)
  }
  useEffect(()=>{
-  let alive=true;
-  (async()=>{const identity=await api('/session');setCsrf(identity.csrf);setIdentity(identity);if(!identity.authenticated)return;await list();const sid=new URLSearchParams(location.search).get('session');if(sid){const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)await opened(data)}})().catch(e=>{if(alive)setError(e.message)});
+  let alive=true;const ticket=++openingTicket.current;
+  (async()=>{const identity=await api('/session');setCsrf(identity.csrf);setIdentity(identity);if(!identity.authenticated)return;await list();const sid=new URLSearchParams(location.search).get('session');if(sid){setOpening(true);setOpeningStage('Fetching saved session…');const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)await opened(data,ticket)}})().catch(e=>{if(alive){setError(e.message);setOpening(false)}});
   return()=>{alive=false};
- },[list]);
+ },[list,retryOpening]);
  function enqueue(job){const task=queue.current.catch(()=>{}).then(job);queue.current=task;return task}
  const save=useCallback(()=>enqueue(async()=>{
   const {data,cursor:at}=latest.current;if(!data||at===data.session.cursor)return;
@@ -108,15 +115,15 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  function confirmDelete(items){setError('');setPurging(items);setPurgeName('')}
  async function purge(){setBusy(true);setError('');try{await api('/backtesting/sessions/delete',{method:'POST',body:{ids:purging.map(item=>item.id),confirmation:purgeName}});setPurging(null);setPurgeName('');setSelectedSessions([]);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function resume(id){setOpening(true);setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`))}catch(e){setError(e.message);setOpening(false)}finally{setBusy(false)}}
- async function create(event){event.preventDefault();setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function resume(id){const ticket=++openingTicket.current;setOpeningStage('Fetching saved session…');setOpening(true);setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`),ticket)}catch(e){setError(e.message);setOpening(false)}finally{setBusy(false)}}
+ async function create(event){event.preventDefault();const ticket=++openingTicket.current;setOpeningStage('Creating replay session…');setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data,ticket);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function newSession(){setError('');setBusy(true);try{const fresh=await api('/backtesting/sessions');setListing(fresh);setForm({name:'',day:fresh.history.sample_day,start_time:'13:30',instrument:'NQ',capital:50000,commission:fresh.history.instruments.find(x=>x.symbol==='NQ')?.commission??0.5,slippage:0})}catch(e){setError(e.message)}finally{setBusy(false)}}
  function change(field,value){setForm(f=>({...f,[field]:value}))}
  const initialChartsReady=Boolean(active&&renderedPanes.primary&&(!twoCharts||renderedPanes.secondary));
  useEffect(()=>{if(initialChartsReady)setOpening(false)},[initialChartsReady]);
  const loading=<div className="loading-screen pt-loading" role="status" aria-live="polite">
   <div className="pt-loading-logo"><img src={compassLogo} alt="Primus compass"/><span aria-hidden="true"/></div>
-  <h1>Primus Trader</h1><p>Opening your replay session…</p>
+  <h1>Primus Trader</h1><p>{openingStage}</p><small>Saved trades and drawings stay in your session.</small><button className="button" onClick={()=>{openingTicket.current++;setOpening(false);setActive(null);history.replaceState({},'','/backtesting');list().catch(e=>setError(e.message))}}>Back to sessions</button><button className="button" onClick={()=>location.reload()}>Retry opening session</button>
  </div>;
  if(identity&&!identity.authenticated)return <><PrimusHeader active="backtesting"/><Unlock workspace="backtesting" ready={Boolean(identity.csrf)} authMode={identity.auth_mode} onUnlocked={()=>location.reload()}/></>;
  if(opening&&!active)return loading;
@@ -139,7 +146,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
 
  return <div className="pt-site"><PrimusHeader active="backtesting" actions={<span className="bt-local-label">{identity?.local?'Local practice':'Private practice'}</span>}/><main className="pt-wrap bt-sessions-page">
   <div className="bt-sessions-heading"><div><span className="pt-overline">PRIMUS / BACKTESTING (BETA)</span><h1>Your practice desk.</h1><small>Backtesting (Beta)</small><p>Pick a starting day. Set your capital. Continue across trading days in the same session.</p></div><div className="settings-actions"><Feedback owner={identity?.owner===true}/><Button variant="primary" disabled={!listing||busy} onClick={newSession}><Plus size={17}/>New session</Button></div></div>
-  {error&&!form&&<Notice error>{error}</Notice>}{listing?.history.indexed_days&&<p className="bt-session-note">Available history · {listing.history.indexed_days.toLocaleString()} dates · {listing.history.first_day} to {listing.history.last_day}. Ready for your practice sessions.</p>}
+  {error&&!form&&<Notice error>{error} <Button onClick={()=>{setError('');setRetryOpening(n=>n+1)}}>Retry loading</Button></Notice>}{listing?.history.indexed_days&&<p className="bt-session-note">Available history · {listing.history.indexed_days.toLocaleString()} dates · {listing.history.first_day} to {listing.history.last_day}. Ready for your practice sessions.</p>}
   {!listing?<p role="status">Loading your sessions…</p>:listing.sessions.length===0?<div className="bt-session-empty"><FlaskConical size={32}/><h2>Your first session starts here.</h2><p>Use real NQ or ES candles with a separate practice balance.</p><Button variant="primary" onClick={newSession}>Create a session</Button></div>:<section className="bt-saved-sessions" aria-label="Saved backtesting sessions"><h2>Recent sessions <span>{listing.sessions.length}</span></h2>{listing.sessions.map(item=><article className="bt-session-card" key={item.id}><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedSessions.includes(item.id)} onChange={e=>setSelectedSessions(ids=>e.target.checked?[...ids,item.id]:ids.filter(id=>id!==item.id))}/><div className="bt-session-symbol">{item.instrument}</div><div className="bt-session-info"><h3>{item.name}</h3><p><CalendarDays size={13}/>{item.day} · {clock(item.clock)} UTC · {item.finished?'Completed':'In progress'}</p><small>{item.closed} closed trades · Starting capital {cash(item.capital)}</small></div><strong>{cash(item.equity)}</strong><Button disabled={busy} onClick={()=>resume(item.id)}><Play size={15}/>{item.finished?'View session':'Resume'}</Button><Button disabled={busy} aria-label={`Delete ${item.name}`} onClick={()=>confirmDelete([item])}><Trash2 size={16}/></Button></article>)}</section>}
   {Boolean(listing&&(listing.sessions.length||listing.deleted?.length))&&<div className="settings-actions"><Button disabled={busy||!selectedSessions.length} onClick={()=>confirmDelete(listing.sessions.filter(item=>selectedSessions.includes(item.id)))}>Delete selected ({selectedSessions.length})</Button><Button disabled={busy} onClick={()=>confirmDelete([...listing.sessions,...(listing.deleted||[])])}>Delete all sessions</Button></div>}
   {purging&&<Modal title="Permanently delete sessions?" onClose={()=>!busy&&setPurging(null)}><p>Delete {purging.length} session{purging.length===1?'':'s'} permanently, including drawings and session notes? Shared price history and trades already sent to Strategy Lab or Journal stay saved. This cannot be undone.</p><p>{purging.slice(0,5).map(item=>item.name).join(', ')}{purging.length>5?'…':''}</p><Field label={`Type DELETE ${purging.length} to confirm`}><input autoComplete="off" value={purgeName} onChange={e=>setPurgeName(e.target.value)}/></Field>{error&&<Notice error>{error}</Notice>}<div className="settings-actions"><Button busy={busy} disabled={purgeName!==`DELETE ${purging.length}`} onClick={purge}>Delete permanently</Button><Button disabled={busy} onClick={()=>setPurging(null)}>Cancel</Button></div></Modal>}

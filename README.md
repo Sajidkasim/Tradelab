@@ -145,3 +145,10 @@ Saved exceptions and Keep original tag only take precedence. All lists and mappi
 are private to the signed-in workspace. Missing tags mean not recorded; check the
 confirmation-review box only after reviewing. Financial results, original risk and
 recorded R are unchanged; new fixed-RR assumptions still require explicit approval.
+
+### Frontend performance checks
+
+See [PERFORMANCE.md](PERFORMANCE.md) for measured startup results, the read-only
+page audit, replay stability checks and the optional profiling switch. Run the
+browser tests against their disposable preview workspaces before releasing replay
+changes; they do not need to touch a personal journal or hosted trading session.

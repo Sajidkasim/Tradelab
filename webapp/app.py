@@ -88,6 +88,8 @@ def create_app(config: Settings | None = None):
             if oversized:
                 return JSONResponse({'detail': 'Password request is too large.'}, status_code=413)
         response = await call_next(request)
+        if request.url.path.startswith('/assets/') and response.status_code == 200:
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         if not request.url.path.startswith("/assets/"):
             response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"

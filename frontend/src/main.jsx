@@ -1,6 +1,6 @@
-import React from "react";
+import React, {lazy,Suspense} from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+const App=lazy(()=>import("./App"));
 import BullpenProvider from "./components/BullpenProvider";
 import SiteExperience, { sitePreview } from './SiteExperience';
 import "./theme.css";
@@ -29,8 +29,8 @@ class ErrorBoundary extends React.Component {
 }
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
-    <BullpenProvider>
+    <BullpenProvider><Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
       {sitePreview() && ['/', '/signin', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
-    </BullpenProvider>
+    </Suspense></BullpenProvider>
   </ErrorBoundary>,
 );

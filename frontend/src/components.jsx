@@ -209,7 +209,14 @@ export function Modal({ title, children, onClose, className = "", closable = tru
 export function Chart({ figure, height = 380 }) {
   const ref = useRef();
   const [error, setError] = useState("");
+  const [visible,setVisible]=useState(false),[attempt,setAttempt]=useState(0);
+  useEffect(()=>{
+    if(!('IntersectionObserver' in window)){setVisible(true);return}
+    const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setVisible(true);observer.disconnect()}},{rootMargin:'200px'});
+    if(ref.current)observer.observe(ref.current);return()=>observer.disconnect();
+  },[]);
   useEffect(() => {
+    if(!visible)return;
     const element = ref.current;
     let alive = true,
       plotly;
@@ -282,13 +289,14 @@ export function Chart({ figure, height = 380 }) {
       observer.disconnect();
       if (plotly && element) plotly.purge(element);
     };
-  }, [figure, height]);
+  }, [figure, height, visible, attempt]);
   return (
     <>
-      {error && <Notice error>{error}</Notice>}
+      {error && <Notice error>{error} <button className="button" onClick={()=>setAttempt(n=>n+1)}>Retry chart</button></Notice>}
       <div
         ref={ref}
         className="chart"
+        style={{minHeight:height}}
         role="img"
         aria-label="Equity and drawdown for the selected results sample"
       />

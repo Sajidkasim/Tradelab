@@ -1446,3 +1446,36 @@ Validation: 415 pytest (4 existing warnings), 95 Vitest, production build and
 3 browser checks passed: password sign-in destination, saved rules across reload
 with desktop/phone control sizing, and shared Beta badges. Local preview restarted
 at http://127.0.0.1:8133. No deployment or production Google login performed.
+
+## Performance and reliability pass — 9 November 2026
+
+Owner authorized all six follow-up areas: replay benchmarking/stability, loading
+recovery, asset weight, user journeys, Matrix freshness and UI consistency.
+See PERFORMANCE.md for measurements, scope, limitations and repeat commands.
+
+Added read-only tools/audit_frontend.mjs and a disposable-workspace replay browser
+benchmark. Main JS reduced from 431.5 KB to 338.5 KB through lazy Strategy Lab
+routing; Journal startup bytes reduced from ~929 KB to ~513 KB by viewport-gating
+Plotly while reserving chart height. Hashed build assets use immutable caching;
+HTML/private APIs remain no-store. No financial or Vela adapter changes.
+
+Replay opening now exposes stages/recovery and ignores cancelled opening results.
+Failed timeframe history is gated until explicit retry/new selection: the old
+finally/setMarketVersion cycle could automatically re-enter a failed request.
+A browser regression verifies requests stop on failure and one explicit retry
+recovers. Existing canvas/viewport, paging and streaming paths stay in place.
+
+Homepage offers authenticated return links to Journal, results and unfinished
+replay when enabled. Trading-rule drafts warn on unsaved navigation. Site/Journal
+buttons receive consistent touch sizing and focus indicators. Matrix distinguishes
+stored/stale/unknown-time snapshots, permits refresh, retains readings on error
+and avoids placeholder observation descriptions for absent real readings.
+
+Validation: 416 pytest passed (four existing warnings), 96 Vitest passed, production
+build passed. Fourteen browser checks passed including continuation with an open
+position, stationary zoom/paging, failed-history retry, responsive/dark layouts,
+auth destination and saved rules. On the final build, a separate 120-second replay
+soak plus seven workspace checks passed. Local read-only startup audit had no JS
+errors. Public deployed entry pages were measured read-only; no authenticated
+production replay test or deployment was performed. Local preview restarted on
+8133; all private report artifacts remain under ignored data/private.

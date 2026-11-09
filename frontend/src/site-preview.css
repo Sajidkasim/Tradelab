@@ -391,3 +391,10 @@
 }
 
 .pt-beta-badge{display:inline-flex;align-items:center;flex-shrink:0;margin-left:5px;padding:3px 6px;border:1px solid var(--pt-line);border-radius:4px;color:var(--pt-ink);background:var(--pt-paper);font-size:9px;font-weight:700;line-height:1;letter-spacing:.06em;text-transform:uppercase;vertical-align:middle}
+
+.pt-resume{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-top:32px;padding-bottom:32px;border-bottom:1px solid var(--pt-line)}
+.pt-resume h2{font-size:24px;margin:8px 0}.pt-resume p{color:var(--pt-muted);line-height:1.6}.pt-resume-actions{display:flex;flex-wrap:wrap;gap:12px}
+@media(max-width:760px){.pt-resume{align-items:flex-start;flex-direction:column}.pt-resume-actions{width:100%}.pt-resume-actions .pt-btn{min-height:44px}}
+
+.pt-site .pt-btn,.pt-journal .pt-btn{min-height:44px;box-sizing:border-box}
+.pt-site :is(.pt-btn,.button,summary):focus-visible,.pt-journal :is(.pt-btn,input,select,textarea,summary):focus-visible{outline:2px solid var(--pt-focus,var(--pt-ink));outline-offset:3px}

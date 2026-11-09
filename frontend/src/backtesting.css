@@ -176,3 +176,6 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-clock-footer .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 
 .bt-floating-favorites .bt-favorite-icon{display:inline-grid;place-items:center;width:36px;height:36px;padding:0;flex:none}
+
+.pt-loading .button{min-height:44px;margin:8px;padding:10px 16px}
+.pt-loading small{display:block;color:var(--pt-muted);max-width:32em;line-height:1.6}

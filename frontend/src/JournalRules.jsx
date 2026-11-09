@@ -5,6 +5,7 @@ export default function JournalRules({preferences,onSaved}){
  const saved=preferences?.trading_rules||'';
  const [draft,setDraft]=useState(saved),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  useEffect(()=>{setDraft(saved)},[saved]);
+ useEffect(()=>{if(draft===saved)return;const warn=e=>{e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[draft,saved]);
  async function save(e){
   e.preventDefault();setBusy(true);setError('');setMessage('');
   try{const value=await api('/journal-preferences',{method:'PUT',body:{timezone:preferences?.timezone||'America/New_York',trading_rules:draft}});onSaved(value);setMessage('Rules saved.')}catch(e){setError(e.message)}finally{setBusy(false)}

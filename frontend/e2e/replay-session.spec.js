@@ -777,3 +777,24 @@ test('replay chart runs without news controls or background news requests',async
  await expect(page.getByRole('complementary',{name:'Economic news',exact:true})).toHaveCount(0);
  expect(requests).toEqual([]);
 });
+
+test('failed timeframe history waits for explicit retry without a loading loop',async({page})=>{
+ let attempts=0,fail=true;
+ await page.route('**/chart-history?**',route=>{
+  if(new URL(route.request().url()).searchParams.get('timeframe')==='5'){
+   attempts++;if(fail)return route.fulfill({status:503,json:{detail:'History temporarily unavailable'}});
+  }
+  return route.continue();
+ });
+ await page.goto('http://127.0.0.1:8119/backtesting');
+ await page.getByRole('button',{name:'New session',exact:true}).click();
+ await page.getByLabel('Trading date',{exact:true}).fill('2023-09-12');
+ await page.getByRole('button',{name:'Open session',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.getByRole('group',{name:'Chart timeframe'}).getByRole('button',{name:'5m',exact:true}).click();
+ await expect(page.getByText('History temporarily unavailable',{exact:true})).toBeVisible();
+ const count=attempts;await page.waitForTimeout(1800);expect(attempts).toBe(count);
+ fail=false;await page.getByRole('button',{name:'Retry chart history',exact:true}).click();
+ await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await expect(page.getByRole('alert')).toHaveCount(0);expect(attempts).toBe(count+1);
+});
