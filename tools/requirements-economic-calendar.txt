@@ -1,0 +1,3 @@
+# Optional dependencies for tools/fetch_forexfactory_archive.py weekly collection.
+curl_cffi==0.17.0
+beautifulsoup4==4.15.0

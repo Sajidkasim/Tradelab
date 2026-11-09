@@ -1344,3 +1344,40 @@ responses show a retryable drawer error. The shared API reader also tolerates a
 null JSON payload before checking projection/detail. Actual values remain hidden
 for invalid replay clocks/timestamps. SSR mount tests cover missing dates even
 when the drawer is hidden. No backend, financial or viewport changes.
+
+## Historical calendar collector — 9 November 2026
+
+fetch_forexfactory_archive now treats naive archive timestamps as UTC and preserves
+explicit offsets before converting to New York. Tests prove 12:30 UTC becomes
+08:30 NY on 15 May 2024. The actual cached archive instead contains Core CPI at
+2024-05-15T00:00:00+04:30, which fails the unchanged pre-commit gate. No archive
+rows were inserted. Do not relabel that instant as 12:30 UTC without source evidence.
+
+The weekly collector uses optional dependencies in tools/requirements-economic-calendar.txt,
+curl_cffi chrome120, the requested fftimezone cookie and at least 1.5 seconds
+between requests. It caches validated weekly HTML with URL/SHA256 provenance,
+inherits within-day times, converts epoch timestamps directly, and requires a
+confirmed New York timezone before accepting wall-clock-only rows. Missing pages,
+challenge responses and ambiguous timestamps fail before the single atomic import.
+Only USD/EUR/GBP High/Medium events are imported, with repeat-safe conflict ignoring.
+Default end date is 2026-10-31; --end accepts an ISO date. No synthetic padding.
+
+The real weekly probe returned HTTP 403 / Just a moment. Live parsing therefore
+remains unverified against an accessible server response; fixture tests are not
+proof of a completed historical backfill. No candle/trade/financial logic changes.
+
+## Full-history synthetic news fixtures — 9 November 2026
+
+Owner requested abandoning external ingestion and generating weekly US schedules.
+import_economic_calendar.py now exposes seed_full_history(db_path) and
+--seed-full-history for 2010-01-01 through 2026-12-31 inclusive. These are synthetic
+rules, not official releases: every generated title retains [DEMO], including
+future dates, holidays and randomly selected FOMC Wednesdays. Fixed per-year RNG
+seeds choose eight reproducible FOMC dates; qualitative statements have no invented
+numeric results. Other releases use static illustrative string values.
+
+Existing atomic conflict-safe import and America/New_York normalization preserve
+DST and epoch milliseconds. Inserted 2,318 events (1,431 High / 887 Medium); rerun
+inserted zero and ignored 2,318 duplicates. Local news endpoint for 2020-10-21
+returned HTTP 200 with generated inventories/FOMC and the existing verified UK CPI.
+No source candles, saved trades, financial calculations or deployment changes.

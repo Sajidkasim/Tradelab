@@ -8,9 +8,10 @@ import csv
 import io
 import json
 import re
+import random
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -100,6 +101,37 @@ def demo_rows():
     ):
         yield {'Date':'2015-05-15','Time':clock,'Currency':'USD','Impact':impact,'Event':'[DEMO] '+event,'Actual':actual,'Forecast':forecast,'Previous':previous}
 
+def full_history_rows():
+    """Synthetic schedule fixtures, NOT official dates or historical observations.
+
+    Fixed per-year RNG seeds keep repeated runs and FOMC choices reproducible.
+    Holidays and actual agency scheduling exceptions are intentionally not inferred.
+    """
+    for year in range(2010,2027):
+        start=date(year,1,1)
+        days=[start+timedelta(days=n) for n in range((date(year+1,1,1)-start).days)]
+        fomc=set(random.Random(year).sample([d for d in days if d.weekday()==2],8))
+        for day in days:
+            events=[]
+            if day.weekday()==3:
+                events.append(('08:30','High','Initial Jobless Claims','220K','225K','218K'))
+            if day.weekday()==4 and day.day<=7:
+                events.append(('08:30','High','Non-Farm Employment Change','180K','175K','165K'))
+            if day.weekday()==2:
+                if 8<=day.day<=14:
+                    events.append(('08:30','High','CPI m/m','0.2%','0.2%','0.3%'))
+                events.append(('10:30','Medium','Crude Oil Inventories','-1.2M','-0.8M','0.5M'))
+                if day in fomc:
+                    events.append(('14:00','High','FOMC Statement',None,None,None))
+            for clock,impact,event,actual,forecast,previous in events:
+                yield {'Date':day.isoformat(),'Time':clock,'Currency':'USD','Impact':impact,
+                       'Event':'[DEMO] '+event,'Actual':actual,'Forecast':forecast,'Previous':previous}
+
+def seed_full_history(db_path):
+    """Atomically insert labelled 2010–2026 fixtures without altering existing rows."""
+    if not Path(db_path).is_file():raise ValueError('Existing replay index required')
+    return import_rows(db_path,full_history_rows(),NY)
+
 def import_rows(path, rows, zone=NY, date_order='mdy'):
     normalized=[];skipped=Counter()
     for number,row in enumerate(rows,1):
@@ -139,6 +171,7 @@ def fetch_recent():
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     mode=parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--seed-full-history',action='store_true',help='Synthetic [DEMO] weekly US schedule for 2010–2026, not official history')
     mode.add_argument('--seed-demo',action='store_true',help='Insert explicitly synthetic [DEMO] fixtures on five historical dates')
     mode.add_argument('--csv',type=Path,help='Calendar CSV with Date, Time, Currency, Impact, Event and optional values')
     mode.add_argument('--fetch-recent',action='store_true',help='Fetch the public current-week ForexFactory JSON feed (not historical backfill)')
@@ -149,10 +182,10 @@ def main(argv=None):
     try:
         if not args.db.is_file():raise ValueError('Replay index does not exist; refusing to create a replacement archive')
         zone=ZoneInfo(args.timezone)
-        rows=list(demo_rows()) if args.seed_demo else csv_rows(args.csv) if args.csv else fetch_recent()
-        if args.seed_demo:print('DEMO ONLY: synthetic values and dates, not verified historical releases.')
-        print('Source timezone:', 'America/New_York (demo)' if args.seed_demo else args.timezone, '| stored timestamps: UTC milliseconds')
-        inserted,duplicates,skipped=import_rows(args.db,rows,NY if args.seed_demo else zone,args.date_order)
+        rows=list(full_history_rows()) if args.seed_full_history else list(demo_rows()) if args.seed_demo else csv_rows(args.csv) if args.csv else fetch_recent()
+        if args.seed_full_history or args.seed_demo:print('DEMO ONLY: synthetic values and dates, not verified historical releases.')
+        print('Source timezone:', 'America/New_York (demo)' if args.seed_full_history or args.seed_demo else args.timezone, '| stored timestamps: UTC milliseconds')
+        inserted,duplicates,skipped=seed_full_history(args.db) if args.seed_full_history else import_rows(args.db,rows,NY if args.seed_demo else zone,args.date_order)
         print(f'Inserted: {len(inserted)} | Duplicates ignored: {duplicates} | Untimed/non-economic skipped: {sum(skipped.values())}')
         print('Category       Inserted')
         for name,index in [('Currency',3),('Impact',4)]:
@@ -165,7 +198,7 @@ def main(argv=None):
             day=inserted[0][1] if inserted else None
             if day is None:
                 for row in rows:
-                    try:day=normalize(row,NY if args.seed_demo else zone,args.date_order)[1];break
+                    try:day=normalize(row,NY if args.seed_full_history or args.seed_demo else zone,args.date_order)[1];break
                     except UntimedEvent:continue
             if day:
                 print('Verification date:',day)

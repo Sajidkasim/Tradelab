@@ -70,3 +70,26 @@ def test_owner_supplied_2015_preview_releases_are_new_york_dst_normalized():
     assert [r[4] for r in events]==['Medium','High','High']
     assert [r[6:] for r in events]==[('3.1','5.0','-1.2'),('-0.3%','0.1%','-0.3%'),('88.6','95.8','95.9')]
     assert datetime.fromtimestamp(events[0][0]/1000,timezone.utc).strftime('%H:%M')=='12:30'
+
+def test_full_history_schedule_dst_and_repeat_safety(tmp_path):
+    from collections import Counter
+    from tools.import_economic_calendar import full_history_rows,seed_full_history
+    rows=list(full_history_rows())
+    assert rows==list(full_history_rows())
+    normalized=[normalize(r) for r in rows]
+    assert all(r[5].startswith('[DEMO] ') for r in normalized)
+    fomc=Counter(r[1][:4] for r in normalized if r[5]=='[DEMO] FOMC Statement')
+    assert fomc=={str(y):8 for y in range(2010,2027)}
+    assert len([r for r in normalized if r[5]=='[DEMO] CPI m/m'])==17*12
+    assert len([r for r in normalized if r[5]=='[DEMO] Non-Farm Employment Change'])==17*12
+    for day,hour in [('2024-01-04',13),('2024-07-04',12)]:
+        event=next(r for r in normalized if r[1]==day and 'Claims' in r[5])
+        assert datetime.fromtimestamp(event[0]/1000,timezone.utc).hour==hour
+    assert any(r[1:3]==('2020-10-21','10:30') for r in normalized)
+    path=tmp_path/'index.db'
+    with sqlite3.connect(path) as db:
+        db.executescript('CREATE TABLE bars(value); INSERT INTO bars VALUES(42);')
+    first,_,_=seed_full_history(path)
+    again,duplicates,_=seed_full_history(path)
+    assert len(first)==len(rows) and not again and duplicates==len(rows)
+    with sqlite3.connect(path) as db:assert db.execute('SELECT * FROM bars').fetchall()==[(42,)]
