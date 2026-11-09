@@ -3,7 +3,7 @@ import { ArrowUpRight, ArrowRight, Compass, FlaskConical, NotebookPen, Menu as M
 import compass from '../../assets/primus-compass.png';
 import LearningTrail from './LearningTrail';
 import WorkspaceResume from './WorkspaceResume';
-import PrimeSignIn from './PrimeSignIn';
+import PrimusSignIn from './PrimusSignIn';
 import BetaBadge from './BetaBadge';
 import MatrixLoading from './MatrixLoading';
 import JournalPage from './JournalPage';
@@ -150,5 +150,5 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname==='/signin'?<PrimeSignIn/>:['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname==='/signin'?<PrimusSignIn/>:['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 const origin='http://127.0.0.1:8119';
-test('Prime Trader sign-in continues to the Journal instead of home',async({page})=>{
+test('Primus Trader sign-in continues to the Journal instead of home',async({page})=>{
  let authenticated=false;
  await page.route('**/api/session',async route=>{
   const response=await route.fetch();const body=await response.json();
@@ -10,7 +10,8 @@ test('Prime Trader sign-in continues to the Journal instead of home',async({page
  await page.goto(origin);
  await page.getByRole('link',{name:'Sign in',exact:false}).click();
  await expect(page).toHaveURL(origin+'/signin');
- await expect(page.getByRole('heading',{name:'Sign in to Prime Trader.'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:/Back to\s*your process/})).toBeVisible();
+ await expect(page).toHaveTitle('Sign in — Primus Trader');
  await page.getByLabel('Password',{exact:true}).fill('test');
  await page.getByRole('button',{name:'Continue',exact:true}).click();
  await expect(page).toHaveURL(origin+'/journal');
@@ -68,4 +69,25 @@ test('homepage offers a clear return to Journal replay and results',async({page}
  await expect(next).toBeVisible();
  await expect(next.getByRole('link',{name:'Today’s Journal'})).toHaveAttribute('href','/journal');
  await expect(next.getByRole('link',{name:'Review results'})).toHaveAttribute('href','/lab');
+});
+
+test('Primus Trader entrance has its own responsive design and recovers from Google errors',async({page},info)=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/api/session',async route=>{const response=await route.fetch();const body=await response.json();await route.fulfill({json:{...body,authenticated:false,auth_mode:'google'}})});
+ await page.route('**/api/login/google?**',route=>{expect(new URL(route.request().url()).searchParams.get('return_to')).toBe('/journal');return route.fulfill({status:503,json:{detail:'Sign-in is temporarily unavailable. Please try again.'}})});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.goto(origin+'/signin');
+ await expect(page.getByRole('heading',{name:/Back to\s*your process/})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toBeEnabled();
+ await expect(page.locator('body')).not.toContainText('Prime Trader');
+ await expect(page.locator('.pt-entrance-paper')).toHaveCount(0);
+ for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:width===1440?1000:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath(`primus-signin-${width}.png`),fullPage:true});
+ }
+ await page.getByRole('button',{name:'Continue with Google',exact:true}).click();
+ await expect(page.getByRole('alert')).toContainText('Sign-in is temporarily unavailable');
+ await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toBeEnabled();
+ expect(errors).toEqual([]);
 });

@@ -1500,3 +1500,23 @@ operator follow-up if password provider is enabled. No secret values printed.
 420 pytest (four existing warnings), 96 frontend tests, production build and
 three browser auth/upload/theme checks passed. Local preview restarted; no deploy,
 production configuration, market data, saved trades or financial formulas changed.
+
+## Dedicated Primus Trader entrance — 9 November 2026
+
+Owner corrected the Prime Trader misspelling and requested a distinctive trading
+entrance rather than the Journal's reused sign-in template. /signin now renders
+PrimusSignIn with its own scoped CSS, forest-green market study, original inline
+SVG candles, editorial typography and cream access panel. Replaced PrimeSignIn;
+removed the incorrect name from active frontend UI. Journal/Lab Unlock pages keep
+their existing layouts. No raster generation, heavy chart library or third-party
+visual request is added by this design.
+
+Existing /session, CSRF, /unlock and Google PKCE endpoints are unchanged. Google
+requests explicitly return_to=/journal; password success and authenticated visitors
+also continue there. Loading, password visibility, disabled submission, recoverable
+errors, privacy/activity disclosure, reduced motion and narrow phone layouts are
+supported. No provider auth or permission changes; no deployment.
+
+Validation: build and 96 frontend tests passed. Browser checks cover password
+continuation, Google error recovery/return destination, correct branding and
+screenshots at 1440, 390 and 320px with no horizontal overflow or JS errors.

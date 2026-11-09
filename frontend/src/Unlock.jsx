@@ -123,7 +123,7 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
         <section className="login-story" aria-labelledby="login-story-title">
           <header className="login-brand">
             <img src={compass} alt="Primus" width="116" height="116" />
-            <span>{prime?"PRIME TRADER":workspace==='journal'?"THE DAILY PRACTICE":"THE TRADING LAB"}</span>
+            <span>{prime?"PRIMUS TRADER":workspace==='journal'?"THE DAILY PRACTICE":"THE TRADING LAB"}</span>
           </header>
           <div className="login-story-copy">
             <span className="login-kicker">OBSERVE. RECORD. REFINE.</span>
@@ -142,12 +142,12 @@ export default function Unlock({ ready, onUnlocked, authMode = "password", works
         </section>
         <section className="login-panel" aria-labelledby="login-title">
           <div className="login-panel-top">
-            <span>{prime?"PRIME TRADER":"PRIMUSLAB"}</span>
+            <span>{prime?"PRIMUS TRADER":"PRIMUSLAB"}</span>
             <LockKeyhole size={16} aria-hidden="true" />
           </div>
           <form className="login-form" onSubmit={submit}>
             <span className="login-kicker">YOUR PRIVATE WORKSPACE</span>
-            <h1 id="login-title">{prime?"Sign in to Prime Trader.":workspace?`Sign in to your ${workspace==='journal'?'Journal':workspace==='backtesting'?'Backtesting':'Strategy Lab'}.`:"Welcome back."}</h1>
+            <h1 id="login-title">{prime?"Sign in to Primus Trader.":workspace?`Sign in to your ${workspace==='journal'?'Journal':workspace==='backtesting'?'Backtesting':'Strategy Lab'}.`:"Welcome back."}</h1>
             <p>{workspace?"One Google sign-in. Your Journal and Strategy Lab, together and private.":"Your trades. Your research. Your next discovery."}</p>
             {!google && <div className="login-password-field">
               <label htmlFor="journal-password">{prime?"Password":"Lab password"}</label>
