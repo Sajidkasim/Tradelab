@@ -1320,3 +1320,14 @@ from the separately verified historical import. DST conversion yields 12:30,
 13:15 and 14:00 UTC, stored as epoch milliseconds. Local API returned all three;
 browser verified 2/3/3 active impact bars and displayed NY times. 428 pytest and
 98 frontend checks passed (4 existing Python warnings). No deployment.
+
+## News calendar-date alignment — 9 November 2026
+
+News dates now use the active candle's full New York civil date, including year,
+without the futures 17:00 session-date increment. Chart daily/session aggregation
+is unchanged. The drawer labels the year and uses a cursor-keyed manual selection,
+so changing replay dates cannot issue a stale selected-day request before an effect
+resets state. The existing local API uses a bound date_ny parameter, ordered by
+UTC timestamp and id, and returned 200 with the three seeded 2015-05-15 fixtures.
+The fixtures remain local SQLite data, not part of a hosted deployment. Unit tests
+cover 2015 dates after 17:00 and near midnight; frontend assets were rebuilt.

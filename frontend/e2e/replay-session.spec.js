@@ -790,7 +790,9 @@ test('2015 preview news displays the three seeded releases and correct impact ba
  await page.goto('http://127.0.0.1:8119/backtesting');await page.getByRole('button',{name:'New session',exact:true}).click();
  await page.getByLabel('Trading date',{exact:true}).fill('2015-05-15');await page.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ const requested=page.waitForRequest(r=>r.url().includes('/api/replay/news?'));
  await page.getByRole('button',{name:'Economic news',exact:true}).click();
+ expect(new URL((await requested).url()).searchParams.get('date')).toBe('2015-05-15');
  const drawer=page.getByRole('complementary',{name:'Economic news',exact:true});
  await expect(drawer.getByText('[DEMO] Empire State Manufacturing Index',{exact:true})).toBeVisible();
  await expect(drawer.locator('.rn-event')).toHaveCount(3);

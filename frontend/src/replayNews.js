@@ -1,8 +1,6 @@
 import {clockParts} from './replayClock';
 export function replayNewsDay(time){
- const p=clockParts(time,'America/New_York');
- const d=new Date(p.day+'T12:00:00Z');if(p.minutes>=17*60)d.setUTCDate(d.getUTCDate()+1);
- return d.toISOString().slice(0,10);
+ return clockParts(time,'America/New_York').day;
 }
 export function newsWeek(day){
  const date=new Date(day+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-(date.getUTCDay()+6)%7);
