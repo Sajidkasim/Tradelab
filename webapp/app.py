@@ -31,6 +31,7 @@ from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink, FeedbackInput
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
+from .request_limits import RequestLimits
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 from .google_access import LoginError, AccountBlocked
 
@@ -63,6 +64,7 @@ def create_app(config: Settings | None = None):
     app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=3)
     app.add_middleware(SessionMiddleware, secret_key=config.secret, session_cookie="primus_session",
                        max_age=SESSION_SECONDS, same_site="lax", https_only=not config.local)
+    app.add_middleware(RequestLimits)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @app.middleware("http")
@@ -95,6 +97,8 @@ def create_app(config: Settings | None = None):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer" if request.url.path.startswith('/auth/') else "same-origin"
         response.headers["X-Frame-Options"] = "DENY"
+        response.headers['Content-Security-Policy'] = "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        if not config.local:response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         return response
 
     @app.exception_handler(RequestValidationError)
@@ -865,7 +869,10 @@ def create_app(config: Settings | None = None):
                           remember_profile: bool = Form(False), study_id: str = Form(''), member=Depends(workspace)):
         if action not in ("preview", "confirm"):
             raise HTTPException(404)
-        content = await file.read(imports.MAX_UPLOAD + 1)
+        try:
+            content = await file.read(imports.MAX_UPLOAD + 1)
+        finally:
+            await file.close()
         if len(content) > imports.MAX_UPLOAD:
             raise HTTPException(413, "Choose a file smaller than 5 MB.")
         filename = file.filename or "trades.csv"
@@ -924,14 +931,18 @@ def create_app(config: Settings | None = None):
             content, media, name = database.export_json(), "application/json", "primuslab-backup.json"
         elif kind == "csv":
             # Complete label/notes history in UTC; screenshots remain separate files.
-            content, media, name = database.trades_df(sources=SCOPES["All"]).drop(columns=["screenshot_path"], errors="ignore").to_csv(index=False), "text/csv", "primuslab-trades.csv"
+            from .csv_security import safe_cell
+            content, media, name = database.trades_df(sources=SCOPES["All"]).drop(columns=["screenshot_path"], errors="ignore").map(safe_cell).to_csv(index=False), "text/csv", "primuslab-trades.csv"
         else:
             raise HTTPException(404)
         return Response(content, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.post("/api/restore")
     async def restore(request: Request, file: UploadFile = File(...), member=Depends(workspace)):
-        content = await file.read(imports.MAX_UPLOAD + 1)
+        try:
+            content = await file.read(imports.MAX_UPLOAD + 1)
+        finally:
+            await file.close()
         if len(content) > imports.MAX_UPLOAD:
             raise HTTPException(413, "Choose a backup smaller than 5 MB.")
         def operation():

@@ -1479,3 +1479,24 @@ soak plus seven workspace checks passed. Local read-only startup audit had no JS
 errors. Public deployed entry pages were measured read-only; no authenticated
 production replay test or deployment was performed. Local preview restarted on
 8133; all private report artifacts remain under ignored data/private.
+
+## Security review and fixes — 9 November 2026
+
+See SECURITY_AUDIT.md for scope, findings, live read-only database checks and
+remaining limits. Added actual-byte ASGI request limits before JSON/multipart
+parsing (login 8 KiB, other writes 9 MiB, spooled after 1 MiB). Existing per-file
+limits remain. Import/restore files close in finally. CSV formula-like text is
+escaped only in downloads; saved data and numeric financial values are unchanged.
+Added object/base/frame/form CSP restrictions and hosted-only HSTS without a
+script policy that would break chart/video features.
+
+Pillow 12.3 dependency audit findings were fixed by requiring/installing >=13,<14.
+Other dependencies and the pinned Vela adapter were not updated. npm and Python
+audit scans are clean after the patch; pip check passes. Supabase checks were
+read-only: private table anon/authenticated access absent; macro_scorecard SELECT
+only; no policies/grants changed. Leaked-password protection warning remains an
+operator follow-up if password provider is enabled. No secret values printed.
+
+420 pytest (four existing warnings), 96 frontend tests, production build and
+three browser auth/upload/theme checks passed. Local preview restarted; no deploy,
+production configuration, market data, saved trades or financial formulas changed.

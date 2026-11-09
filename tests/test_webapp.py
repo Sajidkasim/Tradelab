@@ -823,3 +823,22 @@ def test_only_hashed_build_assets_receive_immutable_cache(local):
     assert page.headers['cache-control']=='no-store'
     assert client.get('/api/session').headers['cache-control']=='no-store'
     assert 'immutable' not in client.get('/assets/not-found.js').headers.get('cache-control','')
+
+
+def test_csv_download_neutralizes_formulas_without_changing_saved_notes(local):
+    import csv,io
+    client, app = local
+    payload={**trade_payload(), 'notes':'=HYPERLINK("https://example.invalid","open")'}
+    assert client.post('/api/trades',json=payload).status_code==200
+    exported=list(csv.DictReader(io.StringIO(client.get('/api/export/csv').text)))
+    assert exported[0]['notes'].startswith("'=HYPERLINK")
+    assert client.get('/api/trades').json()[0]['notes']==payload['notes']
+
+
+def test_security_headers_and_actual_chunked_login_limit(local):
+    client,app=local
+    response=client.get('/')
+    assert "object-src 'none'" in response.headers['content-security-policy']
+    assert 'strict-transport-security' not in response.headers
+    response=client.post('/api/unlock',content=iter([b'x'*5000,b'y'*5000]),headers={'Content-Type':'application/json'})
+    assert response.status_code==413
