@@ -57,3 +57,22 @@
   .bullpen-sidebar-left .bullpen-video{grid-column:2;grid-row:1}
   .bullpen-sidebar-left .bullpen-divider{left:calc(100% - 5px - (100% - 10px)*var(--bullpen-ratio,.7))}
 }
+
+.bullpen-workspace[hidden]{display:none}
+.bullpen-leave-note{margin:0;color:var(--tl-ink2);font-size:12px;line-height:1.5}
+.bullpen-workspace.is-minimised{min-height:0;height:0;display:block}
+.bullpen-workspace.is-minimised .bullpen-room-site-header{display:none}
+.bullpen-room.is-minimised{position:fixed;right:18px;bottom:18px;width:min(440px,calc(100vw - 28px));height:350px;max-height:80dvh;z-index:1500;background:var(--tl-page);border:1px solid var(--tl-border);border-radius:12px;box-shadow:0 12px 50px #0005;padding:8px;gap:6px;animation:none}
+.bullpen-room.is-minimised .bullpen-room-head{padding:8px;gap:8px;border-radius:7px}
+.bullpen-room.is-minimised .bullpen-room-head .pt-overline,.bullpen-room.is-minimised .bullpen-people,.bullpen-room.is-minimised .bullpen-move-sidebar,.bullpen-room.is-minimised>.bullpen-tabs,.bullpen-room.is-minimised .bullpen-divider,.bullpen-room.is-minimised .bullpen-side{display:none}
+.bullpen-room.is-minimised .bullpen-room-head h1{font-size:13px;letter-spacing:normal;line-height:1.3;margin:0}
+.bullpen-room.is-minimised .bullpen-room-head .button{padding:7px 9px;min-height:36px;font-size:11px}
+.bullpen-room.is-minimised .bullpen-split{display:block;min-height:0;height:100%;flex:1}
+.bullpen-room.is-minimised .bullpen-video{height:100%;width:100%}
+.bullpen-room.is-minimised .bullpen-call-frame{height:100%}
+.bullpen-room.is-minimised .bullpen-leave-note{font-size:10px;padding:0 3px}
+@media(max-width:500px){.bullpen-room.is-minimised{right:10px;bottom:10px;height:310px}.bullpen-room.is-minimised .bullpen-room-head{gap:5px}}
+.bullpen-browse{display:flex;align-items:center;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--tl-ink2)}
+.bullpen-browse a{color:var(--tl-ink);text-decoration:underline;text-underline-offset:3px}
+.bullpen-room.is-minimised .bullpen-browse{font-size:10px;gap:9px;padding:2px 3px}
+.bullpen-room.is-minimised .bullpen-browse>span{display:none}

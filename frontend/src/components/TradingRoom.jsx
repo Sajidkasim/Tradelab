@@ -58,7 +58,7 @@ function readDeskLayout(name){
   }catch{return {split:70,sidebarLeft:false}}
 }
 
-export default function TradingRoom({meeting, onLeave}) {
+export default function TradingRoom({meeting, onLeave, minimised=false, onMinimise, onRestore}) {
   const {access,connected,people,messages,reaction,error,setInCall,send}=useBullpen();
   const [tab,setTab]=useState('chat');
   const [view,setView]=useState('call');
@@ -121,14 +121,17 @@ export default function TradingRoom({meeting, onLeave}) {
     }finally{setSending(false)}
   }
 
-  return <section className="bullpen-room" aria-label="Live Trading Bullpen">
+  return <section className={minimised?"bullpen-room is-minimised":"bullpen-room"} aria-label="Live Trading Bullpen">
     <header className="bullpen-room-head">
       <div><span className="pt-overline">PRIMUS TEAM ROOM</span><h1>Live Trading Floor</h1></div>
       {joined&&<span className="bullpen-live">LIVE</span>}
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
-      <Button onClick={()=>setSidebarLeft(value=>!value)}>Move sidebar {sidebarLeft?'right':'left'}</Button>
+      {onMinimise&&<Button onClick={()=>{if(minimised)onRestore();else{setView('call');onMinimise()}}}>{minimised?'Restore call':'Minimise call'}</Button>}
+      <Button className="bullpen-move-sidebar" onClick={()=>setSidebarLeft(value=>!value)}>Move sidebar {sidebarLeft?'right':'left'}</Button>
       <Button onClick={onLeave}>Leave Call</Button>
     </header>
+    <nav className="bullpen-browse" aria-label="Workspace links during call"><span>Keep the call open:</span>{[['/journal','Journal'],['/lab','Strategy Lab'],['/backtesting','Backtesting']].map(([path,label])=><a key={path} href={path} target="_blank" rel="noopener noreferrer">{label} ↗</a>)}</nav>
+    <p className="bullpen-leave-note">Leaving or refreshing this page ends the call. Your browser will ask you to confirm.</p>
     <div className="bullpen-tabs" role="group" aria-label="Main panel">
       <button type="button" aria-pressed={view==='call'} onClick={()=>setView('call')}>Call</button>
       <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>Chart</button>

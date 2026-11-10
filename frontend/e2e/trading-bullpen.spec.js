@@ -1,11 +1,12 @@
 import {expect,test} from '@playwright/test';
 
-test('private Bullpen joins, shares presence and chat, and disposes the video on leave',async({page})=>{
+test('private Bullpen joins, shares presence and chat, and disposes the video on leave',async({page},info)=>{
   const token='e30.eyJleHAiOjQxMDI0NDQ4MDB9.fake';
   await page.route('**/api/session',route=>route.fulfill({json:{
     authenticated:true,auth_mode:'google',csrf:'test-csrf',
   }}));
-  await page.route('**/api/bullpen*',route=>{
+  await page.route('**/api/bullpen**',route=>{
+    if(new URL(route.request().url()).pathname.endsWith('/macro-feed'))return route.fulfill({json:{items:[],stale:false}});
     const join=new URL(route.request().url()).searchParams.has('join');
     expect(route.request().headers()['x-primus-csrf']).toBe('test-csrf');
     return route.fulfill({json:{
@@ -72,9 +73,30 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.getByRole('log')).toContainText('Watching the open.');
   await page.getByRole('button',{name:'Trade Feed'}).click();
-  await expect(page.getByLabel('Trade feed',{exact:true})).toContainText('No trade feed');
+  await expect(page.getByLabel('Macro trade feed',{exact:true})).toContainText('No headlines match');
+  await page.getByTitle('Test video room').evaluate(frame=>{window.originalBullpenFrame=frame});
+  await page.getByRole('button',{name:'Minimise call',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Learn',exact:true})).toBeVisible();
+  await expect(page.locator('.bullpen-room.is-minimised')).toBeVisible();
+  expect(await page.getByTitle('Test video room').evaluate(frame=>frame===window.originalBullpenFrame)).toBe(true);
+  expect(await page.evaluate(()=>window.testDisposed)).not.toBe(true);
+  await page.setViewportSize({width:390,height:844});
+  const bounds=await page.locator('.bullpen-room.is-minimised').boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(390);
+  await page.setViewportSize({width:1440,height:1000});
+  await expect(page.getByRole('navigation',{name:'Workspace links during call'}).getByRole('link',{name:'Journal'})).toHaveAttribute('target','_blank');
+  await page.screenshot({path:info.outputPath('bullpen-minimised.png')});
+  const dialogPromise=page.waitForEvent('dialog');
+  const click=page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
+  const warning=await dialogPromise;expect(warning.type()).toBe('beforeunload');await warning.dismiss();await click;
+  expect(new URL(page.url()).pathname).toBe('/learn');
+  expect(await page.evaluate(()=>window.testDisposed)).not.toBe(true);
+  await page.getByRole('button',{name:'Restore call',exact:true}).click();
+  await expect(page.locator('.bullpen-room.is-minimised')).toHaveCount(0);
+  expect(await page.getByTitle('Test video room').evaluate(frame=>frame===window.originalBullpenFrame)).toBe(true);
   await page.getByRole('button',{name:'Leave Call'}).click();
   await expect(page.getByRole('heading',{name:'Learn',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>window.testDisposed)).toBe(true);
+  expect(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented})).toBe(false);
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toHaveCount(0);
 });

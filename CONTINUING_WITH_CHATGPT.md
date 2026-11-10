@@ -1541,3 +1541,18 @@ Validation: 421 pytest (four existing warnings), 96 frontend tests, build and si
 auth/design browser checks passed. Desktop and 390/320px phone screenshots were
 reviewed, with distinct illustrations and no overflow. Preview safety is checked
 separately. Restarted local 8133; no push or deployment.
+
+
+## Bullpen call minimise and navigation protection — 10 November 2026
+
+LearnPage keeps the same TradingRoom/JaaS iframe mounted when minimised or
+restored. The compact fixed panel includes Restore/Leave and workspace links
+opening Journal, Lab and Backtesting in new tabs. Full document navigation
+still ends a call; beforeunload requests the native browser warning while a
+meeting is active and is removed on Leave. Switching browser tabs is safe.
+This does not implement persistent calls across same-tab page reloads.
+
+Validation: 96 frontend tests, production build and Bullpen browser regression
+passed. The browser check mocks JaaS, verifies iframe identity on minimise and
+restore, mobile panel bounds, dismissing a real beforeunload dialog and cleanup
+on Leave. No live multi-user conference was used; no deployment or push.

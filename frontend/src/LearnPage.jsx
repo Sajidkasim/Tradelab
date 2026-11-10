@@ -1,4 +1,4 @@
-import React, {lazy, Suspense, useState} from 'react';
+import React, {lazy, Suspense, useEffect, useState} from 'react';
 import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
 import {PrimusHeader} from './SiteExperience';
@@ -15,12 +15,22 @@ export default function LearnPage() {
   const {identity}=useIdentity();
   const bullpen=useBullpen();
   const [meeting,setMeeting]=useState(null);
+  const [minimised,setMinimised]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const access=bullpen?.access;
   const isRoomActive=Boolean(meeting&&access?.configured);
 
+  useEffect(()=>{
+    if(!isRoomActive)return;
+    const warn=event=>{event.preventDefault();event.returnValue=''};
+    window.addEventListener('beforeunload',warn);
+    return()=>window.removeEventListener('beforeunload',warn);
+  },[isRoomActive]);
+
   async function join(){
+    if(isRoomActive){setMinimised(false);return}
+    setMinimised(false);
     setBusy(true);
     setError('');
     try{
@@ -31,21 +41,24 @@ export default function LearnPage() {
     finally{setBusy(false)}
   }
 
-  if(isRoomActive)return <div className="pt-site bullpen-workspace">
-    <PrimusHeader active="learn"/>
-    <Suspense fallback={<p role="status">Opening the Bullpen…</p>}>
-      <TradingRoom meeting={meeting} onLeave={()=>setMeeting(null)}/>
-    </Suspense>
-  </div>;
+  function leave(){setMeeting(null);setMinimised(false)}
 
-  return <WorkspacePage active="learn" kicker="THE PRIMUS LIBRARY" title="Learn"
+  return <>
+   <div className={`pt-site bullpen-workspace${minimised?' is-minimised':''}`} hidden={!isRoomActive}>
+    <div className="bullpen-room-site-header"><PrimusHeader active="learn"/></div>
+    {isRoomActive&&<Suspense fallback={<p role="status">Opening the Bullpen…</p>}>
+      <TradingRoom meeting={meeting} onLeave={leave} minimised={minimised} onMinimise={()=>setMinimised(true)} onRestore={()=>setMinimised(false)}/>
+    </Suspense>}
+   </div>
+   <div hidden={isRoomActive&&!minimised}>
+   <WorkspacePage active="learn" kicker="THE PRIMUS LIBRARY" title="Learn"
     intro="Take an idea from understanding to practice. Start with the basics, find the words, then explore videos and guides from the Primus team.">
     {access&&<section className="wp-panel bullpen-entry">
       <div><span className="pt-overline">TEAM WORKSPACE</span><h2>Live Trading Bullpen</h2>
         <p>{access.configured?'Share your screen, discuss setups and follow the session together.':'JaaS video or private team chat still needs to be configured.'}</p>
       </div>
       <Button variant="primary" busy={busy} disabled={!access.configured||!bullpen.connected} onClick={join}>
-        <Radio size={17}/> Join Live Trading Floor
+        <Radio size={17}/> {isRoomActive?'Restore Live Trading Floor':'Join Live Trading Floor'}
       </Button>
       {access.configured&&!bullpen.connected&&<p role="status">Connecting private chat…</p>}
       {error&&<Notice error>{error}</Notice>}
@@ -58,5 +71,6 @@ export default function LearnPage() {
       <a href="/backtesting">Practise in Backtesting ↗</a><a href="/lab">Explore your results ↗</a>
       <a href="/journal">Reflect in your Journal ↗</a>
     </section>
-  </WorkspacePage>;
+  </WorkspacePage>
+  </div></>;
 }
