@@ -12,7 +12,7 @@ const BrainExplorer = lazy(() => import('./BrainExplorer'));
 const MindsetWarmUp = lazy(() => import('./MindsetWarmUp'));
 const PREVIEW_STEPS = [
   {name:'Breathwork', time:'2 min', text:'Choose a rhythm and follow the breath.'},
-  {name:'Brain Sharpener', time:'1 min', text:'Decide whether to take, wait or pass, or test your pattern recall.'},
+  {name:'Focus Games', time:'1 min', text:'Recall a pattern or spot a matching symbol.'},
   {name:'Affirmation', time:'At your pace', text:'Settle on the rule you’ll take into the session.'},
 ];
 function WarmUpHero({state, highScore, onStart}) {
@@ -39,7 +39,7 @@ function WarmUpHero({state, highScore, onStart}) {
       </div>
       <div key={step.name} className={`mw-preview-scene mw-preview-scene-${preview}`} aria-hidden="true">
         {preview===0 ? [.32,.5,.7,.93,.7,.5,.32].map((height, index) => <i key={index} style={{'--preview-height':height,'--preview-delay':`${index*.12}s`}}/>)
-          : preview===1 ? [.64,.46,.34,.57,.77,.92].map((height,index) => <i key={index} style={{'--preview-height':height,'--preview-delay':`${index*.12}s`}}/>)
+          : preview===1 ? Array.from({length:16}, (_, index) => <i key={index} className={[1,6,8,15].includes(index) ? 'lit' : undefined}/>)
           : <span>Wait for confirmation.</span>}
       </div>
       <div className="mw-preview-caption" aria-live="polite"><span>{step.text}</span><strong>{step.time}</strong></div>
@@ -105,7 +105,7 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
   </form>;
 }
 
-function PrivateWarmUp() {
+function PrivateWarmUp({pinnedGoal}) {
   const [state, setState] = useState(null);
   const [highScore, setHighScore] = useState(null);
   const [error, setError] = useState('');
@@ -185,7 +185,7 @@ function PrivateWarmUp() {
     {!state&&!error&&<p role="status">Loading morning prep…</p>}
     {error&&<Notice error>{error}{!state&&<Button onClick={load}>Retry morning prep</Button>}</Notice>}
     {open&&state&&<Suspense fallback={<p role="status">Opening warm-up…</p>}>
-      <MindsetWarmUp day={state.day} savedAffirmation={state.affirmation} onClose={() => setOpen(false)} onScore={() => loadScore(state)} onComplete={value => {
+      <MindsetWarmUp pinnedGoal={pinnedGoal} day={state.day} savedAffirmation={state.affirmation} onClose={() => setOpen(false)} onScore={() => loadScore(state)} onComplete={value => {
         setState(current => ({...current, completed:value.completed, affirmation:value.affirmation ?? current.affirmation}));
         setOpen(false);
       }}/>
@@ -195,11 +195,13 @@ function PrivateWarmUp() {
 
 export default function MindsetPage() {
   const {identity, error, reload} = useIdentity();
+  const [goalSelection, setGoalSelection] = useState(null);
+  const pinnedGoal = goalSelection?.identity === identity ? goalSelection.goal : null;
   return <WorkspacePage active="mindset" title="Mindset" hideHeading>
-    {identity?.authenticated ? <PrivateWarmUp/> : <WarmUpHero/>}
+    {identity?.authenticated ? <PrivateWarmUp pinnedGoal={pinnedGoal}/> : <WarmUpHero/>}
     {error&&<Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity&&!error&&<p role="status">Checking your private workspace…</p>}
-    {identity?.authenticated ? <VisionBoard imagesEnabled={identity.images_enabled}/>
+    {identity?.authenticated ? <VisionBoard imagesEnabled={identity.images_enabled} onPinnedChange={goal => setGoalSelection({identity, goal})}/>
       : identity&&<SignInPanel identity={identity} path="/mindset" reload={reload} title="Sign in for your morning prep and vision board"/>}
     <ResourceLibrary section="mindset" identity={identity}/>
     <Suspense fallback={<p role="status">Opening Brain Explorer…</p>}><BrainExplorer/></Suspense>

@@ -215,3 +215,63 @@ def test_aura_opening_uses_private_results_and_checks_actual_limits(draft, monke
     client.post('/api/logout')
     login(client, identity, 'friend@example.com', 'friend-sub')
     assert 'Before you look at a chart' in client.get(endpoint).json()['text']
+
+
+@pytest.mark.parametrize('difficulty, grid_size, pattern_size', [('easy', 4, 4), ('hard', 5, 5)])
+def test_focus_game_rounds_and_scores(difficulty, grid_size, pattern_size):
+    memory = mindset.make_rounds('memory', Random(5), difficulty=difficulty)
+    assert len(memory) == 6
+    assert all(row['grid_size'] == grid_size and len(row['cells']) == pattern_size for row in memory)
+    answers = [mindset.DrillResponse(round=i, cells=row['cells']) for i, row in enumerate(memory)]
+    assert mindset.score_drill('memory', memory, answers) == 60
+
+    search = mindset.make_rounds('search', Random(8), difficulty=difficulty)
+    assert len(search) == 6
+    assert all(len(row['symbols']) == grid_size ** 2 and row['symbols'].count(row['target']) == 1 for row in search)
+    matches = [mindset.DrillResponse(round=i, cells=[row['symbols'].index(row['target'])])
+               for i, row in enumerate(search)]
+    assert mindset.score_drill('search', search, matches) == 60
+    wrong = (matches[0].cells[0] + 1) % (grid_size ** 2)
+    assert mindset.score_drill('search', search, [mindset.DrillResponse(round=0, cells=[wrong])]) == 0
+    with pytest.raises(ValueError, match='one tile'):
+        mindset.score_drill('search', search, [mindset.DrillResponse(round=0, cells=[0, 1])])
+
+
+def test_hard_search_attempt_scores_after_a_minute(draft, monkeypatch):
+    client, _, identity = draft
+    clock = [datetime(2026, 11, 12, 15, tzinfo=timezone.utc)]
+    monkeypatch.setattr(mindset, 'now_utc', lambda: clock[0])
+    login(client, identity)
+    start = {'day': '2026-11-12', 'mode': 'search', 'difficulty': 'hard'}
+    assert client.post('/api/mindset/drill', json={**start, 'difficulty': 'advanced'}).status_code == 422
+    attempt = client.post('/api/mindset/drill', json=start).json()
+    assert attempt['duration'] == 60
+    assert all(row['grid_size'] == 5 for row in attempt['rounds'])
+    first = attempt['rounds'][0]
+    answer = {'attempt_id': attempt['attempt_id'],
+              'responses': [{'round': 0, 'cells': [first['symbols'].index(first['target'])]}]}
+    clock[0] += timedelta(seconds=59)
+    assert client.post('/api/mindset/score', json=answer).status_code == 409
+    clock[0] += timedelta(seconds=1)
+    assert client.post('/api/mindset/score', json=answer).json() == {'score': 10, 'max_score': 60}
+
+
+def test_journal_checklist_uses_the_saved_date_and_template(draft, monkeypatch):
+    client, _, identity = draft
+    now = [datetime(2026, 11, 12, 15, tzinfo=timezone.utc)]
+    monkeypatch.setattr(mindset, 'now_utc', lambda: now[0])
+    path = '/api/mindset/checklist/2026-11-12'
+    assert client.get(path).status_code == 401
+    login(client, identity)
+    assert client.get(path).json()['items'] == []
+    payload = {'day':'2026-11-12', 'energy':'', 'headspace':'', 'checklist':['levels'],
+               'items':[{'id':'levels', 'label':'Mark my levels'}]}
+    assert client.put('/api/mindset/warmup', json=payload).status_code == 200
+    now[0] += timedelta(days=1)
+    assert client.put('/api/mindset/warmup', json={**payload, 'day':'2026-11-13', 'checklist':[],
+                       'items':[{'id':'levels', 'label':'Review my levels'}]}).status_code == 200
+    assert client.get(path).json() == {'day':'2026-11-12',
+                                      'items':[{'id':'levels', 'label':'Mark my levels', 'checked':True}]}
+    client.post('/api/logout')
+    login(client, identity, 'friend@example.com', 'friend-sub')
+    assert client.get(path).json()['items'] == []

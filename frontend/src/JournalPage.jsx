@@ -1,5 +1,5 @@
 import React, {useEffect,useRef,useState} from 'react';
-import {ArrowUpRight,CalendarDays,Check,ChevronLeft,ChevronRight,Download,LockKeyhole,NotebookPen,Save,X,Link2,Trash2,Undo2} from 'lucide-react';
+import {ArrowUpRight,CalendarDays,Check,ListChecks,ChevronLeft,ChevronRight,Download,LockKeyhole,NotebookPen,Save,X,Link2,Trash2,Undo2} from 'lucide-react';
 import {api,setCsrf} from './api';
 import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader,localSitePreview} from './SiteExperience';
@@ -29,6 +29,45 @@ const sections=[
 import JournalRules from './JournalRules';
 import JournalAccounts from "./JournalAccounts";
 import {AccountSelector, JournalEquity, accountResults, recordedTotal, tradeAccountIds} from "./JournalReview";
+
+function JournalPrep({day}) {
+  const [result, setResult] = useState(null);
+  useEffect(() => {
+    let controller;
+    const load = () => {
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      api(`/mindset/checklist/${day}`, {signal:request.signal})
+        .then((value) => { if (!request.signal.aborted) setResult(value); })
+        .catch(() => { if (!request.signal.aborted) setResult({day, failed:true}); });
+    };
+    const refresh = () => { if (!document.hidden) load(); };
+    load();
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      controller?.abort();
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [day]);
+  if (result?.day !== day) return null;
+  const items = result.items ?? [];
+  const checked = items.filter((item) => item.checked).length;
+  const complete = items.length > 0 && checked === items.length;
+  const status = result.failed ? 'Checklist unavailable' : complete ? 'Checklist complete'
+    : items.length ? `${checked} of ${items.length} complete` : 'No checklist saved';
+  return <aside className="pj-prep-summary" aria-label="Pre-session checklist">
+    <ListChecks size={19} aria-hidden="true"/>
+    <div>
+      <strong>Pre-session checklist</strong>
+      {items.length ? <details>
+        <summary className={complete ? 'is-complete' : undefined}>{status}</summary>
+        <ul>{items.map((item) => <li key={item.id}>{item.label} · {item.checked ? 'Done' : 'Open'}</li>)}</ul>
+      </details> : <p>{status}</p>}
+    </div>
+    <a href="/mindset">Open Mindset <ArrowUpRight size={14} aria-hidden="true"/></a>
+  </aside>;
+}
 
 export default function JournalPage({theme = "light"}){
   const today=ymd(new Date());
@@ -120,6 +159,7 @@ export default function JournalPage({theme = "light"}){
         </aside>
         <section className="pt-day-editor" aria-label="Daily journal editor">
           <div className="pt-day-heading"><div><span className="pt-overline">{day===today?'TODAY':dayDate(day).toLocaleDateString('en-GB',{weekday:'long'}).toUpperCase()}</span><h2>{niceDay(day)}</h2><p aria-label="Day profit and loss">{dirty?'Save entry to update the day’s P&L':dayResult?.net_pnl!=null?`Day P&L: ${money(dayResult.net_pnl)}`:hasDayTrades?'Day P&L incomplete · enter a result for every trade':account===null?'No trades recorded':'No trades recorded for this selection'}{entry.plan_followed&&<span> · Plan followed: {entry.plan_followed}</span>}</p></div><div><span className="pt-save-state" role="status">{dirty?'Unsaved changes':entry.updated_at?<><Check size={15}/> Saved</>:'A fresh page'}</span><button className="pt-btn pt-btn-dark" disabled={busy} onClick={save}><Save size={16}/>{busy?'Saving…':'Save entry'}</button><button className="pj-delete-entry" onClick={()=>setDeleting(true)} disabled={busy||(!entry.updated_at&&!dirty)} aria-label="Delete journal entry"><Trash2 size={17}/></button></div></div>
+          <JournalPrep day={day} key={day}/>
           {(error||notice)&&<div className="pj-day-feedback">{error&&<div className="pt-journal-error" role="alert">{error}</div>}{notice&&<div className="pt-journal-success" role="status">{notice}{undoId&&<button className="pj-undo" onClick={()=>restoreDay(undoId)} disabled={busy}><Undo2 size={15}/> Undo</button>}</div>}</div>}
           <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">{sections.map((item,index)=><button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section===item.id} onClick={()=>setSection(item.id)}><span>0{index+1}</span>{item.label}{entry[item.id]?.trim()&&<Check size={14}/>}</button>)}</div>
           <div className="pt-writing-area" role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}><span className="pt-overline">SESSION NOTES</span><h3>{current.title}</h3><p>{current.hint}</p><textarea aria-label={current.label} value={entry[section]} maxLength={section==='notes'?20000:12000} placeholder={current.placeholder} onChange={e=>edit(section,e.target.value)} disabled={busy}/><div className="pt-writing-footer"><span>{section==='lesson'?'Your review of the whole session. Trade-by-trade details go below.':'A few lines are enough. You can come back to this later.'}</span><span>{entry[section].length.toLocaleString()} characters</span></div></div>

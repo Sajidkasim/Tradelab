@@ -12,8 +12,19 @@ test('Learn publishes real authored content, searches and edits it without unsaf
 });
 test('Mindset private goals persist with uploaded images',async({page})=>{
  await page.goto(origin+'/mindset');
- await page.getByRole('button',{name:'Add a goal',exact:true}).click();const modal=page.getByRole('dialog',{name:'Add a goal',exact:true});await modal.getByRole('textbox',{name:'Goal or reminder',exact:true}).fill('Stay patient');await modal.getByRole('textbox',{name:'Personal notes',exact:true}).fill('A private reminder.');await modal.getByRole('button',{name:'Save goal',exact:true}).click();await expect(page.getByText('Goal saved privately.',{exact:true})).toBeVisible();await page.getByLabel('Image for Stay patient',{exact:true}).setInputFiles('../assets/primus-compass.png');await expect(page.getByRole('img',{name:'Image for Stay patient',exact:true})).toBeVisible();await page.reload();await expect(page.getByText('A private reminder.',{exact:true})).toBeVisible();
- page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove',exact:true}).click();await expect(page.getByText('Make space for what matters to you.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Your Anchor'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Add a goal',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('searchbox',{name:'Search resources'})).toHaveCount(0);
+ await page.getByRole('button',{name:'Add your first goal',exact:true}).click();const modal=page.getByRole('dialog',{name:'Add a goal',exact:true});await modal.getByRole('textbox',{name:'Goal or reminder',exact:true}).fill('Stay patient');await modal.getByRole('textbox',{name:'Personal notes',exact:true}).fill('A private reminder.');await modal.getByRole('button',{name:'Save goal',exact:true}).click();await expect(page.getByText('Goal saved privately.',{exact:true})).toBeVisible();await page.getByLabel('Image for Stay patient',{exact:true}).setInputFiles('../assets/primus-compass.png');await expect(page.getByRole('img',{name:'Image for Stay patient',exact:true})).toBeVisible();await page.reload();await expect(page.getByText('A private reminder.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Add a goal',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Pin for warm-up'}).click();
+ await expect(page.getByText('PINNED FOR WARM-UP')).toBeVisible();
+ await page.getByRole('button',{name:'Start Pre-Market Warm-Up'}).click();
+ const warmUp=page.getByRole('dialog',{name:'Pre-Market Warm-Up'});
+ await expect(warmUp).toContainText('Stay patient');
+ await warmUp.getByRole('button',{name:'Close'}).click();
+ page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Add your first goal'})).toBeVisible();
 });
 test('Market Lab uses prepared history, validates bounded runs and saves results',async({page})=>{
  await page.goto(origin+'/market-lab');await expect(page.getByRole('heading',{name:'Market Lab',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Run research test',exact:true})).toBeVisible();

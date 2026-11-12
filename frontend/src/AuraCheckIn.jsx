@@ -6,7 +6,7 @@ import {api} from './api';
 
 function AuraChat({onClose}) {
   const [draft, setDraft] = useState('');
-  const [opening, setOpening] = useState('');
+  const [opening, setOpening] = useState(null);
   const [turns, setTurns] = useState([]);
   const [dictationState, setDictationState] = useState('idle');
   const [busy, setBusy] = useState(false);
@@ -20,7 +20,7 @@ function AuraChat({onClose}) {
   useEffect(() => {
     const openingRequest = new AbortController();
     api('/mindset/check-in/opening', {signal: openingRequest.signal})
-      .then((result) => { if (!openingRequest.signal.aborted) setOpening(result.text); })
+      .then((result) => { if (!openingRequest.signal.aborted) setOpening(result); })
       .catch(() => {});
     function onVisibilityChange() {
       if (document.hidden) recognizer.current?.stop();
@@ -115,12 +115,18 @@ function AuraChat({onClose}) {
     idle: 'Dictate message', listening: 'Stop dictation', blocked: 'Microphone blocked', missed: 'Didn’t catch that',
   }[dictationState];
   return <Modal title="Aura" className="mw-modal mw-aura-modal" onClose={onClose}>
-    <div className="mw-aura-dialog">
+    <div className={`mw-aura-dialog ${turns.length ? '' : 'is-empty'}`}>
       <div className="mw-aura-thread" role="log" aria-label="Conversation" ref={timeline}>
-        <div className="mw-aura-message">
-          <span className="mw-aura-avatar" aria-hidden="true"><Sparkles size={17}/></span>
-          <p>{opening || 'What’s on your mind before you trade?'}</p>
-        </div>
+        <header className="mw-aura-opening">
+          <span className="mw-aura-avatar" aria-hidden="true"><Sparkles size={19}/></span>
+          <h3>Leave the last session at the door.</h3>
+          <p>{opening?.text || 'What’s on your mind before you trade?'}</p>
+          {!turns.length && <div className="mw-aura-suggestions" role="group" aria-label="Quick replies">
+            {(opening?.suggestions || ['I feel focused', 'I’m tempted to rush', 'Yesterday is still on my mind']).map((message) =>
+              <button key={message} type="button" disabled={busy || listening || Boolean(draft.trim())}
+                onClick={() => send(message)}>{message}</button>)}
+          </div>}
+        </header>
         {turns.map(({question, answer, failed}, index) => <React.Fragment key={index}>
           <div className="mw-aura-message is-user"><p>{question}</p></div>
           <div className="mw-aura-message">

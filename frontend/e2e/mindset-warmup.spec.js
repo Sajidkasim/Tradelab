@@ -26,7 +26,7 @@ async function warmup(page) {
   return dialog;
 }
 
-test('private morning prep persists and Take or Pass leads to a saved affirmation',async({page},info)=>{
+test('private morning prep persists and the warm-up leads to a saved affirmation',async({page},info)=>{
   await page.clock.install();
   await page.route('**/api/mindset/check-in/reflect', route => {
     const {step, reflection, history} = route.request().postDataJSON();
@@ -83,30 +83,20 @@ test('private morning prep persists and Take or Pass leads to a saved affirmatio
   await page.screenshot({path:info.outputPath('mindset-warmup-desktop.png')});
   await expect(page.getByRole('heading',{name:'Pre-Market Affirmation',exact:true})).toHaveCount(0);
   const dialog = await warmup(page);
-  const next = dialog.getByRole('button',{name:'Next: Brain Warm-Up'});
-  await expect(dialog.getByRole('button',{name:'Skip to Brain Warm-Up'})).toBeEnabled();
+  const next = dialog.getByRole('button',{name:'Next: Focus Games'});
+  await expect(dialog.getByRole('button',{name:'Skip to Focus Games'})).toBeEnabled();
   await page.clock.fastForward(4100);
   await expect(dialog.getByRole('status')).toHaveText('Hold');
   await dialog.getByRole('button',{name:'Pause',exact:true}).click();
   await page.clock.fastForward(125000);
   await expect(dialog.getByRole('status')).toHaveText('Paused');
-  await expect(dialog.getByRole('button',{name:'Skip to Brain Warm-Up'})).toBeEnabled();
+  await expect(dialog.getByRole('button',{name:'Skip to Focus Games'})).toBeEnabled();
   await dialog.getByRole('button',{name:'Resume',exact:true}).click();
   await page.clock.fastForward(120000);
   await next.click();
-  await expect(dialog.getByText('Scenario 1 of 6')).toBeVisible();
-  const chart = dialog.getByRole('img',{name:/Marked low/});
-  await expect(chart).not.toHaveAttribute('aria-label',/Candle 4/);
-  const choices = dialog.getByRole('group',{name:'Your decision'});
-  const answers = ['Wait','Take','Pass','Pass','Wait','Pass'];
-  for (const [index, answer] of answers.entries()) {
-    await choices.getByRole('button',{name:answer,exact:true}).click();
-    await expect(dialog.getByText('Matches the rule',{exact:true})).toBeVisible();
-    if(index===0) await expect(chart).toHaveAttribute('aria-label',/Candle 4/);
-    await dialog.getByRole('button',{name:index===5?'See practice score':'Next scenario',exact:true}).click();
-  }
-  await expect(dialog.getByText('6 / 6 decisions matched the rule')).toBeVisible();
-  await dialog.getByRole('button',{name:'Continue to Affirmation',exact:true}).click();
+  await expect(dialog.getByRole('heading',{name:'Pattern Match'})).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'Take or Pass'})).toHaveCount(0);
+  await dialog.getByRole('button',{name:'Skip to Affirmation'}).click();
   await expect(dialog.getByText('1 / 18',{exact:true})).toBeVisible();
   await dialog.getByRole('button',{name:'Next affirmation'}).click();
   await expect(dialog.getByText('If my entry is gone, I wait for the next setup.',{exact:true})).toBeVisible();
@@ -130,8 +120,7 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
   const dialog = await warmup(page);
   expect(await dialog.locator('.mw-breath-wave span').first().evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
   await page.clock.fastForward(120100);
-  await dialog.getByRole('button',{name:'Next: Brain Warm-Up'}).click();
-  await dialog.getByRole('button',{name:'Pattern Match',exact:true}).click();
+  await dialog.getByRole('button',{name:'Next: Focus Games'}).click();
   await dialog.getByRole('button',{name:'Start 60-second drill'}).click();
   const first = dialog.getByRole('button',{name:'Tile 1',exact:true});
   await expect(first).toBeDisabled();
@@ -153,8 +142,8 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
 
 test('custom checklist persists and every warm-up step can be skipped', async ({page}) => {
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('group',{name:'Preview warm-up steps'}).getByRole('button',{name:'Brain Sharpener'}).click();
-  await expect(page.getByText('Decide whether to take, wait or pass, or test your pattern recall.')).toBeVisible();
+  await page.getByRole('group',{name:'Preview warm-up steps'}).getByRole('button',{name:'Focus Games'}).click();
+  await expect(page.getByText('Recall a pattern or spot a matching symbol.')).toBeVisible();
   await page.getByRole('button',{name:'Edit checklist',exact:true}).click();
   await page.getByRole('textbox',{name:'Checklist item 1',exact:true}).fill('Mark overnight high');
   await page.getByRole('button',{name:'Add checklist item',exact:true}).click();
@@ -169,11 +158,17 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
   await expect(page.getByRole('checkbox',{name:'Mark overnight high',exact:true})).toBeVisible();
   await expect(page.getByRole('checkbox',{name:'News checked',exact:true})).toHaveCount(0);
   const dialog = await warmup(page);
-  await dialog.getByLabel('Breathing technique').selectOption({label:'Box breathing'});
+  const technique = dialog.getByLabel('Breathing technique');
+  await expect(technique).toHaveAccessibleDescription(/when you feel rushed/);
+  await technique.selectOption({label:'Box breathing'});
+  await expect(technique).toHaveAccessibleDescription(/attention is scattered/);
   await expect(dialog.getByText('Inhale 4s · Hold 4s · Exhale 4s · Hold 4s')).toBeVisible();
-  await dialog.getByLabel('Breathing technique').selectOption({label:'Slow exhale'});
+  await technique.selectOption({label:'Slow exhale'});
+  await expect(technique).toHaveAccessibleDescription(/with no holds/);
   await expect(dialog.getByText('Inhale 4s · Exhale 6s')).toBeVisible();
-  await dialog.getByRole('button',{name:'Skip to Brain Warm-Up'}).click();
+  await technique.selectOption({label:'Equal breathing'});
+  await expect(technique).toHaveAccessibleDescription(/when you already feel settled/);
+  await dialog.getByRole('button',{name:'Skip to Focus Games'}).click();
   await dialog.getByRole('button',{name:'Skip to Affirmation'}).click();
   await dialog.getByRole('button',{name:'Skip affirmation & finish'}).click();
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
@@ -240,4 +235,82 @@ test('Aura shows and clears a blocked microphone state', async ({page}) => {
   await expect(aura.getByRole('button',{name:'Microphone blocked'})).toBeDisabled();
   await page.clock.fastForward(3000);
   await expect(aura.getByRole('button',{name:'Dictate message'})).toBeEnabled();
+});
+
+test('the two focus games remember separate difficulty settings and hard Visual Search lasts a minute', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.clock.install();
+  const searchRound = {grid_size:5,target:'north-east',symbols:[...Array(24).fill('north-west'),'north-east']};
+  const attemptId = 'b'.repeat(32);
+  await page.route('**/api/mindset/drill', (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({mode:'search',difficulty:'hard'});
+    return route.fulfill({json:{attempt_id:attemptId,duration:60,rounds:Array(6).fill(searchRound)}});
+  });
+  await page.route('**/api/mindset/score', (route) => {
+    expect(route.request().postDataJSON()).toEqual({attempt_id:attemptId,responses:[{round:0,cells:[24]}]});
+    return route.fulfill({json:{score:10,max_score:60}});
+  });
+  await page.goto(`${origin}/mindset`);
+  const dialog = await warmup(page);
+  await dialog.getByRole('button',{name:'Skip to Focus Games'}).click();
+  const pattern = dialog.getByRole('switch',{name:'Hard difficulty for Pattern Match'});
+  await expect(pattern).not.toBeChecked();
+  await pattern.press('Space');
+  await expect(pattern).toBeChecked();
+  await expect(dialog).toContainText('Memorise five tiles');
+  await dialog.getByRole('button',{name:'Visual Search'}).click();
+  const search = dialog.getByRole('switch',{name:'Hard difficulty for Visual Search'});
+  await expect(search).not.toBeChecked();
+  await search.press('Space');
+  await dialog.getByRole('button',{name:'Pattern Match'}).click();
+  await expect(pattern).toBeChecked();
+  await dialog.getByRole('button',{name:'Visual Search'}).click();
+  await expect(search).toBeChecked();
+  await dialog.getByRole('button',{name:'Start 60-second drill'}).click();
+  await expect(dialog.getByLabel('Drill time remaining')).toHaveText('1:00');
+  const grid = dialog.getByRole('group',{name:'Visual Search grid'});
+  await expect(grid.getByRole('button')).toHaveCount(25);
+  await grid.getByRole('button',{name:'Tile 25: north-east'}).click();
+  await expect(dialog.getByRole('status')).toHaveText('Match found.');
+  await page.clock.fastForward(59000);
+  await expect(dialog.getByRole('button',{name:'Submit Score & Continue'})).toHaveCount(0);
+  await page.clock.fastForward(1200);
+  await expect(dialog.getByText('Your score: 10 / 60')).toBeVisible();
+  await dialog.getByRole('button',{name:'Submit Score & Continue'}).click();
+  await expect(dialog.getByRole('heading',{name:'Affirmation & Lock-In'})).toBeVisible();
+});
+
+test('Journal shows the saved Mindset checklist on its matching date', async ({page}) => {
+  await page.goto(`${origin}/mindset`);
+  const prep = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
+  await page.getByRole('checkbox',{name:prep.items[0].label,exact:true}).uncheck();
+  for (const item of prep.items) {
+    await page.getByRole('checkbox',{name:item.label,exact:true}).check();
+  }
+  await page.getByRole('button',{name:'Save morning prep'}).click();
+  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await page.goto(`${origin}/journal?day=${prep.day}`);
+  const summary = page.getByRole('complementary',{name:'Pre-session checklist'});
+  await summary.getByText('Checklist complete',{exact:true}).click();
+  await expect(summary).toContainText(`${prep.items[0].label} · Done`);
+});
+
+test('Aura opens with a contextual prompt and quick replies on a dark surface', async ({page}) => {
+  await page.route('**/api/mindset/check-in/opening', (route) => route.fulfill({json:{
+    text:'Yesterday was a red day. What will help you trade your plan today?',
+    suggestions:['Help me reset after yesterday'],
+  }}));
+  await page.route('**/api/mindset/check-in/reflect', (route) => {
+    expect(route.request().postDataJSON().reflection).toBe('Help me reset after yesterday');
+    return route.fulfill({json:{text:'Take one setup at a time.'}});
+  });
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+  await page.getByRole('button',{name:'Open Aura'}).click();
+  const dialog = page.getByRole('dialog',{name:'Aura',exact:true});
+  await expect(dialog).toHaveCSS('background-color','rgb(26, 26, 25)');
+  await expect(dialog.getByRole('heading',{name:'Leave the last session at the door.'})).toBeVisible();
+  await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
+  await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();
+  await expect(dialog.getByRole('log')).toContainText('Take one setup at a time.');
 });

@@ -1,21 +1,21 @@
 """Release announcements, acknowledged independently in each private workspace."""
-VERSION = '2026-11-05-v1'
+VERSION = '2026-11-12-v1'
 KEY = 'primuslab_release_notes_seen'
 ITEMS = [
-    {'title': 'Journal accounts and equity',
-     'text': 'Create Funded, Eval or Personal accounts with a name and starting balance. Assign trades to an account and filter by account. Mark whether you followed your plan and see it on the calendar. The equity curve uses the Strategy Lab chart style, and Weekly Review has been removed.'},
-    {'title': 'Backtesting replay and split-screen',
-     'text': 'Resuming a session shows a PrimusTrader loading screen. Split-screen uses one drawing toolbar, and Volume starts off until you add it through Indicators. Backtesting is still in beta.'},
-    {'title': 'Drawings stay anchored',
-     'text': 'Drawings stay anchored when you switch timeframes. The fix uses the existing candles and session boundaries.'},
-    {'title': 'Search the Learn glossary',
-     'text': 'Find glossary terms by search or category. The “Glossary?” banner shortcut has been removed.'},
-    {'title': 'Learn and Market Lab guidance',
-     'text': 'Learn has expanded trading foundations, a guided learning trail and explanations next to key terms. Market Lab also explains key terms alongside its results.'},
-    {'title': 'Mindset brain explorer',
-     'text': 'Explore the interactive 3D brain, read about each region and try exercises based on trading situations. The separate preview image and illustrated guide panels were rolled back. The interactive explorer is still available.'},
+    {'title': 'Mindset warm-up',
+     'text': 'Choose a breathing rhythm and see when to use it. Play 60-second rounds of Pattern Match or Visual Search on Easy or Hard, choose an affirmation, and track your editable pre-session checklist. The Brain Explorer stays visible on the Mindset page.'},
+    {'title': 'Chat with Aura',
+     'text': 'Open Aura to type or dictate a message. Follow-up questions use the open conversation, and new chats clear when you close it.'},
+    {'title': 'Journal accounts and copy-traded entries',
+     'text': 'Use Add account to create Funded, Eval or Personal accounts. If you copy-traded a setup, select multiple accounts on one Journal trade and enter the combined P&L and risk. The combined result appears under All accounts.'},
+    {'title': 'Journal trade replay',
+     'text': 'Import TopstepX or FTMO Trading Journal executions and replay supported markets with your entry and exit markers on 1-minute candles. Replay depends on market coverage and data access. Backtesting is still in beta.'},
+    {'title': 'Bullpen screen sharing on Android',
+     'text': 'In the Bullpen, choose Install plugin, then Prepare screen sharing and Open plugin for screen share. The plugin joins the same Bullpen call so your team can see the screen you share. Supported desktop browsers can share directly in the embedded call. The Bullpen also warns mobile users that switching apps or locking the screen can pause the microphone.'},
+    {'title': 'Strategy Lab settings',
+     'text': 'Clicking outside Lab Settings now asks before closing. Delete unused archived choices while keeping saved trade labels, or open Advanced to save your Explore filters. The strategy filter now reads Key level.'},
 ]
 
 
 def read(database):
-    return {'version': VERSION, 'date': '5 November 2026', 'seen': database.get_setting(KEY) == VERSION, 'items': ITEMS}
+    return {'version': VERSION, 'date': '12 November 2026', 'seen': database.get_setting(KEY) == VERSION, 'items': ITEMS}

@@ -73,6 +73,7 @@ class Publisher(StrictModel):
     allowed:bool=Field(strict=True)
 
 class Goal(StrictModel):
+    pinned: bool | None = Field(default=None, strict=True)
     title:str=Field(min_length=1,max_length=120)
     notes:str=Field(default='',max_length=4000)
     image_url:str=Field(default='',max_length=1000)
@@ -107,7 +108,7 @@ def mount(app,config,workspace):
             editor(member);rows=resources()
             if item_id!='new':find(rows,item_id)
             elif len(rows)>=200:raise HTTPException(422,'Keep up to 200 resources in this first release.')
-            value={**payload.model_dump(),'id':uuid4().hex if item_id=='new' else item_id,'updated_at':datetime.now(timezone.utc).isoformat()}
+            value={**payload.model_dump(exclude_none=True),'id':uuid4().hex if item_id=='new' else item_id,'updated_at':datetime.now(timezone.utc).isoformat()}
             if payload.kind=='video':value['video_id']=youtube_id(payload.url)
             root().set_setting(CONTENT,[value,*[r for r in rows if r['id']!=value['id']]])
             return value
@@ -149,8 +150,13 @@ def mount(app,config,workspace):
             db=personal(member);rows=db.get_setting(BOARD,[])
             previous={} if item_id=='new' else find(rows,item_id)
             if item_id=='new' and len(rows)>=50:raise HTTPException(422,'Keep up to 50 goals on your board.')
-            value={**previous,**payload.model_dump(),'id':uuid4().hex if item_id=='new' else item_id}
-            db.set_setting(BOARD,[value,*[r for r in rows if r['id']!=value['id']]]);app.state.workspaces.bump(member['key']);return value
+            value={**previous,**payload.model_dump(exclude_none=True),'id':uuid4().hex if item_id=='new' else item_id}
+            others = [r for r in rows if r['id'] != value['id']]
+            if value.get('pinned'):
+                others = [{**row, 'pinned': False} if row.get('pinned') else row for row in others]
+            db.set_setting(BOARD, [value, *others])
+            app.state.workspaces.bump(member['key'])
+            return value
     @app.delete('/api/vision-board/{item_id}')
     def remove_goal(item_id:str,member=Depends(workspace)):
         with app.state.workspaces.lock:

@@ -1,5 +1,5 @@
 """Private morning prep and a daily high score for verified Bullpen teammates."""
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from random import SystemRandom
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -29,10 +29,13 @@ DEFAULT_ITEMS = [
 ]
 MAX_ITEMS = 200
 ChecklistId = Annotated[str, Field(pattern=r'^(levels|news|charity|loss_limit|[a-f0-9]{32})$')]
-Mode = Literal['sweep', 'memory']
+Mode = Literal['sweep', 'memory', 'search']
+Difficulty = Literal['easy', 'hard']
+EASY_SEARCH_SYMBOLS = ('circle', 'square', 'diamond', 'triangle', 'star')
+HARD_SEARCH_SYMBOLS = ('north-east', 'south-east', 'south-west', 'north-west')
 Day = Annotated[str, Field(pattern=r'^\d{4}-\d{2}-\d{2}$')]
 AttemptId = Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
-Cell = Annotated[int, Field(strict=True, ge=0, le=15)]
+Cell = Annotated[int, Field(strict=True, ge=0, le=24)]
 
 
 class ChecklistItem(StrictModel):
@@ -71,11 +74,12 @@ class AuraReply(StrictModel):
 class StartDrill(StrictModel):
     day: Day
     mode: Mode
+    difficulty: Difficulty = 'easy'
 
 
 class DrillResponse(StrictModel):
     round: int = Field(strict=True, ge=0, lt=12)
-    cells: list[Cell] = Field(default_factory=list, max_length=4)
+    cells: list[Cell] = Field(default_factory=list, max_length=5)
 
 
 class ScoreSubmission(StrictModel):
@@ -165,10 +169,24 @@ def sweep_target(round_data):
             and confirm['close'] > round_data['delivery'])
 
 
-def make_rounds(mode, rng=None):
+def make_rounds(mode, rng=None, *, difficulty='easy'):
     rng = rng or SystemRandom()
+    grid_size = 5 if difficulty == 'hard' else 4
+    cell_count = grid_size ** 2
     if mode == 'memory':
-        return [{'cells': sorted(rng.sample(range(16), 4))} for _ in range(6)]
+        pattern_size = 5 if difficulty == 'hard' else 4
+        return [{'cells': sorted(rng.sample(range(cell_count), pattern_size)), 'grid_size': grid_size}
+                for _ in range(6)]
+    if mode == 'search':
+        palette = HARD_SEARCH_SYMBOLS if difficulty == 'hard' else EASY_SEARCH_SYMBOLS
+        rounds = []
+        for _ in range(6):
+            target = rng.choice(palette)
+            distractors = [symbol for symbol in palette if symbol != target]
+            symbols = rng.choices(distractors, k=cell_count)
+            symbols[rng.randrange(cell_count)] = target
+            rounds.append({'target': target, 'symbols': symbols, 'grid_size': grid_size})
+        return rounds
 
     patterns = ['valid'] * 6 + ['no_sweep', 'no_reclaim', 'no_delivery'] * 2
     rng.shuffle(patterns)
@@ -204,10 +222,19 @@ def score_drill(mode, rounds, responses):
             if cells:
                 raise ValueError('Sweep responses do not contain grid cells.')
             points += 10 if sweep_target(rounds[index]) else -10
+        elif mode == 'search':
+            row = rounds[index]
+            if len(cells) != 1 or not 0 <= cells[0] < len(row['symbols']):
+                raise ValueError('Choose one tile on the Visual Search grid.')
+            points += 10 if row['symbols'][cells[0]] == row['target'] else 0
         else:
-            if len(cells) != 4 or len(set(cells)) != 4:
-                raise ValueError('Choose four different cells for a memory answer.')
-            points += 10 if sorted(cells) == rounds[index]['cells'] else 0
+            row = rounds[index]
+            pattern_size = len(row['cells'])
+            if len(cells) != pattern_size or len(set(cells)) != pattern_size:
+                raise ValueError(f'Choose {pattern_size} different cells for a memory answer.')
+            if any(not 0 <= cell < row.get('grid_size', 4) ** 2 for cell in cells):
+                raise ValueError('Choose tiles on the Pattern Match grid.')
+            points += 10 if sorted(cells) == row['cells'] else 0
     return max(0, points)
 
 
@@ -234,6 +261,7 @@ def mount(app, config, workspace):
 
     def view(db, member, day, reset):
         state = prep(db, day)
+        state.pop('checklist_items', None)
         items = checklist_items(db)
         checked = [item['id'] for item in items if item['id'] in state['checklist']]
         return {'day': day, 'resets_at': reset, 'team_eligible': bool(team_name(member)),
@@ -258,6 +286,22 @@ def mount(app, config, workspace):
         with workspaces().lock:
             return view(database(member), member, day, reset)
 
+    @app.get('/api/mindset/checklist/{day}')
+    def saved_checklist(day: date, member=Depends(workspace)):
+        day_key = day.isoformat()
+        with workspaces().lock:
+            db = database(member)
+            saved = db.get_setting(PREP + day_key, {})
+            if 'checklist_items' not in saved and not saved.get('checklist'):
+                return {'day': day_key, 'items': []}
+            items = saved.get('checklist_items')
+            if items is None:
+                items = checklist_items(db)
+            checked = set(saved.get('checklist', []))
+            return {'day': day_key, 'items': [
+                {**item, 'checked': item['id'] in checked} for item in items
+            ]}
+
     @app.put('/api/mindset/warmup')
     def save_warmup(payload: MorningPrep, member=Depends(workspace)):
         day, reset = day_window(now_utc())
@@ -275,6 +319,7 @@ def mount(app, config, workspace):
                 raise ValueError('Check only items on your saved checklist.')
             value = {**prep(db, day), **payload.model_dump(exclude={'day', 'items'}, exclude_none=True)}
             value['checklist'] = [item for item in ids if item in payload.checklist]
+            value['checklist_items'] = items
             if payload.items is not None:
                 db.set_setting(CHECKLIST, items)
             db.set_setting(PREP + day, value)
@@ -287,7 +332,13 @@ def mount(app, config, workspace):
 
     @app.get('/api/mindset/check-in/opening')
     def check_in_opening(member=Depends(workspace)):
-        return {'text': aura_opening(current_aura_context(member))}
+        context = current_aura_context(member)
+        suggestions = ['I feel focused', 'I’m tempted to rush', 'Yesterday is still on my mind']
+        if context['daily_loss_limit_hit'] or context['yesterday'] == 'loss':
+            suggestions = ['Help me reset after yesterday', 'I want to make it back', 'I’m ready to follow my plan']
+        elif context['green_days'] >= 2:
+            suggestions = ['Help me tighten my entry rules', 'I feel focused', 'I’m tempted to rush']
+        return {'text': aura_opening(context), 'suggestions': suggestions}
 
     @app.post('/api/mindset/check-in/reflect')
     def reflect(payload: AuraPrompt, member=Depends(workspace)):
@@ -310,7 +361,7 @@ def mount(app, config, workspace):
         if payload.day != day:
             raise HTTPException(409, 'A new day has started in New York. Start today’s warm-up.')
         attempt = {'id': uuid4().hex, 'day': day, 'mode': payload.mode,
-                   'started_at': now.timestamp(), 'rounds': make_rounds(payload.mode),
+                   'started_at': now.timestamp(), 'rounds': make_rounds(payload.mode, difficulty=payload.difficulty),
                    'workspace': member['key']}
         with workspaces().lock:
             database(member).set_setting(ATTEMPT, signer.dumps(attempt))

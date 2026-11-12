@@ -239,3 +239,22 @@
 .pj-rules{margin-top:16px;border:1px solid var(--pt-line);border-radius:6px;background:var(--pt-white)}
 .pj-rules>summary{font-weight:600}.pj-rules>summary span{font-size:12px;color:var(--pt-muted);margin-left:8px;font-weight:400}
 .pj-rules form{padding:0 14px 14px}.pj-rules textarea{resize:vertical;line-height:1.6}.pj-rules p{font-size:13px;overflow-wrap:anywhere}
+
+.pj-prep-summary {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin:12px 0;
+  padding:12px 14px;
+  border:1px solid var(--pt-line);
+  border-radius:10px;
+  color:var(--pt-ink);
+  background:var(--pt-paper);
+}
+.pj-prep-summary > svg { flex:none; }
+.pj-prep-summary div { flex:1; min-width:0; overflow-wrap:anywhere; }
+.pj-prep-summary p, .pj-prep-summary details { margin:4px 0 0; color:var(--pt-muted); font-size:13px; }
+.pj-prep-summary summary { cursor:pointer; }
+.pj-prep-summary summary.is-complete { color:var(--pt-focus); font-weight:700; }
+.pj-prep-summary ul { padding-left:18px; margin:7px 0 0; }
+.pj-prep-summary a { display:inline-flex; align-items:center; gap:4px; color:inherit; font-size:13px; }
