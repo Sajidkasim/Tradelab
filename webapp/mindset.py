@@ -5,10 +5,14 @@ from typing import Annotated, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 from fastapi import Depends, HTTPException
 from itsdangerous import BadSignature, URLSafeSerializer
 from pydantic import Field, ValidationError
 
+from core import metrics, risk
+from core.models import LIVE_SOURCES
+from . import daily_journal
 from .bullpen import _team_name
 from .schemas import StrictModel
 
@@ -93,6 +97,55 @@ def day_window(now):
     local_day = now.astimezone(NY).date()
     midnight = datetime.combine(local_day + timedelta(days=1), time.min, tzinfo=NY)
     return local_day.isoformat(), midnight.astimezone(timezone.utc).isoformat()
+
+
+def aura_context(database, frame, day):
+    """Only confirmed outcomes and limit hits leave the workspace as coaching context."""
+    end = pd.Timestamp(day)
+    start = end - pd.Timedelta(days=30)
+    yesterday = end - pd.Timedelta(days=1)
+    live = metrics.closed(frame.loc[frame['source'].isin(LIVE_SOURCES)])
+    if not live.empty:
+        live['exit_time'] = pd.to_datetime(live['exit_time'], utc=True).dt.tz_convert(NY).dt.tz_localize(None)
+        live = live.loc[live['exit_time'].ge(start) & live['exit_time'].lt(end)]
+    outcomes = {date.date().isoformat(): daily_journal.outcome(total)
+                for date, total in metrics.daily_pnl(live).items()}
+    for row in database.settings_with_prefix(daily_journal.PREFIX).values():
+        if isinstance(row, dict) and start.date().isoformat() <= row.get('day', '') < day and not row.get('deleted_at'):
+            result = daily_journal.with_day_result(database, row)['day_result']['outcome']
+            if result != 'not_recorded':
+                outcomes[row['day']] = result
+    green_days = 0
+    for date in sorted(outcomes, reverse=True):
+        if outcomes[date] != 'win':
+            break
+        green_days += 1
+
+    hit_limit = False
+    if not live.empty:
+        prior = live.loc[live['exit_time'].dt.normalize().eq(yesterday)]
+        for account in database.accounts():
+            if account.daily_loss_limit <= 0:
+                continue
+            totals = metrics.daily_pnl(prior.loc[prior['account_id'].eq(account.id)])
+            breaches = risk.find_breaches(totals, account.starting_balance,
+                                          account.daily_loss_limit, account.max_trailing_drawdown)
+            if breaches['rule'].eq('daily_loss_limit').any():
+                hit_limit = True
+                break
+    return {'yesterday': outcomes.get(yesterday.date().isoformat(), 'not_recorded'),
+            'daily_loss_limit_hit': hit_limit, 'green_days': green_days}
+
+
+def aura_opening(context):
+    if context['daily_loss_limit_hit']:
+        return 'You hit your daily loss limit yesterday. How will you keep that frustration from carrying into today’s session?'
+    if context['yesterday'] == 'loss':
+        return 'Yesterday was a red day. What will help you trade your plan today without trying to make it back?'
+    if context['green_days'] >= 2:
+        return (f"You’ve had {context['green_days']} green trading days in a row. "
+                'To guard against overconfidence, what are your strict entry criteria today?')
+    return 'Before you look at a chart, take a moment. What could pull you away from your plan today?'
 
 
 def readiness(energy, headspace):
@@ -228,11 +281,21 @@ def mount(app, config, workspace):
             workspaces().bump(member['key'])
             return view(db, member, day, reset)
 
+    def current_aura_context(member):
+        day, _ = day_window(now_utc())
+        return aura_context(database(member), workspaces().trades(member['key']), day)
+
+    @app.get('/api/mindset/check-in/opening')
+    def check_in_opening(member=Depends(workspace)):
+        return {'text': aura_opening(current_aura_context(member))}
+
     @app.post('/api/mindset/check-in/reflect')
     def reflect(payload: AuraPrompt, member=Depends(workspace)):
         from extensions.ai_coach import aura_check_in
 
-        raw = aura_check_in(payload.model_dump()).strip()
+        if payload.step == 'intention' and len(payload.reflection.strip()) < 10:
+            raise HTTPException(422, 'Write at least 10 characters before asking Aura for a rule.')
+        raw = aura_check_in(payload.model_dump(), current_aura_context(member)).strip()
         if raw.startswith('```json') and raw.endswith('```'):
             raw = raw[7:-3].strip()
         try:

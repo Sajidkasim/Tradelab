@@ -30,20 +30,21 @@ test('private morning prep persists and Take or Pass leads to a saved affirmatio
   await page.clock.install();
   await page.route('**/api/mindset/check-in/reflect', route => {
     const {step, reflection, question} = route.request().postDataJSON();
+    expect(step).toBe('intention');
     expect(reflection).toBe('I rushed into trades after a loss.');
-    if(step==='intention') expect(question).toBe('What will you do before your next entry?');
-    return route.fulfill({json:{focus:'reset',text:step==='follow_up'
-      ? 'What will you do before your next entry?' : 'I’ll pause before I place another trade.'}});
+    return route.fulfill({json:{focus:'reset',text:question
+      ? 'I’ll review my setup before placing another trade.' : 'I’ll pause before I place another trade.'}});
   });
   await page.goto(`${origin}/mindset`);
   await page.getByRole('button',{name:'Open Aura check-in'}).click();
   const aura = page.getByRole('dialog',{name:'Aura check-in'});
+  await aura.getByRole('textbox',{name:'Your reflection'}).fill('Too fast');
+  await expect(aura.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
   await aura.getByRole('textbox',{name:'Your reflection'}).fill('I rushed into trades after a loss.');
   await aura.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(aura.getByLabel('Today’s focus')).toHaveValue('reset');
-  await expect(aura.getByText('What will you do before your next entry?',{exact:true})).toBeVisible();
-  await aura.getByRole('button',{name:'Review intention'}).click();
   await expect(aura.getByRole('textbox',{name:'Daily intention'})).toHaveValue('I’ll pause before I place another trade.');
+  await aura.getByRole('button',{name:'Regenerate'}).click();
+  await expect(aura.getByRole('textbox',{name:'Daily intention'})).toHaveValue('I’ll review my setup before placing another trade.');
   await aura.getByRole('textbox',{name:'Daily intention'}).fill('Wait for delivery.');
   await aura.getByRole('button',{name:'Approve and save'}).click();
   await expect(aura).toHaveCount(0);
@@ -174,10 +175,8 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
 test('Aura puts dictated words into the composer for review', async ({page}) => {
   await page.addInitScript(()=>{
     window.SpeechRecognition = class {
-      get processLocally(){return this.local;}
-      set processLocally(value){this.local=value;}
       start(){setTimeout(()=>{
-        if(this.local) this.onresult?.({results:[[{transcript:'I feel ready to wait for my setup.'}]]});
+        this.onresult?.({results:[[{transcript:'I feel ready to wait for my setup.'}]]});
         this.onend?.();
       },50);}
       abort(){}
@@ -188,7 +187,45 @@ test('Aura puts dictated words into the composer for review', async ({page}) => 
   await page.getByRole('button',{name:'Open Aura check-in'}).click();
   const dialog=page.getByRole('dialog',{name:'Aura check-in'});
   await expect(dialog.getByRole('heading',{name:'Leave the last session at the door.'})).toBeVisible();
-  await dialog.getByRole('button',{name:'Speak your reply'}).click();
+  await dialog.getByRole('button',{name:'Use browser dictation'}).click();
   await expect(dialog.getByRole('textbox',{name:'Your reflection'})).toHaveValue('I feel ready to wait for my setup.');
   await expect(dialog.getByRole('button',{name:'Continue',exact:true})).toBeEnabled();
+});
+
+for (const failure of ['timeout', 'server error']) {
+  test(`Aura opens a saveable manual rule after a ${failure}`, async ({page}) => {
+    await page.clock.install();
+    await page.route('**/api/mindset/check-in/reflect', (route) => failure === 'timeout'
+      ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 6500))
+      : route.fulfill({status:500, json:{detail:'unavailable'}}));
+    await page.goto(`${origin}/mindset`);
+    await page.getByRole('button',{name:'Open Aura check-in'}).click();
+    const aura = page.getByRole('dialog',{name:'Aura check-in'});
+    await aura.getByRole('button',{name:'I’m tempted to rush'}).click();
+    await aura.getByRole('button',{name:'Continue',exact:true}).click();
+    if (failure === 'timeout') await page.clock.fastForward(5001);
+    await expect(aura.getByRole('status')).toContainText('Aura is resting');
+    await aura.getByRole('textbox',{name:'Daily intention'}).fill('Wait for my entry criteria.');
+    await aura.getByRole('button',{name:'Approve and save'}).click();
+    await expect(aura).toHaveCount(0);
+  });
+}
+
+test('Aura shows and clears a blocked microphone state', async ({page}) => {
+  await page.clock.install();
+  await page.addInitScript(() => {
+    window.SpeechRecognition = class {
+      start() { setTimeout(() => { this.onerror({error:'not-allowed'}); this.onend(); }, 100); }
+      abort() {}
+    };
+  });
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('button',{name:'Open Aura check-in'}).click();
+  const aura = page.getByRole('dialog',{name:'Aura check-in'});
+  await aura.getByRole('button',{name:'Use browser dictation'}).click();
+  await expect(aura.getByRole('button',{name:/Listening/})).toBeVisible();
+  await page.clock.fastForward(100);
+  await expect(aura.getByRole('button',{name:'Microphone blocked'})).toBeDisabled();
+  await page.clock.fastForward(3000);
+  await expect(aura.getByRole('button',{name:'Use browser dictation'})).toBeEnabled();
 });

@@ -42,7 +42,7 @@ export function Field({ label, hint, children, className = "" }) {
 export function Select({ label, values, empty, ...props }) {
   return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
 }
-export function Segments({ values, value, onChange, label }) {
+export function Segments({ values, value, onChange, label, disabled }) {
   return (
     <div className="segments" role="group" aria-label={label}>
       {values.map((v) => {
@@ -52,6 +52,7 @@ export function Segments({ values, value, onChange, label }) {
             key={item.value}
             className={value === item.value ? "selected" : ""}
             aria-pressed={value === item.value}
+            disabled={disabled}
             onClick={() => onChange(item.value)}
             type="button"
           >

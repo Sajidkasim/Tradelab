@@ -138,14 +138,19 @@ def test_charity_replaces_only_the_old_default_template(draft):
 @pytest.mark.parametrize('reply_format, empty_first', [
     ('legacy', False), ('chat', False), ('chat', True), ('empty', True),
 ])
-def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeypatch, reply_format, empty_first):
+def test_aura_ai_uses_configured_provider_without_raw_journal_data(draft, monkeypatch, reply_format, empty_first):
     import json
     from extensions import ai_coach
 
-    client, _, identity = draft
+    from webapp import daily_journal
+
+    client, app, identity = draft
+    monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 15, tzinfo=timezone.utc))
     payload = {'step':'follow_up', 'reflection':'I feel tempted to chase.'}
     assert client.post('/api/mindset/check-in/reflect', json=payload).status_code == 401
     login(client, identity)
+    daily_journal.save(app.state.workspaces.database('owner'), '2026-11-11',
+                       {'notes':'private journal notes', 'trades':[{'net_pnl':-50}]})
     monkeypatch.setenv('COACH_PROVIDER', 'cloudflare')
     monkeypatch.setenv('COACH_CLOUDFLARE_ACCOUNT_ID', 'a'*32)
     monkeypatch.setenv('COACH_CLOUDFLARE_API_TOKEN', 'synthetic-token')
@@ -168,6 +173,10 @@ def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeyp
         calls += 1
         assert url.startswith('https://api.cloudflare.com/')
         assert kwargs['json']['max_tokens'] == 300 * calls
+        system = kwargs['json']['messages'][0]['content']
+        assert '"yesterday": "loss"' in system
+        assert '"daily_loss_limit_hit": false' in system
+        assert 'private journal notes' not in str(kwargs['json'])
         assert json.loads(kwargs['json']['messages'][-1]['content']) == {
             **payload, 'focus':'focus', 'reply':'', 'question':'',
         }
@@ -187,3 +196,27 @@ def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeyp
         assert reply.status_code == 200
         assert reply.json() == answer
     assert client.get('/api/mindset/check-ins').json() == []
+
+
+def test_aura_opening_uses_private_results_and_checks_actual_limits(draft, monkeypatch):
+    from tests.test_webapp import trade_payload
+    from webapp import daily_journal
+
+    client, app, identity = draft
+    monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 15, tzinfo=timezone.utc))
+    endpoint = '/api/mindset/check-in/opening'
+    assert client.get(endpoint).status_code == 401
+    login(client, identity)
+    database = app.state.workspaces.database('owner')
+    for day in ('2026-11-06', '2026-11-09', '2026-11-10', '2026-11-11'):
+        daily_journal.save(database, day, {'trades':[{'net_pnl':50}]})
+    assert '4 green trading days' in client.get(endpoint).json()['text']
+    daily_journal.save(database, '2026-11-11', {'trades':[{'net_pnl':-50}]})
+    assert 'Yesterday was a red day' in client.get(endpoint).json()['text']
+    payload = {**trade_payload(source='manual', pnl=-1000),
+               'entry_time':'2026-11-11T23:45:00-05:00', 'exit_time':'2026-11-11T23:50:00-05:00'}
+    assert client.post('/api/trades', json=payload).status_code == 200
+    assert 'hit your daily loss limit yesterday' in client.get(endpoint).json()['text']
+    client.post('/api/logout')
+    login(client, identity, 'friend@example.com', 'friend-sub')
+    assert 'Before you look at a chart' in client.get(endpoint).json()['text']

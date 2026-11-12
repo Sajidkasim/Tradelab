@@ -301,10 +301,16 @@
 .mw-aura-compose textarea:focus { outline:0; }
 .mw-aura-compose-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:0 12px 10px; }
 .mw-aura-compose-tools .button { min-height:40px; display:inline-flex; align-items:center; gap:6px; }
-.mw-aura-compose-tools small,.mw-aura-listening { color:var(--pt-muted); font-size:12px; }
-.mw-aura-listening::before { content:''; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:var(--tl-sage); animation:mw-aura-listen 1s ease-in-out infinite alternate; }
+.mw-aura-compose-tools small { color:var(--pt-muted); font-size:12px; }
+.mw-dictation.is-listening, .mw-dictation.is-blocked, .mw-dictation.is-missed {
+  color:var(--tl-negative, #b33a39);
+  opacity:1;
+}
+.mw-dictation.is-listening svg { animation:mw-aura-listen .8s ease-in-out infinite alternate; }
+.mw-dictation-status { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.mw-aura-toast { position:static; transform:none; width:fit-content; }
 @keyframes mw-aura-listen { to { opacity:.38; } }
-@media(prefers-reduced-motion:reduce){.mw-aura-listening::before { animation:none; }}
+@media(prefers-reduced-motion:reduce){.mw-dictation.is-listening svg { animation:none; }}
 .mw-affirmation-picker { width:100%; display:grid; justify-items:center; gap:14px; }
 .mw-affirmation-picker blockquote { max-width:34ch; margin:8px auto; font:italic clamp(22px,3vw,34px)/1.35 Georgia,serif; color:var(--pt-ink); }
 .mw-affirmation-nav { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; }
