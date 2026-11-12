@@ -288,13 +288,17 @@ def aura_check_in(data, context):
         'Make it concrete and testable. Keep the trader’s stated timeframes and signals. '
         'Never invent a signal, timeframe or reason they did not mention. '
         'If question contains a prior draft, use it only to write a meaningfully different rule. '
-        'For question, text answers the question directly in up to 500 characters. '
+        'For question, text responds directly to the latest message in up to 500 characters. '
+        'Use recent chat turns to understand follow-ups. When the trader shares a reflection, respond naturally and offer a practical next step. '
         'For other steps keep text under 240 characters. '
         'The performance summary below is verified. A red day alone never means a limit was hit. '
         'Do not infer emotions or trading mistakes from results. '
         'Recent performance: ' + json.dumps(context)
     )
-    prompt = json.dumps(data, ensure_ascii=False)
+    prompt_data = {key: value for key, value in data.items() if key != 'history'}
+    if data.get('history'):
+        prompt_data['recent_chat'] = data['history']
+    prompt = json.dumps(prompt_data, ensure_ascii=False)
     try:
         if os.getenv('COACH_PROVIDER', 'cloudflare').strip().lower() != 'gemini':
             return _cloudflare_chat([{'role':'system','content':system}, {'role':'user','content':prompt}], max_tokens=300, retry_empty=True)

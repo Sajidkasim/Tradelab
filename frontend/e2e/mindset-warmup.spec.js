@@ -29,25 +29,36 @@ async function warmup(page) {
 test('private morning prep persists and Take or Pass leads to a saved affirmation',async({page},info)=>{
   await page.clock.install();
   await page.route('**/api/mindset/check-in/reflect', route => {
-    const {step, reflection, question} = route.request().postDataJSON();
-    expect(step).toBe('intention');
-    expect(reflection).toBe('I rushed into trades after a loss.');
-    return route.fulfill({json:{focus:'reset',text:question
-      ? 'I’ll review my setup before placing another trade.' : 'I’ll pause before I place another trade.'}});
+    const {step, reflection, history} = route.request().postDataJSON();
+    expect(step).toBe('question');
+    const firstQuestion = 'I rushed into trades after a loss.';
+    const firstAnswer = 'Pause before you place another trade.';
+    if (reflection === firstQuestion) {
+      expect(history).toEqual([]);
+      return route.fulfill({json:{text:firstAnswer}});
+    }
+    expect(reflection).toBe('How long should I pause?');
+    expect(history).toEqual([{question:firstQuestion, answer:firstAnswer}]);
+    return route.fulfill({json:{text:'Until you can clearly state your entry criteria.'}});
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura check-in'}).click();
-  const aura = page.getByRole('dialog',{name:'Aura check-in'});
-  await aura.getByRole('textbox',{name:'Your reflection'}).fill('Too fast');
-  await expect(aura.getByRole('button',{name:'Continue',exact:true})).toBeDisabled();
-  await aura.getByRole('textbox',{name:'Your reflection'}).fill('I rushed into trades after a loss.');
-  await aura.getByRole('button',{name:'Continue',exact:true}).click();
-  await expect(aura.getByRole('textbox',{name:'Daily intention'})).toHaveValue('I’ll pause before I place another trade.');
-  await aura.getByRole('button',{name:'Regenerate'}).click();
-  await expect(aura.getByRole('textbox',{name:'Daily intention'})).toHaveValue('I’ll review my setup before placing another trade.');
-  await aura.getByRole('textbox',{name:'Daily intention'}).fill('Wait for delivery.');
-  await aura.getByRole('button',{name:'Approve and save'}).click();
-  await expect(aura).toHaveCount(0);
+  await page.getByRole('button',{name:'Open Aura'}).click();
+  const aura = page.getByRole('dialog',{name:'Aura',exact:true});
+  const composer = aura.getByRole('textbox',{name:'Message Aura'});
+  const thread = aura.getByRole('log');
+  await composer.fill('I rushed into trades after a loss.');
+  await composer.press('Enter');
+  await expect(composer).toBeEmpty();
+  await expect(thread).toContainText('I rushed into trades after a loss.');
+  await expect(thread).toContainText('Pause before you place another trade.');
+  await composer.fill('How long should I pause?');
+  await aura.getByRole('button',{name:'Send message'}).click();
+  await expect(composer).toBeEmpty();
+  await expect(thread).toContainText('Until you can clearly state your entry criteria.');
+  await aura.getByRole('button',{name:'Close'}).click();
+  await page.getByRole('button',{name:'Open Aura'}).click();
+  await expect(thread).not.toContainText('I rushed into trades after a loss.');
+  await aura.getByRole('button',{name:'Close'}).click();
   const progress = page.getByRole('progressbar',{name:'Pre-session checklist progress'});
   await expect(progress).toHaveAttribute('aria-valuenow','0');
   for (const [index, name] of ['HTF levels marked','News checked','Give to charity'].entries()) {
@@ -64,9 +75,7 @@ test('private morning prep persists and Take or Pass leads to a saved affirmatio
   await page.getByRole('button',{name:'Save morning prep'}).click();
   await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
   await page.reload();
-  await expect(page.getByText('Wait for delivery.',{exact:true})).toBeVisible();
-  await page.getByText('Recent check-ins',{exact:true}).click();
-  await expect(page.locator('.mw-aura-history')).toContainText('Wait for delivery.');
+  await expect(page.getByText('Recent check-ins',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
   await expect(progress).toHaveAttribute('aria-valuetext','3 of 3 complete');
   await expect(page.locator('.mw-check-finish')).not.toHaveClass(/is-celebrating/);
@@ -184,30 +193,33 @@ test('Aura puts dictated words into the composer for review', async ({page}) => 
   });
   await page.setViewportSize({width:390,height:844});
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura check-in'}).click();
-  const dialog=page.getByRole('dialog',{name:'Aura check-in'});
-  await expect(dialog.getByRole('heading',{name:'Leave the last session at the door.'})).toBeVisible();
-  await dialog.getByRole('button',{name:'Use browser dictation'}).click();
-  await expect(dialog.getByRole('textbox',{name:'Your reflection'})).toHaveValue('I feel ready to wait for my setup.');
-  await expect(dialog.getByRole('button',{name:'Continue',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Open Aura'}).click();
+  const dialog=page.getByRole('dialog',{name:'Aura',exact:true});
+  await dialog.getByRole('button',{name:'Dictate message'}).click();
+  await expect(dialog.getByRole('textbox',{name:'Message Aura'})).toHaveValue('I feel ready to wait for my setup.');
+  await expect(dialog.getByRole('button',{name:'Send message'})).toBeEnabled();
 });
 
 for (const failure of ['timeout', 'server error']) {
-  test(`Aura opens a saveable manual rule after a ${failure}`, async ({page}) => {
+  test(`Aura keeps the message available to retry after a ${failure}`, async ({page}) => {
     await page.clock.install();
     await page.route('**/api/mindset/check-in/reflect', (route) => failure === 'timeout'
       ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 6500))
       : route.fulfill({status:500, json:{detail:'unavailable'}}));
     await page.goto(`${origin}/mindset`);
-    await page.getByRole('button',{name:'Open Aura check-in'}).click();
-    const aura = page.getByRole('dialog',{name:'Aura check-in'});
-    await aura.getByRole('button',{name:'I’m tempted to rush'}).click();
-    await aura.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByRole('button',{name:'Open Aura'}).click();
+    const aura = page.getByRole('dialog',{name:'Aura',exact:true});
+    const composer = aura.getByRole('textbox',{name:'Message Aura'});
+    await composer.fill('I’m tempted to rush');
+    await aura.getByRole('button',{name:'Send message'}).click();
     if (failure === 'timeout') await page.clock.fastForward(5001);
-    await expect(aura.getByRole('status')).toContainText('Aura is resting');
-    await aura.getByRole('textbox',{name:'Daily intention'}).fill('Wait for my entry criteria.');
-    await aura.getByRole('button',{name:'Approve and save'}).click();
-    await expect(aura).toHaveCount(0);
+    await expect(aura.getByRole('log')).toContainText('Aura is resting');
+    await expect(aura.getByRole('log')).toContainText('I’m tempted to rush');
+    await page.route('**/api/mindset/check-in/reflect', (route) =>
+      route.fulfill({json:{text:'Wait for your entry criteria.'}}));
+    await aura.getByRole('button',{name:'Try again'}).click();
+    await expect(aura.getByRole('log')).toContainText('Wait for your entry criteria.');
+    await expect(composer).toBeEmpty();
   });
 }
 
@@ -220,12 +232,12 @@ test('Aura shows and clears a blocked microphone state', async ({page}) => {
     };
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura check-in'}).click();
-  const aura = page.getByRole('dialog',{name:'Aura check-in'});
-  await aura.getByRole('button',{name:'Use browser dictation'}).click();
-  await expect(aura.getByRole('button',{name:/Listening/})).toBeVisible();
+  await page.getByRole('button',{name:'Open Aura'}).click();
+  const aura = page.getByRole('dialog',{name:'Aura',exact:true});
+  await aura.getByRole('button',{name:'Dictate message'}).click();
+  await expect(aura.getByRole('button',{name:'Stop dictation'})).toBeVisible();
   await page.clock.fastForward(100);
   await expect(aura.getByRole('button',{name:'Microphone blocked'})).toBeDisabled();
   await page.clock.fastForward(3000);
-  await expect(aura.getByRole('button',{name:'Use browser dictation'})).toBeEnabled();
+  await expect(aura.getByRole('button',{name:'Dictate message'})).toBeEnabled();
 });

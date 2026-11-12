@@ -277,40 +277,62 @@
   transition:box-shadow .25s ease, transform .25s ease;
 }
 .mw-aura-orb:is(:hover,:focus-visible) { transform:scale(1.05); box-shadow:0 0 0 11px color-mix(in srgb,var(--pt-soft) 24%,transparent); }
-.mw-aura-intention { overflow-wrap:anywhere; max-width:100%; }
-.mw-aura-intention p { color:var(--pt-ink); }
-.mw-aura-history { width:100%; margin-top:auto; padding-top:10px; text-align:left; border-top:1px solid var(--pt-line); }
-.mw-aura-history summary { cursor:pointer; font-size:14px; }
-.mw-aura-history ul { list-style:none; padding:0; }
-.mw-aura-history li { padding:7px 0; border-top:1px solid var(--pt-line); font-size:13px; overflow-wrap:anywhere; }
-.mw-aura-history time { display:block; color:var(--pt-muted); }
-.mw-aura-dialog { display:grid; gap:12px; justify-items:start; }
-.mw-aura-dialog label { display:grid; width:100%; gap:6px; }
-.mw-aura-dialog textarea,.mw-aura-dialog select { width:100%; padding:9px; border:1px solid var(--pt-line); border-radius:8px; color:var(--pt-ink); background:var(--pt-paper); font:inherit; }
-@media(prefers-reduced-motion:reduce){.mw-aura-orb {transition:none; transform:none;}}
-.mw-aura-modal { width:min(600px, calc(100vw - 22px)); }
-.mw-aura-prompt { display:flex; gap:14px; align-items:flex-start; }
-.mw-aura-prompt h3 { margin:0; font:italic clamp(22px,4vw,32px)/1.15 Georgia,serif; }
-.mw-aura-prompt p { margin:7px 0 0; color:var(--pt-muted); line-height:1.5; }
-.mw-aura-avatar { flex:0 0 42px; height:42px; display:grid; place-items:center; border-radius:50%; background:color-mix(in srgb,var(--pt-white) 70%,var(--pt-soft)); color:var(--pt-ink); }
-.mw-aura-starters { display:flex; flex-wrap:wrap; gap:6px; }
-.mw-aura-starters button { font:inherit; font-size:12px; padding:7px 10px; border-radius:16px; border:1px solid var(--pt-line); background:var(--pt-paper); color:var(--pt-ink); cursor:pointer; }
-.mw-aura-compose { width:100%; border:1px solid var(--pt-line); border-radius:16px; background:color-mix(in srgb,var(--pt-white) 85%,var(--pt-soft)); overflow:hidden; }
-.mw-aura-compose:focus-within { border-color:var(--pt-soft); box-shadow:0 0 0 2px color-mix(in srgb,var(--pt-soft) 20%,transparent); }
-.mw-aura-compose textarea { display:block; border:0; background:transparent; padding:16px; resize:vertical; font-size:16px; line-height:1.6; border-radius:0; }
-.mw-aura-compose textarea:focus { outline:0; }
-.mw-aura-compose-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:0 12px 10px; }
-.mw-aura-compose-tools .button { min-height:40px; display:inline-flex; align-items:center; gap:6px; }
-.mw-aura-compose-tools small { color:var(--pt-muted); font-size:12px; }
-.mw-dictation.is-listening, .mw-dictation.is-blocked, .mw-dictation.is-missed {
-  color:var(--tl-negative, #b33a39);
-  opacity:1;
+.mw-aura-modal { width:min(650px, calc(100vw - 22px)); }
+.mw-aura-dialog {
+  display:grid; grid-template-rows:minmax(0, 1fr) auto; gap:14px;
+  height:min(530px, 67dvh); min-height:240px;
 }
+.mw-aura-thread {
+  display:flex; flex-direction:column; gap:15px; overflow-y:auto;
+  overscroll-behavior:contain; padding:8px 4px 12px;
+}
+.mw-aura-message { display:flex; align-items:flex-start; gap:9px; }
+.mw-aura-message p {
+  margin:0; max-width:min(85%, 48ch); padding:11px 14px;
+  border:1px solid var(--pt-line); border-radius:5px 16px 16px;
+  background:var(--pt-white); color:var(--pt-ink); line-height:1.5;
+  white-space:pre-wrap; overflow-wrap:anywhere;
+}
+.mw-aura-message.is-user { justify-content:flex-end; }
+.mw-aura-message.is-user p {
+  border-radius:16px 5px 16px 16px;
+  background:color-mix(in srgb,var(--pt-soft) 22%,var(--pt-paper));
+}
+.mw-aura-avatar {
+  flex:0 0 34px; height:34px; display:grid; place-items:center; border-radius:50%;
+  background:color-mix(in srgb,var(--pt-white) 60%,var(--pt-soft)); color:var(--pt-ink);
+}
+.mw-aura-message .mw-aura-thinking { color:var(--pt-muted); }
+.mw-aura-retry {
+  border:0; background:none; padding:0; color:inherit; font:inherit;
+  text-decoration:underline; cursor:pointer;
+}
+.mw-aura-compose {
+  min-width:0; border:1px solid var(--pt-line); border-radius:19px;
+  background:var(--pt-white); overflow:hidden;
+}
+.mw-aura-compose:focus-within { border-color:var(--pt-soft); box-shadow:0 0 0 2px color-mix(in srgb,var(--pt-soft) 20%,transparent); }
+.mw-aura-compose textarea {
+  display:block; width:100%; border:0; background:transparent; padding:12px 14px 2px;
+  color:var(--pt-ink); resize:none; font:inherit; font-size:16px; line-height:1.5; outline:0;
+}
+.mw-aura-compose-tools { display:flex; align-items:center; justify-content:flex-end; gap:7px; padding:4px 8px 8px; }
+.mw-aura-icon {
+  display:grid; place-items:center; min-width:44px; min-height:44px; border-radius:50%;
+  border:1px solid var(--pt-line); background:var(--pt-paper); color:var(--pt-ink); cursor:pointer;
+}
+.mw-aura-icon:disabled { cursor:default; }
+.mw-aura-icon:not(:disabled):hover { border-color:var(--pt-soft); }
+.mw-aura-send { background:var(--tl-accent); color:var(--tl-entry-ink); border-color:transparent; }
+.mw-aura-send:disabled { opacity:.45; }
+.mw-dictation-status { margin-right:auto; color:var(--pt-muted); font-size:12px; }
+.mw-dictation.is-listening, .mw-dictation.is-blocked, .mw-dictation.is-missed { color:var(--tl-negative); }
 .mw-dictation.is-listening svg { animation:mw-aura-listen .8s ease-in-out infinite alternate; }
-.mw-dictation-status { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
-.mw-aura-toast { position:static; transform:none; width:fit-content; }
 @keyframes mw-aura-listen { to { opacity:.38; } }
-@media(prefers-reduced-motion:reduce){.mw-dictation.is-listening svg { animation:none; }}
+@media(prefers-reduced-motion:reduce){
+  .mw-aura-orb {transition:none; transform:none;}
+  .mw-dictation.is-listening svg { animation:none; }
+}
 .mw-affirmation-picker { width:100%; display:grid; justify-items:center; gap:14px; }
 .mw-affirmation-picker blockquote { max-width:34ch; margin:8px auto; font:italic clamp(22px,3vw,34px)/1.35 Georgia,serif; color:var(--pt-ink); }
 .mw-affirmation-nav { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px; }

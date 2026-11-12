@@ -108,19 +108,11 @@ def test_custom_checklist_carries_forward_and_skip_does_not_publish_a_score(draf
     assert client.post('/api/mindset/complete', json={'day':day, 'attempt_id':None}).status_code == 409
 
 
-def test_aura_approval_and_history_are_private(draft, monkeypatch):
+def test_aura_has_no_persistent_check_in_routes(draft):
     client, _, identity = draft
-    monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 15, tzinfo=timezone.utc))
-    assert client.get('/api/mindset/check-ins').status_code == 401
     login(client, identity)
-    payload = {'day':'2026-11-12', 'focus':'patience', 'intention':'Wait for the close.'}
-    assert client.put('/api/mindset/check-in', json={**payload, 'transcript':'private draft'}).status_code == 422
-    assert client.put('/api/mindset/check-in', json=payload).json()['intention'] == payload['intention']
-    assert client.put('/api/mindset/warmup', json={'day':payload['day'], 'energy':'', 'headspace':'', 'checklist':['levels']}).json()['intention'] == payload['intention']
-    assert client.get('/api/mindset/check-ins').json() == [payload]
-    client.post('/api/logout')
-    login(client, identity, 'friend@example.com', 'friend-sub')
-    assert client.get('/api/mindset/check-ins').json() == []
+    assert client.get('/api/mindset/check-ins').status_code == 404
+    assert client.put('/api/mindset/check-in', json={}).status_code in (404, 405)
 
 
 def test_charity_replaces_only_the_old_default_template(draft):
@@ -146,7 +138,8 @@ def test_aura_ai_uses_configured_provider_without_raw_journal_data(draft, monkey
 
     client, app, identity = draft
     monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 15, tzinfo=timezone.utc))
-    payload = {'step':'follow_up', 'reflection':'I feel tempted to chase.'}
+    payload = {'step':'question', 'reflection':'How do I wait for confirmation?',
+               'history':[{'question':'I feel tempted to chase.', 'answer':'Wait for your setup.'}]}
     assert client.post('/api/mindset/check-in/reflect', json=payload).status_code == 401
     login(client, identity)
     daily_journal.save(app.state.workspaces.database('owner'), '2026-11-11',
@@ -178,7 +171,8 @@ def test_aura_ai_uses_configured_provider_without_raw_journal_data(draft, monkey
         assert '"daily_loss_limit_hit": false' in system
         assert 'private journal notes' not in str(kwargs['json'])
         assert json.loads(kwargs['json']['messages'][-1]['content']) == {
-            **payload, 'focus':'focus', 'reply':'', 'question':'',
+            'step':payload['step'], 'reflection':payload['reflection'], 'recent_chat':payload['history'],
+            'focus':'focus', 'reply':'', 'question':'',
         }
         if reply_format == 'empty' or (empty_first and calls == 1):
             return Response({'choices': [{'message': {'content': None, 'reasoning_content': 'internal'}}]})
@@ -195,7 +189,8 @@ def test_aura_ai_uses_configured_provider_without_raw_journal_data(draft, monkey
     else:
         assert reply.status_code == 200
         assert reply.json() == answer
-    assert client.get('/api/mindset/check-ins').json() == []
+    assert app.state.workspaces.database('owner').settings_with_prefix(mindset.PREP) == {}
+    assert client.post('/api/mindset/check-in/reflect', json={**payload, 'history': payload['history'] * 5}).status_code == 422
 
 
 def test_aura_opening_uses_private_results_and_checks_actual_limits(draft, monkeypatch):

@@ -47,7 +47,7 @@ function WarmUpHero({state, highScore, onStart}) {
   </section>;
 }
 
-function MorningCards({state, onEdit, onSave, busy, dirty, saved, onCheckInSaved}) {
+function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
   const [editing, setEditing] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const items = state.items;
@@ -66,7 +66,7 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved, onCheckInSaved
   }
   return <form className="mw-prep-form" onSubmit={onSave}>
     <div className="mw-prep-grid">
-      <AuraCheckIn state={state} onSaved={onCheckInSaved}/>
+      <AuraCheckIn/>
       <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
         <h2 id="prep-checklist">Pre-Session Checklist</h2>
         {items.length > 0&&<div className="mw-check-progress">
@@ -180,7 +180,6 @@ function PrivateWarmUp() {
     <WarmUpHero state={state} highScore={highScore} onStart={() => setOpen(true)}/>
     {state&&<fieldset className="mw-prep-shell" disabled={busy}>
       <MorningCards state={state} busy={busy} dirty={dirty} saved={saved} onSave={save}
-        onCheckInSaved={value => setState(current => ({...current, intention:value.intention, aura_focus:value.aura_focus}))}
         onEdit={(key, value) => {setState(current => ({...current, [key]:value})); setDirty(true); setSaved(false);}}/>
     </fieldset>}
     {!state&&!error&&<p role="status">Loading morning prep…</p>}

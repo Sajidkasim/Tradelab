@@ -49,10 +49,9 @@ class MorningPrep(StrictModel):
     items: list[ChecklistItem] | None = Field(default=None, max_length=MAX_ITEMS)
 
 
-class AuraCheckIn(StrictModel):
-    day: Day
-    focus: Literal['focus', 'patience', 'reset', 'risk']
-    intention: str = Field(min_length=1, max_length=300)
+class AuraTurn(StrictModel):
+    question: str = Field(min_length=1, max_length=400)
+    answer: str = Field(min_length=1, max_length=600)
 
 
 class AuraPrompt(StrictModel):
@@ -61,6 +60,7 @@ class AuraPrompt(StrictModel):
     reply: str = Field(default='', max_length=400)
     question: str = Field(default='', max_length=300)
     focus: Literal['focus', 'patience', 'reset', 'risk'] = 'focus'
+    history: list[AuraTurn] = Field(default_factory=list, max_length=4)
 
 
 class AuraReply(StrictModel):
@@ -302,33 +302,6 @@ def mount(app, config, workspace):
             return AuraReply.model_validate_json(raw)
         except ValidationError:
             raise HTTPException(502, 'Aura returned an unreadable reply. Try again.') from None
-
-    @app.put('/api/mindset/check-in')
-    def save_check_in(payload: AuraCheckIn, member=Depends(workspace)):
-        day, reset = day_window(now_utc())
-        if payload.day != day:
-            raise HTTPException(409, 'A new day has started in New York. Open today’s check-in.')
-        intention = payload.intention.strip()
-        if not intention:
-            raise ValueError('Enter an intention before saving.')
-        with workspaces().lock:
-            db = database(member)
-            db.set_setting(PREP + day, {**prep(db, day), 'aura_focus': payload.focus, 'intention': intention})
-            workspaces().bump(member['key'])
-            return view(db, member, day, reset)
-
-    @app.get('/api/mindset/check-ins')
-    def recent_check_ins(member=Depends(workspace)):
-        today = now_utc().astimezone(NY).date()
-        with workspaces().lock:
-            db = database(member)
-            rows = []
-            for days_ago in range(7):
-                day = (today - timedelta(days=days_ago)).isoformat()
-                entry = db.get_setting(PREP + day, {})
-                if entry.get('aura_focus') and entry.get('intention'):
-                    rows.append({'day': day, 'focus': entry['aura_focus'], 'intention': entry['intention']})
-            return rows
 
     @app.post('/api/mindset/drill')
     def start_drill(payload: StartDrill, member=Depends(workspace)):
