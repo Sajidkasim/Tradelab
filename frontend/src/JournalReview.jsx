@@ -11,8 +11,15 @@ export function AccountSelector({accounts, label, value, onChange, unassigned = 
   </label>;
 }
 
+export function tradeAccountIds(trade) {
+  return trade.account_ids?.length ? trade.account_ids : trade.account_id == null ? [] : [trade.account_id];
+}
+
 export function accountResults(row, account) {
-  return (row?.trade_results || []).filter(result => account === null || result.account_id === account);
+  const results = row?.trade_results || [];
+  if (account === null) return results;
+  return results.filter(result => tradeAccountIds(result).includes(account))
+    .map(result => tradeAccountIds(result).length > 1 ? {...result, net_pnl: null} : result);
 }
 
 export function recordedTotal(results) {

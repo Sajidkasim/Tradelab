@@ -1,0 +1,9 @@
+.jr-modal{width:min(1100px,96vw)!important;max-width:1100px!important}
+.jr-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:16px 0}
+.jr-controls button,.jr-controls select{padding:8px 12px;border:1px solid var(--tl-border);border-radius:6px;background:var(--tl-surface);color:var(--tl-ink)}
+.jr-chart{position:relative;height:420px;contain:strict;background:var(--tl-surface);border:1px solid var(--tl-border);border-radius:8px;overflow:hidden}
+.jr-canvas,.jr-chart>svg{position:absolute;inset:0;width:100%;height:100%}
+.jr-chart>svg{pointer-events:none;overflow:hidden}.jr-chart text{fill:var(--tl-ink);font-size:12px;paint-order:stroke;stroke:var(--tl-surface);stroke-width:3px}
+.jr-import-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--tl-border)}
+.jr-notes{white-space:pre-wrap}.jr-modal li{font-size:12px}.jr-modal p{font-size:13px;line-height:1.6}
+@media(max-width:600px){.jr-chart{height:320px}.jr-import-row{align-items:flex-start;flex-direction:column}}

@@ -61,7 +61,11 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
       if(event==='broadcast')reply('broadcast',payload);
     });
   });
+  await page.addInitScript(()=>Object.defineProperty(navigator,'userAgent',{get:()=> 'Android test browser'}));
   await page.goto('http://127.0.0.1:8119/learn');
+  await page.getByRole('button',{name:'Prepare Android app join'}).click();
+  await expect(page.getByRole('link',{name:'Open Jitsi Meet'})).toHaveAttribute('href',/^intent:\/\/8x8\.vc\/vpaas-magic-cookie-test\/PrimusLab-Bullpen-Live-synthetic#jwt=test-meeting-token#Intent;scheme=org\.jitsi\.meet;package=org\.jitsi\.meet;/);
+  await expect(page.getByTitle('Test video room')).toHaveCount(0);
   await page.getByRole('button',{name:'Join Live Trading Floor'}).click();
   await expect(page.getByTitle('Test video room')).toBeVisible();
   expect(await page.evaluate(()=>window.testRoom)).toBe('vpaas-magic-cookie-test/PrimusLab-Bullpen-Live-synthetic');

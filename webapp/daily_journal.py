@@ -36,6 +36,11 @@ def entries(database):
                    if isinstance(row, dict) and row.get('day') and not row.get('deleted_at')), key=lambda row: row['day'], reverse=True)
 
 
+def card_accounts(card):
+    """Legacy cards stored a single account ID."""
+    return card.get('account_ids', []) or ([card['account_id']] if card.get('account_id') is not None else [])
+
+
 def with_day_result(database, row):
     """Journal-only totals use the tested core; missing results never imply zero."""
     import pandas as pd
@@ -55,7 +60,11 @@ def with_day_result(database, row):
         else:
             net = card.get('net_pnl')
         amounts.append(net)
-        trade_results.append({'account_id': card.get('account_id'), 'net_pnl': net})
+        result = {'account_id': card.get('account_id'), 'net_pnl': net}
+        selected = card_accounts(card)
+        if len(selected) > 1:
+            result['account_ids'] = selected
+        trade_results.append(result)
     recorded = [amount for amount in amounts if amount is not None]
     total = None
     if amounts and len(recorded) == len(amounts):
@@ -122,10 +131,22 @@ def save_day(database, day, values):
         cards = []
         account_ids = {account.id for account in database.accounts()}
         for item in incoming:
-            account_id = item.get('account_id')
-            if account_id is not None and account_id not in account_ids:
-                raise ValueError('Choose an account from your Journal.')
-            linked_id = old.get(item['id'], {}).get('lab_trade_id')
+            prior = old.get(item['id'], {})
+            if 'account_ids' in item:
+                selected = list(dict.fromkeys(item['account_ids']))
+            elif 'account_id' in item:
+                selected = card_accounts({'account_id': item['account_id']})
+                if item['account_id'] is None and len(card_accounts(prior)) > 1:
+                    selected = card_accounts(prior)
+            else:
+                selected = card_accounts(prior)
+            if any(account_id not in account_ids for account_id in selected):
+                raise ValueError('Choose accounts from your Journal.')
+            linked_id = prior.get('lab_trade_id')
+            if linked_id and len(selected) > 1:
+                raise ValueError('A linked Strategy Lab trade can have one Journal account.')
+            if selected or 'account_ids' in item or 'account_id' in item:
+                item = {**item, 'account_ids': selected, 'account_id': selected[0] if len(selected) == 1 else None}
             card = {'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'',
                     'outcome':'not_recorded', 'confirmations':[], 'level':'Not recorded',
                     'timeframe':'Not recorded', 'entry_timeframe':'Not recorded',
@@ -178,8 +199,11 @@ def trade_snapshot(database, trade_id):
 
 def link_trade(database, day, record_id, trade_id):
     current = entry(database, day)
-    if not any(t['id'] == record_id for t in current['trades']):
+    card = next((t for t in current['trades'] if t['id'] == record_id), None)
+    if card is None:
         raise ValueError('Save this journal trade first.')
+    if trade_id is not None and len(card_accounts(card)) > 1:
+        raise ValueError('Choose one account before linking a Strategy Lab trade.')
     if trade_id is not None and database.get_trade(trade_id) is None:
         raise ValueError('Choose a trade from your own Strategy Lab.')
     snapshot = trade_snapshot(database, trade_id) if trade_id is not None else {}
@@ -235,6 +259,6 @@ def restore_entry(database, archive_id):
 def references_account(database, account_id):
     for prefix in (PREFIX, TRASH_PREFIX):
         for row in database.settings_with_prefix(prefix).values():
-            if isinstance(row, dict) and any(card.get('account_id') == account_id for card in row.get('trades', [])):
+            if isinstance(row, dict) and any(account_id in card_accounts(card) for card in row.get('trades', [])):
                 return True
     return False

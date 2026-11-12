@@ -22,7 +22,8 @@ test('Journal accounts, plan chips and equity use saved entries', async ({page})
   const trade = page.getByRole('article', {name:'Journal trade 1', exact:true});
   await expect(trade).toContainText('Unassigned');
   await trade.locator('button').first().click();
-  await trade.getByLabel('Trade account').selectOption(String(account.id));
+  if(accounts.length>1) await trade.getByRole('checkbox',{name:account.name,exact:true}).check();
+  else await trade.getByLabel('Trade account').selectOption(String(account.id));
   const plan = page.getByRole('group', {name:'Plan followed?', exact:true});
   const save = page.getByRole('button', {name:'Save entry', exact:true}).first();
   const daily = page.getByLabel('Day profit and loss');
@@ -57,4 +58,35 @@ test('Journal accounts, plan chips and equity use saved entries', async ({page})
   await expect(equity).toContainText('No recorded Journal trade results');
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('one Journal card can cover three copy-trading accounts', async ({page}) => {
+  const origin = 'http://127.0.0.1:8119';
+  const day = '2026-08-19';
+  await page.goto(`${origin}/journal?day=${day}`);
+  const session = await (await page.request.get(`${origin}/api/session`)).json();
+  const headers = {'X-Primus-CSRF': session.csrf, Origin: origin};
+  const names = ['Copy account one', 'Copy account two', 'Copy account three'];
+  const accounts = [];
+  for (const name of names) {
+    const response = await page.request.post(`${origin}/api/journal-accounts`, {
+      headers, data:{name, starting_balance:50000, account_type:'Eval'},
+    });
+    expect(response.ok()).toBeTruthy();
+    accounts.push(await response.json());
+  }
+  await page.reload();
+  await page.getByRole('button',{name:'Add trade',exact:true}).click();
+  const card = page.getByRole('article',{name:'Journal trade 1',exact:true});
+  for (const name of names) await card.getByRole('checkbox',{name,exact:true}).check();
+  await card.getByRole('textbox',{name:'Trade notes',exact:true}).fill('One shared review.');
+  const pending = page.waitForResponse(response=>response.url().endsWith(`/api/journal/${day}`)&&response.request().method()==='PUT');
+  await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
+  const entry = await (await pending).json();
+  expect(entry.trades).toHaveLength(1);
+  expect(entry.trades[0].account_ids).toEqual(accounts.map(account=>account.id));
+  await page.reload();
+  await expect(card).toContainText(names.join(', '));
+  await card.locator('.pj-trade-summary').click();
+  for (const name of names) await expect(card.getByRole('checkbox',{name,exact:true})).toBeChecked();
 });

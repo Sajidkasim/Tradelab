@@ -15,6 +15,9 @@ export default function LearnPage() {
   const {identity}=useIdentity();
   const bullpen=useBullpen();
   const [meeting,setMeeting]=useState(null);
+  const [androidMeeting,setAndroidMeeting]=useState(null);
+  const isAndroid=/Android/i.test(navigator.userAgent);
+
   const [minimised,setMinimised]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -28,7 +31,7 @@ export default function LearnPage() {
     return()=>window.removeEventListener('beforeunload',warn);
   },[isRoomActive]);
 
-  async function join(){
+  async function join(native=false){
     if(isRoomActive){setMinimised(false);return}
     setMinimised(false);
     setBusy(true);
@@ -36,7 +39,8 @@ export default function LearnPage() {
     try{
       const reply=await api('/bullpen?join=true');
       if(!reply?.meeting)throw new Error('The team room is unavailable.');
-      setMeeting(reply.meeting);
+      if(native) setAndroidMeeting(reply.meeting);
+      else {setAndroidMeeting(null);setMeeting(reply.meeting)}
     }catch(failure){setError(failure.message)}
     finally{setBusy(false)}
   }
@@ -57,9 +61,14 @@ export default function LearnPage() {
       <div><span className="pt-overline">TEAM WORKSPACE</span><h2>Live Trading Bullpen</h2>
         <p>{access.configured?'Share your screen, discuss setups and follow the session together.':'JaaS video or private team chat still needs to be configured.'}</p>
       </div>
-      <Button variant="primary" busy={busy} disabled={!access.configured||!bullpen.connected} onClick={join}>
+      <Button variant="primary" busy={busy} disabled={!access.configured||!bullpen.connected} onClick={()=>join()}>
         <Radio size={17}/> {isRoomActive?'Restore Live Trading Floor':'Join Live Trading Floor'}
       </Button>
+      {isAndroid&&access.configured&&!isRoomActive&&<div className="bullpen-android">
+        <p>To share your Android screen, join in Jitsi Meet and choose Screen sharing from the call menu.</p>
+        {androidMeeting?<a className="pt-btn" href={`intent://8x8.vc/${encodeURIComponent(androidMeeting.appId)}/${encodeURIComponent(androidMeeting.roomName)}#jwt=${encodeURIComponent(androidMeeting.jwt)}#Intent;scheme=org.jitsi.meet;package=org.jitsi.meet;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=org.jitsi.meet')};end`}>Open Jitsi Meet</a>:<Button busy={busy} onClick={()=>join(true)}>Prepare Android app join</Button>}
+        <a href="https://play.google.com/store/apps/details?id=org.jitsi.meet" target="_blank" rel="noreferrer">Install Jitsi Meet</a>
+      </div>}
       {access.configured&&!bullpen.connected&&<p role="status">Connecting private chat…</p>}
       {error&&<Notice error>{error}</Notice>}
     </section>}

@@ -316,6 +316,8 @@ def create_app(config: Settings | None = None):
 
     from . import replay_sessions
     replay_sessions.mount(app, config, workspace)
+    from . import journal_replay
+    journal_replay.mount(app, config, workspace)
     from . import learning
     learning.mount(app, config, workspace)
     from . import setup_gallery
@@ -587,6 +589,8 @@ def create_app(config: Settings | None = None):
                 record = daily_journal.trade_entry(database, journal_day, payload.journal_trade_id)
                 if record is None:
                     raise ValueError('Save the journal trade before adding it to the Lab.')
+                if len(daily_journal.card_accounts(record)) > 1:
+                    raise ValueError('Choose one account before adding a trade to Strategy Lab.')
                 linked = record.get('lab_trade_id') or daily_journal.linked_record(database, journal_day, payload.journal_trade_id)
                 if linked and database.get_trade(linked) is not None:
                     entry = daily_journal.link_trade(database, journal_day, payload.journal_trade_id, linked)

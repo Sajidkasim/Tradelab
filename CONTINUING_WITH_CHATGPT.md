@@ -1556,3 +1556,66 @@ Validation: 96 frontend tests, production build and Bullpen browser regression
 passed. The browser check mocks JaaS, verifies iframe identity on minimise and
 restore, mobile panel bounds, dismissing a real beforeunload dialog and cleanup
 on Leave. No live multi-user conference was used; no deployment or push.
+
+## Journal replay local implementation — 10 November 2026
+
+See JOURNAL_REPLAY.md for implemented paths, permissions gates and remaining work.
+New services/journal_replay.py and webapp/journal_replay*.py preserve execution
+metadata separately from financial records, with private atomic duplicate-safe
+CSV ingestion and read-only ProjectX / Dukascopy candle adapters. Frontend adds
+JournalReplay.jsx and Replay on linked cards, using Vela + existing streaming and
+viewport seams unchanged. Forward only; 750-minute requests, 3,000 active bars.
+
+Provider access defaults off; no local ProjectX credentials/display approvals.
+The CSV is an explicit interchange format, NOT yet a verified native MT5/futures
+report importer. User confirmed export timezone is unknown. Obtain original
+exports and their timezone before implementing native parsing or live validation.
+No source candles, saved trades, finance formulas or dependencies changed.
+No deployment/push. See test results in the task's final response.
+
+Validation: 426 Python tests passed (four existing deprecation warnings), 98
+frontend unit tests passed, production build passed. Six replay/Journal browser
+checks passed, with the two replay checks repeated after the final notes wiring.
+Reviewed the actual Vela screenshot with synthetic execution markers. The real
+local import check confirms duplicate skipping and disabled-provider feedback
+without financial trade changes. Live provider and genuine export verification
+remain blocked as described above.
+
+### Native export follow-up — 10 November 2026
+
+User supplied trades_export.csv (TopstepX) and trading-journal.csv (FTMO website
+Trading Journal, not MT5 terminal). User confirmed TopstepX 11/10 is 10 November.
+Native import support now detects these exact header schemas. TopstepX's four
+real records validated IN MEMORY with UTC offsets and MNQZ6 → CON.F.US.MNQ.Z26.
+FTMO's 227 original rows passed structural checks (unique tickets, both prices,
+positive sizes, close after open), without applying a timezone or saving rows.
+
+FTMO export timezone remains unknown: importer requires explicit export timezone,
+not a presumed MT5 server clock. Duplicate Price headers are parsed by position;
+original ordered headers/values retain prices/results/fees verbatim. Closed trade
+rows are not a full execution tape and never imply invented partial fills.
+Unmapped native FTMO symbols remain stored metadata with provider unavailable:
+US100.cash, US500.cash, US30.cash, BTCUSD. These require verified reference-feed
+mapping/scale checks. Gold/EURUSD/GBPUSD have existing reference mappings. Neither
+actual supplied file was imported into the real journal or copied into the repo.
+Provider credentials/rights remain unconfigured; no live replay validation.
+
+Validation: 429 Python tests (four existing warnings), 98 frontend tests, build
+and three replay browser checks passed. Native browser fixtures are anonymised,
+including explicit synthetic FTMO timezone. No financial/core/viewport changes,
+no push/deployment. JOURNAL_REPLAY.md documents current support and limitations.
+
+### FTMO platform-clock confirmation
+
+User relayed FTMO website export follows MT5 platform time, currently GMT+2.
+Added explicit FTMO_MT5 import preset + UI button: UTC+2 winter / +3 summer,
+US DST calendar, rejecting ambiguous/missing transition times. See official
+clock-change links in JOURNAL_REPLAY.md. May–June file uses GMT+3, not today's
+GMT+2. All 227 records / 454 markers parsed in memory; nothing saved to the
+real journal. Timezone blocker resolved for this confirmed source. Provider
+credentials/display rights and unmapped CFD/crypto instruments remain pending.
+
+User explicitly confirmed ProjectX data use is allowed and requested enabling it.
+Local .env now enables JOURNAL_REPLAY_PROJECTX_APPROVED for owner only; no shared
+workspace access or deployment authorised. This is user-confirmed permission,
+not an independent licence audit. Secrets remain ignored and undisplayed.

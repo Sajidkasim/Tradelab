@@ -291,3 +291,25 @@ def test_traded_today_is_optional_and_preserved_on_partial_updates(draft):
         assert client.put(url, json={"notes": "Saved separately"}).json()["traded_today"] == answer
     assert client.put(url, json={"traded_today": None}).json()["traded_today"] is None
     assert client.put(url, json={"traded_today": "Maybe"}).status_code == 422
+
+
+def test_shared_journal_card_counts_combined_result_once(draft):
+    client, _, state = draft
+    login(client, state)
+    day = '2026-08-19'
+    accounts = []
+    for name in ('Copy One', 'Copy Two', 'Copy Three'):
+        response = client.post('/api/journal-accounts', json={'name': name, 'starting_balance': 50000, 'account_type': 'Eval'})
+        assert response.status_code == 201
+        accounts.append(response.json()['id'])
+    card = {'id': 'f'*32, 'account_ids': [*accounts, accounts[0]], 'net_pnl': 90, 'notes': 'One shared review.'}
+    response = client.put(f'/api/journal/{day}', json={'trades': [card]})
+    assert response.status_code == 200
+    entry = response.json()
+    assert entry['trades'][0]['account_ids'] == accounts
+    assert entry['day_result']['net_pnl'] == 90
+    assert entry['trade_results'] == [{'account_id': None, 'account_ids': accounts, 'net_pnl': 90}]
+    assert client.delete(f'/api/journal-accounts/{accounts[1]}').status_code == 409
+    invalid = {**card, 'account_ids': [999999]}
+    assert client.put(f'/api/journal/{day}', json={'trades': [invalid]}).status_code == 422
+    assert client.get('/api/journal').json()[0]['trades'][0]['account_ids'] == accounts
