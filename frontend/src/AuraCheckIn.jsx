@@ -119,10 +119,10 @@ function AuraChat({onClose}) {
       <div className="mw-aura-thread" role="log" aria-label="Conversation" ref={timeline}>
         <header className="mw-aura-opening">
           <span className="mw-aura-avatar" aria-hidden="true"><Sparkles size={19}/></span>
-          <h3>What could make you break your rules today?</h3>
-          <p>{opening?.text || 'Pick the situation most likely to pull you off plan. Let’s decide what you’ll do when it happens.'}</p>
+          <h3>Prime your execution for the session.</h3>
+          <p>{opening?.text || 'Set your intention, visualise your best setup, or define when you’ll step away.'}</p>
           {!turns.length && <div className="mw-aura-suggestions" role="group" aria-label="Quick replies">
-            {(opening?.suggestions || ['Help me stop chasing', 'Pressure-test my entry rules', 'Plan my reset after a loss']).map((message) =>
+            {(opening?.suggestions || ['Visualise my exact A+ setup', 'Pressure-test my bias', 'Set my hard walk-away limits']).map((message) =>
               <button key={message} type="button" disabled={busy || listening || Boolean(draft.trim())}
                 onClick={() => send(message)}>{message}</button>)}
           </div>}
@@ -139,7 +139,7 @@ function AuraChat({onClose}) {
         </React.Fragment>)}
       </div>
       <form className="mw-aura-compose" onSubmit={(event) => {event.preventDefault(); send(draft.trim());}}>
-        <textarea aria-label="Message Aura" placeholder="Message Aura…" rows={2} maxLength={400}
+        <textarea aria-label="Message Aura" placeholder="What’s the plan today?" rows={2} maxLength={400}
           value={draft} readOnly={listening} onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {

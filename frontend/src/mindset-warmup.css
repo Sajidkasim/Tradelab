@@ -293,9 +293,11 @@
 }
 .mw-aura-compose:focus-within { border-color:var(--pt-soft); box-shadow:0 0 0 2px color-mix(in srgb,var(--pt-soft) 20%,transparent); }
 .mw-aura-compose textarea {
-  display:block; width:100%; border:0; background:transparent; padding:12px 14px 2px;
+  display:block; width:100%; box-sizing:border-box; border:0; box-shadow:none;
+  background:transparent; padding:12px 14px 2px; overflow-x:hidden; scrollbar-width:none;
   color:var(--pt-ink); resize:none; font:inherit; font-size:16px; line-height:1.5; outline:0;
 }
+.mw-aura-compose textarea::-webkit-scrollbar { display:none; }
 .mw-aura-compose-tools { display:flex; align-items:center; justify-content:flex-end; gap:7px; padding:4px 8px 8px; }
 .mw-aura-icon {
   display:grid; place-items:center; min-width:44px; min-height:44px; border-radius:50%;

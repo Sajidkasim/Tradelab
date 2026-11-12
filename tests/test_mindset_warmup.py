@@ -198,23 +198,31 @@ def test_aura_opening_uses_private_results_and_checks_actual_limits(draft, monke
     from webapp import daily_journal
 
     client, app, identity = draft
-    monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 15, tzinfo=timezone.utc))
+    monkeypatch.setattr(mindset, 'now_utc', lambda: datetime(2026, 11, 12, 14, 15, tzinfo=timezone.utc))
     endpoint = '/api/mindset/check-in/opening'
     assert client.get(endpoint).status_code == 401
     login(client, identity)
     database = app.state.workspaces.database('owner')
     for day in ('2026-11-06', '2026-11-09', '2026-11-10', '2026-11-11'):
         daily_journal.save(database, day, {'trades':[{'net_pnl':50}]})
-    assert '4 green trading days' in client.get(endpoint).json()['text']
+    opening = client.get(endpoint).json()
+    assert '4 green trading days' in opening['text']
+    assert opening['suggestions'] == [
+        'Visualise my exact A+ setup', 'Prepare for the 09:30 New York open',
+        'Keep my entry standards after a winning streak',
+    ]
     daily_journal.save(database, '2026-11-11', {'trades':[{'net_pnl':-50}]})
     assert 'Yesterday was a red day' in client.get(endpoint).json()['text']
     payload = {**trade_payload(source='manual', pnl=-1000),
                'entry_time':'2026-11-11T23:45:00-05:00', 'exit_time':'2026-11-11T23:50:00-05:00'}
     assert client.post('/api/trades', json=payload).status_code == 200
-    assert 'hit your daily loss limit yesterday' in client.get(endpoint).json()['text']
+    opening = client.get(endpoint).json()
+    assert 'hit your daily loss limit yesterday' in opening['text']
+    assert 'Trade my process after hitting my limit' in opening['suggestions']
     client.post('/api/logout')
     login(client, identity, 'friend@example.com', 'friend-sub')
-    assert 'Before you look at a chart' in client.get(endpoint).json()['text']
+    assert 'Set your intention' in client.get(endpoint).json()['text']
+    assert 'Set my hard walk-away limits' in client.get(endpoint).json()['suggestions']
 
 
 @pytest.mark.parametrize('difficulty, grid_size, pattern_size', [('easy', 4, 4), ('hard', 5, 5)])

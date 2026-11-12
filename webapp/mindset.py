@@ -143,13 +143,29 @@ def aura_context(database, frame, day):
 
 def aura_opening(context):
     if context['daily_loss_limit_hit']:
-        return 'You hit your daily loss limit yesterday. If the urge to win it back shows up today, what will make you step away?'
+        return 'You hit your daily loss limit yesterday. Set a walk-away rule before your first trade.'
     if context['yesterday'] == 'loss':
-        return 'Yesterday was a red day. Decide what would make you stop and reassess before the next entry.'
+        return 'Yesterday was a red day. Pick one part of your process to execute well today.'
     if context['green_days'] >= 2:
         return (f"You’ve had {context['green_days']} green trading days in a row. "
-                'Name the entry condition that still has to be there, even if the setup looks obvious.')
-    return 'Before you look at a chart, choose one situation that could pull you off plan and one action you’ll take when it happens.'
+                'Decide what still has to be true before you take your first trade.')
+    return 'Set your intention, visualise your best setup, or define when you’ll step away.'
+
+
+def aura_suggestions(context, now):
+    new_york = now.astimezone(NY)
+    process = 'Pressure-test my bias'
+    if new_york.weekday() < 5 and time(9) <= new_york.time() < time(9, 30):
+        process = 'Prepare for the 09:30 New York open'
+
+    risk_prompt = 'Set my hard walk-away limits'
+    if context['daily_loss_limit_hit']:
+        risk_prompt = 'Trade my process after hitting my limit'
+    elif context['yesterday'] == 'loss':
+        risk_prompt = 'Set a process goal after a red day'
+    elif context['green_days'] >= 3:
+        risk_prompt = 'Keep my entry standards after a winning streak'
+    return ['Visualise my exact A+ setup', process, risk_prompt]
 
 
 def readiness(energy, headspace):
@@ -326,19 +342,15 @@ def mount(app, config, workspace):
             workspaces().bump(member['key'])
             return view(db, member, day, reset)
 
-    def current_aura_context(member):
-        day, _ = day_window(now_utc())
+    def current_aura_context(member, now):
+        day, _ = day_window(now)
         return aura_context(database(member), workspaces().trades(member['key']), day)
 
     @app.get('/api/mindset/check-in/opening')
     def check_in_opening(member=Depends(workspace)):
-        context = current_aura_context(member)
-        suggestions = ['Help me stop chasing', 'Pressure-test my entry rules', 'Plan my reset after a loss']
-        if context['daily_loss_limit_hit'] or context['yesterday'] == 'loss':
-            suggestions = ['Help me reset after yesterday', 'Plan a response to revenge trading', 'Define my walk-away trigger']
-        elif context['green_days'] >= 2:
-            suggestions = ['Pressure-test my entry rules', 'Spot signs I’m forcing a trade', 'Plan what to do if I miss an entry']
-        return {'text': aura_opening(context), 'suggestions': suggestions}
+        now = now_utc()
+        context = current_aura_context(member, now)
+        return {'text': aura_opening(context), 'suggestions': aura_suggestions(context, now)}
 
     @app.post('/api/mindset/check-in/reflect')
     def reflect(payload: AuraPrompt, member=Depends(workspace)):
@@ -346,7 +358,7 @@ def mount(app, config, workspace):
 
         if payload.step == 'intention' and len(payload.reflection.strip()) < 10:
             raise HTTPException(422, 'Write at least 10 characters before asking Aura for a rule.')
-        raw = aura_check_in(payload.model_dump(), current_aura_context(member)).strip()
+        raw = aura_check_in(payload.model_dump(), current_aura_context(member, now_utc())).strip()
         if raw.startswith('```json') and raw.endswith('```'):
             raw = raw[7:-3].strip()
         try:

@@ -313,7 +313,7 @@ test('Aura opens with a contextual prompt and quick replies on a dark surface', 
   await page.getByRole('button',{name:'Ask Aura'}).click();
   const dialog = page.getByRole('dialog',{name:'Aura',exact:true});
   await expect(dialog).toHaveCSS('background-color','rgb(40, 43, 46)');
-  await expect(dialog.getByRole('heading',{name:'What could make you break your rules today?'})).toBeVisible();
+  await expect(dialog.getByRole('heading',{name:'Prime your execution for the session.'})).toBeVisible();
   await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
   await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();
   await expect(dialog.getByRole('log')).toContainText('Take one setup at a time.');
