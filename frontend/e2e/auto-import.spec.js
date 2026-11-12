@@ -13,7 +13,7 @@ test("new Lab choices import automatically with case, space and spelling variati
     let dialog = page.getByRole('dialog',{name:'Lab settings',exact:true});
     await dialog.getByRole('button',{name:'Strategies & levels',exact:true}).click();
     await dialog.getByLabel('Strategies',{exact:true}).fill([...original.playbook.strategies,'Breakout and retest'].join('\n'));
-    await dialog.getByLabel('Key levels / PDA',{exact:true}).fill([...original.playbook.levels,'My weekly level'].join('\n'));
+    await dialog.getByLabel('Key levels',{exact:true}).fill([...original.playbook.levels,'My weekly level'].join('\n'));
     await dialog.getByRole('button',{name:'Save strategies & levels',exact:true}).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button',{name:'My lab',exact:true}).click();

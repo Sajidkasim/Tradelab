@@ -83,6 +83,11 @@ class NewTrade(Review):
     journal_trade_id: str | None = Field(default=None, pattern=r'^[a-f0-9]{32}$')
 
 
+class ArchivedChoice(StrictModel):
+    field: Literal['strategies', 'levels', 'confirmations', 'level_timeframes', 'entry_timeframes']
+    name: str = Field(min_length=1, max_length=120)
+
+
 class Playbook(StrictModel):
     strategies: list[str] = Field(max_length=200)
     levels: list[str] = Field(max_length=200)

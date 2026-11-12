@@ -2653,3 +2653,33 @@ td strong {
 .explorer .field select:hover { border-color: var(--tl-accent); }
 .explorer .field select:focus-visible { border-color: var(--tl-accent); }
 .explorer .field select option { color: var(--tl-ink); background: var(--tl-surface); }
+
+.archive-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pt-hero-copy,
+  .pt-journal-heading,
+  .mw-hero-content,
+  .wp-heading,
+  .page-heading,
+  .lab-section-heading {
+    animation: primus-heading-in 260ms ease-out both;
+  }
+
+  .pt-header a,
+  .main-nav button,
+  .workspace-menu button,
+  .archive-actions button {
+    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  }
+
+  @keyframes primus-heading-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}

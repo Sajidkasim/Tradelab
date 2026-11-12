@@ -46,6 +46,7 @@ export default function App() {
     [access, setAccess] = useState(false),
     [message, setMessage] = useState("");
   const [importSettingsRequested, setImportSettingsRequested] = useState(false);
+  const [filterEditor, setFilterEditor] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [dismissedRelease, setDismissedRelease] = useState(null);
@@ -309,6 +310,8 @@ export default function App() {
                     refresh={refresh}
                     toast={toast}
                     onTrades={() => navigate("trades")}
+                    filterEditor={filterEditor}
+                    onCloseFilterEditor={() => setFilterEditor(false)}
                   />
                 </section>
                 <section id="trades" aria-label="Trades">
@@ -358,6 +361,11 @@ export default function App() {
               refresh={refresh}
               toast={toast}
               onClose={() => setLabSettings(false)}
+              onCreateFilter={() => {
+                setLabSettings(false);
+                navigate("results");
+                setFilterEditor(true);
+              }}
             />
           )}
           {backup && (

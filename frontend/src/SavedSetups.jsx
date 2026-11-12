@@ -5,6 +5,8 @@ import { Button, Modal, Field, Select, Notice } from "./components";
 
 export default function SavedSetups({
   items,
+  requested,
+  onCloseRequested,
   filters,
   onApply,
   refresh,
@@ -14,6 +16,11 @@ export default function SavedSetups({
     [name, setName] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  function close() {
+    setOpen(false);
+    setError("");
+    if (requested) onCloseRequested();
+  }
   async function save(event) {
     event.preventDefault();
     setBusy(true);
@@ -21,7 +28,7 @@ export default function SavedSetups({
     try {
       await api("/saved-setups", { method: "POST", body: { name, filters } });
       await refresh();
-      setOpen(false);
+      close();
       setName("");
       toast("Setup saved. Restore these filters in one click.");
     } catch (error) {
@@ -71,8 +78,8 @@ export default function SavedSetups({
           <BookmarkPlus size={15} /> Save setup
         </Button>
       </div>
-      {open && (
-        <Modal title="Saved setups" onClose={() => !busy && setOpen(false)}>
+      {(open || requested) && (
+        <Modal title="Saved setups" onClose={() => !busy && close()}>
           <form className="stack" onSubmit={save}>
             <p className="muted">
               Save your current Explore filters so you can return to this setup
@@ -107,7 +114,7 @@ export default function SavedSetups({
                   <Button
                     onClick={() => {
                       onApply(item.filters);
-                      setOpen(false);
+                      close();
                     }}
                   >
                     {item.name}

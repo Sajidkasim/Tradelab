@@ -54,6 +54,8 @@ export default function Results({
   revision,
   mode,
   onTrades,
+  filterEditor,
+  onCloseFilterEditor,
   scope,
   setScope,
   refresh,
@@ -209,6 +211,8 @@ export default function Results({
           </div>
           <SavedSetups
             items={meta.saved_setups || []}
+            requested={filterEditor}
+            onCloseRequested={onCloseFilterEditor}
             filters={filters}
             refresh={refresh}
             toast={toast}
@@ -238,7 +242,7 @@ export default function Results({
             />
           </div>
           <VocabularySelect searchable
-            label="Key level / PDA"
+            label="Key level"
             values={["Any level", ...meta.playbook.levels]}
             archived={meta.archived_choices?.levels}
             value={filters.level}
@@ -432,6 +436,8 @@ function ResultSample({
   detail,
   comparison,
   onTrades,
+  filterEditor,
+  onCloseFilterEditor,
   palette,
 }) {
   const { clockName } = useJournalClock();

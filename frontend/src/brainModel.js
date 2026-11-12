@@ -1,6 +1,11 @@
 // Small, original procedural illustration; approximate regions, not an anatomy scan.
 export const BRAIN_REGIONS = [
- {id:"caudate",short:"Caudate",name:"Caudate nucleus",color:"#edce7f",point:[.1,.05,.15],eyebrow:"Learning & action selection",title:"Notice the repeated response.",body:"The caudate is part of the striatum within the basal ganglia. These connected circuits contribute to learning and selecting actions, alongside cortical and other brain regions.",prompt:"What familiar cue led to the action, and what alternative could you plan?",view:"inside"},
+  {
+    id: "caudate", short: "Caudate", name: "Caudate nucleus", color: "#edce7f",
+    point: [.1,.05,.15], eyebrow: "Habits", title: "Break the repeat click.",
+    body: "This region helps you learn repeated actions. After a stop-out, reaching for another entry can become a habit.",
+    prompt: "After a stop-out, write one line about the last trade before reopening the order panel.", view: "inside",
+  },
   {
     id: "pfc",
     short: "PFC",
@@ -8,10 +13,10 @@ export const BRAIN_REGIONS = [
     color: "#74cfbd",
     point: [1.05, 0.22, 0.43],
     eyebrow: "Planning & attention",
-    title: "Make room for the plan.",
-    body: "The prefrontal cortex contributes to planning, attention and decision-making. It works with other brain regions, including those involved in emotion and memory.",
+    title: "Check the setup before you click.",
+    body: "This region helps with planning and attention. A fast candle can pull your attention away from the setup you planned.",
     prompt:
-      "Before the next decision: what does your written plan actually require?",
+      "Before entering, name the level, the confirmation and where the setup is invalidated.",
     view: "surface",
   },
   {
@@ -21,10 +26,10 @@ export const BRAIN_REGIONS = [
     color: "#efa77b",
     point: [0.4, -0.27, 0.34],
     eyebrow: "Emotional significance",
-    title: "Notice what feels urgent.",
-    body: "The amygdala participates in learning about emotionally significant events, including threats. It is part of connected circuits, rather than a single fear switch.",
+    title: "Catch the urge to chase.",
+    body: "This region helps flag events that feel important. A sudden move can feel urgent even after your planned entry has passed.",
     prompt:
-      "A missed move can feel urgent. Name the feeling, then check whether the setup is still valid.",
+      "If the planned entry is gone, mark the miss and wait for the next setup.",
     view: "inside",
   },
   {
@@ -34,10 +39,10 @@ export const BRAIN_REGIONS = [
     color: "#b8a4ec",
     point: [-0.27, -0.32, 0.35],
     eyebrow: "Memory & context",
-    title: "Put this moment in context.",
-    body: "The hippocampus contributes to forming memories and representing context. A vivid recent result can be a useful reflection prompt, but does not establish what the next trade will do.",
+    title: "Review the setup in front of you.",
+    body: "This region helps with memory and context. A vivid loss yesterday can colour how you read a similar setup today.",
     prompt:
-      "Are you responding to this setup, or remembering the last outcome? Write down the difference.",
+      "Write down what the current candles show before comparing the setup with your last trade.",
     view: "inside",
   },
 ];

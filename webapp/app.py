@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from core import edge
 from core.models import Account, Source
 from core.registry import COACH_PROVIDERS, load_extensions
-from .schemas import JournalAccount
+from .schemas import ArchivedChoice, JournalAccount
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
@@ -320,6 +320,8 @@ def create_app(config: Settings | None = None):
     journal_replay.mount(app, config, workspace)
     from . import learning
     learning.mount(app, config, workspace)
+    from . import mindset
+    mindset.mount(app, config, workspace)
     from . import setup_gallery
     setup_gallery.mount(app, config, workspace)
 
@@ -834,6 +836,20 @@ def create_app(config: Settings | None = None):
             app.state.workspaces.bump(member["key"])
         return values
 
+    @app.post("/api/lab-settings/archives/delete")
+    def delete_lab_archive(payload: ArchivedChoice, request: Request, member=Depends(workspace)):
+        workspaces = app.state.workspaces
+        with workspaces.lock:
+            database = db(request, member)
+            archived = workspaces.archived_choices(member['key'])
+            if payload.name not in archived.get(payload.field, []):
+                raise HTTPException(404, 'This archived choice is no longer available.')
+            dismissed = database.get_setting(lab_settings.DISMISSED_ARCHIVES_KEY, {})
+            dismissed.setdefault(payload.field, []).append(payload.name)
+            database.set_setting(lab_settings.DISMISSED_ARCHIVES_KEY, dismissed)
+            workspaces.bump(member['key'])
+        return {'ok': True}
+
     @app.put("/api/playbook")
     def playbook(payload: Playbook, request: Request, member=Depends(workspace)):
         if any(len(value) > 120 for value in payload.strategies + payload.levels):
@@ -844,6 +860,7 @@ def create_app(config: Settings | None = None):
             values = {'strategies': tag_cleanup.names(payload.strategies, 'strategy', aliases),
                       'levels': tag_cleanup.names(payload.levels, 'level', aliases)}
             book = strategy_catalog.save(database, app.state.workspaces.trades(member['key']), values)
+            lab_settings.restore_archive_visibility(database, book)
             app.state.workspaces.bump(member["key"])
         return book
 

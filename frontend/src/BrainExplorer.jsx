@@ -231,16 +231,8 @@ export default function BrainExplorer() {
   return (
     <section className="mind-story" aria-labelledby="mind-story-title">
       <header className="mind-story-heading">
-        <span className="pt-overline">01 / UNDERSTAND THE REACTION</span>
-        <h2 id="mind-story-title">
-          A fast market.
-          <br />
-          <em>A moment to choose.</em>
-        </h2>
-        <p>
-          Explore how planning, emotion and memory work together. Then bring the
-          question back to your own process.
-        </p>
+        <h2 id="mind-story-title">Brain Explorer</h2>
+        <p>Pick a region to see a familiar trading moment and one action to practise.</p>
       </header>
       <div className="brain-explorer">
         <AnatomyExplorer
@@ -275,31 +267,8 @@ export default function BrainExplorer() {
             <h3>{region.title}</h3>
             <strong>{region.name}</strong>
             <p>{region.body}</p>
-            <details className="brain-psychology">
-              <summary>Emotion, habits & a practical response</summary>
-              <p>
-                {
-                  {
-                    pfc: "Attention and planning can be harder when you feel under pressure or tired. Use a written checklist to reduce how much you have to remember in the moment. This is a process aid, not a way to switch a region on.",
-                    amygdala:
-                      "Threat, uncertainty and emotionally important outcomes involve many connected regions. When urgency appears, name what you feel, take a comfortable pause, and separate the observed setup from the outcome you hope for.",
-                    hippocampus:
-                      "Memory provides context, but one vivid win or loss is a small sample. Record the current setup before comparing it with your recent experience.",
-                    caudate:
-                      "The caudate participates in circuits for learning and action selection. Habitual reactions are not located in one structure alone. Write a specific alternative action for a familiar cue, such as reviewing the checklist before reopening the order panel.",
-                  }[selected]
-                }
-              </p>
-              <a
-                href="https://www.nimh.nih.gov/health/topics/caring-for-your-mental-health"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Self-care guidance · NIMH ↗
-              </a>
-            </details>
             <div className="brain-prompt">
-              <span>A QUESTION FOR YOUR NEXT SESSION</span>
+              <span>TRY THIS AT THE CHART</span>
               <p>{region.prompt}</p>
             </div>
           </div>
@@ -313,52 +282,6 @@ export default function BrainExplorer() {
           </button>
         </div>
       </div>
-      <div className="mind-network">
-        <span>CONNECTED, NOT COMPETING</span>
-        <p>
-          “Limbic system” is a broad term for interconnected structures involved
-          in emotion and memory. These are not separate on/off trading states.
-          This illustration cannot measure your brain activity or tell you why
-          you took a trade.
-        </p>
-        <a
-          href="https://www.nimh.nih.gov/research/research-funded-by-nimh/rdoc/units/circuits"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Explore brain circuits · NIMH ↗
-        </a>
-        <a
-          href="https://www.nimh.nih.gov/health/publications/the-teen-brain-7-things-to-know"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Planning & the PFC · NIMH ↗
-        </a>
-      </div>
-      <ol className="mind-story-path">
-        <li>
-          <span>01</span>
-          <div>
-            <strong>Notice</strong>
-            <p>Describe the feeling without judging it.</p>
-          </div>
-        </li>
-        <li>
-          <span>02</span>
-          <div>
-            <strong>Pause</strong>
-            <p>Take a comfortable breath before the next action.</p>
-          </div>
-        </li>
-        <li>
-          <span>03</span>
-          <div>
-            <strong>Reflect</strong>
-            <p>Return to the plan. Keep a note in your Journal.</p>
-          </div>
-        </li>
-      </ol>
     </section>
   );
 }

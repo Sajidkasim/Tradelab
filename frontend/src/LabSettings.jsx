@@ -4,7 +4,7 @@ import { api } from "./api";
 import { Modal, Field, Select, Button, Notice, Segments } from "./components";
 import TagCleanup from "./TagCleanup";
 
-export default function LabSettings({ meta, refresh, toast, onClose }) {
+export default function LabSettings({ meta, refresh, toast, onClose, onCreateFilter }) {
   const [journalClock, setJournalClock] = useState(meta.journal_preferences?.timezone || "America/New_York");
   const [settings, setSettings] = useState(() =>
     structuredClone(meta.lab_settings),
@@ -21,6 +21,25 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [archiveToDelete, setArchiveToDelete] = useState(null);
+  const requestClose = () => {
+    if (!busy) setConfirmClose(true);
+  };
+  async function deleteArchive() {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/lab-settings/archives/delete", { method: "POST", body: archiveToDelete });
+      setArchiveToDelete(null);
+      await refresh();
+      toast("Archived choice deleted.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const changeSession = (index, key, value) =>
     setSettings((current) => ({
       ...current,
@@ -28,11 +47,34 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         i === index ? { ...session, [key]: value } : session,
       ),
     }));
-  function archiveList(key,current,onRestore) {
-    const title={strategies:'strategies',levels:'key levels',confirmations:'confirmations',level_timeframes:'key level timeframes',entry_timeframes:'entry timeframes'}[key];
-    const active=current.split('\n').map(value=>value.trim());
-    const removed=(meta.archived_choices?.[key]||[]).filter(value=>!active.includes(value));
-    return removed.length ? <details className="disclosure"><summary>Archived {title} · {removed.length}</summary><div className="stack"><p>These stay on older trades. Restore a choice to add it back to the active list, then save your settings.</p>{removed.map(value=><div className="archive-row" key={value}><span>{value}</span><Button type="button" onClick={()=>onRestore([...active.filter(Boolean),value].join('\n'))}>Restore {value}</Button></div>)}</div></details> : null;
+  function archiveList(field, current, onRestore) {
+    const title = {
+      strategies: "strategies", levels: "key levels", confirmations: "confirmations",
+      level_timeframes: "key level timeframes", entry_timeframes: "entry timeframes",
+    }[field];
+    const active = current.split("\n").map((value) => value.trim()).filter(Boolean);
+    const removed = (meta.archived_choices?.[field] || []).filter((value) => !active.includes(value));
+    if (!removed.length) return null;
+    return (
+      <details className="disclosure">
+        <summary>Archived {title} · {removed.length}</summary>
+        <div className="stack">
+          <p>Restore a choice and save to bring it back, or delete it from this list. Saved trades keep their original labels.</p>
+          {removed.map((name) => (
+            <div className="archive-row" key={name}>
+              <span>{name}</span>
+              <div className="archive-actions">
+                <Button type="button" onClick={() => onRestore([...active, name].join("\n"))}>Restore {name}</Button>
+                <button className="icon-button delete-trade" type="button" aria-label={`Delete archived ${name}`}
+                  onClick={() => { setError(""); setArchiveToDelete({ field, name }); }}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+    );
   }
   async function save(event) {
     event.preventDefault();
@@ -82,17 +124,15 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
       setBusy(false);
     }
   }
-  return (
+  const settingsDialog = (
     <Modal
       title="Lab settings"
       className="lab-settings-modal"
-      onClose={() => {
-        if (!busy) onClose();
-      }}
+      onClose={requestClose}
     >
       <form
         onSubmit={(event) =>
-          tab === "cleanup" ? event.preventDefault() : save(event)
+          ["cleanup", "advanced"].includes(tab) ? event.preventDefault() : save(event)
         }
         className="stack lab-settings-form"
       >
@@ -105,6 +145,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
             { value: "sessions", label: "Session windows" },
             { value: "news", label: "News & market" },
             { value: "cleanup", label: "Clean up tags" },
+            { value: "advanced", label: "Advanced" },
           ]}
           value={tab}
           onChange={setTab}
@@ -120,7 +161,7 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
             <div><h3>Strategies & key levels</h3><p className="muted">One name per line. Each choice becomes an import tag automatically and is shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
             <div className="form-grid two">
               <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
-              <Field label="Key levels / PDA" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
+              <Field label="Key levels" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
             </div>
             {archiveList('strategies',strategies,setStrategies)}
             {archiveList('levels',levels,setLevels)}
@@ -315,10 +356,17 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
             </p>
           </div>
         )}
-        {error && <Notice error>{error}</Notice>}
-        {tab !== "cleanup" && (
+        {tab === "advanced" && (
+          <div className="stack">
+            <h3>Custom Explore filters</h3>
+            <p className="muted">Save your current strategy, session and other Explore choices as a named setup you can apply again from the Results page.</p>
+            <Button type="button" onClick={() => setConfirmClose("filter")}>Create a saved filter</Button>
+          </div>
+        )}
+        {error && !archiveToDelete && <Notice error>{error}</Notice>}
+        {!["cleanup", "advanced"].includes(tab) && (
           <div className="actions">
-            <Button type="button" disabled={busy} onClick={onClose}>
+            <Button type="button" disabled={busy} onClick={requestClose}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" busy={busy}>
@@ -328,5 +376,31 @@ export default function LabSettings({ meta, refresh, toast, onClose }) {
         )}
       </form>
     </Modal>
+  );
+  return (
+    <>
+      {settingsDialog}
+      {confirmClose && (
+        <Modal title={confirmClose === "filter" ? "Open saved filters?" : "Close Lab settings?"} onClose={() => setConfirmClose(false)}>
+          <p>Any unsaved changes will be lost.</p>
+          <div className="actions">
+            <Button onClick={() => setConfirmClose(false)}>Keep editing</Button>
+            <Button variant="primary" onClick={confirmClose === "filter" ? onCreateFilter : onClose}>
+              {confirmClose === "filter" ? "Open saved filters" : "Close settings"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {archiveToDelete && (
+        <Modal title="Delete archived choice?" onClose={() => !busy && setArchiveToDelete(null)}>
+          <p>Remove “{archiveToDelete.name}” from the archive list. Saved trades keep this label.</p>
+          {error && <Notice error>{error}</Notice>}
+          <div className="actions">
+            <Button disabled={busy} onClick={() => setArchiveToDelete(null)}>Keep choice</Button>
+            <Button variant="primary" busy={busy} onClick={deleteArchive}>Delete from archive</Button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

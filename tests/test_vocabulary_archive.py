@@ -35,3 +35,33 @@ def test_missing_label_sentinels_never_become_choices_or_archives(local):
     meta=client.get('/api/metadata').json()
     assert meta['strategies']==['Actual setup'] and meta['playbook']['levels']==['Actual level']
     assert all('Not recorded' not in values and 'Unclassified' not in values for values in meta['archived_choices'].values())
+
+
+def test_delete_archived_choices_keeps_trades_and_respects_readding(local):
+    client, _ = local
+    original = {'strategies': ['Kept', 'Old setup'], 'levels': ['FVG', 'Old level']}
+    reduced = {'strategies': ['Kept'], 'levels': ['FVG']}
+    assert client.put('/api/playbook', json=original).status_code == 200
+    body = trade_payload(strategy='Old setup')
+    body['labels']['level'] = 'Old level'
+    assert client.post('/api/trades', json=body).status_code == 200
+    trades = client.get('/api/trades').json()
+    assert client.put('/api/playbook', json=reduced).status_code == 200
+
+    endpoint = '/api/lab-settings/archives/delete'
+    assert client.post(endpoint, json={'field': 'strategies', 'name': 'Kept'}).status_code == 404
+    for field, name in [('strategies', 'Old setup'), ('levels', 'Old level')]:
+        choice = {'field': field, 'name': name}
+        assert client.post(endpoint, json=choice).status_code == 200
+        assert client.post(endpoint, json=choice).status_code == 404
+    meta = client.get('/api/metadata').json()
+    assert meta['playbook'] == reduced
+    assert 'Old setup' not in meta['archived_choices']['strategies']
+    assert 'Old level' not in meta['archived_choices']['levels']
+    assert client.get('/api/trades').json() == trades
+
+    assert client.put('/api/playbook', json=original).status_code == 200
+    assert client.put('/api/playbook', json=reduced).status_code == 200
+    archived = client.get('/api/metadata').json()['archived_choices']
+    assert 'Old setup' in archived['strategies']
+    assert 'Old level' in archived['levels']

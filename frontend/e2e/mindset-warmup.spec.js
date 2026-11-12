@@ -1,0 +1,194 @@
+import {expect, test} from '@playwright/test';
+
+const origin = 'http://127.0.0.1:8119';
+const memoryRound = {cells:[0, 3, 8, 14]};
+
+async function stubDrill(page, responses) {
+  const attemptId = 'a'.repeat(32);
+  await page.route('**/api/mindset/drill', route => {
+    expect(route.request().postDataJSON().mode).toBe('memory');
+    return route.fulfill({json:{attempt_id:attemptId,duration:60,rounds:Array(6).fill(memoryRound)}});
+  });
+  await page.route('**/api/mindset/score', route => {
+    expect(route.request().postDataJSON()).toEqual({attempt_id:attemptId,responses});
+    return route.fulfill({json:{score:10,max_score:60}});
+  });
+  await page.route('**/api/mindset/complete', route => {
+    expect(route.request().postDataJSON()).toEqual({attempt_id:attemptId,day:expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)});
+    return route.fulfill({json:{completed:true,team_eligible:false}});
+  });
+}
+
+async function warmup(page) {
+  await page.getByRole('button',{name:'Start Pre-Market Warm-Up',exact:true}).click();
+  const dialog = page.getByRole('dialog',{name:'Pre-Market Warm-Up'});
+  await expect(dialog.getByRole('heading',{name:'Breathwork'})).toBeVisible();
+  return dialog;
+}
+
+test('private morning prep persists and Take or Pass leads to a saved affirmation',async({page},info)=>{
+  await page.clock.install();
+  await page.route('**/api/mindset/check-in/reflect', route => {
+    const {step, reflection, question} = route.request().postDataJSON();
+    expect(reflection).toBe('I rushed into trades after a loss.');
+    if(step==='intention') expect(question).toBe('What will you do before your next entry?');
+    return route.fulfill({json:{focus:'reset',text:step==='follow_up'
+      ? 'What will you do before your next entry?' : 'I’ll pause before I place another trade.'}});
+  });
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('button',{name:'Open Aura check-in'}).click();
+  const aura = page.getByRole('dialog',{name:'Aura check-in'});
+  await aura.getByRole('textbox',{name:'Your reflection'}).fill('I rushed into trades after a loss.');
+  await aura.getByRole('button',{name:'Continue',exact:true}).click();
+  await expect(aura.getByLabel('Today’s focus')).toHaveValue('reset');
+  await expect(aura.getByText('What will you do before your next entry?',{exact:true})).toBeVisible();
+  await aura.getByRole('button',{name:'Review intention'}).click();
+  await expect(aura.getByRole('textbox',{name:'Daily intention'})).toHaveValue('I’ll pause before I place another trade.');
+  await aura.getByRole('textbox',{name:'Daily intention'}).fill('Wait for delivery.');
+  await aura.getByRole('button',{name:'Approve and save'}).click();
+  await expect(aura).toHaveCount(0);
+  const progress = page.getByRole('progressbar',{name:'Pre-session checklist progress'});
+  await expect(progress).toHaveAttribute('aria-valuenow','0');
+  for (const [index, name] of ['HTF levels marked','News checked','Give to charity'].entries()) {
+    await page.getByRole('checkbox',{name:new RegExp(name)}).check();
+    await expect(progress).toHaveAttribute('aria-valuenow',String(index + 1));
+  }
+  await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
+  await expect(page.locator('.mw-check-finish')).toHaveClass(/is-celebrating/);
+  const lossLimit = page.getByRole('checkbox',{name:'Give to charity',exact:true});
+  await lossLimit.uncheck();
+  await expect(progress).toHaveAttribute('aria-valuetext','2 of 3 complete');
+  await expect(page.getByText('Session Ready',{exact:true})).toHaveCount(0);
+  await lossLimit.check();
+  await page.getByRole('button',{name:'Save morning prep'}).click();
+  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('Wait for delivery.',{exact:true})).toBeVisible();
+  await page.getByText('Recent check-ins',{exact:true}).click();
+  await expect(page.locator('.mw-aura-history')).toContainText('Wait for delivery.');
+  await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
+  await expect(progress).toHaveAttribute('aria-valuetext','3 of 3 complete');
+  await expect(page.locator('.mw-check-finish')).not.toHaveClass(/is-celebrating/);
+  await expect(page.getByText('Take a steady breath',{exact:true})).toHaveCount(0);
+  await page.screenshot({path:info.outputPath('mindset-warmup-desktop.png')});
+  await expect(page.getByRole('heading',{name:'Pre-Market Affirmation',exact:true})).toHaveCount(0);
+  const dialog = await warmup(page);
+  const next = dialog.getByRole('button',{name:'Next: Brain Warm-Up'});
+  await expect(dialog.getByRole('button',{name:'Skip to Brain Warm-Up'})).toBeEnabled();
+  await page.clock.fastForward(4100);
+  await expect(dialog.getByRole('status')).toHaveText('Hold');
+  await dialog.getByRole('button',{name:'Pause',exact:true}).click();
+  await page.clock.fastForward(125000);
+  await expect(dialog.getByRole('status')).toHaveText('Paused');
+  await expect(dialog.getByRole('button',{name:'Skip to Brain Warm-Up'})).toBeEnabled();
+  await dialog.getByRole('button',{name:'Resume',exact:true}).click();
+  await page.clock.fastForward(120000);
+  await next.click();
+  await expect(dialog.getByText('Scenario 1 of 6')).toBeVisible();
+  const chart = dialog.getByRole('img',{name:/Marked low/});
+  await expect(chart).not.toHaveAttribute('aria-label',/Candle 4/);
+  const choices = dialog.getByRole('group',{name:'Your decision'});
+  const answers = ['Wait','Take','Pass','Pass','Wait','Pass'];
+  for (const [index, answer] of answers.entries()) {
+    await choices.getByRole('button',{name:answer,exact:true}).click();
+    await expect(dialog.getByText('Matches the rule',{exact:true})).toBeVisible();
+    if(index===0) await expect(chart).toHaveAttribute('aria-label',/Candle 4/);
+    await dialog.getByRole('button',{name:index===5?'See practice score':'Next scenario',exact:true}).click();
+  }
+  await expect(dialog.getByText('6 / 6 decisions matched the rule')).toBeVisible();
+  await dialog.getByRole('button',{name:'Continue to Affirmation',exact:true}).click();
+  await expect(dialog.getByText('1 / 18',{exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Next affirmation'}).click();
+  await expect(dialog.getByText('If my entry is gone, I wait for the next setup.',{exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Next affirmation'}).click();
+  await expect(dialog.getByText('3 / 18',{exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:"I'm Ready — Complete Warm-Up"}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
+  const saved = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
+  expect(saved.affirmation).toBe('The next trade has to meet my rules. It does not owe me back the last loss.');
+});
+
+test('Pattern Match works at 390px in dark mode with reduced motion',async({page},info)=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.clock.install();
+  await stubDrill(page, [{round:0,cells:memoryRound.cells}]);
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  const dialog = await warmup(page);
+  expect(await dialog.locator('.mw-breath-wave span').first().evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
+  await page.clock.fastForward(120100);
+  await dialog.getByRole('button',{name:'Next: Brain Warm-Up'}).click();
+  await dialog.getByRole('button',{name:'Pattern Match',exact:true}).click();
+  await dialog.getByRole('button',{name:'Start 60-second drill'}).click();
+  const first = dialog.getByRole('button',{name:'Tile 1',exact:true});
+  await expect(first).toBeDisabled();
+  await expect(first).toHaveAttribute('aria-pressed','true');
+  await page.clock.fastForward(2700);
+  await expect(first).toBeEnabled();
+  await expect(first).toHaveAttribute('aria-pressed','false');
+  for (const cell of memoryRound.cells) await dialog.getByRole('button',{name:`Tile ${cell+1}`,exact:true}).click();
+  await dialog.getByRole('button',{name:'Lock pattern'}).click();
+  const bounds = await dialog.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x+bounds.width).toBeLessThanOrEqual(390);
+  await page.screenshot({path:info.outputPath('mindset-memory-mobile.png')});
+  await page.clock.fastForward(58000);
+  await expect(dialog.getByText('Your score: 10 / 60')).toBeVisible();
+  await dialog.getByRole('button',{name:'Submit Score & Continue'}).click();
+  await expect(dialog.getByRole('heading',{name:'Affirmation & Lock-In'})).toBeVisible();
+});
+
+test('custom checklist persists and every warm-up step can be skipped', async ({page}) => {
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('group',{name:'Preview warm-up steps'}).getByRole('button',{name:'Brain Sharpener'}).click();
+  await expect(page.getByText('Decide whether to take, wait or pass, or test your pattern recall.')).toBeVisible();
+  await page.getByRole('button',{name:'Edit checklist',exact:true}).click();
+  await page.getByRole('textbox',{name:'Checklist item 1',exact:true}).fill('Mark overnight high');
+  await page.getByRole('button',{name:'Add checklist item',exact:true}).click();
+  await page.getByRole('textbox',{name:'Checklist item 4',exact:true}).fill('Review risk rules');
+  await page.getByRole('button',{name:'Remove checklist item 2',exact:true}).click();
+  await page.getByRole('button',{name:'Done editing',exact:true}).click();
+  await page.getByRole('checkbox',{name:'Review risk rules',exact:true}).check();
+  await page.getByRole('button',{name:'Save morning prep'}).click();
+  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('checkbox',{name:'Review risk rules',exact:true})).toBeChecked();
+  await expect(page.getByRole('checkbox',{name:'Mark overnight high',exact:true})).toBeVisible();
+  await expect(page.getByRole('checkbox',{name:'News checked',exact:true})).toHaveCount(0);
+  const dialog = await warmup(page);
+  await dialog.getByLabel('Breathing technique').selectOption({label:'Box breathing'});
+  await expect(dialog.getByText('Inhale 4s · Hold 4s · Exhale 4s · Hold 4s')).toBeVisible();
+  await dialog.getByLabel('Breathing technique').selectOption({label:'Slow exhale'});
+  await expect(dialog.getByText('Inhale 4s · Exhale 6s')).toBeVisible();
+  await dialog.getByRole('button',{name:'Skip to Brain Warm-Up'}).click();
+  await dialog.getByRole('button',{name:'Skip to Affirmation'}).click();
+  await dialog.getByRole('button',{name:'Skip affirmation & finish'}).click();
+  await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
+});
+
+test('Aura puts dictated words into the composer for review', async ({page}) => {
+  await page.addInitScript(()=>{
+    window.SpeechRecognition = class {
+      get processLocally(){return this.local;}
+      set processLocally(value){this.local=value;}
+      start(){setTimeout(()=>{
+        if(this.local) this.onresult?.({results:[[{transcript:'I feel ready to wait for my setup.'}]]});
+        this.onend?.();
+      },50);}
+      abort(){}
+    };
+  });
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('button',{name:'Open Aura check-in'}).click();
+  const dialog=page.getByRole('dialog',{name:'Aura check-in'});
+  await expect(dialog.getByRole('heading',{name:'Leave the last session at the door.'})).toBeVisible();
+  await dialog.getByRole('button',{name:'Speak your reply'}).click();
+  await expect(dialog.getByRole('textbox',{name:'Your reflection'})).toHaveValue('I feel ready to wait for my setup.');
+  await expect(dialog.getByRole('button',{name:'Continue',exact:true})).toBeEnabled();
+});

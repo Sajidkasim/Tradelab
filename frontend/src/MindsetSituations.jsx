@@ -74,25 +74,13 @@ export default function MindsetSituations() {
         </p>
       </div>
       <div className="settings-actions">
-        <a className="button" href="#breathing">
-          Take a breathing break ↓
+        <a className="button" href="#warm-up-title">
+          Return to warm-up ↑
         </a>
         <a className="button" href="/journal">
           Reflect in Journal ↗
         </a>
       </div>
-      <p className="wp-footnote">
-        General self-reflection, not a treatment or a promise of trading
-        results. If distress is persistent or affects daily life, consider
-        speaking with a qualified professional.
-      </p>
-      <a
-        href="https://www.nhs.uk/mental-health/self-help/guides-tools-and-activities/breathing-exercises-for-stress/"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Comfortable breathing · NHS ↗
-      </a>
     </section>
   );
 }

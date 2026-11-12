@@ -114,6 +114,14 @@ class Workspaces:
         for db in self.databases.values():
             db.engine.dispose()
 
+    def archived_choices(self, key, frame=None):
+        database = self.database(key)
+        frame = self.trades(key) if frame is None else frame
+        archived = {**strategy_catalog.archived(database, frame), **lab_settings.archived(database, frame)}
+        dismissed = database.get_setting(lab_settings.DISMISSED_ARCHIVES_KEY, {})
+        return {field: [name for name in names if name not in dismissed.get(field, [])]
+                for field, names in archived.items()}
+
     def metadata(self, key):
         from services import import_tag_catalog
         db = self.database(key)
@@ -130,7 +138,7 @@ class Workspaces:
         return clean({"release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
-                      "archived_choices": {**strategy_catalog.archived(db, frame), **lab_settings.archived(db, frame)},
+                      "archived_choices": self.archived_choices(key, frame),
                       "timeframes": list(dict.fromkeys(lab['level_timeframes'] + lab['entry_timeframes'])),
                       "level_timeframes": lab['level_timeframes'], "entry_timeframes": lab['entry_timeframes'],
                       "confirmations": lab['confirmations'],

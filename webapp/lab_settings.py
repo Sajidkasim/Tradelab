@@ -6,6 +6,7 @@ from core import edge, metrics
 from services import trade_labels
 
 KEY = 'primuslab_lab_settings'
+DISMISSED_ARCHIVES_KEY = 'primuslab_dismissed_archives'
 DEFAULTS = {
     'timezone': 'Etc/GMT+4',
     'sessions': [
@@ -116,7 +117,16 @@ def save(database, frame, payload):
             removed.difference_update(values[key])
         hidden[key] = sorted(removed)
     database.set_setting(KEY, {**values, 'hidden_choices': hidden})
+    restore_archive_visibility(database, {key: values[key] for key in CHOICE_FIELDS if key in payload})
     return values
+
+
+def restore_archive_visibility(database, active):
+    dismissed = database.get_setting(DISMISSED_ARCHIVES_KEY, {})
+    updated = {field: [name for name in names if name not in active.get(field, [])]
+               for field, names in dismissed.items()}
+    if updated != dismissed:
+        database.set_setting(DISMISSED_ARCHIVES_KEY, updated)
 
 
 def archived(database, frame):
