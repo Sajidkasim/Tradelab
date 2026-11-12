@@ -384,17 +384,27 @@ test('delete all drawings confirms once and preserves the simulated position and
 
 test('selected and all sessions can be permanently deleted with exact confirmation',async({page})=>{
  await page.goto('http://127.0.0.1:8119/backtesting');
- await page.getByRole('button',{name:'New session',exact:true}).click();
- await page.getByLabel('Session name',{exact:true}).fill('Purge preview');
- await page.getByRole('button',{name:'Open session',exact:true}).click();
- await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.getByRole('link',{name:'Back to sessions',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Your practice desk.'})).toBeVisible();
+ await expect(page.locator('.bt-data-status')).toContainText('Historical data');
+ await expect(page.locator('.bt-sessions-heading').getByRole('button')).toHaveCount(1);
+ await expect(page.locator('.bt-sessions-footer').getByRole('button',{name:'Give feedback'})).toBeVisible();
+ for (const name of ['Purge preview','Purge remaining']) {
+  await page.getByRole('button',{name:'New session',exact:true}).click();
+  await page.getByLabel('Session name',{exact:true}).fill(name);
+  await page.getByRole('button',{name:'Open session',exact:true}).click();
+  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+  await page.getByRole('link',{name:'Back to sessions',exact:true}).click();
+ }
+ await expect(page.getByRole('group',{name:'Session selection actions'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Delete all sessions',exact:true})).toHaveCount(0);
  await page.getByLabel('Select Purge preview',{exact:true}).check();
  await page.getByRole('button',{name:'Delete selected (1)',exact:true}).click();
  const modal=page.getByRole('dialog',{name:'Permanently delete sessions?',exact:true});
  await modal.getByLabel('Type DELETE 1 to confirm').fill('DELETE 1');
  await modal.getByRole('button',{name:'Delete permanently',exact:true}).click();
  await expect(page.locator('.bt-session-card').filter({hasText:'Purge preview'})).toHaveCount(0);
+ await expect(page.getByRole('group',{name:'Session selection actions'})).toHaveCount(0);
+ await page.getByLabel('Select Purge remaining',{exact:true}).check();
  await page.getByRole('button',{name:'Delete all sessions',exact:true}).click();
  const label=await modal.locator('label').innerText();await modal.locator('input').fill(label.match(/DELETE \d+/)[0]);
  await modal.getByRole('button',{name:'Delete permanently',exact:true}).click();

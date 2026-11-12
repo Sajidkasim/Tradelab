@@ -146,12 +146,36 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  }
 
  return <div className="pt-site bt-session-site"><PrimusHeader active="backtesting" actions={<span className="bt-local-label">{identity?.local?'Local practice':'Private practice'}</span>}/><main className="pt-wrap bt-sessions-page">
-  <div className="bt-sessions-heading"><div><span className="pt-overline">PRIMUS / BACKTESTING (BETA)</span><h1>Your practice desk.</h1><small>Backtesting (Beta)</small><p>Pick a starting day. Set your capital. Continue across trading days in the same session.</p></div><div className="settings-actions"><Feedback owner={identity?.owner===true}/><Button variant="primary" disabled={!listing||busy} onClick={newSession}><Plus size={17}/>New session</Button></div></div>
-  {error&&!form&&<Notice error>{error} <Button onClick={()=>{setError('');setRetryOpening(n=>n+1)}}>Retry loading</Button></Notice>}{listing?.history.indexed_days&&<p className="bt-session-note">Available history · {listing.history.indexed_days.toLocaleString()} dates · {listing.history.first_day} to {listing.history.last_day}. Ready for your practice sessions.</p>}
-  {!listing?<p role="status">Loading your sessions…</p>:listing.sessions.length===0?<div className="bt-session-empty"><FlaskConical size={32}/><h2>Your first session starts here.</h2><p>Use real NQ or ES candles with a separate practice balance.</p><Button variant="primary" onClick={newSession}>Create a session</Button></div>:<section className="bt-saved-sessions" aria-label="Saved backtesting sessions"><h2>Recent sessions <span>{listing.sessions.length}</span></h2>{listing.sessions.map(item=><article className="bt-session-card" key={item.id}><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedSessions.includes(item.id)} onChange={e=>setSelectedSessions(ids=>e.target.checked?[...ids,item.id]:ids.filter(id=>id!==item.id))}/><div className="bt-session-symbol">{item.instrument}</div><div className="bt-session-info"><h3>{item.name}</h3><p><CalendarDays size={13}/>{item.day} · {clock(item.clock)} UTC · {item.finished?'Completed':'In progress'}</p><small>{item.closed} closed trades · Starting capital {cash(item.capital)}</small></div><strong>{cash(item.equity)}</strong><Button disabled={busy} onClick={()=>resume(item.id)}><Play size={15}/>{item.finished?'View session':'Resume'}</Button><Button disabled={busy} aria-label={`Delete ${item.name}`} onClick={()=>confirmDelete([item])}><Trash2 size={16}/></Button></article>)}</section>}
-  {Boolean(listing&&(listing.sessions.length||listing.deleted?.length))&&<div className="settings-actions"><Button disabled={busy||!selectedSessions.length} onClick={()=>confirmDelete(listing.sessions.filter(item=>selectedSessions.includes(item.id)))}>Delete selected ({selectedSessions.length})</Button><Button disabled={busy} onClick={()=>confirmDelete([...listing.sessions,...(listing.deleted||[])])}>Delete all sessions</Button></div>}
+  <header className="bt-sessions-heading">
+    <div>
+      <span className="pt-overline">PRIMUS / BACKTESTING</span>
+      <h1>Your practice desk.</h1>
+      <p>Replay a trading day and test your setups with a practice balance.</p>
+    </div>
+    <Button variant="primary" className="bt-new-session" disabled={!listing||busy} onClick={newSession}><Plus size={17}/>New session</Button>
+  </header>
+  {error&&!form&&<Notice error>{error} <Button onClick={()=>{setError('');setRetryOpening(n=>n+1)}}>Retry loading</Button></Notice>}
+  {listing && <div className="bt-data-status" aria-label="Replay data status">
+    <span className="bt-data-dot" data-ready={Boolean(listing.history.indexed_days)} aria-hidden="true"/>
+    <strong>Historical data</strong>
+    <span>{listing.history.indexed_days
+      ? `${listing.history.indexed_days.toLocaleString()} trading dates · ${listing.history.first_day} to ${listing.history.last_day}`
+      : 'No indexed history available'}</span>
+  </div>}
+  {!listing?<p role="status">Loading your sessions…</p>:listing.sessions.length===0?<div className="bt-session-empty"><FlaskConical size={32}/><h2>Your first session starts here.</h2><p>Use real NQ or ES candles with a separate practice balance.</p></div>:<section className="bt-saved-sessions" aria-label="Saved backtesting sessions"><h2>Recent sessions <span>{listing.sessions.length}</span></h2>{listing.sessions.map(item=><article className="bt-session-card" key={item.id}><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedSessions.includes(item.id)} onChange={e=>setSelectedSessions(ids=>e.target.checked?[...ids,item.id]:ids.filter(id=>id!==item.id))}/><div className="bt-session-symbol">{item.instrument}</div><div className="bt-session-info"><h3>{item.name}</h3><p><CalendarDays size={13}/>{item.day} · {clock(item.clock)} UTC · {item.finished?'Completed':'In progress'}</p><small>{item.closed} closed trades · Starting capital {cash(item.capital)}</small></div><strong>{cash(item.equity)}</strong><Button disabled={busy} onClick={()=>resume(item.id)}><Play size={15}/>{item.finished?'View session':'Resume'}</Button><Button disabled={busy} aria-label={`Delete ${item.name}`} onClick={()=>confirmDelete([item])}><Trash2 size={16}/></Button></article>)}</section>}
+  {listing && selectedSessions.length > 0 && <div className="bt-bulk-actions" role="group" aria-label="Session selection actions">
+    <strong>{selectedSessions.length} selected</strong>
+    <Button onClick={()=>setSelectedSessions([])} disabled={busy}>Clear selection</Button>
+    <Button disabled={busy} onClick={()=>confirmDelete(listing.sessions.filter(item=>selectedSessions.includes(item.id)))}>Delete selected ({selectedSessions.length})</Button>
+    <Button disabled={busy} onClick={()=>confirmDelete([...listing.sessions,...(listing.deleted||[])])}>Delete all sessions</Button>
+  </div>}
+  {listing && !listing.sessions.length && listing.deleted?.length > 0 &&
+    <Button disabled={busy} onClick={()=>confirmDelete(listing.deleted)}>Clear deleted sessions</Button>}
   {purging&&<Modal title="Permanently delete sessions?" onClose={()=>!busy&&setPurging(null)}><p>Delete {purging.length} session{purging.length===1?'':'s'} permanently, including drawings and session notes? Shared price history and trades already sent to Strategy Lab or Journal stay saved. This cannot be undone.</p><p>{purging.slice(0,5).map(item=>item.name).join(', ')}{purging.length>5?'…':''}</p><Field label={`Type DELETE ${purging.length} to confirm`}><input autoComplete="off" value={purgeName} onChange={e=>setPurgeName(e.target.value)}/></Field>{error&&<Notice error>{error}</Notice>}<div className="settings-actions"><Button busy={busy} disabled={purgeName!==`DELETE ${purging.length}`} onClick={purge}>Delete permanently</Button><Button disabled={busy} onClick={()=>setPurging(null)}>Cancel</Button></div></Modal>}
-  <p className="bt-session-note">Practice only. Sessions save privately in your workspace. Your Strategy Lab trades stay separate.</p>
+  <footer className="bt-sessions-footer">
+    <p className="bt-session-note">Practice sessions are private to your workspace.</p>
+    <div className="settings-actions"><Feedback owner={identity?.owner===true}/></div>
+  </footer>
  </main>{form&&<Modal title="New backtesting session" className="bt-session-modal" onClose={()=>!busy&&setForm(null)}><form className="stack" onSubmit={create}>
   <fieldset disabled={busy} className="bt-session-fields">
   <Field label="Session name"><input value={form.name} placeholder="e.g. New York reversals" maxLength={80} onChange={e=>change('name',e.target.value)}/></Field>
