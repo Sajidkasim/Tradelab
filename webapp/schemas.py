@@ -28,7 +28,19 @@ class Labels(StrictModel):
     confirmations: list[str] = Field(default_factory=list, max_length=30)
 
 
+CustomFieldId = Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
+CustomOption = Annotated[str, Field(min_length=1, max_length=80)]
+CustomSelections = Annotated[dict[CustomFieldId, Annotated[list[CustomOption], Field(max_length=30)]], Field(max_length=20)]
+
+
+class CustomTradeField(StrictModel):
+    name: str = Field(min_length=1, max_length=80)
+    type: Literal['dropdown', 'checkbox']
+    options: list[CustomOption] = Field(min_length=1, max_length=30)
+
+
 class Filters(StrictModel):
+    custom_fields: CustomSelections = Field(default_factory=dict)
     study_id: str = Field(default='', max_length=32, pattern=r'^([a-f0-9]{32}|unassigned)?$')
     scope: Literal["Backtesting", "Forward testing", "All"] = "Backtesting"
     sample: Literal["Backtesting", "Forward testing"] = "Backtesting"
@@ -54,6 +66,7 @@ class Filters(StrictModel):
 
 
 class Review(StrictModel):
+    custom_fields: CustomSelections | None = None
     strategy: str = Field(max_length=120)
     labels: Labels
     notes: str = Field(default="", max_length=20000)

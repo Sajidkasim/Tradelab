@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { Modal, Field, Select, Button, Notice, Segments } from "./components";
+import CustomFilterBuilder from "./CustomFilterBuilder";
 import TagCleanup from "./TagCleanup";
 
 export default function LabSettings({ meta, refresh, toast, onClose, onCreateFilter }) {
@@ -358,7 +359,8 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
         )}
         {tab === "advanced" && (
           <div className="stack">
-            <h3>Custom Explore filters</h3>
+            <CustomFilterBuilder definitions={meta.custom_trade_fields || []} refresh={refresh} toast={toast} />
+            <h3>Saved Explore presets</h3>
             <p className="muted">Save your current strategy, session and other Explore choices as a named setup you can apply again from the Results page.</p>
             <Button type="button" onClick={() => setConfirmClose("filter")}>Create a saved filter</Button>
           </div>

@@ -10,6 +10,7 @@ import {
   Disclosure,
   Notice,
 } from "./components";
+import CustomTradeFields from "./CustomTradeFields";
 import Labels from "./Labels";
 import { reviewIssues } from "./research";
 import {
@@ -60,6 +61,7 @@ export default function TradeForm({
   const [labels, setLabels] = useState(
     labelsOnly(trade?.labels || previous?.labels || blankLabels()),
   );
+  const [customFields, setCustomFields] = useState(trade ? trade.custom_fields || {} : previous?.custom_fields || {});
   const [confirmed, setConfirmed] = useState(trade?.labels?.reviewed || false),
     [notes, setNotes] = useState(trade?.notes || previous?.notes || "");
   const [source, setSource] = useState(previous?.source || "backtest"),
@@ -86,7 +88,7 @@ export default function TradeForm({
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const draftSnapshot=JSON.stringify({strategy,labels,confirmed,notes,source,account,direction,symbol,method,start,exit,fields,originalRisk,riskUnavailable});
+  const draftSnapshot=JSON.stringify({strategy,labels,customFields,confirmed,notes,source,account,direction,symbol,method,start,exit,fields,originalRisk,riskUnavailable});
   const initialDraft=useRef(draftSnapshot);
   const dirty=draftSnapshot!==initialDraft.current;
   useEffect(()=>{onDraftStateChange?.({dirty,busy})},[dirty,busy,onDraftStateChange]);
@@ -95,6 +97,7 @@ export default function TradeForm({
   function reuse() {
     setStrategy(previous.strategy);
     setLabels(labelsOnly(previous.labels));
+    setCustomFields(previous.custom_fields || {});
     setConfirmed(false);
   }
   async function save(event, next) {
@@ -108,6 +111,7 @@ export default function TradeForm({
         notes,
         confirmed,
         study_id: trade?.study_id || "",
+        custom_fields: Object.fromEntries((meta.custom_trade_fields || []).map(({ id }) => [id, customFields[id] || []])),
       };
       if (trade) {
         body.risk_unavailable = riskUnavailable;
@@ -121,7 +125,7 @@ export default function TradeForm({
           method: "PATCH",
           body,
         });
-        onPrevious({ strategy, labels });
+        onPrevious({ strategy, labels, custom_fields: body.custom_fields });
         await onSaved(updated, next);
       } else {
         Object.assign(body, {
@@ -154,6 +158,7 @@ export default function TradeForm({
         onPrevious({
           strategy,
           labels,
+          custom_fields: body.custom_fields,
           source,
           account_id: account,
           direction,
@@ -268,6 +273,12 @@ export default function TradeForm({
         </div>
       </div>
       <Labels value={labels} onChange={setLabels} meta={meta} />
+      {Boolean(meta.custom_trade_fields?.length) && (
+        <div className="stack">
+          <h3>Custom trade fields</h3>
+          <CustomTradeFields definitions={meta.custom_trade_fields} value={customFields} onChange={setCustomFields} />
+        </div>
+      )}
       <label className="review-check">
         <input
           data-review-focus="confirmations"

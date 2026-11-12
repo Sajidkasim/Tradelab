@@ -13,7 +13,7 @@ from core import charts, edge, metrics
 from core.db import Database
 from core.models import Account, LIVE_SOURCES, BACKTEST_SOURCES
 from services import trade_labels, fixed_rr, weekdays, strategy_catalog, research, review, tag_cleanup
-from . import lab_settings, import_updates, journal_preferences, release_notes
+from . import custom_trade_fields, lab_settings, import_updates, journal_preferences, release_notes
 
 SCOPES = {"Backtesting": BACKTEST_SOURCES, "Forward testing": LIVE_SOURCES,
           "All": LIVE_SOURCES + BACKTEST_SOURCES}
@@ -51,6 +51,7 @@ def serialise_trade(trade):
     row = asdict(trade)
     row.pop("screenshot_path", None)
     row["labels"] = edge.read_labels(trade.tags)
+    row["custom_fields"] = custom_trade_fields.values(trade.tags)
     row.update(fixed_rr.read(trade.tags))
     row["needs_tagging"] = not trade.setup_name.strip() or not row["labels"]["reviewed"]
     row['study_id'] = research.test_id(trade.tags)
@@ -152,7 +153,7 @@ class Workspaces:
         result_options['symbols'] = sorted(frame['symbol'].dropna().unique())
         result_options['target_rrs'] = list(dict.fromkeys(
             value for tags in frame['tags'] if (value := fixed_rr.read(tags)['target_rr']) != edge.UNKNOWN))
-        return clean({"trade_count": len(frame), "result_options": result_options, "release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
+        return clean({"custom_trade_fields": custom_trade_fields.definitions(db), "trade_count": len(frame), "result_options": result_options, "release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
                       "archived_choices": self.archived_choices(key, frame),
@@ -203,6 +204,8 @@ class Workspaces:
         if filters.target_rr != 'Any RR':
             target = fixed_rr.ratio(filters.target_rr)[0]
             matched = matched[matched['tags'].map(lambda tags: fixed_rr.read(tags)['target_rr'] == target)]
+        if filters.custom_fields:
+            matched = custom_trade_fields.filter_frame(matched, self.database(key), filters.custom_fields)
         stats = metrics.summary_stats(matched)
         closed = metrics.closed(matched)
         equity = metrics.equity_curve(matched)

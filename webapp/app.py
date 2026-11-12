@@ -28,13 +28,13 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from core import edge
 from core.models import Account, Source
 from core.registry import COACH_PROVIDERS, load_extensions
-from .schemas import ArchivedChoice, JournalAccount
+from .schemas import ArchivedChoice, CustomFieldId, CustomTradeField, JournalAccount
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink, FeedbackInput
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
+from . import imports, backups, custom_trade_fields, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
 from .request_limits import RequestLimits
 from .rate_counters import RateCounters
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -591,6 +591,7 @@ def create_app(config: Settings | None = None):
         rows = records(frame)
         for row in rows:
             row['study_id'] = research.test_id(row.get('tags'))
+            row['custom_fields'] = custom_trade_fields.values(row.get('tags'))
             row.update(trade_review.missing(row))
         return rows
 
@@ -622,6 +623,18 @@ def create_app(config: Settings | None = None):
             raise HTTPException(404, "Trade not found.")
         return serialise_trade(trade)
 
+    @app.post("/api/lab-settings/custom-fields", status_code=201)
+    def add_custom_field(payload: CustomTradeField, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.workspace_lock(member['key']):
+            return custom_trade_fields.add(db(request, member), payload)
+
+    @app.delete("/api/lab-settings/custom-fields/{field_id}")
+    def delete_custom_field(field_id: CustomFieldId, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.workspace_lock(member['key']):
+            if not custom_trade_fields.remove(db(request, member), field_id):
+                raise HTTPException(404, "This trade field no longer exists.")
+        return {"removed": True}
+
     @app.post("/api/results")
     def results(filters: Filters, request: Request, member=Depends(workspace)):
         return app.state.workspaces.results(member["key"], filters)
@@ -636,10 +649,11 @@ def create_app(config: Settings | None = None):
         labels = edge.write_labels(**payload.labels.model_dump())
         if not payload.confirmed:
             labels.remove("edge:reviewed")
-        values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable", "journal_day", "journal_trade_id"})
+        values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable", "journal_day", "journal_trade_id", "custom_fields"})
         values['source'] = Source(values['source'])
         trade = edge.build_trade(instruments=database.instruments(), tags=labels, **values)
         with app.state.workspaces.workspace_lock(member['key']):
+            trade.tags = custom_trade_fields.write(trade.tags, database, payload.custom_fields)
             journal_day = payload.journal_day.isoformat() if payload.journal_day else None
             if bool(journal_day) != bool(payload.journal_trade_id):
                 raise ValueError('Choose a saved journal trade and day.')
@@ -677,6 +691,7 @@ def create_app(config: Settings | None = None):
             fields = trade_labels.review_fields(trade, payload.strategy, payload.labels.model_dump(), payload.notes, payload.confirmed)
             if payload.risk_amount is not None and payload.risk_unavailable:
                 raise ValueError('Enter the original risk or mark it unavailable, not both.')
+            fields['tags'] = custom_trade_fields.write(fields['tags'], database, payload.custom_fields)
             fields.update(trade_review.risk_fields(trade, payload.risk_amount, payload.risk_unavailable))
             if payload.risk_unavailable is not None or payload.risk_amount is not None:
                 fields['tags'] = [tag for tag in fields['tags'] if tag != trade_review.UNAVAILABLE]

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { RotateCcw, ArrowUpRight } from "lucide-react";
 import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
+import CustomTradeFields from "./CustomTradeFields";
 import LabHistory from "./LabHistory";
 import SavedSetups from "./SavedSetups";
 import { FilterChips } from "./ExploreControls";
@@ -29,6 +30,7 @@ const initial = {
   target_rr: "Any RR",
   weekday: "All days",
   confirmations: [],
+  custom_fields: {},
   news: "Any news status",
   condition: "Any condition",
   window: "All sessions",
@@ -266,6 +268,12 @@ export default function Results({
             ]}
             value={filters.entry_timeframe}
             onChange={(e) => change("entry_timeframe", e.target.value)}
+          />
+          <CustomTradeFields
+            definitions={meta.custom_trade_fields}
+            value={filters.custom_fields}
+            onChange={(value) => change("custom_fields", value)}
+            filtering
           />
           <div className="field">
             <span>Confirmations</span>
