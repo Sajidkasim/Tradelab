@@ -30,10 +30,26 @@ function useCountdown(deadline) {
 }
 
 const RHYTHMS = [
-  {name:'4–4–6 rhythm', use:'A counted reset with a brief hold and a longer exhale. Try it when you feel rushed.', phases:[['Inhale',4,.44,1],['Hold',4,1,1],['Exhale',6,1,.44]]},
-  {name:'Box breathing', use:'Four equal counts give you something steady to focus on when your attention is scattered.', phases:[['Inhale',4,.44,1],['Hold',4,1,1],['Exhale',4,1,.44],['Hold',4,.44,.44]]},
-  {name:'Slow exhale', use:'A longer out-breath with no holds. Try it when you want to slow down without pausing your breath.', phases:[['Inhale',4,.44,1],['Exhale',6,1,.44]]},
-  {name:'Equal breathing', use:'Matching the inhale and exhale gives you a simple rhythm when you already feel settled.', phases:[['Inhale',5,.44,1],['Exhale',5,1,.44]]},
+  {
+    name: 'Reset a rushed mind (4-4-6)',
+    use: 'A counted reset with a brief hold and a longer exhale. Try it when you feel rushed.',
+    phases: [['Inhale', 4, .44, 1], ['Hold', 4, 1, 1], ['Exhale', 6, 1, .44]],
+  },
+  {
+    name: 'Sharpen focus & attention (Box)',
+    use: 'Four equal counts give you a steady point of focus before you execute.',
+    phases: [['Inhale', 4, .44, 1], ['Hold', 4, 1, 1], ['Exhale', 4, 1, .44], ['Hold', 4, .44, .44]],
+  },
+  {
+    name: 'Kill FOMO & lower heart rate',
+    use: 'Use a longer exhale with no holds to pause when you feel the urge to chase.',
+    phases: [['Inhale', 4, .44, 1], ['Exhale', 6, 1, .44]],
+  },
+  {
+    name: 'Find your center',
+    use: 'A smooth, balanced rhythm to help you stay steady during a slow market.',
+    phases: [['Inhale', 5, .44, 1], ['Exhale', 5, 1, .44]],
+  },
 ];
 
 function Breathwork({onNext}) {
