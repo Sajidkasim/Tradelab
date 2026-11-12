@@ -1,4 +1,4 @@
-.mw-page, .mw-modal { --mw-action:var(--tl-ink); --mw-action-text:var(--tl-page); }
+.mw-page, .mw-modal { --mw-action:var(--desk-action); --mw-action-text:var(--desk-action-ink); }
 .mw-hero {
   position: relative;
   isolation: isolate;
@@ -185,39 +185,12 @@
 }
 
 .mw-checklist-card {
-  --mw-check-green: color-mix(in srgb, var(--tl-sage) 85%, #12704c);
+  --mw-check-green:var(--desk-check);
   transition: border-color .26s ease, background-color .26s ease;
 }
 .mw-checklist-card .mw-card-title { align-items: center; flex-wrap: wrap; }
 .mw-checklist-card .mw-card-title h2 { margin-bottom: 0; }
 .mw-checklist-card.is-ready { border-color: color-mix(in srgb, var(--mw-check-green) 55%, var(--pt-line)); }
-.mw-check-progress { margin-block: 18px 12px; }
-.mw-check-progress-label {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 7px;
-  color: var(--pt-muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-.mw-check-progress-label strong { color: var(--pt-ink); }
-.mw-check-track {
-  height: 11px;
-  overflow: hidden;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--pt-paper) 75%, var(--pt-line));
-  border: 1px solid var(--pt-line);
-}
-.mw-check-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  transform: scaleX(var(--checklist-progress, 0));
-  transform-origin: left;
-  background: var(--mw-check-green);
-  transition: transform .36s cubic-bezier(.2,.7,.25,1);
-}
 .mw-checklist-card .mw-checklist label { transition: border-color .24s ease, background-color .24s ease; }
 .mw-checklist-card .mw-checklist label:has(input:checked) {
   border-color: color-mix(in srgb, var(--mw-check-green) 45%, var(--pt-line));
@@ -267,7 +240,7 @@
   to { transform: translateX(100%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mw-checklist-card, .mw-check-fill, .mw-checklist-card .mw-checklist label { transition: none; }
+  .mw-checklist-card, .mw-checklist-card .mw-checklist label { transition: none; }
   .mw-check-finish.is-celebrating .mw-check-finish-icon, .mw-check-finish.is-celebrating::after { animation: none; }
   .mw-check-finish.is-celebrating::after { content: none; }
 }
@@ -370,15 +343,6 @@
   overflow-wrap:anywhere;
 }
 .mw-pinned-goal span { color:var(--pt-muted); font-size:13px; }
-:root[data-theme="dark"] .mw-modal {
-  --pt-paper:var(--tl-page);
-  --pt-white:var(--tl-surface);
-  --pt-ink:var(--tl-ink);
-  --pt-muted:var(--tl-ink2);
-  --pt-line:var(--tl-border);
-  --pt-soft:#6f9a85;
-  color-scheme:dark;
-}
 .mw-aura-dialog.is-empty { height:auto; max-height:67dvh; }
 .mw-aura-opening { padding:8px 4px 14px; }
 .mw-aura-opening h3 {

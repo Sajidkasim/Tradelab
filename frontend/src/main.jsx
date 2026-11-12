@@ -7,6 +7,7 @@ import "./theme.css";
 import "./styles.css";
 import "./responsive.css";
 import "./lab-preview.css";
+import "./workspace-theme.css";
 
 class ErrorBoundary extends React.Component {
   state = { failed: false };

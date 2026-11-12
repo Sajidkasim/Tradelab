@@ -5,6 +5,7 @@ import ResourceLibrary from './ResourceLibrary';
 import VisionBoard from './VisionBoard';
 import {Notice, Button} from './components';
 import {api} from './api';
+import PrepProgress from './PrepProgress';
 import AuraCheckIn from './AuraCheckIn';
 import './mindset-warmup.css';
 
@@ -65,13 +66,7 @@ function MorningCards({state, onEdit, onSave, status}) {
       <AuraCheckIn intention={state.affirmation || state.intention}/>
       <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
         <h2 id="prep-checklist">Pre-Session Checklist</h2>
-        {items.length > 0&&<div className="mw-check-progress">
-          <div className="mw-check-progress-label" aria-hidden="true"><span>Prep progress</span><strong>{checked} of {items.length} complete</strong></div>
-          <div className="mw-check-track" role="progressbar" aria-label="Pre-session checklist progress"
-            aria-valuemin={0} aria-valuenow={checked} aria-valuemax={items.length} aria-valuetext={`${checked} of ${items.length} complete`}>
-            <span className="mw-check-fill" style={{'--checklist-progress':checked / items.length}}/>
-          </div>
-        </div>}
+        <PrepProgress checked={checked} total={items.length}/>
         <div className="mw-checklist">
           {items.map(({id, label}, index) => editing ? <div className="mw-check-edit" key={id}>
             <input aria-label={`Checklist item ${index + 1}`} maxLength={120} required value={label}

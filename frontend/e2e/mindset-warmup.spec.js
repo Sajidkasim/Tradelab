@@ -294,6 +294,7 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   await page.goto(`${origin}/journal?day=${prep.day}`);
   const summary = page.getByRole('complementary',{name:'Pre-session checklist'});
+  await expect(summary.getByRole('progressbar')).toHaveAttribute('aria-valuetext', `${prep.items.length} of ${prep.items.length} complete`);
   await expect(summary.getByText('Warm-up complete',{exact:true})).toBeVisible();
   await summary.getByText('Checklist complete',{exact:true}).click();
   await expect(summary).toContainText(`${prep.items[0].label} · Done`);
@@ -312,7 +313,7 @@ test('Aura opens with a contextual prompt and quick replies on a dark surface', 
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   await page.getByRole('button',{name:'Ask Aura'}).click();
   const dialog = page.getByRole('dialog',{name:'Aura',exact:true});
-  await expect(dialog).toHaveCSS('background-color','rgb(26, 26, 25)');
+  await expect(dialog).toHaveCSS('background-color','rgb(40, 43, 46)');
   await expect(dialog.getByRole('heading',{name:'What could make you break your rules today?'})).toBeVisible();
   await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
   await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();

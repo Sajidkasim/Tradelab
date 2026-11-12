@@ -38,3 +38,26 @@ test('new navigation and pages remain readable on a phone and in dark mode',asyn
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('mindset-phone-dark.png'),fullPage:true});
  await page.goto(origin+'/market-lab');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('market-lab-phone-dark.png'),fullPage:true});
 });
+
+test('Journal, Mindset and Backtesting share light and dark workspace colours', async ({page}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(origin+'/mindset');
+  for (const [theme, pageColor, ink] of [
+    ['light','rgb(244, 243, 235)','rgb(23, 39, 31)'],
+    ['dark','rgb(32, 34, 37)','rgb(243, 241, 235)'],
+  ]) {
+    await page.evaluate((mode) => localStorage.setItem('primus-theme',mode), theme);
+    for (const [path, selector] of [
+      ['/mindset','.mw-page'],
+      ['/journal','.pj-workspace'],
+      ['/backtesting','.bt-session-site'],
+    ]) {
+      await page.goto(origin+path);
+      const workspace=page.locator(selector);
+      await expect(workspace).toHaveCSS('background-color',pageColor);
+      await expect(workspace).toHaveCSS('color',ink);
+      await expect(workspace).toHaveCSS('font-family',/Inter/);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    }
+  }
+});
