@@ -59,13 +59,16 @@ function JournalPrep({day}) {
   return <aside className="pj-prep-summary" aria-label="Pre-session checklist">
     <ListChecks size={19} aria-hidden="true"/>
     <div>
-      <strong>Pre-session checklist</strong>
+      <div className="pj-prep-heading">
+        <strong>Pre-session checklist</strong>
+        {result.warmup_completed && <span className="pj-prep-complete"><Check size={14} aria-hidden="true"/> Warm-up complete</span>}
+      </div>
       {items.length ? <details>
         <summary className={complete ? 'is-complete' : undefined}>{status}</summary>
         <ul>{items.map((item) => <li key={item.id}>{item.label} · {item.checked ? 'Done' : 'Open'}</li>)}</ul>
       </details> : <p>{status}</p>}
     </div>
-    <a href="/mindset">Open Mindset <ArrowUpRight size={14} aria-hidden="true"/></a>
+    <a href="/mindset#warm-up-title">Open Mindset <ArrowUpRight size={14} aria-hidden="true"/></a>
   </aside>;
 }
 

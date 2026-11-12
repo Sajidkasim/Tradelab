@@ -289,8 +289,12 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
     await page.getByRole('checkbox',{name:item.label,exact:true}).check();
   }
   await expect(page.getByText('Checklist saved',{exact:true})).toBeVisible();
+  await page.getByRole('group',{name:'Open a warm-up step'}).getByRole('button',{name:'Affirmation'}).click();
+  await page.getByRole('dialog',{name:'Pre-Market Warm-Up'}).getByRole('button',{name:'Skip affirmation & finish'}).click();
+  await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   await page.goto(`${origin}/journal?day=${prep.day}`);
   const summary = page.getByRole('complementary',{name:'Pre-session checklist'});
+  await expect(summary.getByText('Warm-up complete',{exact:true})).toBeVisible();
   await summary.getByText('Checklist complete',{exact:true}).click();
   await expect(summary).toContainText(`${prep.items[0].label} · Done`);
 });

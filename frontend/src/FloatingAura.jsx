@@ -1,4 +1,5 @@
 import React, {useEffect, useId, useRef, useState} from 'react';
+import {Sparkles} from 'lucide-react';
 import {api} from './api';
 
 function inlineMarkdown(text) {
@@ -101,7 +102,10 @@ export default function FloatingAura({day, account, dirty}) {
   }}>
     <button ref={button} type="button" className="pj-aura-orb" aria-label="Aura - Trading Assistant"
       aria-expanded={open} aria-controls={open ? panelId : undefined}
-      onClick={() => setOpen(value => !value)}>Aura</button>
+      onClick={() => setOpen(value => !value)}>
+      <Sparkles size={19} strokeWidth={1.65} aria-hidden="true"/>
+      <span>Aura</span>
+    </button>
     {open && <div id={panelId} className="pj-aura-panel">
       <AuraReview key={JSON.stringify([day, account])} day={day} account={account}
         dirty={dirty} titleId={titleId} onClose={close}/>

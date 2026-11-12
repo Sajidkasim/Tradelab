@@ -264,14 +264,18 @@ def test_journal_checklist_uses_the_saved_date_and_template(draft, monkeypatch):
     assert client.get(path).status_code == 401
     login(client, identity)
     assert client.get(path).json()['items'] == []
+    assert client.get(path).json()['warmup_completed'] is False
     payload = {'day':'2026-11-12', 'energy':'', 'headspace':'', 'checklist':['levels'],
                'items':[{'id':'levels', 'label':'Mark my levels'}]}
     assert client.put('/api/mindset/warmup', json=payload).status_code == 200
+    assert client.get(path).json()['warmup_completed'] is False
+    assert client.post('/api/mindset/complete', json={'day': payload['day'], 'attempt_id': None}).status_code == 200
     now[0] += timedelta(days=1)
     assert client.put('/api/mindset/warmup', json={**payload, 'day':'2026-11-13', 'checklist':[],
                        'items':[{'id':'levels', 'label':'Review my levels'}]}).status_code == 200
-    assert client.get(path).json() == {'day':'2026-11-12',
+    assert client.get(path).json() == {'day':'2026-11-12', 'warmup_completed': True,
                                       'items':[{'id':'levels', 'label':'Mark my levels', 'checked':True}]}
     client.post('/api/logout')
     login(client, identity, 'friend@example.com', 'friend-sub')
     assert client.get(path).json()['items'] == []
+    assert client.get(path).json()['warmup_completed'] is False

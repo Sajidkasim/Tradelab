@@ -292,15 +292,15 @@ def mount(app, config, workspace):
         with workspaces().lock:
             db = database(member)
             saved = db.get_setting(PREP + day_key, {})
-            if 'checklist_items' not in saved and not saved.get('checklist'):
-                return {'day': day_key, 'items': []}
             items = saved.get('checklist_items')
-            if items is None:
-                items = checklist_items(db)
             checked = set(saved.get('checklist', []))
-            return {'day': day_key, 'items': [
-                {**item, 'checked': item['id'] in checked} for item in items
-            ]}
+            if items is None:
+                items = checklist_items(db) if checked else []
+            return {
+                'day': day_key,
+                'warmup_completed': saved.get('completed') is True,
+                'items': [{**item, 'checked': item['id'] in checked} for item in items],
+            }
 
     @app.put('/api/mindset/warmup')
     def save_warmup(payload: MorningPrep, member=Depends(workspace)):
