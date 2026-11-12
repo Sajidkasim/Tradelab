@@ -65,9 +65,9 @@ export default function LearnPage() {
         <Radio size={17}/> {isRoomActive?'Restore Live Trading Floor':'Join Live Trading Floor'}
       </Button>
       {isAndroid&&access.configured&&!isRoomActive&&<div className="bullpen-android">
-        <p>To share your Android screen, join in Jitsi Meet and choose Screen sharing from the call menu.</p>
-        {androidMeeting?<a className="pt-btn" href={`intent://8x8.vc/${encodeURIComponent(androidMeeting.appId)}/${encodeURIComponent(androidMeeting.roomName)}#jwt=${encodeURIComponent(androidMeeting.jwt)}#Intent;scheme=org.jitsi.meet;package=org.jitsi.meet;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=org.jitsi.meet')};end`}>Open Jitsi Meet</a>:<Button busy={busy} onClick={()=>join(true)}>Prepare Android app join</Button>}
-        <a href="https://play.google.com/store/apps/details?id=org.jitsi.meet" target="_blank" rel="noreferrer">Install Jitsi Meet</a>
+        <p>Install the screen-sharing plugin once. Then open it from here to join the same Bullpen room and choose Screen sharing in the call menu.</p>
+        {androidMeeting?<a className="pt-btn" href={`intent://8x8.vc/${encodeURIComponent(androidMeeting.appId)}/${encodeURIComponent(androidMeeting.roomName)}#jwt=${encodeURIComponent(androidMeeting.jwt)}#Intent;scheme=org.jitsi.meet;package=org.jitsi.meet;S.browser_fallback_url=${encodeURIComponent('https://play.google.com/store/apps/details?id=org.jitsi.meet')};end`}>Open plugin for screen share</a>:<Button busy={busy} onClick={()=>join(true)}>Prepare screen sharing</Button>}
+        <a href="https://play.google.com/store/apps/details?id=org.jitsi.meet" target="_blank" rel="noreferrer">Install plugin</a>
       </div>}
       {access.configured&&!bullpen.connected&&<p role="status">Connecting private chat…</p>}
       {error&&<Notice error>{error}</Notice>}

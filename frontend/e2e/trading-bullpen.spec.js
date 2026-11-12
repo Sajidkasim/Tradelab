@@ -20,6 +20,7 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
     body:`window.JitsiMeetExternalAPI=class {
       constructor(domain, options){
         window.testRoom=options.roomName;
+        window.testAudioConfig=options.configOverwrite;
         this.handlers={};
         this.frame=document.createElement('iframe');
         this.frame.title='Test video room';
@@ -63,11 +64,14 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
   });
   await page.addInitScript(()=>Object.defineProperty(navigator,'userAgent',{get:()=> 'Android test browser'}));
   await page.goto('http://127.0.0.1:8119/learn');
-  await page.getByRole('button',{name:'Prepare Android app join'}).click();
-  await expect(page.getByRole('link',{name:'Open Jitsi Meet'})).toHaveAttribute('href',/^intent:\/\/8x8\.vc\/vpaas-magic-cookie-test\/PrimusLab-Bullpen-Live-synthetic#jwt=test-meeting-token#Intent;scheme=org\.jitsi\.meet;package=org\.jitsi\.meet;/);
+  await expect(page.getByRole('link',{name:'Install plugin',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Prepare screen sharing'}).click();
+  await expect(page.getByRole('link',{name:'Open plugin for screen share'})).toHaveAttribute('href',/^intent:\/\/8x8\.vc\/vpaas-magic-cookie-test\/PrimusLab-Bullpen-Live-synthetic#jwt=test-meeting-token#Intent;scheme=org\.jitsi\.meet;package=org\.jitsi\.meet;/);
   await expect(page.getByTitle('Test video room')).toHaveCount(0);
   await page.getByRole('button',{name:'Join Live Trading Floor'}).click();
   await expect(page.getByTitle('Test video room')).toBeVisible();
+  expect(await page.evaluate(()=>window.testAudioConfig)).toMatchObject({enableOpusRed:true,enableNoAudioDetection:true,startWithAudioMuted:true});
+  await expect(page.getByText('Your phone may pause the microphone',{exact:false})).toBeVisible();
   expect(await page.evaluate(()=>window.testRoom)).toBe('vpaas-magic-cookie-test/PrimusLab-Bullpen-Live-synthetic');
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toBeVisible();
   const divider=page.getByRole('separator',{name:'Resize video and sidebar'});

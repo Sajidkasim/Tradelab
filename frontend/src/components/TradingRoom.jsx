@@ -8,6 +8,8 @@ import '../trading-room.css';
 
 const JaaSMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JaaSMeeting})));
 const configOverwrite = {
+  // Opus redundancy helps recover speech on lossy connections.
+  enableOpusRed:true, enableNoAudioDetection:true,
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
   desktopSharingFrameRate:{min:30,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
@@ -132,6 +134,10 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
     </header>
     <nav className="bullpen-browse" aria-label="Workspace links during call"><span>Keep the call open:</span>{[['/journal','Journal'],['/lab','Strategy Lab'],['/backtesting','Backtesting']].map(([path,label])=><a key={path} href={path} target="_blank" rel="noopener noreferrer">{label} ↗</a>)}</nav>
     <p className="bullpen-leave-note">Leaving or refreshing this page ends the call. Your browser will ask you to confirm.</p>
+    {!minimised&&(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||
+      (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))&&<p className="bullpen-leave-note">
+      Your phone may pause the microphone when you switch apps or lock the screen. Keep this call visible while speaking. If others can’t hear you after returning, check the microphone button.
+    </p>}
     <div className="bullpen-tabs" role="group" aria-label="Main panel">
       <button type="button" aria-pressed={view==='call'} onClick={()=>setView('call')}>Call</button>
       <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>Chart</button>
