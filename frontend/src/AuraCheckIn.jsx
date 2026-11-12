@@ -119,10 +119,10 @@ function AuraChat({onClose}) {
       <div className="mw-aura-thread" role="log" aria-label="Conversation" ref={timeline}>
         <header className="mw-aura-opening">
           <span className="mw-aura-avatar" aria-hidden="true"><Sparkles size={19}/></span>
-          <h3>Leave the last session at the door.</h3>
-          <p>{opening?.text || 'What’s on your mind before you trade?'}</p>
+          <h3>What could make you break your rules today?</h3>
+          <p>{opening?.text || 'Pick the situation most likely to pull you off plan. Let’s decide what you’ll do when it happens.'}</p>
           {!turns.length && <div className="mw-aura-suggestions" role="group" aria-label="Quick replies">
-            {(opening?.suggestions || ['I feel focused', 'I’m tempted to rush', 'Yesterday is still on my mind']).map((message) =>
+            {(opening?.suggestions || ['Help me stop chasing', 'Pressure-test my entry rules', 'Plan my reset after a loss']).map((message) =>
               <button key={message} type="button" disabled={busy || listening || Boolean(draft.trim())}
                 onClick={() => send(message)}>{message}</button>)}
           </div>}
@@ -164,13 +164,21 @@ function AuraChat({onClose}) {
   </Modal>;
 }
 
-export default function AuraCheckIn() {
+export default function AuraCheckIn({intention}) {
   const [open, setOpen] = useState(false);
   return <section className="wp-panel mw-card mw-aura-card" aria-labelledby="morning-check-in">
-    <h2 id="morning-check-in">Aura</h2>
-    <button type="button" className="mw-aura-orb" onClick={() => setOpen(true)} aria-label="Open Aura">
-      <Sparkles size={27} aria-hidden="true"/><span>Aura</span>
-    </button>
+    <header>
+      <h2 id="morning-check-in">Aura</h2>
+      <button type="button" className="mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Aura" title="Ask Aura">
+        <Sparkles size={20} aria-hidden="true"/>
+      </button>
+    </header>
+    <div className="mw-active-rule">
+      <span>Active rule</span>
+      {intention
+        ? <blockquote>{intention}</blockquote>
+        : <p>Choose an affirmation in the warm-up to set today’s rule.</p>}
+    </div>
     {open && createPortal(<AuraChat onClose={() => setOpen(false)}/>, document.body)}
   </section>;
 }

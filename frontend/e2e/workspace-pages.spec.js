@@ -15,11 +15,13 @@ test('Mindset private goals persist with uploaded images',async({page})=>{
  await expect(page.getByRole('heading',{name:'Your Anchor'})).toBeVisible();
  await expect(page.getByRole('button',{name:'Add a goal',exact:true})).toHaveCount(0);
  await expect(page.getByRole('searchbox',{name:'Search resources'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Add resource',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Manage publishers',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Add your first goal',exact:true}).click();const modal=page.getByRole('dialog',{name:'Add a goal',exact:true});await modal.getByRole('textbox',{name:'Goal or reminder',exact:true}).fill('Stay patient');await modal.getByRole('textbox',{name:'Personal notes',exact:true}).fill('A private reminder.');await modal.getByRole('button',{name:'Save goal',exact:true}).click();await expect(page.getByText('Goal saved privately.',{exact:true})).toBeVisible();await page.getByLabel('Image for Stay patient',{exact:true}).setInputFiles('../assets/primus-compass.png');await expect(page.getByRole('img',{name:'Image for Stay patient',exact:true})).toBeVisible();await page.reload();await expect(page.getByText('A private reminder.',{exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Add a goal',exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Pin for warm-up'}).click();
  await expect(page.getByText('PINNED FOR WARM-UP')).toBeVisible();
- await page.getByRole('button',{name:'Start Pre-Market Warm-Up'}).click();
+ await page.getByRole('button',{name:'Breathwork',exact:true}).click();
  const warmUp=page.getByRole('dialog',{name:'Pre-Market Warm-Up'});
  await expect(warmUp).toContainText('Stay patient');
  await warmUp.getByRole('button',{name:'Close'}).click();

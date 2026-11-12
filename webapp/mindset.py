@@ -143,13 +143,13 @@ def aura_context(database, frame, day):
 
 def aura_opening(context):
     if context['daily_loss_limit_hit']:
-        return 'You hit your daily loss limit yesterday. How will you keep that frustration from carrying into today’s session?'
+        return 'You hit your daily loss limit yesterday. If the urge to win it back shows up today, what will make you step away?'
     if context['yesterday'] == 'loss':
-        return 'Yesterday was a red day. What will help you trade your plan today without trying to make it back?'
+        return 'Yesterday was a red day. Decide what would make you stop and reassess before the next entry.'
     if context['green_days'] >= 2:
         return (f"You’ve had {context['green_days']} green trading days in a row. "
-                'To guard against overconfidence, what are your strict entry criteria today?')
-    return 'Before you look at a chart, take a moment. What could pull you away from your plan today?'
+                'Name the entry condition that still has to be there, even if the setup looks obvious.')
+    return 'Before you look at a chart, choose one situation that could pull you off plan and one action you’ll take when it happens.'
 
 
 def readiness(energy, headspace):
@@ -333,11 +333,11 @@ def mount(app, config, workspace):
     @app.get('/api/mindset/check-in/opening')
     def check_in_opening(member=Depends(workspace)):
         context = current_aura_context(member)
-        suggestions = ['I feel focused', 'I’m tempted to rush', 'Yesterday is still on my mind']
+        suggestions = ['Help me stop chasing', 'Pressure-test my entry rules', 'Plan my reset after a loss']
         if context['daily_loss_limit_hit'] or context['yesterday'] == 'loss':
-            suggestions = ['Help me reset after yesterday', 'I want to make it back', 'I’m ready to follow my plan']
+            suggestions = ['Help me reset after yesterday', 'Plan a response to revenge trading', 'Define my walk-away trigger']
         elif context['green_days'] >= 2:
-            suggestions = ['Help me tighten my entry rules', 'I feel focused', 'I’m tempted to rush']
+            suggestions = ['Pressure-test my entry rules', 'Spot signs I’m forcing a trade', 'Plan what to do if I miss an entry']
         return {'text': aura_opening(context), 'suggestions': suggestions}
 
     @app.post('/api/mindset/check-in/reflect')

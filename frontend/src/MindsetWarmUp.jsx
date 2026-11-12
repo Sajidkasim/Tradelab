@@ -220,8 +220,8 @@ function FocusGames({day, onContinue, onSkip}) {
   </section>;
 }
 
-export default function MindsetWarmUp({day, pinnedGoal, savedAffirmation, onClose, onScore, onComplete}) {
-  const [step, setStep] = useState(0);
+export default function MindsetWarmUp({day, initialStep=0, pinnedGoal, savedAffirmation, onClose, onScore, onComplete}) {
+  const [step, setStep] = useState(initialStep);
   const [attemptId, setAttemptId] = useState(null);
   const [confirmedScore, setConfirmedScore] = useState(null);
   const [affirmation, setAffirmation] = useState(affirmations.includes(savedAffirmation) ? savedAffirmation : affirmations[0]);

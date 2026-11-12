@@ -21,9 +21,7 @@ function WarmUpHero({state, highScore, onStart}) {
   return <section className="mw-hero" aria-labelledby="warm-up-title">
     <div className="mw-hero-content">
       <h1 id="warm-up-title"><span>Pre-Market</span>{' '}<span>Warm-Up</span></h1>
-      <p>12–15 minutes to settle your nervous system, sharpen focus, and lock in your rules before the bell.</p>
-      <p className="mw-timing">3 minutes guided, followed by your chart and risk checks.</p>
-      <Button variant="primary" className="mw-primary" disabled={!state} onClick={onStart}>Start Pre-Market Warm-Up</Button>
+      <p>Take about five minutes to reset, sharpen your focus and choose a rule for the session.</p>
       <div className="mw-hero-status">
         <span className="mw-pill"><strong>Today's High Score</strong><span>{state?.team_eligible
           ? highScore?.leader ? `${highScore.leader.score} / ${highScore.leader.max_score} · ${highScore.leader.name}`
@@ -33,9 +31,9 @@ function WarmUpHero({state, highScore, onStart}) {
       </div>
     </div>
     <div className="mw-hero-preview">
-      <div className="mw-preview-options" role="group" aria-label="Preview warm-up steps">
+      <div className="mw-preview-options" role="group" aria-label="Open a warm-up step">
         {PREVIEW_STEPS.map(({name}, index) => <button key={name} type="button" aria-pressed={index === preview}
-          onClick={() => setPreview(index)}>{name}</button>)}
+          disabled={!state} aria-haspopup="dialog" onClick={() => {setPreview(index); onStart(index);}}>{name}</button>)}
       </div>
       <div key={step.name} className={`mw-preview-scene mw-preview-scene-${preview}`} aria-hidden="true">
         {preview===0 ? [.32,.5,.7,.93,.7,.5,.32].map((height, index) => <i key={index} style={{'--preview-height':height,'--preview-delay':`${index*.12}s`}}/>)
@@ -47,7 +45,7 @@ function WarmUpHero({state, highScore, onStart}) {
   </section>;
 }
 
-function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
+function MorningCards({state, onEdit, onSave, status}) {
   const [editing, setEditing] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const items = state.items;
@@ -56,17 +54,15 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
   function toggleCheck(id, selected) {
     const next = selected ? [...state.checklist, id] : state.checklist.filter(value => value !== id);
     setCelebrate(selected && checked === items.length - 1);
-    onEdit('checklist', next);
+    onSave({...state, checklist:next});
   }
   const valid = items.every(({label}) => label.trim());
   function remove(id) {
     setCelebrate(false);
-    onEdit('items', items.filter(item => item.id !== id));
-    onEdit('checklist', state.checklist.filter(value => value !== id));
+    onEdit({items:items.filter(item => item.id !== id), checklist:state.checklist.filter(value => value !== id)});
   }
-  return <form className="mw-prep-form" onSubmit={onSave}>
-    <div className="mw-prep-grid">
-      <AuraCheckIn/>
+  return <div className="mw-prep-grid">
+      <AuraCheckIn intention={state.affirmation || state.intention}/>
       <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
         <h2 id="prep-checklist">Pre-Session Checklist</h2>
         {items.length > 0&&<div className="mw-check-progress">
@@ -79,7 +75,7 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
         <div className="mw-checklist">
           {items.map(({id, label}, index) => editing ? <div className="mw-check-edit" key={id}>
             <input aria-label={`Checklist item ${index + 1}`} maxLength={120} required value={label}
-              onChange={e => onEdit('items', items.map(item => item.id === id ? {...item, label:e.target.value} : item))}/>
+              onChange={e => onEdit({items:items.map(item => item.id === id ? {...item, label:e.target.value} : item)})}/>
             <Button type="button" aria-label={`Remove checklist item ${index + 1}`} onClick={() => remove(id)}>Remove</Button>
           </div> : <label key={id}>
             <input type="checkbox" checked={state.checklist.includes(id)} onChange={e => toggleCheck(id, e.target.checked)}/>
@@ -87,8 +83,12 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
           </label>)}
         </div>
         <div className="mw-checklist-tools">
-          {editing&&<Button type="button" disabled={items.length>=200} onClick={() => onEdit('items', [...items, {id:crypto.randomUUID().replaceAll('-',''), label:''}])}>Add checklist item</Button>}
-          <Button type="button" aria-expanded={editing} onClick={() => {setCelebrate(false); setEditing(value => !value);}}>{editing ? 'Done editing' : 'Edit checklist'}</Button>
+          {editing&&<Button type="button" disabled={items.length>=200} onClick={() => onEdit({items:[...items, {id:crypto.randomUUID().replaceAll('-',''), label:''}]})}>Add checklist item</Button>}
+          <Button type="button" aria-expanded={editing} disabled={editing && !valid} onClick={() => {
+            setCelebrate(false);
+            if (editing) onSave(state);
+            setEditing(!editing);
+          }}>{editing ? 'Done editing' : 'Edit checklist'}</Button>
         </div>
         {!editing&&!items.length&&<p>Add the checks you want to repeat before each session.</p>}
         {editing&&!valid&&<p>Give each new item a name before saving.</p>}
@@ -98,23 +98,24 @@ function MorningCards({state, onEdit, onSave, busy, dirty, saved}) {
             <strong>Session Ready</strong>
           </div>}
         </div>
+        <div className="mw-check-save" role="status">
+          {status === 'saving' && 'Saving checklist…'}
+          {status === 'saved' && 'Checklist saved'}
+          {status === 'failed' && !editing && <>Checklist could not be saved. <Button onClick={() => onSave(state)}>Retry</Button></>}
+        </div>
       </section>
-    </div>
-    <div className="mw-save-row"><Button variant="primary" type="submit" disabled={!dirty||!valid} busy={busy}>Save morning prep</Button>
-      {saved&&<span role="status">Morning prep saved.</span>}</div>
-  </form>;
+    </div>;
 }
 
 function PrivateWarmUp({pinnedGoal}) {
   const [state, setState] = useState(null);
   const [highScore, setHighScore] = useState(null);
   const [error, setError] = useState('');
-  const [dirty, setDirty] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [openStep, setOpenStep] = useState(null);
   const reader = useRef(null);
   const writer = useRef(null);
+  const queuedPrep = useRef(null);
   const leaderboard = useRef(null);
 
   async function loadScore(current) {
@@ -134,7 +135,9 @@ function PrivateWarmUp({pinnedGoal}) {
   async function load() {
     reader.current?.abort();
     writer.current?.abort();
-    setState(null); setOpen(false); setBusy(false); setError(''); setSaved(false); setDirty(false);
+    writer.current = null;
+    queuedPrep.current = null;
+    setState(null); setOpenStep(null); setError(''); setSaveStatus('');
     const abort = new AbortController();
     reader.current = abort;
     try {
@@ -159,35 +162,40 @@ function PrivateWarmUp({pinnedGoal}) {
     return () => {window.clearTimeout(timer); document.removeEventListener('visibilitychange', check);};
   }, [state?.resets_at]);
 
-  async function save(e) {
-    e.preventDefault();
-    if (busy) return;
-    const abort = new AbortController();
-    writer.current = abort;
-    setBusy(true); setError('');
-    const {day, energy, headspace, checklist, items} = state;
+  async function save(next) {
+    setState(next);
+    queuedPrep.current = next;
+    if (writer.current) return;
+    const request = new AbortController();
+    writer.current = request;
+    setSaveStatus('saving');
     try {
-      const value = await api('/mindset/warmup', {method:'PUT', body:{day, energy, headspace, checklist, items}, signal:abort.signal});
-      if (!abort.signal.aborted) {setState(value); setDirty(false); setSaved(true);}
-    } catch (e) {
-      if (!abort.signal.aborted) setError(e.message);
+      // Send writes in order so a quick series of toggles cannot save a stale snapshot last.
+      while (queuedPrep.current && !request.signal.aborted) {
+        const {day, energy, headspace, checklist, items} = queuedPrep.current;
+        queuedPrep.current = null;
+        try {
+          await api('/mindset/warmup', {method:'PUT', body:{day, energy, headspace, checklist, items}, signal:request.signal});
+          if (!request.signal.aborted && !queuedPrep.current) setSaveStatus('saved');
+        } catch {
+          if (!request.signal.aborted && !queuedPrep.current) setSaveStatus('failed');
+        }
+      }
     } finally {
-      if (!abort.signal.aborted) setBusy(false);
+      if (writer.current === request) writer.current = null;
     }
   }
 
   return <>
-    <WarmUpHero state={state} highScore={highScore} onStart={() => setOpen(true)}/>
-    {state&&<fieldset className="mw-prep-shell" disabled={busy}>
-      <MorningCards state={state} busy={busy} dirty={dirty} saved={saved} onSave={save}
-        onEdit={(key, value) => {setState(current => ({...current, [key]:value})); setDirty(true); setSaved(false);}}/>
-    </fieldset>}
+    <WarmUpHero state={state} highScore={highScore} onStart={setOpenStep}/>
+    {state&&<MorningCards key={state.day} state={state} status={saveStatus} onSave={save}
+      onEdit={changes => setState(current => ({...current, ...changes}))}/>}
     {!state&&!error&&<p role="status">Loading morning prep…</p>}
     {error&&<Notice error>{error}{!state&&<Button onClick={load}>Retry morning prep</Button>}</Notice>}
-    {open&&state&&<Suspense fallback={<p role="status">Opening warm-up…</p>}>
-      <MindsetWarmUp pinnedGoal={pinnedGoal} day={state.day} savedAffirmation={state.affirmation} onClose={() => setOpen(false)} onScore={() => loadScore(state)} onComplete={value => {
+    {openStep!==null&&state&&<Suspense fallback={<p role="status">Opening warm-up…</p>}>
+      <MindsetWarmUp initialStep={openStep} pinnedGoal={pinnedGoal} day={state.day} savedAffirmation={state.affirmation} onClose={() => setOpenStep(null)} onScore={() => loadScore(state)} onComplete={value => {
         setState(current => ({...current, completed:value.completed, affirmation:value.affirmation ?? current.affirmation}));
-        setOpen(false);
+        setOpenStep(null);
       }}/>
     </Suspense>}
   </>;
@@ -197,7 +205,7 @@ export default function MindsetPage() {
   const {identity, error, reload} = useIdentity();
   const [goalSelection, setGoalSelection] = useState(null);
   const pinnedGoal = goalSelection?.identity === identity ? goalSelection.goal : null;
-  return <WorkspacePage active="mindset" title="Mindset" hideHeading>
+  return <WorkspacePage active="mindset" title="Mindset" hideHeading className="mw-page">
     {identity?.authenticated ? <PrivateWarmUp pinnedGoal={pinnedGoal}/> : <WarmUpHero/>}
     {error&&<Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity&&!error&&<p role="status">Checking your private workspace…</p>}

@@ -20,7 +20,7 @@ async function stubDrill(page, responses) {
 }
 
 async function warmup(page) {
-  await page.getByRole('button',{name:'Start Pre-Market Warm-Up',exact:true}).click();
+  await page.getByRole('button',{name:'Breathwork',exact:true}).click();
   const dialog = page.getByRole('dialog',{name:'Pre-Market Warm-Up'});
   await expect(dialog.getByRole('heading',{name:'Breathwork'})).toBeVisible();
   return dialog;
@@ -42,7 +42,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
     return route.fulfill({json:{text:'Until you can clearly state your entry criteria.'}});
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura'}).click();
+  await page.getByRole('button',{name:'Ask Aura'}).click();
   const aura = page.getByRole('dialog',{name:'Aura',exact:true});
   const composer = aura.getByRole('textbox',{name:'Message Aura'});
   const thread = aura.getByRole('log');
@@ -56,7 +56,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(composer).toBeEmpty();
   await expect(thread).toContainText('Until you can clearly state your entry criteria.');
   await aura.getByRole('button',{name:'Close'}).click();
-  await page.getByRole('button',{name:'Open Aura'}).click();
+  await page.getByRole('button',{name:'Ask Aura'}).click();
   await expect(thread).not.toContainText('I rushed into trades after a loss.');
   await aura.getByRole('button',{name:'Close'}).click();
   const progress = page.getByRole('progressbar',{name:'Pre-session checklist progress'});
@@ -72,8 +72,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(progress).toHaveAttribute('aria-valuetext','2 of 3 complete');
   await expect(page.getByText('Session Ready',{exact:true})).toHaveCount(0);
   await lossLimit.check();
-  await page.getByRole('button',{name:'Save morning prep'}).click();
-  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Checklist saved',{exact:true})).toBeVisible();
   await page.reload();
   await expect(page.getByText('Recent check-ins',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
@@ -107,6 +106,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   const saved = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
   expect(saved.affirmation).toBe('The next trade has to meet my rules. It does not owe me back the last loss.');
+  await expect(page.locator('.mw-active-rule')).toContainText(saved.affirmation);
 });
 
 test('Pattern Match works at 390px in dark mode with reduced motion',async({page},info)=>{
@@ -142,8 +142,10 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
 
 test('custom checklist persists and every warm-up step can be skipped', async ({page}) => {
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('group',{name:'Preview warm-up steps'}).getByRole('button',{name:'Focus Games'}).click();
-  await expect(page.getByText('Recall a pattern or spot a matching symbol.')).toBeVisible();
+  await page.getByRole('group',{name:'Open a warm-up step'}).getByRole('button',{name:'Focus Games'}).click();
+  const direct = page.getByRole('dialog',{name:'Pre-Market Warm-Up'});
+  await expect(direct.getByRole('heading',{name:'Pattern Match'})).toBeVisible();
+  await direct.getByRole('button',{name:'Close'}).click();
   await page.getByRole('button',{name:'Edit checklist',exact:true}).click();
   await page.getByRole('textbox',{name:'Checklist item 1',exact:true}).fill('Mark overnight high');
   await page.getByRole('button',{name:'Add checklist item',exact:true}).click();
@@ -151,8 +153,7 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
   await page.getByRole('button',{name:'Remove checklist item 2',exact:true}).click();
   await page.getByRole('button',{name:'Done editing',exact:true}).click();
   await page.getByRole('checkbox',{name:'Review risk rules',exact:true}).check();
-  await page.getByRole('button',{name:'Save morning prep'}).click();
-  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Checklist saved',{exact:true})).toBeVisible();
   await page.reload();
   await expect(page.getByRole('checkbox',{name:'Review risk rules',exact:true})).toBeChecked();
   await expect(page.getByRole('checkbox',{name:'Mark overnight high',exact:true})).toBeVisible();
@@ -188,7 +189,7 @@ test('Aura puts dictated words into the composer for review', async ({page}) => 
   });
   await page.setViewportSize({width:390,height:844});
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura'}).click();
+  await page.getByRole('button',{name:'Ask Aura'}).click();
   const dialog=page.getByRole('dialog',{name:'Aura',exact:true});
   await dialog.getByRole('button',{name:'Dictate message'}).click();
   await expect(dialog.getByRole('textbox',{name:'Message Aura'})).toHaveValue('I feel ready to wait for my setup.');
@@ -202,7 +203,7 @@ for (const failure of ['timeout', 'server error']) {
       ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 6500))
       : route.fulfill({status:500, json:{detail:'unavailable'}}));
     await page.goto(`${origin}/mindset`);
-    await page.getByRole('button',{name:'Open Aura'}).click();
+    await page.getByRole('button',{name:'Ask Aura'}).click();
     const aura = page.getByRole('dialog',{name:'Aura',exact:true});
     const composer = aura.getByRole('textbox',{name:'Message Aura'});
     await composer.fill('I’m tempted to rush');
@@ -227,7 +228,7 @@ test('Aura shows and clears a blocked microphone state', async ({page}) => {
     };
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Open Aura'}).click();
+  await page.getByRole('button',{name:'Ask Aura'}).click();
   const aura = page.getByRole('dialog',{name:'Aura',exact:true});
   await aura.getByRole('button',{name:'Dictate message'}).click();
   await expect(aura.getByRole('button',{name:'Stop dictation'})).toBeVisible();
@@ -287,8 +288,7 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
   for (const item of prep.items) {
     await page.getByRole('checkbox',{name:item.label,exact:true}).check();
   }
-  await page.getByRole('button',{name:'Save morning prep'}).click();
-  await expect(page.getByText('Morning prep saved.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Checklist saved',{exact:true})).toBeVisible();
   await page.goto(`${origin}/journal?day=${prep.day}`);
   const summary = page.getByRole('complementary',{name:'Pre-session checklist'});
   await summary.getByText('Checklist complete',{exact:true}).click();
@@ -306,10 +306,10 @@ test('Aura opens with a contextual prompt and quick replies on a dark surface', 
   });
   await page.goto(`${origin}/mindset`);
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
-  await page.getByRole('button',{name:'Open Aura'}).click();
+  await page.getByRole('button',{name:'Ask Aura'}).click();
   const dialog = page.getByRole('dialog',{name:'Aura',exact:true});
   await expect(dialog).toHaveCSS('background-color','rgb(26, 26, 25)');
-  await expect(dialog.getByRole('heading',{name:'Leave the last session at the door.'})).toBeVisible();
+  await expect(dialog.getByRole('heading',{name:'What could make you break your rules today?'})).toBeVisible();
   await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
   await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();
   await expect(dialog.getByRole('log')).toContainText('Take one setup at a time.');
