@@ -9,7 +9,6 @@ import TradeForm from './TradeForm';
 import ReleaseNotes from './ReleaseNotes';
 import useTradeDismissal from './useTradeDismissal';
 import {money} from './format';
-import PrepProgress from './PrepProgress';
 import FloatingAura from './FloatingAura';
 import JournalTradeCards,{JournalScreenshots} from './JournalTradeCards';
 import './journal-workspace.css';
@@ -56,25 +55,24 @@ function JournalPrep({day}) {
   const checked = items.filter((item) => item.checked).length;
   const complete = items.length > 0 && checked === items.length;
   const status = result.failed ? 'Checklist unavailable' : 'No checklist saved';
+  const heading = <>
+    <strong>Pre-session checklist</strong>
+    {result.warmup_completed && <span className="pj-prep-complete"><Check size={14} aria-hidden="true"/> Warm-up complete</span>}
+  </>;
   return <aside className="pj-prep-summary" aria-label="Pre-session checklist">
     <ListChecks size={19} aria-hidden="true"/>
     <div>
-      <div className="pj-prep-heading">
-        <strong>Pre-session checklist</strong>
-        {result.warmup_completed && <span className="pj-prep-complete"><Check size={14} aria-hidden="true"/> Warm-up complete</span>}
-      </div>
-      {items.length ? <>
-        <PrepProgress checked={checked} total={items.length}/>
-        <details>
-          <summary className={complete ? 'is-complete' : undefined}>
-            <ChevronRight size={15} aria-hidden="true"/> {complete ? 'Checklist complete' : 'View checklist'}
-          </summary>
-          <ul>{items.map((item) => <li key={item.id} data-checked={item.checked}>
-            {item.checked ? <Check size={15} aria-hidden="true"/> : <Circle size={15} aria-hidden="true"/>}
-            <span>{item.label} · {item.checked ? 'Done' : 'Open'}</span>
-          </li>)}</ul>
-        </details>
-      </> : <p>{status}</p>}
+      {items.length ? <details>
+        <summary className="pj-prep-heading">
+          <ChevronRight size={15} aria-hidden="true"/> {heading}
+          {(!complete || !result.warmup_completed) &&
+            <span className="pj-prep-count">{complete ? 'Checklist complete' : `${checked}/${items.length} checked`}</span>}
+        </summary>
+        <ul>{items.map((item) => <li key={item.id} data-checked={item.checked}>
+          {item.checked ? <Check size={15} aria-hidden="true"/> : <Circle size={15} aria-hidden="true"/>}
+          <span>{item.label} · {item.checked ? 'Done' : 'Open'}</span>
+        </li>)}</ul>
+      </details> : <><div className="pj-prep-heading">{heading}</div><p>{status}</p></>}
     </div>
     <a href="/mindset#warm-up-title">Open Mindset <ArrowUpRight size={14} aria-hidden="true"/></a>
   </aside>;

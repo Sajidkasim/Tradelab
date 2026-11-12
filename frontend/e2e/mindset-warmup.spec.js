@@ -106,7 +106,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   const saved = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
   expect(saved.affirmation).toBe('The next trade has to meet my rules. It does not owe me back the last loss.');
-  await expect(page.locator('.mw-active-rule')).toContainText(saved.affirmation);
+  await expect(page.getByRole('button',{name:'Ask Aura'})).toHaveCSS('border-radius','50%');
 });
 
 test('Pattern Match works at 390px in dark mode with reduced motion',async({page},info)=>{
@@ -163,10 +163,10 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
   await expect(technique).toHaveAccessibleDescription(/when you feel rushed/);
   await technique.selectOption({label:'Box breathing'});
   await expect(technique).toHaveAccessibleDescription(/attention is scattered/);
-  await expect(dialog.getByText('Inhale 4s · Hold 4s · Exhale 4s · Hold 4s')).toBeVisible();
+  await expect(dialog.locator('.mw-breath-counts').getByText('Exhale 4s')).toBeVisible();
   await technique.selectOption({label:'Slow exhale'});
   await expect(technique).toHaveAccessibleDescription(/with no holds/);
-  await expect(dialog.getByText('Inhale 4s · Exhale 6s')).toBeVisible();
+  await expect(dialog.locator('.mw-breath-counts').getByText('Exhale 6s')).toBeVisible();
   await technique.selectOption({label:'Equal breathing'});
   await expect(technique).toHaveAccessibleDescription(/when you already feel settled/);
   await dialog.getByRole('button',{name:'Skip to Focus Games'}).click();
@@ -294,9 +294,8 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   await page.goto(`${origin}/journal?day=${prep.day}`);
   const summary = page.getByRole('complementary',{name:'Pre-session checklist'});
-  await expect(summary.getByRole('progressbar')).toHaveAttribute('aria-valuetext', `${prep.items.length} of ${prep.items.length} complete`);
   await expect(summary.getByText('Warm-up complete',{exact:true})).toBeVisible();
-  await summary.getByText('Checklist complete',{exact:true}).click();
+  await summary.getByText('Pre-session checklist',{exact:true}).click();
   await expect(summary).toContainText(`${prep.items[0].label} · Done`);
 });
 

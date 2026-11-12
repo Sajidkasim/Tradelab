@@ -63,7 +63,7 @@ function MorningCards({state, onEdit, onSave, status}) {
     onEdit({items:items.filter(item => item.id !== id), checklist:state.checklist.filter(value => value !== id)});
   }
   return <div className="mw-prep-grid">
-      <AuraCheckIn intention={state.affirmation || state.intention}/>
+      <AuraCheckIn/>
       <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
         <h2 id="prep-checklist">Pre-Session Checklist</h2>
         <PrepProgress checked={checked} total={items.length}/>

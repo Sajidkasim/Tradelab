@@ -43,7 +43,7 @@ function Breathwork({onNext}) {
   const [paused, setPaused] = useState(null);
   const left = paused ?? remaining;
   const finished = left === 0;
-  const {phases, use} = RHYTHMS[rhythm];
+  const {phases, use, name} = RHYTHMS[rhythm];
   let elapsed = ((BREATH_MS - left) / 1000) % phases.reduce((total, phase) => total + phase[1], 0);
   const active = phases.find(([, seconds]) => {
     if (elapsed < seconds) return true;
@@ -61,8 +61,12 @@ function Breathwork({onNext}) {
         setRhythm(Number(e.target.value)); setPaused(null); setDeadline(Date.now() + BREATH_MS);
       }}>{RHYTHMS.map(({name}, index) => <option key={name} value={index}>{name}</option>)}</select>
     </label>
-    <p id="mw-breath-purpose" className="mw-breath-purpose">{use}</p>
-    <p>{phases.map(([label, duration]) => `${label} ${duration}s`).join(' · ')}</p>
+    <div className="mw-breath-guide">
+      <strong>{name}</strong>
+      <p id="mw-breath-purpose">{use}</p>
+      <div className="mw-breath-counts">{phases.map(([label, duration], index) =>
+        <span key={index}>{label} <b>{duration}s</b></span>)}</div>
+    </div>
     <div className="mw-breath-stage" style={{'--breath-level':level}}>
       <div className="mw-breath-wave" aria-hidden="true">{[.55,.7,.86,1,.86,.7,.55].map((height, index) =>
         <span key={index} style={{'--wave-height':height}} />)}</div>

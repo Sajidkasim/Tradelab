@@ -97,3 +97,41 @@
 @media(prefers-reduced-motion:reduce) {
   .prep-progress-track > span { transition:none; }
 }
+
+.aura-orb {
+  position:relative;
+  display:grid;
+  place-content:center;
+  justify-items:center;
+  gap:1px;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  border:1px solid #547566;
+  border-radius:50%;
+  color:#f4f6ef;
+  background:radial-gradient(ellipse at 32% 17%, #92ada0 0%, #527769 25%, #203e34 58%, #0e221c 86%);
+  box-shadow:inset 0 1px 2px #fff7, inset 0 -4px 8px #0b1b17a8, 0 5px 12px #10251d52;
+  font:inherit;
+  font-size:11px;
+  font-weight:650;
+  cursor:pointer;
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.aura-orb::before {
+  content:"";
+  position:absolute;
+  inset:4px 9px auto;
+  height:22px;
+  border-radius:50%;
+  background:linear-gradient(180deg, #fff4, transparent);
+  pointer-events:none;
+}
+.aura-orb > * { position:relative; }
+.aura-orb:hover { transform:translateY(-2px); box-shadow:inset 0 1px 2px #fff7, inset 0 -4px 8px #0b1b17a8, 0 8px 16px #10251d62; }
+.aura-orb[aria-expanded="true"] { border-color:#9dbcab; }
+@media (prefers-reduced-motion:reduce) {
+  .aura-orb { transition:none; }
+  .aura-orb:hover { transform:none; }
+}
+.aura-orb:focus-visible{outline:2px solid var(--pt-ink);outline-offset:3px}

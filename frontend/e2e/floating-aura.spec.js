@@ -29,6 +29,12 @@ test('Aura stays in the corner, opens without sending, and renders a requested r
   await page.keyboard.press('Enter');
   const panel = page.getByRole('region', {name:'Aura',exact:true});
   await expect(panel).toBeVisible();
+  await expect(orb).toBeHidden();
+  await expect(panel.getByRole('group',{name:'Suggested questions'}).getByRole('button')).toHaveCount(3);
+  const privacy = panel.getByRole('button',{name:'Journal privacy information'});
+  await expect(panel.getByRole('tooltip')).toBeHidden();
+  await privacy.click();
+  await expect(panel.getByRole('tooltip')).toContainText('Cloudflare');
   expect(requests).toBe(0);
   const bounds = await panel.boundingBox();
   expect(bounds.x).toBeGreaterThanOrEqual(0);

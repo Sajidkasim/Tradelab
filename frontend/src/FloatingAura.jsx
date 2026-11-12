@@ -1,5 +1,5 @@
 import React, {useEffect, useId, useRef, useState} from 'react';
-import {Sparkles} from 'lucide-react';
+import {ArrowUp, Info, Sparkles, X} from 'lucide-react';
 import {api} from './api';
 
 function inlineMarkdown(text) {
@@ -22,6 +22,7 @@ function CoachMarkdown({text}) {
 }
 
 function AuraReview({day, account, dirty, titleId, onClose}) {
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [question, setQuestion] = useState('');
   const [turns, setTurns] = useState([]);
   const [error, setError] = useState('');
@@ -30,13 +31,11 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
   const request = useRef(null);
   useEffect(() => () => request.current?.abort(), []);
 
-  async function review(event) {
-    event.preventDefault();
-    if (loading) return;
+  async function review(submitted) {
+    if (request.current || !submitted) return;
     const controller = new AbortController();
     request.current = controller;
     setError('');
-    const submitted = question.trim() || 'What stands out from my journal today?';
     setLoading(true);
     const query = new URLSearchParams({day});
     if (account != null) query.set('account_id', account);
@@ -49,19 +48,22 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
     } catch (failure) {
       if (!controller.signal.aborted) setError(failure.message);
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (!controller.signal.aborted) {request.current = null; setLoading(false);}
     }
   }
 
   return <section className="pj-coach card" aria-labelledby={titleId}>
     <header>
-      <h3 id={titleId}>Aura</h3>
-      <button type="button" className="pt-btn" onClick={onClose} aria-label="Close Aura">×</button>
+      <div className="pj-aura-title">
+        <h3 id={titleId}>Aura</h3>
+        <div className="pj-aura-info" data-open={showPrivacy} onBlur={() => setShowPrivacy(false)}>
+          <button type="button" aria-label="Journal privacy information" aria-describedby={titleId + '-privacy'}
+            aria-expanded={showPrivacy} onClick={() => setShowPrivacy(value => !value)}><Info size={15} aria-hidden="true"/></button>
+          <p id={titleId + '-privacy'} className="pj-aura-tooltip" role="tooltip">Cloudflare receives this day’s saved notes, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
+        </div>
+      </div>
+      <button type="button" className="pj-aura-close" onClick={onClose} aria-label="Close Aura" autoFocus><X size={20} aria-hidden="true"/></button>
     </header>
-    <details className="pj-aura-context">
-      <summary>Journal context</summary>
-      <p>Cloudflare receives this day’s saved notes, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
-    </details>
     {dirty && <p>Save your entry to include your latest notes.</p>}
     {turns.length > 0 && <div className="pj-coach-review" role="log" aria-label="Conversation with Aura">
       {turns.map((turn, index) => <article key={index}>
@@ -69,13 +71,22 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
         <div className="pj-aura-answer" aria-label="Aura"><CoachMarkdown text={turn.answer}/></div>
       </article>)}
     </div>}
-    <form onSubmit={review} className="pj-field">
-      <label htmlFor={titleId + '-question'}>Your question</label>
-      <textarea id={titleId + '-question'} value={question} maxLength={1000} rows={2}
+    {!turns.length && <div className="pj-aura-suggestions" role="group" aria-label="Suggested questions">
+      {['Review my entries today', 'Am I breaking my rules?', 'What should I repeat next session?'].map(suggestion =>
+        <button key={suggestion} type="button" disabled={loading || Boolean(question.trim())} onClick={() => review(suggestion)}>{suggestion}</button>)}
+    </div>}
+    <form className="pj-aura-compose" onSubmit={event => {event.preventDefault(); review(question.trim());}}>
+      <textarea aria-label="Your question" value={question} maxLength={1000} rows={2}
         placeholder="What could I improve about my entry timing?"
-        onChange={event => setQuestion(event.target.value)}/>
-      <button type="submit" className="pt-btn pt-btn-dark" disabled={loading}>
-        {loading ? 'Thinking…' : question.trim() ? 'Send question' : 'Ask Aura'}
+        onChange={event => setQuestion(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            review(question.trim());
+          }
+        }}/>
+      <button type="submit" className="pj-aura-send" aria-label="Send question" disabled={loading || !question.trim()}>
+        <ArrowUp size={19} aria-hidden="true"/>
       </button>
     </form>
     {loading && <p role="status">Aura is thinking…</p>}
@@ -91,16 +102,16 @@ export default function FloatingAura({day, account, dirty}) {
 
   function close() {
     setOpen(false);
-    button.current?.focus();
+    requestAnimationFrame(() => button.current?.focus());
   }
 
-  return <div className="pj-aura" onKeyDown={event => {
+  return <div className="pj-aura" data-open={open} onKeyDown={event => {
     if (open && event.key === 'Escape') {
       event.stopPropagation();
       close();
     }
   }}>
-    <button ref={button} type="button" className="pj-aura-orb" aria-label="Aura - Trading Assistant"
+    <button ref={button} type="button" className="aura-orb pj-aura-orb" hidden={open} aria-label="Aura - Trading Assistant"
       aria-expanded={open} aria-controls={open ? panelId : undefined}
       onClick={() => setOpen(value => !value)}>
       <Sparkles size={19} strokeWidth={1.65} aria-hidden="true"/>

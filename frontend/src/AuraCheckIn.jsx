@@ -164,20 +164,14 @@ function AuraChat({onClose}) {
   </Modal>;
 }
 
-export default function AuraCheckIn({intention}) {
+export default function AuraCheckIn() {
   const [open, setOpen] = useState(false);
   return <section className="wp-panel mw-card mw-aura-card" aria-labelledby="morning-check-in">
-    <header>
-      <h2 id="morning-check-in">Aura</h2>
-      <button type="button" className="mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Aura" title="Ask Aura">
-        <Sparkles size={20} aria-hidden="true"/>
+    <h2 id="morning-check-in">Aura</h2>
+    <div className="mw-aura-orb-stage">
+      <button type="button" className="aura-orb mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Aura" title="Ask Aura">
+        <Sparkles size={32} strokeWidth={1.65} aria-hidden="true"/><span>Aura</span>
       </button>
-    </header>
-    <div className="mw-active-rule">
-      <span>Active rule</span>
-      {intention
-        ? <blockquote>{intention}</blockquote>
-        : <p>Choose an affirmation in the warm-up to set today’s rule.</p>}
     </div>
     {open && createPortal(<AuraChat onClose={() => setOpen(false)}/>, document.body)}
   </section>;

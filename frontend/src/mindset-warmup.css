@@ -44,7 +44,14 @@
 .mw-preview-scene-1 { display:grid; grid-template-columns:repeat(4, minmax(0, 23px)); gap:6px; align-content:center; }
 .mw-preview-scene-1 i { width:100%; height:auto; aspect-ratio:1; border:1px solid currentColor; border-radius:4px; opacity:.35; }
 .mw-preview-scene-1 i.lit { background:var(--mw-action); opacity:1; }
-.mw-breath-purpose { max-width:48ch; }
+.mw-breath-guide {
+  width:min(100%, 410px); padding:14px 17px; border-radius:12px;
+  border:1px solid var(--desk-border); background:var(--desk-page); text-align:left;
+}
+.mw-breath-guide > strong { font-size:clamp(19px, 4vw, 23px); }
+.mw-breath-guide > p { margin:5px 0 10px; font-size:16px; line-height:1.5; }
+.mw-breath-counts { display:flex; flex-wrap:wrap; gap:6px; }
+.mw-breath-counts span { padding:3px 8px; border-radius:6px; background:var(--desk-selected); font-size:13px; }
 .mw-preview-scene-2 span { font-size:clamp(19px,2.6vw,29px); font-weight:600; }
 .mw-preview-caption { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; padding:12px; font-size:13px; }
 .mw-preview-caption span { color:var(--pt-muted); }
@@ -246,17 +253,9 @@
 }
 .mw-affirmation-edit { display:grid; width:min(100%,510px); gap:7px; text-align:left; }
 .mw-affirmation-edit textarea { min-width:0; padding:12px; background:var(--pt-paper); color:var(--pt-ink); border:1px solid var(--pt-line); border-radius:8px; font:inherit; }
-.mw-aura-card header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.mw-aura-card header h2 { margin:0; }
-.mw-aura-orb {
-  display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:50%;
-  border:1px solid var(--pt-line); background:var(--mw-action); color:var(--mw-action-text); cursor:pointer;
-}
-.mw-aura-orb:hover { opacity:.84; }
-.mw-active-rule { margin-top:19px; padding:17px; border:1px solid var(--pt-line); border-radius:12px; background:var(--pt-paper); }
-.mw-active-rule span { color:var(--pt-muted); font-size:13px; }
-.mw-active-rule blockquote { margin:7px 0 0; font-size:clamp(18px, 2vw, 24px); font-weight:600; overflow-wrap:anywhere; }
-.mw-active-rule p { margin:7px 0 0; color:var(--pt-muted); }
+.mw-aura-card { display:flex; flex-direction:column; }
+.mw-aura-orb-stage { display:grid; place-items:center; flex:1; min-height:180px; }
+.mw-aura-orb-stage .mw-aura-orb { width:112px; height:112px; gap:5px; font-size:14px; }
 .mw-check-save { min-height:20px; margin-top:8px; color:var(--pt-muted); font-size:13px; }
 .mw-aura-modal { width:min(650px, calc(100vw - 22px)); }
 .mw-aura-dialog {
