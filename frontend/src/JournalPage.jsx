@@ -145,9 +145,14 @@ export default function JournalPage({theme = "light"}){
       <JournalAccounts accounts={accounts} setAccounts={setAccounts}/>
       <div className="pt-journal-layout">
         <aside className="pt-journal-sidebar" aria-label="Journal calendar and history">
-          <button className="pt-btn pt-btn-dark" onClick={()=>selectDay(today)} disabled={busy}><NotebookPen size={17}/> Today’s entry <ArrowUpRight size={16}/></button>
+          <div className="pj-sidebar-actions">
+            <button type="button" className="pj-sidebar-action" aria-current={day === today ? 'date' : undefined}
+              onClick={() => selectDay(today)} disabled={busy}>
+              <NotebookPen size={17} aria-hidden="true"/> Today’s entry
+            </button>
+            <JournalRules preferences={meta.journal_preferences} onSaved={value=>setMeta(old=>({...old,journal_preferences:value}))}/>
+          </div>
           <label className="pt-mobile-date">Go to date<input type="date" aria-label="Journal date" value={day} disabled={busy} onChange={e=>selectDay(e.target.value)}/></label>
-          <JournalRules preferences={meta.journal_preferences} onSaved={value=>setMeta(old=>({...old,journal_preferences:value}))}/>
           <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar account" disabled={!accounts}/>
           <div className="pt-calendar"><div className="pt-calendar-heading"><button aria-label="Previous month" disabled={busy} onClick={()=>shiftMonth(-1)}><ChevronLeft size={18}/></button><label className="pj-month"><span>{monthDate.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span><input type="month" aria-label="Browse month" value={month} disabled={busy} onChange={e=>{if(e.target.value)setMonth(e.target.value)}}/></label><button aria-label="Next month" disabled={busy} onClick={()=>shiftMonth(1)}><ChevronRight size={18}/></button></div>
             <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,traded=row?.traded_today,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';const markers=[followed&&`Plan followed: ${followed}`,traded&&`Traded: ${traded}`].filter(Boolean).join(' · ');return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={markers?`${label} · ${markers}`:label} aria-description={markers||undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}
@@ -163,22 +168,24 @@ export default function JournalPage({theme = "light"}){
           {(error||notice)&&<div className="pj-day-feedback">{error&&<div className="pt-journal-error" role="alert">{error}</div>}{notice&&<div className="pt-journal-success" role="status">{notice}{undoId&&<button className="pj-undo" onClick={()=>restoreDay(undoId)} disabled={busy}><Undo2 size={15}/> Undo</button>}</div>}</div>}
           <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">{sections.map((item,index)=><button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section===item.id} onClick={()=>setSection(item.id)}><span>0{index+1}</span>{item.label}{entry[item.id]?.trim()&&<Check size={14}/>}</button>)}</div>
           <div className="pt-writing-area" role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}><span className="pt-overline">SESSION NOTES</span><h3>{current.title}</h3><p>{current.hint}</p><textarea aria-label={current.label} value={entry[section]} maxLength={section==='notes'?20000:12000} placeholder={current.placeholder} onChange={e=>edit(section,e.target.value)} disabled={busy}/><div className="pt-writing-footer"><span>{section==='lesson'?'Your review of the whole session. Trade-by-trade details go below.':'A few lines are enough. You can come back to this later.'}</span><span>{entry[section].length.toLocaleString()} characters</span></div></div>
-          <div className="pt-mindset pj-plan-field">
-            <h3>Plan followed?</h3>
-            <div role="group" aria-label="Plan followed?">
-              {['Yes', 'Partly', 'No'].map(option => <button key={option} type="button" disabled={busy}
-                aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
-                {option}
-              </button>)}
+          <div className="pj-session-checks">
+            <div className="pt-mindset pj-plan-field">
+              <h3>Plan followed?</h3>
+              <div role="group" aria-label="Plan followed?">
+                {['Yes', 'Partly', 'No'].map(option => <button key={option} type="button" disabled={busy}
+                  aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
+                  {option}
+                </button>)}
+              </div>
             </div>
-          </div>
-          <div className="pt-mindset pj-plan-field">
-            <h3>Did you trade today?</h3>
-            <div role="group" aria-label="Did you trade today?">
-              {['Yes', 'No'].map(option => <button key={option} type="button" disabled={busy}
-                aria-pressed={entry.traded_today === option} onClick={() => edit('traded_today', entry.traded_today === option ? null : option)}>
-                {option}
-              </button>)}
+            <div className="pt-mindset pj-plan-field">
+              <h3>Did you trade today?</h3>
+              <div role="group" aria-label="Did you trade today?">
+                {['Yes', 'No'].map(option => <button key={option} type="button" disabled={busy}
+                  aria-pressed={entry.traded_today === option} onClick={() => edit('traded_today', entry.traded_today === option ? null : option)}>
+                  {option}
+                </button>)}
+              </div>
             </div>
           </div>
           <JournalReplayImports/>

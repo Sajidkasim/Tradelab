@@ -82,87 +82,27 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
   </section>;
 }
 
-const ORB = 58;
-const EDGE = 12;
-const GAP = 10;
-const initialPosition = () => ({x: window.innerWidth - ORB - 20, y: window.innerHeight - ORB - 20});
-const clamp = (value, min, max) => Math.min(Math.max(min, max), Math.max(min, value));
-const keepOnScreen = ({x, y}) => ({
-  x: clamp(x, EDGE, window.innerWidth - ORB - EDGE),
-  y: clamp(y, EDGE, window.innerHeight - ORB - EDGE),
-});
-
 export default function FloatingAura({day, account, dirty}) {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState(() => keepOnScreen(initialPosition()));
-  const [dragging, setDragging] = useState(false);
-  const drag = useRef(null);
-  const suppressClick = useRef(false);
   const button = useRef(null);
   const titleId = useId();
   const panelId = useId();
-
-  useEffect(() => {
-    const resize = () => setPosition(keepOnScreen);
-    window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
-  }, []);
-
-  function startDrag(event) {
-    if (!event.isPrimary || event.button !== 0) return;
-    suppressClick.current = false;
-    drag.current = {id: event.pointerId, x: event.clientX, y: event.clientY, origin: position};
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function move(event) {
-    const start = drag.current;
-    if (start?.id !== event.pointerId) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    if (!suppressClick.current && Math.hypot(dx, dy) < 5) return;
-    suppressClick.current = true;
-    setDragging(true);
-    setPosition(keepOnScreen({x: start.origin.x + dx, y: start.origin.y + dy}));
-  }
-
-  function endDrag(event) {
-    if (drag.current?.id !== event.pointerId) return;
-    drag.current = null;
-    setDragging(false);
-  }
 
   function close() {
     setOpen(false);
     button.current?.focus();
   }
 
-  const roomAbove = position.y - GAP - EDGE;
-  const roomBelow = window.innerHeight - position.y - ORB - GAP - EDGE;
-  const above = roomAbove >= roomBelow;
-  const width = Math.min(380, window.innerWidth - EDGE * 2);
-  const panelStyle = {
-    width, maxHeight: Math.max(roomAbove, roomBelow),
-    left: clamp(position.x + ORB - width, EDGE, window.innerWidth - width - EDGE) - position.x,
-    [above ? 'bottom' : 'top']: ORB + GAP,
-  };
-
-  return <div className="pj-aura" style={{left: position.x, top: position.y}}
-    onKeyDown={event => {
-      if (open && event.key === 'Escape') {
-        event.stopPropagation();
-        close();
-      }
-    }}>
+  return <div className="pj-aura" onKeyDown={event => {
+    if (open && event.key === 'Escape') {
+      event.stopPropagation();
+      close();
+    }
+  }}>
     <button ref={button} type="button" className="pj-aura-orb" aria-label="Aura - Trading Assistant"
-      aria-expanded={open} aria-controls={open ? panelId : undefined} data-dragging={dragging}
-      onPointerDown={startDrag} onPointerMove={move} onPointerUp={endDrag}
-      onPointerCancel={endDrag} onLostPointerCapture={endDrag}
-      onClick={event => {
-        if (event.detail === 0 || !suppressClick.current) setOpen(value => !value);
-        suppressClick.current = false;
-      }}>Aura</button>
-    {open && <div id={panelId} className="pj-aura-panel" style={panelStyle}>
+      aria-expanded={open} aria-controls={open ? panelId : undefined}
+      onClick={() => setOpen(value => !value)}>Aura</button>
+    {open && <div id={panelId} className="pj-aura-panel">
       <AuraReview key={JSON.stringify([day, account])} day={day} account={account}
         dirty={dirty} titleId={titleId} onClose={close}/>
     </div>}
