@@ -159,7 +159,8 @@ def test_cloudflare_aura_sends_bounded_follow_up_without_images(monkeypatch):
     monkeypatch.setenv("COACH_CLOUDFLARE_ACCOUNT_ID", "a" * 32)
     monkeypatch.setenv("COACH_CLOUDFLARE_API_TOKEN", "test-token")
 
-    def post(url, *, headers, json, timeout):
+    def post(url, *, headers, json, timeout, allow_redirects):
+        assert allow_redirects is False
         assert url.endswith("/ai/run/@cf/meta/llama-3.1-8b-instruct")
         assert json["max_tokens"] == 320
         assert [message["role"] for message in json["messages"]] == [

@@ -218,36 +218,62 @@ def _cloudflare_review(brief, tools):
     return _cloudflare_chat(messages, max_tokens=320)
 
 
-def _cloudflare_chat(messages, max_tokens):
+def _cloudflare_reply(result):
+    if not isinstance(result, dict):
+        return ""
+    answer = result.get("response")
+    if isinstance(answer, str) and answer.strip():
+        return answer.strip()
+    choices = result.get("choices")
+    if isinstance(choices, list):
+        for choice in choices:
+            message = choice.get("message") if isinstance(choice, dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+    return ""
+
+
+def _cloudflare_chat(messages, max_tokens, *, retry_empty=False):
     account_id = os.getenv("COACH_CLOUDFLARE_ACCOUNT_ID", "").strip()
     token = os.getenv("COACH_CLOUDFLARE_API_TOKEN", "").strip()
     if not re.fullmatch(r"[a-fA-F0-9]{32}", account_id) or not token:
         raise HTTPException(503, "Aura needs its Cloudflare connection set up.")
 
     model = os.getenv("COACH_CLOUDFLARE_MODEL") or CLOUDFLARE_MODEL
-    response = requests.post(
-        f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"messages": messages, "max_tokens": max_tokens, "temperature": 0.65},
-        timeout=(4, 20),
-    )
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = {}
-    if not response.ok or payload.get("success") is False:
-        codes = [item["code"] for item in payload.get("errors", [])
-                 if isinstance(item, dict) and type(item.get("code")) is int]
-        print(f"Aura Cloudflare HTTP {response.status_code}, codes={codes}", flush=True)
-        if response.status_code == 429 or 3036 in codes:
-            raise HTTPException(429, "Aura has hit its Cloudflare usage limit. Try again later.")
-        if response.status_code in (401, 403):
-            raise HTTPException(503, "Cloudflare rejected Aura’s credentials. Check the Workers AI token and Account ID.")
-        raise HTTPException(502, "Cloudflare couldn’t process this request. Check Render logs for the error code.")
-    answer = (payload.get("result") or {}).get("response")
-    if not isinstance(answer, str) or not answer.strip():
-        raise HTTPException(502, "Cloudflare returned an empty reply. Try again.")
-    return answer.strip()
+    attempts = 2 if retry_empty else 1
+    for attempt in range(1, attempts + 1):
+        # Give the retry room to finish if the first attempt used its token budget before answering.
+        token_budget = max_tokens if attempt == 1 else 2 * max_tokens
+        response = requests.post(
+            f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"messages": messages, "max_tokens": token_budget, "temperature": 0.65},
+            timeout=(4, 20) if attempt == 1 else (4, 8),
+            allow_redirects=False,
+        )
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        if not response.ok or payload.get("success") is False:
+            errors = payload.get("errors")
+            codes = [item["code"] for item in errors
+                     if isinstance(item, dict) and type(item.get("code")) is int] if isinstance(errors, list) else []
+            print(f"Aura Cloudflare HTTP {response.status_code}, codes={codes}", flush=True)
+            if response.status_code == 429 or 3036 in codes:
+                raise HTTPException(429, "Aura has hit its Cloudflare usage limit. Try again later.")
+            if response.status_code in (401, 403):
+                raise HTTPException(503, "Cloudflare rejected Aura’s credentials. Check the Workers AI token and Account ID.")
+            raise HTTPException(502, "Cloudflare couldn’t process this request. Check Render logs for the error code.")
+        result = payload.get("result", payload)
+        answer = _cloudflare_reply(result)
+        if answer:
+            return answer
+        print(f"Aura Cloudflare returned no answer text (attempt {attempt}/{attempts})", flush=True)
+    raise HTTPException(502, "Aura didn’t receive a reply. Your text is still here. You can try sending it again.")
 
 
 def aura_check_in(data):
@@ -263,7 +289,7 @@ def aura_check_in(data):
     prompt = json.dumps(data, ensure_ascii=False)
     try:
         if os.getenv('COACH_PROVIDER', 'cloudflare').strip().lower() != 'gemini':
-            return _cloudflare_chat([{'role':'system','content':system}, {'role':'user','content':prompt}], max_tokens=300)
+            return _cloudflare_chat([{'role':'system','content':system}, {'role':'user','content':prompt}], max_tokens=300, retry_empty=True)
         key = os.getenv('COACH_API_KEY')
         model = os.getenv('COACH_GEMINI_MODEL', 'gemini-3.8-flash').removeprefix('models/')
         if not key or not re.fullmatch(r'[a-zA-Z0-9_.-]+', model):

@@ -135,7 +135,10 @@ def test_charity_replaces_only_the_old_default_template(draft):
     assert client.get('/api/mindset/warmup').json()['items'] == custom
 
 
-def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeypatch):
+@pytest.mark.parametrize('reply_format, empty_first', [
+    ('legacy', False), ('chat', False), ('chat', True), ('empty', True),
+])
+def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeypatch, reply_format, empty_first):
     import json
     from extensions import ai_coach
 
@@ -147,20 +150,40 @@ def test_aura_ai_uses_configured_provider_without_journal_context(draft, monkeyp
     monkeypatch.setenv('COACH_CLOUDFLARE_ACCOUNT_ID', 'a'*32)
     monkeypatch.setenv('COACH_CLOUDFLARE_API_TOKEN', 'synthetic-token')
 
+    answer = {'focus':'patience', 'text':'What would help you wait for confirmation?'}
+    text = json.dumps(answer)
+    calls = 0
+
     class Response:
         ok = True
+
+        def __init__(self, result):
+            self.result = result
+
         def json(self):
-            return {'result':{'response':json.dumps({'focus':'patience', 'text':'What would help you wait for confirmation?'})}}
+            return {'success': True, 'result': self.result}
 
     def post(url, **kwargs):
+        nonlocal calls
+        calls += 1
         assert url.startswith('https://api.cloudflare.com/')
+        assert kwargs['json']['max_tokens'] == 300 * calls
         assert json.loads(kwargs['json']['messages'][-1]['content']) == {
             **payload, 'focus':'focus', 'reply':'', 'question':'',
         }
-        return Response()
+        if reply_format == 'empty' or (empty_first and calls == 1):
+            return Response({'choices': [{'message': {'content': None, 'reasoning_content': 'internal'}}]})
+        if reply_format == 'chat':
+            return Response({'choices': [{'message': {'content': text}}]})
+        return Response({'response': text})
 
     monkeypatch.setattr(ai_coach.requests, 'post', post)
     reply = client.post('/api/mindset/check-in/reflect', json=payload)
-    assert reply.status_code == 200
-    assert reply.json() == {'focus':'patience', 'text':'What would help you wait for confirmation?'}
+    assert calls == (2 if empty_first else 1)
+    if reply_format == 'empty':
+        assert reply.status_code == 502
+        assert 'Your text is still here' in reply.json()['detail']
+    else:
+        assert reply.status_code == 200
+        assert reply.json() == answer
     assert client.get('/api/mindset/check-ins').json() == []
