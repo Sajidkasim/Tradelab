@@ -50,7 +50,6 @@ const dimensions = [
 
 export default function Results({
   meta,
-  trades,
   revision,
   mode,
   onTrades,
@@ -102,7 +101,7 @@ export default function Results({
         next.window = "All sessions";
       if (
         current.symbol !== "All markets" &&
-        !trades.some((trade) => trade.symbol === current.symbol)
+        !meta.result_options?.symbols.includes(current.symbol)
       )
         next.symbol = "All markets";
       return next.window === current.window &&
@@ -116,14 +115,14 @@ export default function Results({
     });
   }, [
     meta.windows,
+    meta.result_options,
     meta.strategies,
     meta.playbook.levels,
     meta.archived_choices,
     meta.confirmations,
     meta.level_timeframes,
     meta.entry_timeframes,
-    trades,
-  ]);
+    ]);
   const change = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
   useEffect(() => {
     const controller = new AbortController();
@@ -159,7 +158,7 @@ export default function Results({
   const values = (base, field) => [
     ...new Set([
       ...base,
-      ...trades.map((t) => t.labels?.[field]).filter(Boolean),
+      ...(meta.result_options?.[field] || []),
     ]),
   ];
   return (
@@ -283,9 +282,7 @@ export default function Results({
               "Any RR",
               ...new Set([
                 ...(meta.target_rrs || []),
-                ...trades
-                  .map((trade) => trade.target_rr)
-                  .filter((value) => value && value !== unknown),
+                ...(meta.result_options?.target_rrs || []),
               ]),
             ]}
             value={filters.target_rr}
@@ -347,7 +344,7 @@ export default function Results({
                 label="Market"
                 values={[
                   "All markets",
-                  ...new Set(trades.map((t) => t.symbol)),
+                  ...(meta.result_options?.symbols || []),
                 ]}
                 value={filters.symbol}
                 onChange={(e) => change("symbol", e.target.value)}

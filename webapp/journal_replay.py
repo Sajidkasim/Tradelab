@@ -1,7 +1,6 @@
 """Private Journal replay routes. Disabled provider access until explicitly authorised."""
 from datetime import datetime, timedelta, timezone
-from threading import BoundedSemaphore, Lock
-from time import monotonic
+from threading import BoundedSemaphore
 import os
 import json
 import re
@@ -14,8 +13,6 @@ KEY='journal_replay_records:v1'
 
 def mount(app, config, workspace):
     workers=BoundedSemaphore(2)
-    throttle=Lock()
-    calls={}
 
     def database(member):return app.state.workspaces.database(member['key'])
 
@@ -39,7 +36,7 @@ def mount(app, config, workspace):
         try:rows=replay.parse_executions(file.file.read(1024*1024+1),source_timezone)
         except Exception as exc:
             raise HTTPException(422,str(exc) if isinstance(exc,ValueError) else 'Invalid file or timezone. Choose an explicit IANA export timezone.') from None
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member)
             stored=db.get_setting(KEY,{})
             inserted=0
@@ -72,16 +69,10 @@ def mount(app, config, workspace):
         if not first-timedelta(days=1)<=begin<=last+timedelta(days=1):
             raise HTTPException(422,'Request a candle window around this trade.')
         end=min(begin+timedelta(minutes=750),last+timedelta(days=1),datetime.now(timezone.utc))
-        with throttle:
-            now=monotonic()
-            # Bound the per-process limiter; no eviction can reset an active member's window.
-            for key in list(calls):
-                if now-calls[key][0]>60:del calls[key]
-            key=member['key']
-            if key not in calls and len(calls)>=1024:raise HTTPException(429,'Replay is busy. Retry shortly.')
-            since,count=calls.get(key,(now,0))
-            if count>=20:raise HTTPException(429,'Wait a minute before requesting more candle history.')
-            calls[key]=(since,count+1)
+        retry = app.state.rate_counters.consume(f"journal-candles:{member['key']}", limit=20)
+        if retry:
+            raise HTTPException(429, 'Wait a minute before requesting more candle history.',
+                                headers={'Retry-After': str(retry)})
         if not workers.acquire(blocking=False):raise HTTPException(429,'Candle providers are busy. Retry shortly.')
         try:
             bars=providers.validate_bars(getattr(providers,provider)(row['symbol'],begin,end)) if begin<end else []

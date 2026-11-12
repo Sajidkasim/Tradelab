@@ -134,19 +134,19 @@ def mount(app,config,workspace):
         return {'saved':True}
     @app.get('/api/learning-progress')
     def get_progress(member=Depends(workspace)):
-        with app.state.workspaces.lock:return personal(member).get_setting(PROGRESS,{'last':'chart','completed':[]})
+        with app.state.workspaces.workspace_lock(member['key']):return personal(member).get_setting(PROGRESS,{'last':'chart','completed':[]})
     @app.put('/api/learning-progress')
     def save_progress(payload:LearningProgress,member=Depends(workspace)):
         value={**payload.model_dump(),'completed':list(dict.fromkeys(payload.completed))}
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             personal(member).set_setting(PROGRESS,value);app.state.workspaces.bump(member['key'])
         return value
     @app.get('/api/vision-board')
     def board(member=Depends(workspace)):
-        with app.state.workspaces.lock:return personal(member).get_setting(BOARD,[])
+        with app.state.workspaces.workspace_lock(member['key']):return personal(member).get_setting(BOARD,[])
     @app.put('/api/vision-board/{item_id}')
     def save_goal(item_id:str,payload:Goal,member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=personal(member);rows=db.get_setting(BOARD,[])
             previous={} if item_id=='new' else find(rows,item_id)
             if item_id=='new' and len(rows)>=50:raise HTTPException(422,'Keep up to 50 goals on your board.')
@@ -159,7 +159,7 @@ def mount(app,config,workspace):
             return value
     @app.delete('/api/vision-board/{item_id}')
     def remove_goal(item_id:str,member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=personal(member);rows=db.get_setting(BOARD,[]);old=find(rows,item_id);db.set_setting(BOARD,[r for r in rows if r['id']!=item_id]);app.state.workspaces.bump(member['key'])
         if old.get('image_id'):app.state.image_storage.discard_unreferenced(member['key'],IMAGE_DAY,old['image_id'])
         return {'removed':True}
@@ -170,7 +170,7 @@ def mount(app,config,workspace):
         from starlette.concurrency import run_in_threadpool
         def operation():
             data,width,height=compress(content)
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 db=personal(member);rows=db.get_setting(BOARD,[]);item=find(rows,item_id);image_id=uuid4().hex
                 app.state.image_storage.put(member['key'],IMAGE_DAY,image_id,data)
                 value={**item,'image_id':image_id}
@@ -183,7 +183,7 @@ def mount(app,config,workspace):
         return await run_in_threadpool(operation)
     @app.get('/api/vision-board/{item_id}/image')
     def goal_image(item_id:str,member=Depends(workspace)):
-        with app.state.workspaces.lock:item=find(personal(member).get_setting(BOARD,[]),item_id)
+        with app.state.workspaces.workspace_lock(member['key']):item=find(personal(member).get_setting(BOARD,[]),item_id)
         if not item.get('image_id'):raise HTTPException(404)
         data=app.state.image_storage.read(member['key'],IMAGE_DAY,item['image_id'])
         if data is None:raise HTTPException(404)

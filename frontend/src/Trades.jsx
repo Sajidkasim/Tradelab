@@ -1,5 +1,5 @@
 import { useJournalClock } from "./JournalClock";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -22,27 +22,32 @@ import {
 import TradeForm from "./TradeForm";
 import useTradeDismissal from "./useTradeDismissal";
 import DeleteAllTrades from "./DeleteAllTrades";
-import { belongsTo, money, rvalue, tradeDate, sourceNames } from "./format";
+import { money, rvalue, tradeDate, sourceNames } from "./format";
 import { reviewIssues } from "./research";
 
 const PAGE_SIZE = 8;
 
 export default function Trades({
   meta,
-  trades,
+  revision,
   refresh,
   onImport,
   toast,
   scope,
 }) {
   const { timezone: journalZone, clockName } = useJournalClock();
-  const journalLinkOpened=useRef(false);
-  useEffect(()=>{
-    const id=Number(new URLSearchParams(location.search).get('trade'));
-    if(!id||journalLinkOpened.current||!trades.length)return;
-    journalLinkOpened.current=true;
-    if(trades.some(trade=>trade.id===id))setOpened(id);
-  },[trades]);
+  const [linkedTrade, setLinkedTrade] = useState(null);
+  useEffect(() => {
+    const id = Number(new URLSearchParams(location.search).get('trade'));
+    if (!Number.isSafeInteger(id) || id <= 0) return;
+    const controller = new AbortController();
+    api(`/trades/${id}`, {signal: controller.signal}).then((value) => {
+      if (!controller.signal.aborted) {setLinkedTrade(value); setOpened(id);}
+    }).catch((failure) => {
+      if (!controller.signal.aborted) setError(failure.message);
+    });
+    return () => controller.abort();
+  }, []);
   const [pending, setPending] = useState(false),
     [page, setPage] = useState(0);
   const [opened, setOpened] = useState(null),
@@ -56,19 +61,22 @@ export default function Trades({
     [strategy, setStrategy] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const queue = useMemo(
-    () =>
-      trades.filter(
-        (t) =>
-          belongsTo(t, scope) &&
-          (!pending || (t.needs_review ?? t.needs_tagging)),
-      ),
-    [trades, scope, pending],
-  );
-  const currentPage = Math.min(
-    page,
-    Math.max(0, Math.ceil(queue.length / PAGE_SIZE) - 1),
-  );
+  const [result, setResult] = useState(null);
+  const [pageError, setPageError] = useState("");
+  const [retry, setRetry] = useState(0);
+  const query = new URLSearchParams({scope, pending, page, size:PAGE_SIZE}).toString();
+  useEffect(() => {
+    const controller = new AbortController();
+    setPageError("");
+    api(`/trades/page?${query}`, {signal:controller.signal})
+      .then((value) => {if (!controller.signal.aborted) setResult({...value, query});})
+      .catch((failure) => {if (!controller.signal.aborted) setPageError(failure.message);});
+    return () => controller.abort();
+  }, [query, revision, retry]);
+  const current = result?.query === query ? result : null;
+  const queue = current?.items || [];
+  const total = current?.total || 0;
+  const currentPage = current?.page || 0;
   useEffect(() => {
     setPage(0);
     setSelected([]);
@@ -94,24 +102,29 @@ export default function Trades({
       setBusy(false);
     }
   }
-  const unfinished = trades.filter(
-    (t) => belongsTo(t, scope) && (t.needs_review ?? t.needs_tagging),
-  );
-  const pendingCount = unfinished.length;
-  const trade =
-    typeof opened === "number" ? trades.find((t) => t.id === opened) : null;
+  const pendingCount = current?.pending_count || 0;
+  const trade = typeof opened === "number"
+    ? queue.find((item) => item.id === opened) || (linkedTrade?.id === opened ? linkedTrade : null)
+    : null;
   async function saved(updated, next) {
     setFocusField(null);
     await refresh();
-    toast(
-      updated
-        ? "Trade updated. Results use your saved labels."
-        : "Trade saved. Ready for the next.",
-    );
+    toast(updated ? "Trade updated. Results use your saved labels." : "Trade saved. Ready for the next.");
     if (updated && next) {
-      const index = queue.findIndex((t) => t.id === updated.id);
-      const rest = queue.filter((t) => t.id !== updated.id);
-      setOpened(rest.length ? rest[Math.min(index, rest.length - 1)].id : null);
+      const index = Math.max(0, queue.findIndex((item) => item.id === updated.id));
+      let fresh = await api(`/trades/page?${query}`);
+      let following = fresh.page < currentPage ? fresh.items.at(-1) : fresh.items[index];
+      if (following?.id === updated.id) following = fresh.items[index + 1];
+      if (!following && (fresh.page + 1) * PAGE_SIZE < fresh.total) {
+        const nextQuery = new URLSearchParams(query);
+        nextQuery.set('page', fresh.page + 1);
+        fresh = await api(`/trades/page?${nextQuery}`);
+        following = fresh.items[0];
+        setPage(fresh.page);
+      }
+      if (!following) following = [...fresh.items].reverse().find(item => item.id !== updated.id);
+      setLinkedTrade(following || null);
+      setOpened(following?.id ?? null);
     } else if (updated) setOpened(null);
   }
   async function applyBulk() {
@@ -169,7 +182,7 @@ export default function Trades({
           <div>
             <h2>{pending ? "Trades to finish" : "Your trades"}</h2>
             <p>
-              {queue.length} trades ·{" "}
+              {total} trades ·{" "}
               {scope === "All"
                 ? "All sources"
                 : scope === "Forward testing"
@@ -193,7 +206,7 @@ export default function Trades({
             </a>
             <button
               className="menu-danger"
-              disabled={!trades.length}
+              disabled={!meta.trade_count}
               onClick={() => setDeleteAll(true)}
             >
               <Trash2 size={15} /> Delete all trades
@@ -221,7 +234,8 @@ export default function Trades({
             </Button>
           </div>
         )}
-        {queue.length ? (
+        {pageError && <Notice error>{pageError} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></Notice>}
+        {!current && !pageError ? <p role="status">Loading trades…</p> : queue.length ? (
           <>
             <div className="table-wrap">
               <table className="trade-table">
@@ -239,12 +253,7 @@ export default function Trades({
                   </tr>
                 </thead>
                 <tbody>
-                  {queue
-                    .slice(
-                      currentPage * PAGE_SIZE,
-                      currentPage * PAGE_SIZE + PAGE_SIZE,
-                    )
-                    .map((t) => (
+                  {queue.map((t) => (
                       <tr
                         key={t.id}
                         onClick={() => {
@@ -362,9 +371,9 @@ export default function Trades({
             </div>
             <div className="table-footer">
               <span>
-                {Math.min(currentPage * PAGE_SIZE + 1, queue.length)}–
-                {Math.min((currentPage + 1) * PAGE_SIZE, queue.length)} of{" "}
-                {queue.length} trades
+                {Math.min(currentPage * PAGE_SIZE + 1, total)}–
+                {Math.min((currentPage + 1) * PAGE_SIZE, total)} of{" "}
+                {total} trades
               </span>
               <div>
                 <Button
@@ -374,7 +383,7 @@ export default function Trades({
                   Previous
                 </Button>
                 <Button
-                  disabled={(currentPage + 1) * PAGE_SIZE >= queue.length}
+                  disabled={(currentPage + 1) * PAGE_SIZE >= total}
                   onClick={() => setPage(currentPage + 1)}
                 >
                   Next
@@ -399,7 +408,7 @@ export default function Trades({
             title={
               pending
                 ? "All caught up"
-                : trades.length
+                : meta.trade_count
                   ? "No trades match these filters"
                   : "No trades yet"
             }
@@ -458,7 +467,7 @@ export default function Trades({
             onPrevious={setPrevious}
             onSaved={saved}
             onClose={tradeDismissal.requestClose}
-            remaining={queue.length}
+            remaining={total}
             focusField={focusField}
           />
         </Modal>

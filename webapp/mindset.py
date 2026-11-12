@@ -299,13 +299,13 @@ def mount(app, config, workspace):
     @app.get('/api/mindset/warmup')
     def get_warmup(member=Depends(workspace)):
         day, reset = day_window(now_utc())
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             return view(database(member), member, day, reset)
 
     @app.get('/api/mindset/checklist/{day}')
     def saved_checklist(day: date, member=Depends(workspace)):
         day_key = day.isoformat()
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             db = database(member)
             saved = db.get_setting(PREP + day_key, {})
             items = saved.get('checklist_items')
@@ -323,7 +323,7 @@ def mount(app, config, workspace):
         day, reset = day_window(now_utc())
         if payload.day != day:
             raise HTTPException(409, 'A new day has started in New York. Reload morning prep before saving.')
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             db = database(member)
             items = checklist_items(db)
             if payload.items is not None:
@@ -375,14 +375,14 @@ def mount(app, config, workspace):
         attempt = {'id': uuid4().hex, 'day': day, 'mode': payload.mode,
                    'started_at': now.timestamp(), 'rounds': make_rounds(payload.mode, difficulty=payload.difficulty),
                    'workspace': member['key']}
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             database(member).set_setting(ATTEMPT, signer.dumps(attempt))
             workspaces().bump(member['key'])
         return {'attempt_id': attempt['id'], 'duration': DRILL_SECONDS, 'rounds': attempt['rounds']}
 
     @app.post('/api/mindset/score')
     def submit_score(payload: ScoreSubmission, member=Depends(workspace)):
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             now = now_utc()
             db = database(member)
             attempt = current_attempt(db, member, now, payload.attempt_id)
@@ -398,16 +398,17 @@ def mount(app, config, workspace):
             score = attempt['score']
             name = team_name(member)
             if name:
-                root = workspaces().root
-                board = root.get_setting(TEAM_SCORES, {})
-                scores = board.get('scores', {}) if board.get('day') == attempt['day'] else {}
-                if name not in scores or score > scores[name]:
-                    root.set_setting(TEAM_SCORES, {'day': attempt['day'], 'scores': {**scores, name: score}})
+                with workspaces().lock:
+                    root = workspaces().root
+                    board = root.get_setting(TEAM_SCORES, {})
+                    scores = board.get('scores', {}) if board.get('day') == attempt['day'] else {}
+                    if name not in scores or score > scores[name]:
+                        root.set_setting(TEAM_SCORES, {'day': attempt['day'], 'scores': {**scores, name: score}})
             return {'score': score, 'max_score': 60}
 
     @app.post('/api/mindset/complete')
     def complete(payload: Completion, member=Depends(workspace)):
-        with workspaces().lock:
+        with workspaces().workspace_lock(member['key']):
             now = now_utc()
             day, reset = day_window(now)
             db = database(member)

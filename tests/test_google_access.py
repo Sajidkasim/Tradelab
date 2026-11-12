@@ -76,7 +76,7 @@ def test_google_config_never_falls_back_to_password(google):
     assert 'Other members cannot view' in notice.text and 'end-to-end' in notice.text
     assert csrf(client)['auth_mode'] == 'google'
     assert client.post('/api/unlock', json={'password': 'even-the-old-password'}).status_code == 404
-    for route in ('/api/trades', '/api/metadata', '/api/export/backup', '/api/export/csv'):
+    for route in ('/api/trades', '/api/trades/page', '/api/trades/1', '/api/metadata', '/api/export/backup', '/api/export/csv'):
         assert client.get(route).status_code == 401
 
 
@@ -163,6 +163,8 @@ def test_private_trades_settings_imports_deletes_results_and_backups(google):
     client.cookies.clear()
     assert login(client, state, 'friend@example.com', 'friend-sub')['owner'] is False
     assert client.get('/api/trades').json() == []
+    assert client.get('/api/trades/page').json()['items'] == []
+    assert client.get('/api/trades/2').status_code == 404
     assert 'Owner private confirmation' not in client.get('/api/metadata').text
     assert client.patch('/api/trades/2', json={'strategy': 'Steal', 'labels': {}, 'notes': '', 'confirmed': False}).status_code == 404
     assert client.delete('/api/trades/2').status_code == 404

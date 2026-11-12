@@ -1,7 +1,10 @@
 .git
 .env
 .venv
-.streamlit/secrets.toml
+.streamlit/
+ui/
+app.py
+nightly.py
 data
 __pycache__
 .pytest_cache

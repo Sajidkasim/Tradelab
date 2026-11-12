@@ -52,30 +52,39 @@ class Throttled(Exception):
 
 
 class PasswordGate:
-    """One owner, one process: at most five password checks per minute.
+    """At most five password checks per minute for the owner.
 
     The lock also bounds Argon2 memory use to one verification at a time. Keep
-    the deployment at one worker/instance so attempts cannot bypass this limit.
+    the deployment at one worker/instance to bound concurrent hashing memory.
     """
-    def __init__(self, encoded, clock=monotonic):
+    def __init__(self, encoded, clock=monotonic, *, counters=None):
         validate_hash(encoded)
         self.encoded, self.clock = encoded, clock
+        self.counters = counters
         self.attempts, self.lock = deque(), Lock()
 
     def check(self, password):
         with self.lock:
-            now = self.clock()
-            while self.attempts and self.attempts[0] <= now - 60:
-                self.attempts.popleft()
-            if len(self.attempts) >= 5:
-                raise Throttled(max(1, math.ceil(60 - (now - self.attempts[0]))))
-            self.attempts.append(now)
+            if self.counters is not None:
+                retry = self.counters.consume('owner-password', limit=5)
+                if retry:
+                    raise Throttled(retry)
+            else:
+                now = self.clock()
+                while self.attempts and self.attempts[0] <= now - 60:
+                    self.attempts.popleft()
+                if len(self.attempts) >= 5:
+                    raise Throttled(max(1, math.ceil(60 - (now - self.attempts[0]))))
+                self.attempts.append(now)
             try:
                 valid = HASHER.verify(self.encoded, password)
             except (VerificationError, InvalidHashError):
                 return False
             if valid:
-                self.attempts.clear()
+                if self.counters is not None:
+                    self.counters.clear('owner-password')
+                else:
+                    self.attempts.clear()
             return valid
 
 

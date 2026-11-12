@@ -152,7 +152,7 @@ receive target tags only through an opted-in label-update import preview.
 ## Local development and checks
 
 ```bash
-.venv/bin/python -m pip install -r requirements-web.txt
+.venv/bin/python -m pip install -r requirements-web.txt -r requirements.txt
 npm --prefix frontend ci
 .venv/bin/python tools/web_theme.py
 npm --prefix frontend run build
@@ -196,22 +196,50 @@ trades, labels, notes, accounts and settings. Image files and login sessions are
 excluded. Restore is allowed only into an empty journal. Never use the real
 journal for destructive checks or populate it with synthetic preview data.
 
-## Next backend priorities — retained at the owner's request, 28 October 2026
+## Backend roadmap status
 
-These are planned improvements, not implemented or scheduled work:
+- The Lab trade list requests eight rows at a time from `/api/trades/page`.
+  Source and Needs Review filters apply to all matching rows before slicing.
+  Results use the existing full server-side history. The legacy bulk API still
+  serves the Journal's existing trade picker. The page endpoint uses the cached
+  workspace frame and does not claim database-level pagination.
+- Private Journal, Lab and replay operations use a per-workspace lock. Shared
+  team resources and leaderboard updates retain shared coordination. These
+  locks coordinate requests within the existing single server process.
+- Password and Journal candle limits now use persistent rolling database
+  counters. Provider concurrency and pending Google sign-in exchanges remain
+  bounded per process.
+- `GET /health` checks process liveness. `GET /ready` uses a read-only database
+  probe and returns 503 if it fails or takes over two seconds. Set the GitHub
+  repository variable `PRIMUS_READY_URL` to the deployed HTTPS `/ready` endpoint
+  to enable the scheduled check. Configure failure notifications for the
+  workflow or use a separate uptime monitor.
+- The web runtime installs common and web dependencies. Legacy Streamlit
+  dependencies are installed separately and remain available for the prototype.
 
-1. Fetch trade-list pages from the server instead of sending the full journal to
-   the browser. Preserve core-generated results across all matching trades.
-2. Replace the global journal-operation lock with per-journal coordination so one
-   user's import does not block another user's work. Keep authorization and
-   workspace-scoped cache invalidation intact.
-3. Add encrypted, dated off-site backups and verify restores against a disposable
-   database. Review storage costs and destination before configuring transfers.
-4. Add a database-readiness check and monitoring; the current /health endpoint
-   checks application responsiveness only.
-5. Formalize versioned migrations and a separate test deployment/database.
-6. Record import history: file name/date, additions, duplicates and failures,
-   scoped to the importing user's journal.
+### Encrypted off-site workspace backups
+
+The scheduled GitHub workflow is opt-in via the repository variable
+`PRIMUS_BACKUP_ENABLED=true`. Use a dedicated database credential with read
+access to the backed-up workspace tables and the workspace identity directory,
+and credentials scoped to a dedicated private backup bucket. Set repository
+secrets `PRIMUS_BACKUP_DB_URL`, `PRIMUS_BACKUP_ENCRYPTION_KEY`,
+`PRIMUS_BACKUP_R2_ACCOUNT_ID`, `PRIMUS_BACKUP_R2_BUCKET`,
+`PRIMUS_BACKUP_R2_ACCESS_KEY_ID` and `PRIMUS_BACKUP_R2_SECRET_ACCESS_KEY`.
+The encryption key must be a Fernet key. Keep a recovery copy of it outside the
+workflow and backup bucket. Configure bucket retention before enabling the job.
+
+The tool encrypts the archive locally, verifies it by importing each workspace
+into a temporary SQLite database, then uploads the encrypted bytes. Test a
+downloaded archive with `python -m tools.workspace_backup verify <archive>`.
+For a local rehearsal, set `TRADELAB_DB_URL` to a disposable source and run
+`python -m tools.workspace_backup create --output <new-file>`. Backups cover the
+same logical workspace data as a Journal JSON export. This does not copy
+screenshot objects, authentication records or the historical candle archive.
+Keep the workspace-to-user mapping separately for a full service recovery.
+
+Versioned migrations, a separate test deployment, and per-workspace import
+history remain separate roadmap items.
 
 Measure real latency before increasing hosting spend. Keep Render and Supabase.
 The owner bought primustrader.co.uk from Wix and explicitly selected `/lab` for

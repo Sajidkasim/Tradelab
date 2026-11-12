@@ -63,7 +63,7 @@ def mount(app,config,workspace,available_days,load_day):
     @app.get('/api/market-lab')
     def catalog(member=Depends(workspace)):
         enabled();days=available_days()
-        with app.state.workspaces.lock:history=app.state.workspaces.database(member['key']).get_setting(RUNS,[])
+        with app.state.workspaces.workspace_lock(member['key']):history=app.state.workspaces.database(member['key']).get_setting(RUNS,[])
         return {'days':days,'instruments':['NQ','ES'],'intervals':['1','5','15','30','60'],'runs':history,'max_calendar_days':10}
     @app.post('/api/market-lab/run')
     def run(payload:ScanInput,member=Depends(workspace)):
@@ -71,7 +71,7 @@ def mount(app,config,workspace,available_days,load_day):
         if not gate.acquire(blocking=False):raise HTTPException(429,'A research run is already in progress. Try again shortly.')
         try:
             value=execute(payload,available_days(),load_day)
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 db=app.state.workspaces.database(member['key']);db.set_setting(RUNS,[value,*db.get_setting(RUNS,[])][:30]);app.state.workspaces.bump(member['key'])
             return value
         finally:gate.release()

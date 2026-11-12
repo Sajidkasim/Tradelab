@@ -55,7 +55,6 @@ def mount(app, config, workspace):
                 except Exception:
                     store.discard_unreferenced(member["key"], IMAGE_DAY, entry["id"])
                     raise
-                app.state.workspaces.bump(member["key"])
                 return entry
 
         return await run_in_threadpool(save)
@@ -78,6 +77,5 @@ def mount(app, config, workspace):
             if not entry or member["key"] not in ("owner", entry["owner"]):
                 raise HTTPException(404, "Setup unavailable.")
             app.state.workspaces.root.set_setting(SETTING, [row for row in rows if row["id"] != entry_id])
-            app.state.workspaces.bump(member["key"])
         app.state.image_storage.discard_unreferenced(entry["owner"], IMAGE_DAY, entry_id)
         return {"removed": True}

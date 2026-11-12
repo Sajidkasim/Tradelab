@@ -67,19 +67,27 @@ class Workspaces:
             self.root.upsert_account(Account("My account", 50000, 1000, 2000))
         self.databases = {"owner": self.root}
         self.frames = {}
-        self.lock = RLock()
+        self.lock = RLock()  # Shared team data only.
+        self._registry_lock = RLock()
+        self._workspace_locks = {}
         if config.google_required:
             from .google_access import GoogleAccess, harden_tables
             from core.db import metadata as trading_metadata
             harden_tables(self.root, trading_metadata.sorted_tables)
             self.google = GoogleAccess(self.root, config)
 
+    def workspace_lock(self, key):
+        with self._registry_lock:
+            if key not in self._workspace_locks:
+                self._workspace_locks[key] = RLock()
+            return self._workspace_locks[key]
+
     def database(self, key):
         if self.google and not self.google.registered(key):
             raise PermissionError('Sign in to your own journal.')
         if not self.google and key != 'owner':
             raise PermissionError('This is a personal journal.')
-        with self.lock:
+        with self.workspace_lock(key):
             if key not in self.databases:
                 from services.team import MemberDatabase
                 from core.db import metadata as trading_metadata
@@ -94,18 +102,21 @@ class Workspaces:
             return self.databases[key]
 
     def trades(self, key):
-        with self.lock:
-            cached = self.frames.get(key)
+        with self.workspace_lock(key):
+            with self._registry_lock:
+                cached = self.frames.get(key)
             if cached is None or monotonic() - cached[0] > 5:
                 frame = self.database(key).trades_df(sources=SCOPES["All"])
-                if len(self.frames) >= 32:
-                    self.frames.pop(next(iter(self.frames)))
-                self.frames[key] = (monotonic(), frame)
-            return self.frames[key][1].copy(deep=True)
+                cached = (monotonic(), frame)
+                with self._registry_lock:
+                    if key not in self.frames and len(self.frames) >= 32:
+                        self.frames.pop(next(iter(self.frames)))
+                    self.frames[key] = cached
+            return cached[1].copy(deep=True)
 
     def bump(self, key):
-        """The web equivalent of state.bump(): call after every workspace write."""
-        with self.lock:
+        """Invalidate cached results after writes."""
+        with self.workspace_lock(key), self._registry_lock:
             self.frames.pop(key, None)
 
     def close(self):
@@ -135,7 +146,13 @@ class Workspaces:
             target = book if name in book else lab
             if name in target:
                 target[name] = tag_cleanup.names(target[name], field, aliases)
-        return clean({"release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
+        labels = [edge.read_labels(tags) for tags in frame['tags']]
+        result_options = {field: list(dict.fromkeys(label[field] for label in labels if label.get(field)))
+                          for field in ('news', 'condition')}
+        result_options['symbols'] = sorted(frame['symbol'].dropna().unique())
+        result_options['target_rrs'] = list(dict.fromkeys(
+            value for tags in frame['tags'] if (value := fixed_rr.read(tags)['target_rr']) != edge.UNKNOWN))
+        return clean({"trade_count": len(frame), "result_options": result_options, "release_notes": release_notes.read(db), "journal_preferences": journal_preferences.read(db), "accounts": [asdict(a) for a in db.accounts()],
                       "instruments": {k: asdict(v) for k, v in db.instruments().items()},
                       "playbook": book, "strategies": book['strategies'],
                       "archived_choices": self.archived_choices(key, frame),

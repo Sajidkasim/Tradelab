@@ -1,0 +1,29 @@
+name: Encrypted workspace backup
+on:
+  schedule:
+    - cron: "19 3 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: primus-workspace-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: vars.PRIMUS_BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-web.txt
+      - run: python -m tools.workspace_backup create --upload
+        env:
+          TRADELAB_DB_URL: ${{ secrets.PRIMUS_BACKUP_DB_URL }}
+          PRIMUS_BACKUP_ENCRYPTION_KEY: ${{ secrets.PRIMUS_BACKUP_ENCRYPTION_KEY }}
+          PRIMUS_BACKUP_R2_ACCOUNT_ID: ${{ secrets.PRIMUS_BACKUP_R2_ACCOUNT_ID }}
+          PRIMUS_BACKUP_R2_BUCKET: ${{ secrets.PRIMUS_BACKUP_R2_BUCKET }}
+          PRIMUS_BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.PRIMUS_BACKUP_R2_ACCESS_KEY_ID }}
+          PRIMUS_BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.PRIMUS_BACKUP_R2_SECRET_ACCESS_KEY }}

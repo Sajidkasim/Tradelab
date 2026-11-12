@@ -344,7 +344,7 @@ def mount(app,config,workspace):
     @app.get('/api/backtesting/sessions')
     def sessions(member=Depends(workspace)):
         local_only()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member)
             # Discard each command log after reading its small summary. Retaining all
             # full records at once needlessly multiplies memory for long sessions.
@@ -368,7 +368,7 @@ def mount(app,config,workspace):
             if not eligible:raise ValueError('Choose a start time after the first available candle closes, or another date.')
             cursor=eligible[-1]
             if cursor>=len(bars)-1:raise ValueError('Choose an earlier start time; no candles remain to replay.')
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 db=database(member);ids=db.get_setting(INDEX,[])
                 if len(ids)>=100:raise ValueError('This Beta supports up to 100 saved sessions.')
                 now=datetime.now(timezone.utc).isoformat()
@@ -396,7 +396,7 @@ def mount(app,config,workspace):
     def bulk_delete(payload:BulkDeleteInput,member=Depends(workspace)):
         local_only();ids=[str(sid) for sid in payload.ids]
         if len(set(ids))!=len(ids) or payload.confirmation!=f'DELETE {len(ids)}':raise HTTPException(422,'Type DELETE followed by the exact number of sessions.')
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             remove_records(database(member),ids);app.state.workspaces.bump(member['key'])
         return {'permanently_deleted':len(ids)}
     @app.delete('/api/backtesting/sessions/{sid}')
@@ -405,7 +405,7 @@ def mount(app,config,workspace):
     @app.delete('/api/backtesting/sessions/{sid}/permanent')
     def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
         local_only()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=db.get_setting(_key(sid))
             if not record:raise HTTPException(404,'Session not found.')
             if payload.confirmation!=record['name']:raise HTTPException(422,'Type the session name exactly to confirm permanent deletion.')
@@ -418,7 +418,7 @@ def mount(app,config,workspace):
     def set_chart_defaults(payload:LayoutInput,member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000 or set(payload.layout)-DEFAULT_FIELDS:raise HTTPException(422,'Choose chart preferences only, within the layout size limit.')
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database(member).set_setting(DEFAULTS,payload.layout);app.state.workspaces.bump(member['key'])
         return {'saved':True}
     template_key = 'primus_replay_drawing_templates'
@@ -430,7 +430,7 @@ def mount(app,config,workspace):
 
     def write_template(member, template_id=None, name=None, appearance=None):
         local_only()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db = database(member)
             templates = db.get_setting(template_key, [])
             current = next((item for item in templates if item['id'] == template_id), None)
@@ -472,14 +472,14 @@ def mount(app,config,workspace):
     def open_session(sid:str,member=Depends(workspace)):
         local_only()
         try:
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 record=get_record(database(member),sid);data=checked_data(record)
                 return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',chart_defaults(database(member))),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',chart_defaults(database(member))),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
     def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
         local_only()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=get_record(db,sid)
             if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
             valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
@@ -489,7 +489,7 @@ def mount(app,config,workspace):
     def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
         local_only()
         try:
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 db=database(member);record=get_record(db,sid)
                 if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
                 valid_cursor(record,payload.cursor)
@@ -521,7 +521,7 @@ def mount(app,config,workspace):
     def action(sid:str,payload:ActionInput,member=Depends(workspace)):
         local_only()
         try:
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 db=database(member);record=get_record(db,sid);data=checked_data(record)
                 if any(c.get('event_id')==str(payload.event_id) for c in record['commands']):return result(record,projection(record,data))
                 if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
@@ -540,7 +540,7 @@ def mount(app,config,workspace):
     def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',defaults:bool=True,member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000:raise HTTPException(422,'Chart layout is too large.')
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);get_record(db,sid)
             db.set_setting(_key(sid)+(':layout:secondary' if pane=='secondary' else ':layout'),payload.layout)
             if defaults:db.set_setting(DEFAULTS,{key:value for key,value in payload.layout.items() if key in DEFAULT_FIELDS})
@@ -550,7 +550,7 @@ def mount(app,config,workspace):
     def export(sid:str,payload:ExportInput,member=Depends(workspace)):
         local_only()
         from .replay_transfer import transfer
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=get_record(db,sid)
             plan=projection(record,checked_data(record))
             trade=next((t for t in plan['trades'] if t['entry_cursor']==payload.entry_cursor and t['exit_cursor']<=record['cursor']),None)
@@ -564,7 +564,7 @@ def mount(app,config,workspace):
         if timeframe not in ('1D','1W','1M') and (not timeframe.isdigit() or not 1<=int(timeframe)<=720):raise HTTPException(422,'Unsupported timeframe.')
         if not 1<=limit<=1000:raise HTTPException(422,'Choose a page size between 1 and 1000.')
         # Authorise the session under the workspace lock; read public price files outside it.
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             record=get_record(database(member),sid)
             if not record['spec']['start_cursor']<=cursor<=record['last_cursor']:raise HTTPException(422,'Invalid replay cursor.')
             data=checked_data(record)
@@ -583,7 +583,7 @@ def mount(app,config,workspace):
     def ticket_preview(sid:str,payload:TicketPreviewInput,member=Depends(workspace)):
         local_only()
         from services.replay_engine import ticket_result
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             record=get_record(database(member),sid);valid_cursor(record,payload.cursor)
             plan=projection(record,checked_data(record));ticket=plan['frames'][payload.cursor-record['spec']['start_cursor']]['ticket']
             if not ticket:raise HTTPException(422,'No active ticket.')
@@ -591,6 +591,6 @@ def mount(app,config,workspace):
     @app.put('/api/backtesting/sessions/{sid}/journal')
     def journal(sid:str,payload:JournalInput,member=Depends(workspace)):
         local_only()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);get_record(db,sid);db.set_setting(_key(sid)+':journal',payload.model_dump());app.state.workspaces.bump(member['key'])
         return {'saved':True}

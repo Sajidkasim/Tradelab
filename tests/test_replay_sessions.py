@@ -208,7 +208,7 @@ def test_hosted_replay_uses_private_bundles_without_local_files_and_caches_only_
             assert kw['Bucket']=='private-test'
             assert kw['Key']==f'primus-replay/v1/{digest}.json'
             reads.append(kw['Key']);return {'Body':BytesIO(content)}
-    app=FastAPI();app.state.workspaces=SimpleNamespace(lock=threading.RLock(),database=lambda key:db,bump=lambda key:None)
+    app=FastAPI();app.state.workspaces=SimpleNamespace(workspace_lock=lambda key:threading.RLock(),database=lambda key:db,bump=lambda key:None)
     app.state.image_storage=SimpleNamespace(client=Storage())
     replay_sessions.mount(app,SimpleNamespace(local=False,replay_enabled=True,replay_manifest=str(manifest),r2_bucket='private-test'),lambda:{'key':'owner'})
     def no_local(day):raise AssertionError('Hosted replay must not use Mac candle files')

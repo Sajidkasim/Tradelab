@@ -1,6 +1,7 @@
 """Same-origin React application and private Python API. No broker write endpoints."""
 from contextlib import asynccontextmanager
 from datetime import date
+from typing import Literal
 from dataclasses import asdict, replace
 import hmac
 import ipaddress
@@ -8,9 +9,11 @@ import json
 import os
 from pathlib import Path
 from secrets import token_urlsafe
+from threading import Lock
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Request, Body, Depends, HTTPException, UploadFile, File, Form
+from anyio import move_on_after, to_thread
+from fastapi import FastAPI, Request, Body, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse, Response, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from core import edge
@@ -32,6 +36,7 @@ from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, 
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
 from . import imports, backups, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
 from .request_limits import RequestLimits
+from .rate_counters import RateCounters
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
 from .google_access import LoginError, AccountBlocked
 
@@ -44,7 +49,9 @@ def create_app(config: Settings | None = None):
     async def lifespan(app):
         app.state.image_storage = ImageStorage(config)
         app.state.workspaces = await run_in_threadpool(Workspaces, config)
+        app.state.rate_counters = await run_in_threadpool(RateCounters, app.state.workspaces.root)
         if config.password_required:
+            app.state.password_gate = PasswordGate(config.password_hash, counters=app.state.rate_counters)
             app.state.personal_sessions = await run_in_threadpool(PersonalSessions, app.state.workspaces.root, auth_version(config.password_hash, config.secret))
         yield
         app.state.workspaces.close()
@@ -52,8 +59,8 @@ def create_app(config: Settings | None = None):
 
     app = FastAPI(title="PrimusLab", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.config = config
+    readiness_lock = Lock()
     signer = URLSafeTimedSerializer(config.secret, salt="primus-import-preview")
-    app.state.password_gate = PasswordGate(config.password_hash) if config.password_required else None
     allowed_hosts = [urlsplit(config.public_url).hostname]
     if config.local:
         allowed_hosts = ["127.0.0.1", "localhost", "[::1]"]
@@ -181,16 +188,18 @@ def create_app(config: Settings | None = None):
 
     @app.post("/api/journal-accounts", status_code=201)
     def add_journal_account(payload: JournalAccount, request: Request, member=Depends(workspace)):
-        return write_journal_account(db(request, member), payload)
+        with app.state.workspaces.workspace_lock(member["key"]):
+            return write_journal_account(db(request, member), payload)
 
     @app.put("/api/journal-accounts/{account_id}")
     def edit_journal_account(account_id: int, payload: JournalAccount, request: Request, member=Depends(workspace)):
-        return write_journal_account(db(request, member), payload, account_id)
+        with app.state.workspaces.workspace_lock(member["key"]):
+            return write_journal_account(db(request, member), payload, account_id)
 
     @app.delete("/api/journal-accounts/{account_id}")
     def remove_journal_account(account_id: int, request: Request, member=Depends(workspace)):
         database = db(request, member)
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             if daily_journal.references_account(database, account_id):
                 raise HTTPException(409, "This account has linked Journal trades and cannot be deleted.")
             if not database.delete_unused_account(account_id):
@@ -220,6 +229,27 @@ def create_app(config: Settings | None = None):
     @app.get("/health")
     def health():
         return {"status": "ok", "application": "PrimusLab"}
+
+    def database_ready():
+        # Keep at most one probe in flight, including a driver call that outlives its HTTP timeout.
+        if not readiness_lock.acquire(blocking=False):
+            return False
+        try:
+            with app.state.workspaces.root.engine.connect() as connection:
+                return connection.scalar(select(1)) == 1
+        except (SQLAlchemyError, OSError):
+            return False
+        finally:
+            readiness_lock.release()
+
+    @app.get("/ready")
+    async def readiness():
+        ready = False
+        with move_on_after(2):
+            ready = await to_thread.run_sync(database_ready, abandon_on_cancel=True)
+        return JSONResponse({"status": "ready" if ready else "unavailable"},
+                            status_code=200 if ready else 503,
+                            headers={"Cache-Control": "no-store"})
 
     @app.get('/privacy')
     def privacy():
@@ -299,7 +329,7 @@ def create_app(config: Settings | None = None):
             token = await run_in_threadpool(app.state.personal_sessions.issue)
             request.session.clear()
             request.session['personal_token'] = token
-            app.state.workspaces.bump('owner')
+            await run_in_threadpool(app.state.workspaces.bump, 'owner')
         request.session['csrf'] = token_urlsafe(32)
         return {'ok': True, 'csrf': request.session['csrf']}
 
@@ -346,7 +376,7 @@ def create_app(config: Settings | None = None):
     @app.get('/api/journal')
     def list_journal(request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             return daily_journal.entries(db(request, member))
 
     from pydantic import BaseModel, Field
@@ -399,7 +429,7 @@ def create_app(config: Settings | None = None):
     @app.get('/api/journal/export')
     def export_journal(request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             content = json.dumps({'entries': daily_journal.entries(database),
                                   'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
@@ -413,7 +443,7 @@ def create_app(config: Settings | None = None):
     @app.delete('/api/journal/{day}')
     def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             archive_id = daily_journal.delete_entry(db(request, member), day.isoformat())
             app.state.workspaces.bump(member['key'])
         return {'ok': True, 'archive_id': archive_id}
@@ -421,7 +451,7 @@ def create_app(config: Settings | None = None):
     @app.post('/api/journal/trash/{archive_id}/restore')
     def restore_journal_entry(archive_id: str, request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             result = daily_journal.restore_entry(db(request, member), archive_id)
             app.state.workspaces.bump(member['key'])
             return daily_journal.with_day_result(db(request, member), result)
@@ -429,7 +459,7 @@ def create_app(config: Settings | None = None):
     @app.put('/api/journal/{day}')
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             values = payload.model_dump(exclude_unset=True)
             if values.get('trades') is None:
                 values.pop('trades', None)
@@ -450,7 +480,7 @@ def create_app(config: Settings | None = None):
         if len(content) > daily_journal.MAX_UPLOAD:
             raise HTTPException(413, 'Choose a screenshot smaller than 8 MB.')
         def operation():
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content, trade_id, app.state.image_storage)
                 app.state.workspaces.bump(member['key'])
                 return result
@@ -471,7 +501,7 @@ def create_app(config: Settings | None = None):
     @app.delete('/api/journal/{day}/images/{image_id}')
     def remove_journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
         journal_images()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             stored = daily_journal.entry(database, day.isoformat())
             images = [item for item in stored['images'] if item['id'] != image_id]
@@ -486,7 +516,7 @@ def create_app(config: Settings | None = None):
     @app.put('/api/journal/{day}/trades/{record_id}/link')
     def link_journal_trade(day: date, record_id: str, payload: JournalTradeLink, request: Request, member=Depends(workspace)):
         journal_preview()
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             result = daily_journal.link_trade(db(request, member), day.isoformat(), record_id, payload.trade_id)
             app.state.workspaces.bump(member['key'])
             return result
@@ -550,9 +580,8 @@ def create_app(config: Settings | None = None):
                                        max_contracts=account.max_contracts,
                                        commission_per_contract=instrument.commission_per_contract))
 
-    @app.get("/api/trades")
-    def trades(request: Request, member=Depends(workspace)):
-        frame = app.state.workspaces.trades(member["key"]).sort_values("entry_time", ascending=False)
+    def trade_rows(frame):
+        frame = frame.copy()
         frame = frame.drop(columns=["screenshot_path"], errors="ignore")
         if not frame.empty:
             frame["labels"] = frame["tags"].map(edge.read_labels)
@@ -564,6 +593,34 @@ def create_app(config: Settings | None = None):
             row['study_id'] = research.test_id(row.get('tags'))
             row.update(trade_review.missing(row))
         return rows
+
+    @app.get("/api/trades")
+    def trades(member=Depends(workspace)):
+        frame = app.state.workspaces.trades(member["key"]).sort_values(["entry_time", "id"], ascending=False)
+        return trade_rows(frame)
+
+    @app.get("/api/trades/page")
+    def trade_page(scope: Literal["All", "Backtesting", "Forward testing"] = "All",
+                   pending: bool = False, page: int = Query(0, ge=0),
+                   size: int = Query(8, ge=1, le=100), member=Depends(workspace)):
+        frame = app.state.workspaces.trades(member["key"])
+        frame = frame.loc[frame["source"].isin(SCOPES[scope])].sort_values(["entry_time", "id"], ascending=False)
+        review_rows = records(frame[["setup_name", "tags", "r_multiple", "exit_price", "net_pnl"]])
+        review_mask = [trade_review.missing(row)["needs_review"] for row in review_rows]
+        pending_count = sum(review_mask)
+        if pending and not frame.empty:
+            frame = frame.loc[review_mask]
+        total = len(frame)
+        page = min(page, max(0, (total - 1) // size))
+        return {"items": trade_rows(frame.iloc[page * size:(page + 1) * size]),
+                "total": total, "page": page, "pending_count": pending_count}
+
+    @app.get("/api/trades/{trade_id}")
+    def trade_detail(trade_id: int, request: Request, member=Depends(workspace)):
+        trade = db(request, member).get_trade(trade_id)
+        if trade is None:
+            raise HTTPException(404, "Trade not found.")
+        return serialise_trade(trade)
 
     @app.post("/api/results")
     def results(filters: Filters, request: Request, member=Depends(workspace)):
@@ -582,7 +639,7 @@ def create_app(config: Settings | None = None):
         values = payload.model_dump(exclude={"labels", "confirmed", "study_id", "risk_unavailable", "journal_day", "journal_trade_id"})
         values['source'] = Source(values['source'])
         trade = edge.build_trade(instruments=database.instruments(), tags=labels, **values)
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             journal_day = payload.journal_day.isoformat() if payload.journal_day else None
             if bool(journal_day) != bool(payload.journal_trade_id):
                 raise ValueError('Choose a saved journal trade and day.')
@@ -613,7 +670,7 @@ def create_app(config: Settings | None = None):
     @app.patch("/api/trades/{trade_id}")
     def review(trade_id: int, payload: Review, request: Request, member=Depends(workspace)):
         database = db(request, member)
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             trade = database.get_trade(trade_id)
             if trade is None:
                 raise HTTPException(404, "This trade is no longer available.")
@@ -636,7 +693,7 @@ def create_app(config: Settings | None = None):
 
     @app.post("/api/trades/deletion-preview")
     def deletion_preview(request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             snapshot = trade_deletion.read_snapshot(db(request, member))
         token = signer.dumps({**snapshot, 'purpose': 'delete-all-trades', 'workspace': member['key'], 'csrf': request.session['csrf']})
         return {'count': snapshot['count'], 'preview_token': token}
@@ -651,7 +708,7 @@ def create_app(config: Settings | None = None):
                 or not hmac.compare_digest(snapshot.get('csrf', ''), request.session['csrf'])
                 or snapshot.get('count') != payload.confirmation_count):
             raise HTTPException(409, "The trade count does not match. Open Delete all trades again.")
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             count = trade_deletion.remove_snapshot(db(request, member), snapshot)
             if count is None:
                 raise HTTPException(409, "Your trades changed. Open Delete all trades again to confirm the new count.")
@@ -661,7 +718,7 @@ def create_app(config: Settings | None = None):
     @app.delete("/api/trades/{trade_id}")
     def delete_trade(trade_id: int, request: Request, member=Depends(workspace)):
         database = db(request, member)
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             if database.get_trade(trade_id) is None:
                 raise HTTPException(404, "This trade is no longer available.")
             database.delete_trade(trade_id)
@@ -670,7 +727,7 @@ def create_app(config: Settings | None = None):
 
     @app.post("/api/trades/strategy")
     def bulk_strategy(payload: BulkStrategy, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             strategy = tag_cleanup.canonical(payload.strategy, 'strategy', database.get_setting(tag_cleanup.KEY, {}))
             count = trade_labels.apply_strategy(database, payload.ids, strategy)
@@ -679,7 +736,7 @@ def create_app(config: Settings | None = None):
 
     @app.post('/api/studies')
     def create_study(payload: Study, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             values = payload.model_dump()
             values['strategy'] = tag_cleanup.canonical(values['strategy'], 'strategy', database.get_setting(tag_cleanup.KEY, {}))
@@ -689,21 +746,21 @@ def create_app(config: Settings | None = None):
 
     @app.put('/api/studies/{study_id}')
     def update_study(study_id: str, payload: Study, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             result = research.save_test(db(request, member), payload.model_dump(), study_id)
             app.state.workspaces.bump(member['key'])
         return result
 
     @app.post('/api/study-assignment')
     def assign_study(payload: StudyAssignment, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             count = research.assign(db(request, member), payload.ids, payload.study_id)
             app.state.workspaces.bump(member['key'])
         return {'updated': count}
 
     @app.post('/api/saved-setups')
     def create_saved_setup(payload: SavedSetup, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             if payload.filters.account_id is not None and payload.filters.account_id not in {a.id for a in database.accounts()}:
                 raise ValueError('Reload your lab and try again.')
@@ -714,7 +771,7 @@ def create_app(config: Settings | None = None):
 
     @app.delete('/api/saved-setups/{setup_id}')
     def remove_saved_setup(setup_id: str, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             research.remove_setup(db(request, member), setup_id)
             app.state.workspaces.bump(member['key'])
         return {'ok': True}
@@ -727,7 +784,7 @@ def create_app(config: Settings | None = None):
     def cleanup_labels(action: str, payload: LabelMerge, request: Request, member=Depends(workspace)):
         if action not in ('preview', 'apply'):
             raise HTTPException(404)
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             frame = app.state.workspaces.trades(member['key'])
             if action == 'apply':
@@ -754,7 +811,7 @@ def create_app(config: Settings | None = None):
 
     @app.put('/api/journal-preferences')
     def save_journal_preferences(payload: JournalPreferences, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             values = {**journal_preferences.read(database), 'timezone': payload.timezone}
             if payload.trading_rules is not None:values['trading_rules'] = payload.trading_rules
@@ -790,14 +847,14 @@ def create_app(config: Settings | None = None):
 
     @app.post('/api/release-notes/seen')
     def acknowledge_release(request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             db(request, member).set_setting(release_notes.KEY, release_notes.VERSION)
             app.state.workspaces.bump(member['key'])
         return {'version': release_notes.VERSION}
 
     @app.put('/api/tour')
     def save_tour_progress(payload: TourProgress, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             current = journal_preferences.read(database)
             status = 'completed' if current['tour_status'] == 'completed' else payload.status
@@ -807,7 +864,7 @@ def create_app(config: Settings | None = None):
 
     @app.put('/api/welcome')
     def welcome_setup(payload: WelcomeSetup, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             if not journal_preferences.read(database)['welcome_pending']:
                 raise HTTPException(409, 'Your lab is already set up. Use Lab settings to make changes.')
@@ -825,7 +882,7 @@ def create_app(config: Settings | None = None):
 
     @app.put("/api/lab-settings")
     def save_lab_settings(payload: LabSettings, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             cleaned = payload.model_dump(exclude_none=True)
             aliases = database.get_setting(tag_cleanup.KEY, {})
@@ -839,7 +896,7 @@ def create_app(config: Settings | None = None):
     @app.post("/api/lab-settings/archives/delete")
     def delete_lab_archive(payload: ArchivedChoice, request: Request, member=Depends(workspace)):
         workspaces = app.state.workspaces
-        with workspaces.lock:
+        with workspaces.workspace_lock(member['key']):
             database = db(request, member)
             archived = workspaces.archived_choices(member['key'])
             if payload.name not in archived.get(payload.field, []):
@@ -854,7 +911,7 @@ def create_app(config: Settings | None = None):
     def playbook(payload: Playbook, request: Request, member=Depends(workspace)):
         if any(len(value) > 120 for value in payload.strategies + payload.levels):
             raise ValueError("Keep strategy and level names under 120 characters.")
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             aliases = database.get_setting(tag_cleanup.KEY, {})
             values = {'strategies': tag_cleanup.names(payload.strategies, 'strategy', aliases),
@@ -871,13 +928,16 @@ def create_app(config: Settings | None = None):
         payload = await request.json()
         trade_labels.validate_mappings(payload)
         payload = tag_cleanup.mapping_values(payload, db(request, member).get_setting(tag_cleanup.KEY, {}))
-        await run_in_threadpool(db(request, member).set_setting, trade_labels.MAPPING_KEY, payload)
-        app.state.workspaces.bump(member["key"])
+        def save():
+            with app.state.workspaces.workspace_lock(member["key"]):
+                db(request, member).set_setting(trade_labels.MAPPING_KEY, payload)
+                app.state.workspaces.bump(member["key"])
+        await run_in_threadpool(save)
         return {"ok": True}
 
     @app.put('/api/import-preferences')
     def save_import_preferences(payload: ImportPreferences, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.lock:
+        with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             if payload.account_id not in {account.id for account in database.accounts()}:
                 raise ValueError('Reload your lab and try again.')
@@ -907,7 +967,7 @@ def create_app(config: Settings | None = None):
             raise ValueError("Check the column mapping.") from None
         fingerprint = imports.digest(content, filename, account_id, source, timezone, dayfirst, columns, include_breakeven)
         def operation():
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 database = db(request, member)
                 parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns, include_breakeven)
                 study = research.get_test(database, study_id, active=True)
@@ -971,7 +1031,7 @@ def create_app(config: Settings | None = None):
         if len(content) > imports.MAX_UPLOAD:
             raise HTTPException(413, "Choose a backup smaller than 5 MB.")
         def operation():
-            with app.state.workspaces.lock:
+            with app.state.workspaces.workspace_lock(member['key']):
                 database = db(request, member)
                 if database.count_trades():
                     raise HTTPException(409, "Restore is available only in an empty lab. Download a backup before migrating an existing lab.")

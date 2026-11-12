@@ -33,7 +33,6 @@ const pageFromLocation = () => journalPage(location.pathname, location.hash);
 export default function App() {
   const [session, setSession] = useState(null),
     [meta, setMeta] = useState(null),
-    [trades, setTrades] = useState([]),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
   const [page, setPage] = useState(pageFromLocation),
@@ -61,12 +60,8 @@ export default function App() {
   }, [meta?.journal_preferences?.tour_status, meta?.journal_preferences?.welcome_pending]);
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
-    const [metadata, rows] = await Promise.all([
-      api("/metadata"),
-      api("/trades"),
-    ]);
+    const metadata = await api("/metadata");
     setMeta(metadata);
-    setTrades(rows);
     setRevision((v) => v + 1);
   }, []);
   async function boot() {
@@ -85,7 +80,6 @@ export default function App() {
     const clear = () => {
       setSession({ authenticated: false });
       setMeta(null);
-      setTrades([]);
       setTourOpen(false);
       setReleaseOpen(false);
       setDismissedRelease(null);
@@ -302,7 +296,6 @@ export default function App() {
                 <section id="results" aria-label="Results">
                   <Results
                     meta={meta}
-                    trades={trades}
                     revision={revision}
                     mode={mode}
                     scope={scope}
@@ -316,8 +309,8 @@ export default function App() {
                 </section>
                 <section id="trades" aria-label="Trades">
                   <Trades
+                    revision={revision}
                     meta={meta}
-                    trades={trades}
                     refresh={refresh}
                     scope={scope}
                     onImport={() => navigate("import")}
@@ -373,7 +366,7 @@ export default function App() {
               onClose={() => setBackup(false)}
               refresh={refresh}
               toast={toast}
-              count={trades.length}
+              count={meta.trade_count}
             />
           )}
           {access && session.owner && session.auth_mode === "google" && (

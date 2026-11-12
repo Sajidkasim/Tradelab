@@ -36,6 +36,7 @@ def test_docker_runtime_backend_starts_without_checkout_on_python_path(tmp_path)
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd()))
+sys.modules['streamlit'] = None
 from fastapi.testclient import TestClient
 from webapp.app import create_app
 from webapp.config import Settings
@@ -46,6 +47,7 @@ config = Settings(str(Path.cwd() / 'smoke.db'), 'owner@example.com',
 app = create_app(config)
 with TestClient(app, base_url=config.public_url, client=('127.0.0.1', 12345)) as client:
     assert client.get('/health').status_code == 200
+    assert client.get('/ready').json() == {'status': 'ready'}
     assert client.get('/api/resources?section=learn').status_code == 200
     assert client.get('/api/market-lab').status_code == 200
     assert client.get('/api/vision-board').status_code == 200

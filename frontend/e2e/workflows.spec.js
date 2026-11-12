@@ -86,6 +86,7 @@ test("manual entry, setup exploration and combined or separate source results", 
     .check();
   await dialog.getByRole("button", { name: "Save & log next" }).click();
   await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
+  page.once('dialog', prompt => prompt.accept());
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(
@@ -1363,6 +1364,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     .getByRole("button", { name: "Setup labels", exact: true })
     .click();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Close settings", exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   // Log a disposable trade using the new choices, then hide them in settings.
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
@@ -1382,6 +1384,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await expect(
     page.getByText("Trade saved. Ready for the next.", { exact: true }),
   ).toBeVisible();
+  page.once('dialog', prompt => prompt.accept());
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await pick(explorer.getByLabel("Key level timeframe", { exact: true }), "2H");
   await explorer.getByLabel("My confluence", { exact: true }).check();

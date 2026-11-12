@@ -842,3 +842,51 @@ def test_security_headers_and_actual_chunked_login_limit(local):
     assert 'strict-transport-security' not in response.headers
     response=client.post('/api/unlock',content=iter([b'x'*5000,b'y'*5000]),headers={'Content-Type':'application/json'})
     assert response.status_code==413
+
+
+def test_readiness_checks_database_without_exposing_failure_details(local, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    client, app = local
+    ready = client.get('/ready')
+    assert ready.status_code == 200
+    assert ready.json() == {'status': 'ready'}
+    assert ready.headers['cache-control'] == 'no-store'
+
+    def unavailable():
+        raise OperationalError('SELECT 1', {}, OSError('private upstream details'))
+
+    monkeypatch.setattr(app.state.workspaces.root.engine, 'connect', unavailable)
+    response = client.get('/ready')
+    assert response.status_code == 503
+    assert response.json() == {'status': 'unavailable'}
+    assert response.headers['cache-control'] == 'no-store'
+    assert client.get('/health').status_code == 200
+
+
+def test_readiness_times_out_without_starting_a_second_database_probe(local, monkeypatch):
+    from threading import Event
+
+    client, app = local
+    release = Event()
+    finished = Event()
+    calls = []
+
+    def stalled():
+        calls.append(1)
+        try:
+            release.wait(timeout=10)
+            raise OSError('database unavailable')
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(app.state.workspaces.root.engine, 'connect', stalled)
+    try:
+        assert client.get('/ready').status_code == 503
+        assert not finished.is_set()
+        assert client.get('/ready').status_code == 503
+        assert calls == [1]
+        assert client.get('/health').status_code == 200
+    finally:
+        release.set()
+        assert finished.wait(timeout=5)

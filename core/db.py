@@ -533,10 +533,15 @@ class Database:
             return pd.read_sql_query(select(breaches_t).order_by(breaches_t.c.date.desc()), conn)
 
     # ---- portable backup -------------------------------------------------
-    def export_json(self) -> str:
+    def export_json(self, *, consistent: bool = False) -> str:
         """Everything except the bars cache, as one JSON string (works on any database)."""
         out: dict[str, Any] = {}
         with self.engine.connect() as conn:
+            if consistent:
+                if self.is_sqlite:
+                    conn.exec_driver_sql("BEGIN")
+                else:
+                    conn.execution_options(isolation_level="REPEATABLE READ")
             for name, table in (("accounts", accounts_t), ("instruments", instruments_t), ("setups", setups_t),
                                 ("trades", trades_t), ("settings", settings_t), ("import_mappings", mappings_t),
                                 ("backtest_runs", backtests_t), ("rule_breaches", breaches_t)):
