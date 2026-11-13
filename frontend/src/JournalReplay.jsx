@@ -78,9 +78,61 @@ const tradeDate = new Intl.DateTimeFormat('en-GB', {
  dateStyle:'medium', timeStyle:'short', timeZone:'America/New_York',
 });
 
-export default function JournalReplayImports(){
+function replayLabel(row){
+ const execution=row.executions[0];
+ return `${row.symbol} · ${execution.side} @ ${execution.price} · ${tradeDate.format(new Date(execution.time))}`;
+}
+
+export function JournalReplayLink({trade, day, timezone, onChange}){
+ const [rows,setRows]=useState(null),[open,setOpen]=useState(false),[error,setError]=useState('');
+ const [selected,setSelected]=useState('');
+ const [sameDay,setSameDay]=useState(true);
+ const dateKey=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'});
+ useEffect(()=>{
+  if(!open)return;
+  const request=new AbortController();
+  api('/journal-replay',{signal:request.signal}).then(setRows).catch(error=>{
+   if(error.name!=='AbortError')setError(error.message);
+  });
+  return ()=>request.abort();
+ },[open]);
+ const choices=rows?.filter(row=>row.provider!=='unavailable'&&(
+  !sameDay||row.id===trade.replay_id||dateKey.format(new Date(row.executions[0].time))===day
+ ));
+ return <>
+  {trade.replay_id&&<ReplayButton reference={trade.replay_id} notes={trade.notes}/>}
+  <button type="button" className="pj-link" onClick={()=>{
+   setSelected(trade.replay_id||'');setRows(null);setError('');setSameDay(true);setOpen(true);
+  }}>{trade.replay_id?'Change replay link':'Link imported replay'}</button>
+  {open&&<Modal title="Link an imported replay" className="pj-link-modal" onClose={()=>setOpen(false)}>
+   <label><input type="checkbox" checked={sameDay} onChange={event=>setSameDay(event.target.checked)}/> Show trades from this Journal day</label>
+   {!rows&&!error&&<p role="status">Loading imported trades…</p>}
+   {error&&<p role="alert">{error}</p>}
+   {choices?.length===0&&<p>Browse other dates or import a CSV in Trade replay.</p>}
+   {choices?.length>0&&<label className="jr-link-choice">Imported trade
+    <select value={selected} onChange={event=>setSelected(event.target.value)}>
+     <option value="">Choose a trade</option>
+     {choices.map(row=><option key={row.id} value={row.id}>{replayLabel(row)}</option>)}
+    </select>
+   </label>}
+   <p>Use Save entry to keep this link in your Journal.</p>
+   <div className="pj-modal-actions">
+    {trade.replay_id&&<button type="button" className="pt-btn" onClick={()=>{onChange(null);setOpen(false)}}>Unlink replay</button>}
+    <button type="button" className="pt-btn pt-btn-dark" disabled={!choices?.some(row=>row.id===selected)} onClick={()=>{
+     onChange(selected);setOpen(false);
+    }}>Link replay</button>
+   </div>
+  </Modal>}
+ </>;
+}
+
+export default function JournalReplayImports({onDelete}){
  const [rows,setRows]=useState([]),[zone,setZone]=useState(''),[file,setFile]=useState(null);
  const [message,setMessage]=useState(null),[busy,setBusy]=useState(false),[opened,setOpened]=useState(false);
+ const [deleting,setDeleting]=useState(null);
+ const [showUnavailable,setShowUnavailable]=useState(false);
+ const unavailableCount=rows.filter(row=>row.provider==='unavailable').length;
+ const visibleRows=showUnavailable?rows:rows.filter(row=>row.provider!=='unavailable');
  const request=useRef(null);
  const fileInput=useRef(null);
  useEffect(()=>()=>request.current?.abort(),[]);
@@ -112,6 +164,18 @@ export default function JournalReplayImports(){
   finally{setBusy(false)}
  }
 
+ async function removeImport(){
+  setBusy(true);
+  try{
+   await api(`/journal-replay/${deleting.id}`,{method:'DELETE'});
+   setRows(current=>current.filter(row=>row.id!==deleting.id));
+   onDelete?.(deleting.id);
+   setDeleting(null);
+   setMessage({text:'Replay import deleted.'});
+  }catch(error){setMessage({error:true,text:error.message})}
+  finally{setBusy(false)}
+ }
+
  return <details className="pj-session-images jr-imports" onToggle={event=>{
   if(event.currentTarget.open&&!opened){setOpened(true);refresh()}
  }}>
@@ -135,15 +199,33 @@ export default function JournalReplayImports(){
      <p>Custom CSV columns <code>trade_id, execution_id, symbol, timestamp, side, quantity, price, role</code>. Use buy/sell and entry/exit. Include a timestamp offset or enter the export timezone above.</p>
     </details>
    </fieldset>
-   {message&&<p role={message.error?'alert':'status'}>{message.text}</p>}
+   {message&&!deleting&&<p role={message.error?'alert':'status'}>{message.text}</p>}
   </form>
   {rows.length>0&&<section className="jr-import-list" aria-label="Imported replay trades">
    <h3>Imported trades <span>{rows.length}</span></h3>
    <p>Trade times are shown in New York time.</p>
-   {rows.map(row=><div key={row.id} className="jr-import-row">
-    <div><strong>{row.symbol}</strong> <time dateTime={row.executions[0].time}>{tradeDate.format(new Date(row.executions[0].time))}</time></div>
-    {row.provider==='unavailable'?<span>Replay unavailable for this market</span>:<ReplayButton reference={row.id}/>}
+   {unavailableCount>0&&<div className="jr-import-availability">
+    <p>{rows.length-unavailableCount} with a supported candle source · {unavailableCount} without a candle mapping</p>
+    <label className="jr-import-clock">
+     <input type="checkbox" checked={showUnavailable} onChange={event=>setShowUnavailable(event.target.checked)}/>
+     Show trades without replay ({unavailableCount})
+    </label>
+   </div>}
+   {visibleRows.map(row=><div key={row.id} className="jr-import-row">
+    <div><strong>{row.symbol}</strong> <time dateTime={row.executions[0].time}>{tradeDate.format(new Date(row.executions[0].time))}</time><small> · {row.executions[0].side} @ {row.executions[0].price}</small></div>
+    <div className="jr-import-row-actions">
+     {row.provider==='unavailable'?<span>Replay unavailable for this market</span>:<ReplayButton reference={row.id}/>}
+     <button type="button" className="pj-remove" onClick={()=>{setMessage(null);setDeleting(row)}} disabled={busy}>Delete import</button>
+    </div>
    </div>)}
   </section>}
+  {deleting&&<Modal title="Delete replay import?" onClose={()=>!busy&&setDeleting(null)} className="pj-link-modal">
+   <p>{replayLabel(deleting)}. Journal cards linked to this import will lose their replay link.</p>
+   {message?.error&&<p role="alert">{message.text}</p>}
+   <div className="pj-modal-actions">
+    <button type="button" className="pt-btn" disabled={busy} onClick={()=>setDeleting(null)}>Cancel</button>
+    <button type="button" className="pt-btn pj-danger" disabled={busy} onClick={removeImport}>Delete import</button>
+   </div>
+  </Modal>}
  </details>;
 }

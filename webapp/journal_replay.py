@@ -52,6 +52,18 @@ def mount(app, config, workspace):
             app.state.workspaces.bump(member['key'])
         return {'inserted':inserted,'skipped':len(rows)-inserted}
 
+    @app.delete('/api/journal-replay/{reference}')
+    def delete_import(reference: str, member=Depends(workspace)):
+        with app.state.workspaces.workspace_lock(member['key']):
+            db = database(member)
+            stored = db.get_setting(KEY, {})
+            if reference not in stored:
+                raise HTTPException(404, 'Replay import not found in your workspace.')
+            del stored[reference]
+            db.set_setting(KEY, stored)
+            app.state.workspaces.bump(member['key'])
+        return {'deleted': True}
+
     @app.get('/api/journal-replay/{reference}')
     def detail(reference:str, member=Depends(workspace)):
         return record(member,reference)

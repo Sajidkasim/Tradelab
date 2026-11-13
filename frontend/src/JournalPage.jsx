@@ -19,7 +19,7 @@ const dayDate=day=>new Date(day+'T12:00:00');
 const niceDay=day=>dayDate(day).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 const blank=day=>({day,plan:'',notes:'',lesson:'',mindset:'Not set',plan_followed:null,traded_today:null,images:[],trades:[]});
 const normalize=row=>({...blank(row.day),...row,trades:row.trades||[]});
-const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','risk_amount','net_pnl','setup_grade','account_id','account_ids'].map(key=>[key,trade[key]]));
+const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','risk_amount','net_pnl','setup_grade','account_id','account_ids','replay_id'].map(key=>[key,trade[key]]));
 const sections=[
   {id:'plan',label:'Before the session',title:'What’s the plan?',hint:'Your market view, the levels you’re watching and the setups you want to take.',placeholder:'My plan for this session…'},
   {id:'notes',label:'During the session',title:'What happened?',hint:'Record what you noticed and the decisions you made. Add individual trades below.',placeholder:'What I saw and how I responded…'},
@@ -207,7 +207,11 @@ export default function JournalPage({theme = "light"}){
               </label>}
             </div>
           </div>
-          <JournalReplayImports/>
+          <JournalReplayImports onDelete={reference=>{
+            const unlink=row=>({...row,trades:row.trades.map(trade=>trade.replay_id===reference?{...trade,replay_id:null}:trade)});
+            setEntry(unlink);
+            setRows(current=>current.map(unlink));
+          }}/>
           <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId}/>
           {(identity.images_enabled??localSitePreview())&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>

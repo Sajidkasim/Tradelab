@@ -18,3 +18,7 @@
 .jr-import-advanced{font-size:.875rem;overflow-wrap:anywhere}
 .jr-import-list{margin-top:16px}
 .jr-import-row time{display:inline-block;margin-inline-start:8px}
+
+.jr-import-row-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.jr-link-choice{display:grid;gap:6px;margin-block:12px}
+.jr-link-choice select{width:100%;min-width:0;color:var(--tl-ink);background:var(--tl-surface)}

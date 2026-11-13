@@ -10,6 +10,7 @@ import warnings
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import custom_trade_fields
+from .journal_replay import KEY as REPLAY_IMPORTS_KEY
 
 PREFIX = 'primus_daily_entry:'
 MAX_UPLOAD = 8 * 1024 * 1024
@@ -51,7 +52,10 @@ def with_day_result(database, row):
     amounts = []
     trade_results = []
     seen = set()
+    replay_ids = database.get_setting(REPLAY_IMPORTS_KEY, {}) if any(card.get('replay_id') for card in row.get('trades', [])) else {}
     for card in row.get('trades', []):
+        if card.get('replay_id') and card['replay_id'] not in replay_ids:
+            card = {**card, 'replay_id': None}
         linked = card.get('lab_trade_id')
         trade = database.get_trade(linked) if linked else None
         if trade is not None:
@@ -133,7 +137,10 @@ def save_day(database, day, values):
         old = {t['id']: t for t in previous['trades']}
         cards = []
         account_ids = {account.id for account in database.accounts()}
+        replay_ids = database.get_setting(REPLAY_IMPORTS_KEY, {}) if any(item.get('replay_id') for item in incoming) else {}
         for item in incoming:
+            if item.get('replay_id') and item['replay_id'] not in replay_ids:
+                raise ValueError('Choose an imported replay from your workspace.')
             prior = old.get(item['id'], {})
             if 'account_ids' in item:
                 selected = list(dict.fromkeys(item['account_ids']))

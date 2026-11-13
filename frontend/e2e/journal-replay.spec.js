@@ -64,3 +64,31 @@ test('native TopstepX import and FTMO website timezone guard use the local backe
  await expect(page.getByRole('status').filter({hasText:'1 replay trade imported'})).toBeVisible();
  await expect(page.locator('.jr-import-row').filter({hasText:'XAUUSD'}).locator('time')).toHaveAttribute('datetime','2026-06-05T15:23:30+00:00');
 });
+
+test('a replay can be linked to a Journal card, saved, and deleted separately', async ({page})=>{
+ await page.goto('http://127.0.0.1:8119/journal?day=2026-11-13');
+ await page.locator('summary').filter({hasText:'Trade replay'}).click();
+ await page.getByLabel('Replay execution CSV').setInputFiles({
+  name:'replay-link.csv', mimeType:'text/csv',
+  buffer:Buffer.from('trade_id,execution_id,symbol,timestamp,side,quantity,price,role\nlink-test,entry,EURUSD,2026-11-13T15:30:00Z,buy,1,1.08,entry\n'),
+ });
+ await page.getByRole('button',{name:'Import trades',exact:true}).click();
+ const imported=page.locator('.jr-import-row').filter({hasText:'1.08'}).filter({hasText:'13 Nov 2026'});
+ await expect(imported).toBeVisible();
+ await page.getByRole('button',{name:'Add trade',exact:true}).click();
+ const card=page.getByRole('article',{name:'Journal trade 1'});
+ await card.getByRole('button',{name:'Link imported replay'}).click();
+ const picker=page.getByRole('dialog',{name:'Link an imported replay'});
+ await picker.getByLabel('Imported trade').selectOption({index:1});
+ await picker.getByRole('button',{name:'Link replay',exact:true}).click();
+ await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
+ await expect(page.getByText('Entry saved for this local preview.').first()).toBeVisible();
+ await page.reload();
+ await card.locator('.pj-trade-summary').click();
+ await expect(card.getByRole('button',{name:'Replay',exact:true})).toBeVisible();
+ await page.locator('summary').filter({hasText:'Trade replay'}).click();
+ await imported.getByRole('button',{name:'Delete import'}).click();
+ await page.getByRole('dialog',{name:'Delete replay import?'}).getByRole('button',{name:'Delete import'}).click();
+ await expect(imported).toHaveCount(0);
+ await expect(card.getByRole('button',{name:'Link imported replay'})).toBeVisible();
+});

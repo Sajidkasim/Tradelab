@@ -5,7 +5,7 @@ import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, Fla
 import {Select} from './components';
 import VocabularySelect from './VocabularySelect';
 import {money} from './format';
-import {ReplayButton} from './JournalReplay';
+import {JournalReplayLink,ReplayButton} from './JournalReplay';
 
 export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,onView,label='Upload screenshot',canUpload=true}){
   const input=useRef();
@@ -110,7 +110,7 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
         </div>}
         <label className="pj-field">Trade notes<textarea aria-label="Trade notes" maxLength={6000} placeholder="Why I entered, how I managed it, and what happened…" value={trade.notes} disabled={busy} onChange={e=>onChange(trade.id,'notes',e.target.value)}/></label>
         <JournalScreenshots images={entry.images.filter(i=>i.trade_id===trade.id)} allImages={entry.images} day={entry.day} busy={busy} onUpload={file=>onUpload(file,trade.id)} onRemove={onRemoveImage} onView={onView} label={`Upload screenshot for trade ${index+1}`} canUpload={canUpload}/>
-        <div className="pj-trade-actions">{trade.lab_trade_id&&<ReplayButton reference={`lab-${trade.lab_trade_id}`} notes={trade.notes}/>}<button type="button" className="pj-remove" disabled={busy} onClick={()=>onRemove(trade.id)}><Trash2 size={15}/> Remove card</button><div>{trade.lab_trade_id?<><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}>Change link</button></>:<><button type="button" className="pj-link" disabled={busy||multi} onClick={()=>onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy||multi||!trade.symbol||!trade.direction||!trade.strategy.trim()} onClick={()=>onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div></div>
+        <div className="pj-trade-actions"><JournalReplayLink trade={trade} day={entry.day} timezone={meta?.journal_preferences?.timezone||'America/New_York'} onChange={value=>onChange(trade.id,'replay_id',value)}/>{trade.lab_trade_id&&!trade.replay_id&&<ReplayButton reference={`lab-${trade.lab_trade_id}`} notes={trade.notes}/>}<button type="button" className="pj-remove" disabled={busy} onClick={()=>onRemove(trade.id)}><Trash2 size={15}/> Remove card</button><div>{trade.lab_trade_id?<><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}>Change link</button></>:<><button type="button" className="pj-link" disabled={busy||multi} onClick={()=>onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy||multi||!trade.symbol||!trade.direction||!trade.strategy.trim()} onClick={()=>onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div></div>
         <p className="pj-trade-help">{multi?'This card records a shared Journal entry. Select one account to link a single Strategy Lab trade.':trade.lab_trade_id?'Linked to your Lab record. Keep personal notes here; edit results and setup labels in the Lab.':'Save entry keeps this card in your Journal. Add to Strategy Lab carries your setup, risk and result across for you to check before saving to statistics.'}</p>
       </div>}
     </article>})}</div>
