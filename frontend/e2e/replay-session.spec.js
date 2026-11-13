@@ -808,3 +808,44 @@ test('failed timeframe history waits for explicit retry without a loading loop',
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
  await expect(page.getByRole('alert')).toHaveCount(0);expect(attempts).toBe(count+1);
 });
+
+test('opens three preselected charts in a large-left layout and restores them', async ({page}) => {
+  await page.goto('http://127.0.0.1:8119/backtesting');
+  await page.getByRole('button', {name: 'New session', exact: true}).click();
+  const setup = page.getByRole('dialog', {name: 'New backtesting session'});
+  await setup.getByLabel('Session name').fill('Three chart layout');
+  await setup.getByLabel('Trading date').fill('2010-06-07');
+  await setup.getByRole('combobox', {name: 'Chart layout'}).click();
+  await setup.getByRole('option', {name: 'Three charts, one left and two right'}).click();
+  await setup.getByRole('button', {name: 'Open session', exact: true}).click();
+
+  const primary = page.locator('[data-pane-id="primary"]');
+  const secondary = page.locator('[data-pane-id="secondary"]');
+  const tertiary = page.locator('[data-pane-id="tertiary"]');
+  await expect(primary.getByRole('status', {name: 'Chart status', exact: true})).toHaveText('Chart ready', {timeout: 15000});
+  await expect(secondary.locator('.bt-pane-tag')).toContainText('ES');
+  await expect(tertiary.locator('.bt-pane-tag')).toContainText('NQ');
+  const [left, top, bottom] = await Promise.all([primary.boundingBox(), secondary.boundingBox(), tertiary.boundingBox()]);
+  expect(left.width).toBeGreaterThan(top.width);
+  expect(top.x).toBe(bottom.x);
+  expect(bottom.y).toBeGreaterThan(top.y);
+
+  const clock = primary.getByLabel('Replay time', {exact: true});
+  const before = await clock.textContent();
+  await page.getByRole('button', {name: 'Next candle', exact: true}).click();
+  await expect(clock).not.toHaveText(before);
+  await page.getByRole('button', {name: 'Save session', exact: true}).click();
+  await expect(primary.locator('.bt-save-status')).toHaveText('Saved');
+  await page.reload();
+  await expect(tertiary.locator('.bt-pane-tag')).toContainText('NQ', {timeout: 15000});
+  const savedClock = await clock.textContent();
+  await page.getByRole('button', {name: 'Toggle two charts', exact: true}).click();
+  await expect(tertiary).toHaveCount(0);
+  await expect(secondary).toBeVisible();
+  await page.getByRole('button', {name: 'Single chart', exact: true}).click();
+  await expect(secondary).toHaveCount(0);
+  await expect(clock).toHaveText(savedClock);
+  await page.getByRole('button', {name: 'Toggle three charts', exact: true}).click();
+  await expect(tertiary.locator('.bt-pane-tag')).toContainText('NQ');
+  await expect(clock).toHaveText(savedClock);
+});

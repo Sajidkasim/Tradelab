@@ -44,6 +44,7 @@ class SessionInput(BaseModel):
     day:date
     start_time:str=Field(default='13:30',pattern=r'^(?:[01]\d|2[0-3]):[0-5]\d$')
     instrument:Literal['MNQ','NQ','MES','ES','EURUSD','GBPUSD','XAUUSD']='MNQ'
+    comparison_charts:list[Literal['NQ','ES','QQQ','EURUSD','GBPUSD','XAUUSD']]=Field(default_factory=list,max_length=2)
     capital:float=Field(default=50000,gt=0,le=1000000000)
     commission:float=Field(default=0.5,ge=0,le=100)
     slippage:int=Field(default=0,ge=0,le=20,strict=True)
@@ -228,6 +229,24 @@ def mount(app,config,workspace):
     def spot_path():
         return ROOT / spot_replay.FILENAME if config.local else getattr(app.state, 'spot_archive', None)
 
+    def qqq_path():
+        path = ROOT / 'qqq-replay.db' if config.local else getattr(app.state, 'qqq_archive', None)
+        return path if path and path.is_file() else None
+
+    def pane_layouts(db, record):
+        key = _key(record['id'])
+        defaults = chart_defaults(db)
+        comparisons = record.get('comparison_charts', [])
+        return {
+            'layout': db.get_setting(key + ':layout', defaults),
+            'layout_secondary': db.get_setting(key + ':layout:secondary', {
+                **defaults, **({'symbol': comparisons[0]} if comparisons else {}),
+            }),
+            'layout_tertiary': db.get_setting(key + ':layout:tertiary', {
+                **defaults, **({'symbol': comparisons[1]} if len(comparisons) == 2 else {}),
+            }),
+        }
+
     def history(day, root=None):
         if root in spot_replay.SYMBOLS:
             if spot_path() is None:
@@ -360,6 +379,16 @@ def mount(app,config,workspace):
         if data and not COMPACT_WIRE.get() and not config.local and archive():
             context=archive().history(record['day'])[0]
             data={**data,'chart_context_version':2 if context.get('ny_four_hour') else 1,'markets':{root:{**market,**({'four_hour_history_ny':context['markets'][root]['four_hour_history_ny']} if context.get('ny_four_hour') else {'four_hour_history':context['markets'][root]['four_hour_history']})} for root,market in data['markets'].items()}}
+        if data and qqq_path() and record['root'] in ('NQ', 'ES'):
+            with spot_replay.connect(qqq_path()) as connection:
+                timeline = data['markets'][record['root']]['bars']
+                rows = connection.execute(
+                    'SELECT time,open,high,low,close,volume FROM spot_bars '
+                    'WHERE symbol=? AND time BETWEEN ? AND ? ORDER BY time',
+                    ('QQQ', timeline[0]['time'], timeline[-1]['time']),
+                )
+                bars = [dict(zip(spot_replay.FIELDS, row)) for row in rows]
+            data = {**data, 'markets': {**data['markets'], 'QQQ': {'contract': 'QQQ', 'bars': bars}}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
         if record['root'] in spot_replay.SYMBOLS:safe['price_source']='Dukascopy bid'
@@ -393,6 +422,9 @@ def mount(app,config,workspace):
             if not config.local:
                 days=sorted(available_manifest()['days'])
                 if days:available.update(first_day=days[0],last_day=days[-1],sample_day=next((d for d in reversed(days) if date.fromisoformat(d).weekday()<5),days[-1]),available_days=days,**({'indexed_days':len(days)} if archive() else {}))
+            qqq_days = spot_replay.coverage(qqq_path(), 'QQQ') if qqq_path() else []
+            if qqq_days:
+                available['qqq_days'] = qqq_days
             return {'sessions':active, 'deleted':deleted, 'history':available}
     @app.post('/api/backtesting/sessions')
     def create(payload:SessionInput,member=Depends(workspace)):
@@ -400,6 +432,11 @@ def mount(app,config,workspace):
         try:
             root=_root(payload.instrument)
             data,digest=history(payload.day.isoformat(),root);bars=data['markets'][root]['bars']
+            if any(symbol not in data['markets'] and not (
+                symbol == 'QQQ' and root in ('NQ', 'ES') and qqq_path()
+                and payload.day.isoformat() in spot_replay.coverage(qqq_path(), 'QQQ')
+            ) for symbol in payload.comparison_charts):
+                raise ValueError('A comparison market has no data on this session date.')
             stamp=int(datetime.fromisoformat(f'{payload.day}T{payload.start_time}:00+00:00').timestamp()*1000)
             eligible=[i for i,b in enumerate(bars) if b['time']+60000<=stamp]
             if not eligible:raise ValueError('Choose a start time after the first available candle closes, or another date.')
@@ -410,12 +447,12 @@ def mount(app,config,workspace):
                 if len(ids)>=100:raise ValueError('This Beta supports up to 100 saved sessions.')
                 now=datetime.now(timezone.utc).isoformat()
                 record={'id':str(uuid4()),'name':payload.name.strip() or f'{root} · {payload.day}', 'day':payload.day.isoformat(),
-                        'extended':bool(data.get('history_version')),'instrument':payload.instrument,'root':root,'capital':round(payload.capital,2),'spec':{'capital':round(payload.capital,2),
+                        'comparison_charts':payload.comparison_charts,'extended':bool(data.get('history_version')),'instrument':payload.instrument,'root':root,'capital':round(payload.capital,2),'spec':{'capital':round(payload.capital,2),
                         'instrument':payload.instrument,'commission':payload.commission,'slippage':payload.slippage,'start_cursor':cursor,'close_at_end':False},
                         'cursor':cursor,'last_cursor':len(bars)-1,'version':0,'commands':[],'data_digest':digest,'clock':stamp,'created':now,'updated':now}
                 plan=projection(record,data);save(db,record,plan,data)
                 db.set_setting(INDEX,ids+[record['id']]);app.state.workspaces.bump(member['key'])
-                return {**result(record,plan,data),'layout':chart_defaults(db),'layout_secondary':chart_defaults(db)}
+                return {**result(record,plan,data),**pane_layouts(db, record)}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     def remove_records(db,ids):
         from sqlalchemy import select
@@ -426,7 +463,7 @@ def mount(app,config,workspace):
             if len(records)!=len(keys):raise HTTPException(404,'Session not found. Refresh your sessions before deleting.')
             raw=connection.execute(select(settings_t.c.value).where(settings_t.c.key==INDEX).with_for_update()).scalar()
             saved_ids=json.loads(raw) if raw else []
-            names=[key+suffix for key in keys for suffix in ('',':layout',':layout:secondary',':journal')]
+            names=[key+suffix for key in keys for suffix in ('',':layout',':layout:secondary',':layout:tertiary',':journal')]
             connection.execute(settings_t.delete().where(settings_t.c.key.in_(names)))
             connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([sid for sid in saved_ids if sid not in ids])))
     @app.post('/api/backtesting/sessions/delete')
@@ -503,15 +540,15 @@ def mount(app,config,workspace):
 
     @app.get('/api/backtesting/sessions/{sid}/layouts')
     def session_layouts(sid:str,member=Depends(workspace)):
-        local_only();db=database(member);get_record(db,sid)
-        return {'layout':db.get_setting(_key(sid)+':layout',{}),'layout_secondary':db.get_setting(_key(sid)+':layout:secondary',{})}
+        local_only();db=database(member);record=get_record(db,sid)
+        return pane_layouts(db, record)
     @app.get('/api/backtesting/sessions/{sid}')
     def open_session(sid:str,member=Depends(workspace)):
         local_only()
         try:
             with app.state.workspaces.workspace_lock(member['key']):
                 record=get_record(database(member),sid);data=checked_data(record)
-                return {**result(record,projection(record,data),data),'layout':database(member).get_setting(_key(sid)+':layout',chart_defaults(database(member))),'layout_secondary':database(member).get_setting(_key(sid)+':layout:secondary',chart_defaults(database(member))),'journal':database(member).get_setting(_key(sid)+':journal',{})}
+                return {**result(record,projection(record,data),data),**pane_layouts(database(member), record),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
     def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
@@ -577,12 +614,12 @@ def mount(app,config,workspace):
         except ValueError as e:raise HTTPException(422,str(e)) from None
 
     @app.put('/api/backtesting/sessions/{sid}/layout')
-    def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary']='primary',defaults:bool=True,member=Depends(workspace)):
+    def layout(sid:str,payload:LayoutInput,pane:Literal['primary','secondary','tertiary']='primary',defaults:bool=True,member=Depends(workspace)):
         local_only()
         if len(json.dumps(payload.layout))>250000:raise HTTPException(422,'Chart layout is too large.')
         with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);get_record(db,sid)
-            db.set_setting(_key(sid)+(':layout:secondary' if pane=='secondary' else ':layout'),payload.layout)
+            db.set_setting(_key(sid)+(':layout' if pane=='primary' else f':layout:{pane}'),payload.layout)
             if defaults:db.set_setting(DEFAULTS,{key:value for key,value in payload.layout.items() if key in DEFAULT_FIELDS})
             app.state.workspaces.bump(member['key'])
         return {'saved':True}
@@ -599,7 +636,7 @@ def mount(app,config,workspace):
             app.state.workspaces.bump(member['key']);return result
 
     @app.get('/api/backtesting/sessions/{sid}/chart-history')
-    def chart_history(sid:str,root:Literal['NQ','ES','EURUSD','GBPUSD','XAUUSD'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
+    def chart_history(sid:str,root:Literal['NQ','ES','EURUSD','GBPUSD','XAUUSD','QQQ'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
         local_only()
         if timeframe not in ('1D','1W','1M') and (not timeframe.isdigit() or not 1<=int(timeframe)<=720):raise HTTPException(422,'Unsupported timeframe.')
         if not 1<=limit<=1000:raise HTTPException(422,'Choose a page size between 1 and 1000.')
@@ -608,12 +645,14 @@ def mount(app,config,workspace):
             record=get_record(database(member),sid)
             if not record['spec']['start_cursor']<=cursor<=record['last_cursor']:raise HTTPException(422,'Invalid replay cursor.')
             data=checked_data(record)
-            if root not in data['markets']:
+            if root not in data['markets'] and not (root == 'QQQ' and record['root'] in ('NQ', 'ES') and qqq_path()):
                 raise HTTPException(422,'This market is not available in the session.')
             cutoff=data['markets'][record['root']]['bars'][cursor]['time']
         edge=min(before if before is not None else cutoff+1,cutoff+1)
         index=ROOT/'replay-index.db'
         try:
+            if root == 'QQQ':
+                return spot_replay.window(qqq_path(),root,timeframe,edge,cutoff,limit,after)
             if root in spot_replay.SYMBOLS:
                 return spot_replay.window(spot_path(),root,timeframe,edge,cutoff,limit,after)
             if config.local and index.is_file():

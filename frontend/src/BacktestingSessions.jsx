@@ -45,7 +45,9 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null);
  const [selectedSessions,setSelectedSessions]=useState([]);
  const [purging,setPurging]=useState(null),[purgeName,setPurgeName]=useState('');
- const [twoCharts,setTwoCharts]=useState(false);
+ const [paneCount,setPaneCount]=useState(1);
+ const twoCharts=paneCount>1;
+ const layoutSwitch=useRef(false);
  const [chartWorkspace,setChartWorkspace]=useState({charts:[],activeChartId:'primary',syncCrosshair:false,syncIntervals:false});
  const [toolbarHost,setToolbarHost]=useState(null),[controlsHost,setControlsHost]=useState(null);
  const chartInstances=useRef({}),crosshairSync=useRef(false);
@@ -54,7 +56,24 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const registerChart=useCallback((id,chart)=>{chartInstances.current[id]=chart},[]);
  const syncPointer=useCallback((id,event)=>{if(!crosshairSync.current)return;for(const [other,chart] of Object.entries(chartInstances.current))if(other!==id)chart?.renderer.setExternalCrosshair(event.time??null,null)},[]);
  function toggleCrosshair(){setChartWorkspace(state=>({...state,syncCrosshair:!state.syncCrosshair}));for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null)}
- async function toggleSplit(){try{if(twoCharts){await layoutSavers.current.secondary?.();setTwoCharts(false)}else{await layoutSavers.current.primary?.();const saved=await api(`/backtesting/sessions/${active.session.id}/layouts`);const {drawings,priceScale,...inherited}=saved.layout||{};setChartWorkspace(state=>({...state,charts:state.charts.map(p=>p.id==='secondary'?{...inherited,id:'secondary',symbol:active.sample.markets[p.symbol||'ES']?(p.symbol||'ES'):active.session.root,drawings:p.drawings||{}}:p)}));setTwoCharts(true)}for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null);setChartWorkspace(state=>({...state,activeChartId:'primary'}))}catch(e){setError(e.message)}}
+ async function setLayoutCount(count){
+  if(count===paneCount||layoutSwitch.current)return;
+  layoutSwitch.current=true;
+  try{
+   await Promise.all(Object.values(layoutSavers.current).map(save=>save?.()));
+   const saved=await api(`/backtesting/sessions/${active.session.id}/layouts`);
+   setChartWorkspace(state=>({...state,activeChartId:'primary',charts:state.charts.map((pane,index)=>{
+    if(index<paneCount||index>=count)return pane;
+    const own=saved['layout_'+pane.id];
+    if(own?.symbol&&active.sample.markets[own.symbol])return {...pane,...own};
+    const {drawings,priceScale,viewport,symbol,...inherited}=saved.layout||{};
+    return {...pane,...inherited,drawings:pane.drawings||{}};
+   })}));
+   setPaneCount(count);
+   for(const chart of Object.values(chartInstances.current))chart?.renderer.setExternalCrosshair(null);
+  }catch(e){setSaveError(e.message)}
+  finally{layoutSwitch.current=false}
+ }
 
  const layoutSavers=useRef({}),prefetch=useRef(null);
  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
@@ -75,9 +94,20 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   setRenderedPanes({});
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
-  setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.sample.markets[data.layout?.symbol]?data.layout.symbol:data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.sample.markets[data.layout_secondary?.symbol||'ES']?(data.layout_secondary?.symbol||'ES'):data.session.root,timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
+  const count=[1,2,3].includes(group.paneCount)?group.paneCount:
+   data.layout?.split?2:1+(data.session.comparison_charts?.length||0);
+  const available=Object.keys(data.sample.markets);
+  const charts=[
+   ['primary',data.layout,data.session.root],
+   ['secondary',data.layout_secondary,available.includes('ES')?'ES':data.session.root],
+   ['tertiary',data.layout_tertiary,available.find(symbol=>symbol!==data.session.root&&symbol!==data.layout_secondary?.symbol)],
+  ].map(([id,layout,fallback])=>({...layout,id,
+   symbol:available.includes(layout?.symbol)?layout.symbol:fallback||data.session.root,
+   timeframe:layout?.timeframe||'1',
+  }));
+  setChartWorkspace({charts,activeChartId:charts.slice(0,count).some(pane=>pane.id===group.activeChartId)?group.activeChartId:'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
   manualCursor.current=null;
-  setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}${new URLSearchParams(location.search).get('drawingDebug')==='1'?'&drawingDebug=1':''}`)
+  setPaneCount(count);latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}${new URLSearchParams(location.search).get('drawingDebug')==='1'?'&drawingDebug=1':''}`)
  }
  useEffect(()=>{
   let alive=true;const ticket=++openingTicket.current;
@@ -115,14 +145,22 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  useEffect(()=>{
   if(active?.session.next_day&&active.session.last_cursor-cursor<2000&&!prefetch.current&&!saveError)continueSession(true).catch(()=>{});
  },[active?.sample,cursor,active?.session.next_day,saveError]);
- async function leave(){try{await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
+ async function leave(){try{await Promise.all(Object.values(layoutSavers.current).map(saveLayout=>saveLayout?.()));await save();setActive(null);history.replaceState({},'','/backtesting');await list()}catch{}}
  function confirmDelete(items){setError('');setPurging(items);setPurgeName('')}
  async function purge(){setBusy(true);setError('');try{await api('/backtesting/sessions/delete',{method:'POST',body:{ids:purging.map(item=>item.id),confirmation:purgeName}});setPurging(null);setPurgeName('');setSelectedSessions([]);await list()}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function resume(id){const ticket=++openingTicket.current;setOpeningStage('Fetching saved session…');setOpening(true);setBusy(true);setError('');try{await opened(await api(`/backtesting/sessions/${id}`),ticket)}catch(e){setError(e.message);setOpening(false)}finally{setBusy(false)}}
- async function create(event){event.preventDefault();const ticket=++openingTicket.current;setOpeningStage('Creating replay session…');setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...form,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data,ticket);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function newSession(){setError('');setBusy(true);try{const fresh=await api('/backtesting/sessions');setListing(fresh);setForm({name:'',day:fresh.history.sample_day,start_time:'13:30',instrument:'NQ',capital:50000,commission:fresh.history.instruments.find(x=>x.symbol==='NQ')?.commission??0.5,slippage:0})}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function create(event){event.preventDefault();
+  const {paneCount,...values}=form;
+  const comparison_charts=values.comparison_charts.slice(0,paneCount-1);
+  if(comparison_charts.some(symbol=>!comparisonMarkets.includes(symbol))){setError('Choose comparison markets available for this date.');return}
+  const ticket=++openingTicket.current;setOpeningStage('Creating replay session…');setBusy(true);setError('');try{const data=await api('/backtesting/sessions',{method:'POST',body:{...values,comparison_charts,capital:Number(form.capital),commission:Number(form.commission),slippage:Number(form.slippage)}});await opened(data,ticket);setForm(null)}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function newSession(){setError('');setBusy(true);try{const fresh=await api('/backtesting/sessions');setListing(fresh);setForm({name:'',day:fresh.history.sample_day,start_time:'13:30',instrument:'NQ',capital:50000,paneCount:1,comparison_charts:['ES','NQ'],commission:fresh.history.instruments.find(x=>x.symbol==='NQ')?.commission??0.5,slippage:0})}catch(e){setError(e.message)}finally{setBusy(false)}}
  function change(field,value){setForm(f=>({...f,[field]:value}))}
- const initialChartsReady=Boolean(active&&renderedPanes.primary&&(!twoCharts||renderedPanes.secondary));
+ const primaryMarket={MNQ:'NQ',MES:'ES'}[form?.instrument]||form?.instrument;
+ const comparisonMarkets=['NQ','ES'].includes(primaryMarket)
+  ?[primaryMarket,primaryMarket==='NQ'?'ES':'NQ',...(listing.history.qqq_days?.includes(form.day)?['QQQ']:[])]
+  :[primaryMarket];
+ const initialChartsReady=Boolean(active&&chartWorkspace.charts.length>=paneCount&&chartWorkspace.charts.slice(0,paneCount).every(pane=>renderedPanes[pane.id]));
  useEffect(()=>{if(initialChartsReady)setOpening(false)},[initialChartsReady]);
  const loading=<div className="loading-screen pt-loading" role="status" aria-live="polite">
   <div className="pt-loading-logo"><img src={compassLogo} alt="Primus compass"/><span aria-hidden="true"/></div>
@@ -132,17 +170,17 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&(!identity.authenticated||entrancePreview))return <WorkspaceEntrance workspace="backtesting" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={()=>location.reload()}/>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,paneCount,onLayoutCount:setLayoutCount,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{paneCount,activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
-   <div ref={splitHost} className={twoCharts?'bt-panes bt-panes-split':'bt-panes'} style={{'--bt-split-ratio':splitPercent/100}}>
-    {twoCharts&&<div className="bt-split-handle" role="separator" aria-label="Resize split charts"
+   <div ref={splitHost} className={`bt-panes${twoCharts?' bt-panes-split':''}${paneCount===3?' bt-panes-three':''}`} style={{'--bt-split-ratio':splitPercent/100}}>
+    {paneCount===2&&<div className="bt-split-handle" role="separator" aria-label="Resize split charts"
       aria-orientation="vertical" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(splitPercent)} tabIndex={0}
       onPointerDown={event=>{if(event.button===0)event.currentTarget.setPointerCapture(event.pointerId)}}
       onPointerMove={event=>{if(event.currentTarget.hasPointerCapture(event.pointerId))resizeSplit(event)}}
       onDoubleClick={()=>setSplitPercent(50)}
       onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();setSplitPercent(value=>event.key==='Home'?20:event.key==='End'?80:Math.max(20,Math.min(80,value+(event.key==='ArrowLeft'?-2:2))))}}/>}
-    {chartWorkspace.charts.filter(pane=>pane.id==='primary'||twoCharts).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id==='secondary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>layoutSavers.current[pane.id==='primary'?'secondary':'primary']?.()||Promise.resolve()}/>)}
+    {chartWorkspace.charts.slice(0,paneCount).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id!=='primary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>Promise.all(Object.entries(layoutSavers.current).filter(([id])=>id!==pane.id).map(([,save])=>save?.()))}/>)}
    </div>
    <div className="bt-shared-playback" ref={setControlsHost}/>
   </div></>;
@@ -176,6 +214,11 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   <Field label="Session name"><input value={form.name} placeholder="e.g. New York reversals" maxLength={80} onChange={e=>change('name',e.target.value)}/></Field>
   <div className="form-grid two"><Field label="Trading date"><input required type="date" min={listing.history.instruments.find(item=>item.symbol===form.instrument)?.first_day||listing.history.first_day} max={listing.history.instruments.find(item=>item.symbol===form.instrument)?.last_day||listing.history.last_day} value={form.day} onInput={e=>change('day',e.target.value)} onChange={e=>change('day',e.target.value)}/></Field><Field label="Start time (UTC)"><input required type="time" value={form.start_time} onChange={e=>change('start_time',e.target.value)}/></Field></div>
   <div className="form-grid two"><Select label="Contract size / market" values={listing.history.instruments.map(item=>({value:item.symbol,label:item.symbol}))} value={form.instrument} onChange={e=>{const market=listing.history.instruments.find(item=>item.symbol===e.target.value);setForm(f=>({...f,instrument:market.symbol,commission:market.commission,start_time:market.default_start||'13:30',day:(f.day<(market.first_day||listing.history.first_day)||f.day>(market.last_day||listing.history.last_day))?(market.last_day||listing.history.sample_day):f.day}))}}/><Field label="Starting capital ($)"><input required type="number" min="1" max="1000000000" step="0.01" value={form.capital} onChange={e=>change('capital',e.target.value)}/></Field></div>
+  <Select label="Chart layout" values={[{value:'1',label:'One chart'},{value:'2',label:'Two charts, side by side'},{value:'3',label:'Three charts, one left and two right'}]} value={String(form.paneCount)} onChange={event=>{
+    const count=Number(event.target.value);
+    setForm(current=>({...current,paneCount:count,comparison_charts:[comparisonMarkets[1]||primaryMarket,comparisonMarkets[2]||primaryMarket]}));
+  }}/>
+  {form.comparison_charts.slice(0,form.paneCount-1).map((symbol,index)=><Select key={index} label={index===0?'Comparison chart 1':'Comparison chart 2'} values={comparisonMarkets} value={comparisonMarkets.includes(symbol)?symbol:''} empty="Choose a market" onChange={event=>change('comparison_charts',form.comparison_charts.map((value,position)=>position===index?event.target.value:value))}/>)}
   <details className="disclosure"><summary>Costs & fill rules</summary><div className="stack"><div className="form-grid two"><Field label="Commission per contract / side ($)"><input required type="number" min="0" max="100" step="0.01" value={form.commission} onChange={e=>change('commission',e.target.value)}/></Field><Field label="Slippage (ticks)"><input required type="number" min="0" max="20" step="1" value={form.slippage} onChange={e=>change('slippage',e.target.value)}/></Field></div><small>Market orders fill at the next one-minute open. Stop loss wins if both stop and target touch in a candle. Intrabar entries cannot claim an ambiguous same-candle target. Positions stay open across days until you close them or a stop or target is reached. No exchange margin or liquidation model is applied.</small></div></details>
   </fieldset>
   {busy&&<p role="status">Preparing your candles…</p>}{error&&<Notice error>{error}</Notice>}

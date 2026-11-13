@@ -34,7 +34,7 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,onSplit,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -76,7 +76,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   const feed=useRef(null),lastLayout=useRef(''),layoutQueue=useRef(Promise.resolve());
   const selectedRef=useRef(selected);selectedRef.current=selected;
   const layoutDirty=useRef(false),gesture=useRef(false),layoutTimer=useRef(null),saveCurrent=useRef(null),layoutWriter=useRef(null);
-  if(!layoutWriter.current)layoutWriter.current=latestLayoutWriter(value=>api(`/backtesting/sessions/${session.id}/layout?pane=${secondary?'secondary':'primary'}&defaults=${selectedRef.current}`,{method:'PUT',body:{layout:value}}));
+  if(!layoutWriter.current)layoutWriter.current=latestLayoutWriter(value=>api(`/backtesting/sessions/${session.id}/layout?pane=${paneId}&defaults=${selectedRef.current}`,{method:'PUT',body:{layout:value}}));
   function dirtyLayout(){layoutDirty.current=true;clearTimeout(layoutTimer.current);layoutTimer.current=setTimeout(()=>{if(!gesture.current)saveCurrent.current?.(false).catch(()=>{})},1000)}
   const [watermark,setWatermark]=useState(()=>layout.watermark!==false);
   const watermarkValue=useRef(watermark);watermarkValue.current=watermark;
@@ -210,7 +210,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
 
   useEffect(()=>{if(!busy&&(ready||error))reportReady(paneId)},[ready,busy,error,paneId,reportReady]);
 
-  useEffect(()=>{if(!ready||busy)return;const timer=setTimeout(()=>historyFeed.current.prefetch(symbol),250);return()=>clearTimeout(timer)},[ready,busy,symbol]);
+  useEffect(()=>{if(!ready||busy||secondary||paneCount>2)return;const timer=setTimeout(()=>historyFeed.current.prefetch(symbol),250);return()=>clearTimeout(timer)},[ready,busy,symbol,secondary,paneCount]);
 
   async function loadEdge(chart){
     if(edgeBusy.current||chartRef.current!==chart)return;
@@ -275,7 +275,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   }
   saveCurrent.current=saveLayout;
   useEffect(()=>{registerLayoutSave?.((...args)=>saveCurrent.current(...args));return()=>registerLayoutSave?.(null)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
-  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
+  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,paneCount,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
   useEffect(()=>{if(ready&&chartRef.current)visibility.current.apply(chartRef.current,timeframe)},[timeframe,ready]);
   useEffect(()=>{const timer=setInterval(()=>saveCurrent.current?.(false).catch(()=>{}),10000);return()=>clearInterval(timer)},[]);
 
@@ -310,7 +310,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
         {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
-      <div className="bt-tools"><button onClick={()=>selectDrawingTool(null)} title="Stop drawing and select objects">Select drawings</button>{<button aria-label="Toggle two charts" aria-pressed={twoCharts} onClick={onSplit}>Ⅱ</button>}{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
+      <div className="bt-tools"><button onClick={()=>selectDrawingTool(null)} title="Stop drawing and select objects">Select drawings</button><button aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button><button aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button><button aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
         <Feedback owner={owner}/>{!secondary&&<button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button>}<button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>

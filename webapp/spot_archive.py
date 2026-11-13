@@ -10,10 +10,11 @@ MANIFEST = Path(__file__).with_name('spot_archive_manifest.json')
 PREFIX = 'primus-replay/spot/v1/'
 
 
-def restore(storage, bucket):
-    if not MANIFEST.is_file():
+def restore(storage, bucket, *, manifest_path=None, prefix=PREFIX):
+    manifest_path = MANIFEST if manifest_path is None else manifest_path
+    if not manifest_path.is_file():
         return None
-    manifest = json.loads(MANIFEST.read_text())
+    manifest = json.loads(manifest_path.read_text())
     digest, size = manifest['sha256'], manifest['size']
     if not re.fullmatch(r'[0-9a-f]{64}', digest) or not 0 < size <= 4 * 1024**3:
         raise ValueError('Invalid spot replay manifest.')
@@ -21,7 +22,7 @@ def restore(storage, bucket):
     target = folder / f'primus-spot-{digest}.db'
     if target.is_file() and target.stat().st_size == size:
         return target
-    stream = storage.get_object(Bucket=bucket, Key=PREFIX + digest + '.db.gz')['Body']
+    stream = storage.get_object(Bucket=bucket, Key=prefix + digest + '.db.gz')['Body']
     checksum = hashlib.sha256()
     written = 0
     temporary = None

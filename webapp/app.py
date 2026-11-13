@@ -49,10 +49,15 @@ def create_app(config: Settings | None = None):
     async def lifespan(app):
         app.state.image_storage = ImageStorage(config)
         app.state.spot_archive = None
+        app.state.qqq_archive = None
         if not config.local and config.replay_enabled and config.r2_ready:
-            from .spot_archive import restore
+            from .spot_archive import MANIFEST, restore
             app.state.spot_archive = await run_in_threadpool(
                 restore, app.state.image_storage.client, config.r2_bucket)
+            app.state.qqq_archive = await run_in_threadpool(
+                restore, app.state.image_storage.client, config.r2_bucket,
+                manifest_path=MANIFEST.with_name('qqq_archive_manifest.json'),
+                prefix='primus-replay/qqq/v1/')
         app.state.workspaces = await run_in_threadpool(Workspaces, config)
         app.state.rate_counters = await run_in_threadpool(RateCounters, app.state.workspaces.root)
         if config.password_required:

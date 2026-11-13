@@ -379,3 +379,41 @@ def test_dated_futures_and_unknown_symbols_keep_contract_roll_protection(symbol,
 def test_removed_replay_news_endpoint_returns_not_found(local):
     client,app=local
     assert client.get('/api/replay/news?date=2020-10-21').status_code==404
+
+
+def test_three_chart_setup_keeps_qqq_on_the_futures_clock(local, candles, tmp_path):
+    import sqlite3
+    from tools.import_dukascopy_replay import SCHEMA
+
+    client, _ = local
+    day = candles['day']
+    with sqlite3.connect(tmp_path / 'qqq-replay.db') as db:
+        db.executescript(SCHEMA)
+        db.execute('INSERT INTO spot_days VALUES (?,?,?)', ('QQQ', day, 6))
+        db.executemany('INSERT INTO spot_bars VALUES (?,?,?,?,?,?,?)', (
+            ('QQQ', *[bar[key] for key in replay_sessions.spot_replay.FIELDS])
+            for bar in candles['markets']['NQ']['bars']
+        ))
+
+    reply = client.post('/api/backtesting/sessions', json={
+        'day': day, 'instrument': 'NQ', 'comparison_charts': ['ES', 'QQQ'],
+    })
+    assert reply.status_code == 200, reply.text
+    data = reply.json()
+    session = data['session']
+    assert session['root'] == 'NQ'
+    assert data['layout_secondary']['symbol'] == 'ES'
+    assert data['layout_tertiary']['symbol'] == 'QQQ'
+    url = f"/api/backtesting/sessions/{session['id']}"
+    reply = client.get(f'{url}/chart-history', params={
+        'root': 'QQQ', 'timeframe': '1', 'cursor': session['cursor'],
+    })
+    assert reply.status_code == 200, reply.text
+    history = reply.json()
+    assert history['bars'][-1]['time'] == candles['markets']['NQ']['bars'][session['cursor']]['time']
+    assert client.put(f'{url}/layout?pane=tertiary', json={'layout': {
+        'symbol': 'QQQ', 'timeframe': '240',
+    }}).status_code == 200
+    reopened = client.get(url).json()
+    assert reopened['layout_secondary']['symbol'] == 'ES'
+    assert reopened['layout_tertiary'] == {'symbol': 'QQQ', 'timeframe': '240'}

@@ -236,3 +236,17 @@ body:has(.backtesting-workspace){overflow:hidden}
   .bt-session-site :is(.button,.picker-trigger,.bt-session-card) { transition:none; }
   .bt-session-site :is(.button,.picker-trigger):hover:not(:disabled) { transform:none; }
 }
+
+.bt-panes-three {
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.bt-panes-three > .bt-chart-pane:first-child { grid-row: span 2; }
+@media (max-width: 900px) {
+  .bt-panes-three {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, minmax(220px, 1fr));
+    overflow-y: auto;
+  }
+  .bt-panes-three > .bt-chart-pane:first-child { grid-row: auto; }
+}
