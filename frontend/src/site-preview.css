@@ -398,3 +398,33 @@
 
 .pt-site .pt-btn,.pt-journal .pt-btn{min-height:44px;box-sizing:border-box}
 .pt-site :is(.pt-btn,.button,summary):focus-visible,.pt-journal :is(.pt-btn,input,select,textarea,summary):focus-visible{outline:2px solid var(--pt-focus,var(--pt-ink));outline-offset:3px}
+
+
+/* Header text sits on a dark surface in both page themes. */
+.pt-header {
+  --pt-header-ink: #f4f3eb;
+  color: var(--pt-header-ink);
+}
+.pt-header .pt-mobile-toggle { color: var(--pt-header-ink); }
+
+/* Keep the fill and foreground paired when the page palette changes. */
+.pt-site .pt-study-cta {
+  background: #f4f3eb;
+  color: #173429;
+  border-color: #f4f3eb;
+}
+.pt-site .pt-resume-actions .pt-btn:not(.pt-btn-dark) {
+  color: var(--pt-ink);
+  background: var(--pt-white);
+  border-color: var(--pt-focus);
+}
+.pt-site .pt-resume-actions .pt-btn:not(.pt-btn-dark):is(:hover, :active) {
+  background: var(--pt-lime);
+  color: #10231c;
+  border-color: var(--pt-lime);
+}
+.pt-site .pt-tool-lab .pt-tool-bottom { color: #f4f3eb; }
+:root[data-theme="dark"] .pt-site .pt-tool-lab {
+  border-color: var(--pt-line);
+  color: var(--pt-ink);
+}

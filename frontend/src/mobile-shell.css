@@ -56,7 +56,7 @@ body :is(.button.primary, .pt-btn-dark, button.pj-sidebar-action, .bt-new-sessio
     color: #c0c9bf;
   }
   .pt-header nav .pt-nav-primary { order: -2; }
-  .pt-header nav.is-open .pt-nav-primary { font-weight: 650; color: var(--pt-paper); }
+  .pt-header nav.is-open .pt-nav-primary { font-weight: 650; color: var(--pt-header-ink); }
   .pt-header nav.is-open a[aria-current=page] { color: var(--pt-lime); background: #ffffff10; }
   .pt-header nav.is-open a[aria-current=page]::after { display: none; }
   .pt-header nav.is-open a::before { display: none; }

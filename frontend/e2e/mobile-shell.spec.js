@@ -23,3 +23,24 @@ test("mobile shell serves install assets and keeps one Primax launcher on Mindse
   await launcher.click();
   await expect(page.getByRole("dialog", { name: "Primax", exact: true })).toBeVisible();
 });
+
+test("home actions and mobile navigation keep readable contrast in both themes", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("http://127.0.0.1:8119/");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const cta = page.getByRole("link", { name: "Open Strategy Lab", exact: true });
+    await expect(cta).toHaveCSS("color", "rgb(23, 52, 41)");
+    await expect(cta).toHaveCSS("background-color", "rgb(244, 243, 235)");
+    const resume = page.getByRole("region", { name: "Continue your work" }).getByRole("link", { name: "Review results" });
+    await resume.hover();
+    await expect(resume).toHaveCSS("color", "rgb(16, 35, 28)");
+    await expect(resume).toHaveCSS("background-color", "rgb(211, 230, 175)");
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    const nav = page.getByRole("navigation", { name: "Primus navigation" });
+    for (const name of ["Journal", "Strategy Lab"]) {
+      await expect(nav.getByRole("link", { name, exact: true })).toHaveCSS("color", "rgb(244, 243, 235)");
+    }
+    await page.getByRole("button", { name: "Close navigation" }).click();
+  }
+});
