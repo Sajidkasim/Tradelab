@@ -1,0 +1,70 @@
+:root {
+  --primax-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  --primax-right: calc(20px + env(safe-area-inset-right, 0px));
+}
+html:has([data-primax-fab]) {
+  scroll-padding-bottom: calc(var(--primax-bottom) + 76px);
+}
+#root:has([data-primax-fab]) {
+  padding-bottom: calc(var(--primax-bottom) + 76px);
+}
+#root:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) {
+  padding-bottom: 0;
+}
+[data-primax-fab].pj-aura {
+  bottom: var(--primax-bottom);
+  right: var(--primax-right);
+}
+body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .primax-global {
+  display: none;
+}
+.pj-aura-panel {
+  max-height: calc(100dvh - var(--primax-bottom) - env(safe-area-inset-top, 0px) - 16px);
+}
+body :is(.button.primary, .pt-btn-dark, button.pj-sidebar-action, .bt-new-session) {
+  border-radius: 12px;
+}
+.pt-mobile-nav-divider { display: none; }
+
+@media (display-mode: standalone) {
+  #root {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  }
+  #root:not(:has([data-primax-fab], .bt-layout)) {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .bt-layout { height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 520px) {
+  .pt-header .pt-mobile-toggle { min-width: 44px; min-height: 44px; }
+  .pt-header nav.is-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 10px 18px 16px;
+    max-height: calc(100dvh - 70px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  .pt-header nav.is-open :is(a, .pt-mobile-workspace) {
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: #c0c9bf;
+  }
+  .pt-header nav .pt-nav-primary { order: -2; }
+  .pt-header nav.is-open .pt-nav-primary { font-weight: 650; color: var(--pt-paper); }
+  .pt-header nav.is-open a[aria-current=page] { color: var(--pt-lime); background: #ffffff10; }
+  .pt-header nav.is-open a[aria-current=page]::after { display: none; }
+  .pt-header nav.is-open a::before { display: none; }
+  .pt-mobile-nav-divider {
+    display: block;
+    order: -1;
+    border: 0;
+    border-top: 1px solid #ffffff22;
+    margin: 6px 12px;
+  }
+}

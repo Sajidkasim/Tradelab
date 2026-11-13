@@ -8,6 +8,8 @@ import "./styles.css";
 import "./responsive.css";
 import "./lab-preview.css";
 import "./workspace-theme.css";
+import "./mobile-shell.css";
+
 
 class ErrorBoundary extends React.Component {
   state = { failed: false };

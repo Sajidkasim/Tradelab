@@ -1066,6 +1066,16 @@ def create_app(config: Settings | None = None):
     if (config.assets / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=config.assets / "assets"), name="assets")
 
+    if (config.assets / "pwa").is_dir():
+        app.mount("/pwa", StaticFiles(directory=config.assets / "pwa"), name="pwa")
+
+    @app.get("/manifest.json", include_in_schema=False)
+    def web_manifest():
+        manifest = config.assets / "manifest.json"
+        if not manifest.is_file():
+            raise HTTPException(404)
+        return FileResponse(manifest, media_type="application/manifest+json")
+
     @app.get("/{path:path}")
     def frontend(path: str):
         if path.startswith(("api/", "auth/")) or path == "team":

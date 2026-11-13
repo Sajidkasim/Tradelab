@@ -6,9 +6,17 @@ The browser receives a projection but only displays snapshots at its replay cloc
 """
 from copy import deepcopy
 import math
+from core.models import Instrument
 from core.instruments import instrument_map, round_to_tick
 
 INSTRUMENTS = {k:v for k,v in instrument_map().items() if k in ('MNQ','NQ','MES','ES')}
+
+# Practice lot sizes. All three instruments are quoted in USD.
+INSTRUMENTS.update({
+    'EURUSD': Instrument('EURUSD', 'Euro / US Dollar · 1,000 EUR', 1000, .00001),
+    'GBPUSD': Instrument('GBPUSD', 'British Pound / US Dollar · 1,000 GBP', 1000, .00001),
+    'XAUUSD': Instrument('XAUUSD', 'Gold / US Dollar · 1 oz', 1, .001),
+})
 
 def validate_order(order, reference, spec, *, open_position=False):
     if order.get('side') not in ('buy','sell') or order.get('type') not in ('market','limit','stop'):

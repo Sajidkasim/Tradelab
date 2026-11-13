@@ -108,7 +108,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       if (!alive) return;
       const current = selection.current;
       const subscribers=new Set();
-      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(ticker.startsWith('NQ')?'NQ':'ES',String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
+      const source={getBars:async(ticker,tf)=>{try{return await historyFeed.current.initial(Object.keys(replayRead.current.markets).find(root=>replayRead.current.markets[root].contract===ticker.replace(/^practice:/,''))||selection.current.symbol,String(tf))}catch(error){if(alive&&error.name!=='AbortError')setError(error.message);throw error}},subscribe:(_ticker,_tf,cb)=>{subscribers.add(cb);return()=>subscribers.delete(cb)}};
       feed.current=subscribers;
       chart = new Vela(host.current, {
         symbol: `practice:${sample.markets[current.symbol].contract}`, timeframe: current.timeframe,
@@ -306,7 +306,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     {selected&&toolbarHost&&createPortal(<header className="bt-toolbar" aria-label="Chart controls">
       <a href="/backtesting" className="bt-back" aria-label="Back to sessions" title="Save & back to sessions" onClick={e=>{e.preventDefault();setPlaying(false);saveLayout().then(saveOtherLayout).then(onSessionBack).catch(()=>{})}}><ArrowLeft size={19}/><span>Back</span></a>
       <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={21}/><span>PRIMUS · BETA</span></a>
-      <div className="bt-market"><Select label="Market" values={['NQ','ES']} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>
+      <div className="bt-market">{session.price_source && <small>{session.price_source}</small>}<Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>
       <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
         {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>

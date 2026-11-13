@@ -105,7 +105,7 @@ export default function FloatingAura({day, account, dirty}) {
     requestAnimationFrame(() => button.current?.focus());
   }
 
-  return <div className="pj-aura" data-open={open} onKeyDown={event => {
+  return <div className="pj-aura" data-primax-fab data-open={open} onKeyDown={event => {
     if (open && event.key === 'Escape') {
       event.stopPropagation();
       close();

@@ -3,6 +3,7 @@ import {createPortal} from 'react-dom';
 import {ArrowUp, AudioLines, Sparkles, Square} from 'lucide-react';
 import {Modal} from './components';
 import {api} from './api';
+import './mindset-warmup.css';
 
 function AuraChat({onClose}) {
   const [draft, setDraft] = useState('');
@@ -166,13 +167,17 @@ function AuraChat({onClose}) {
 
 export default function AuraCheckIn() {
   const [open, setOpen] = useState(false);
-  return <section className="wp-panel mw-card mw-aura-card" aria-labelledby="morning-check-in">
-    <h2 id="morning-check-in">Primax</h2>
-    <div className="mw-aura-orb-stage">
-      <button type="button" className="aura-orb mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Primax" title="Ask Primax">
-        <Sparkles size={32} strokeWidth={1.65} aria-hidden="true"/><span>Primax</span>
-      </button>
-    </div>
-    {open && createPortal(<AuraChat onClose={() => setOpen(false)}/>, document.body)}
-  </section>;
+  const trigger = useRef(null);
+  function close() {
+    setOpen(false);
+    requestAnimationFrame(() => trigger.current?.focus());
+  }
+
+  return <div className="pj-aura primax-global" data-primax-fab>
+    <button ref={trigger} type="button" className="aura-orb pj-aura-orb"
+      hidden={open} onClick={() => setOpen(true)} aria-label="Ask Primax" aria-haspopup="dialog">
+      <Sparkles size={19} strokeWidth={1.65} aria-hidden="true"/><span>Primax</span>
+    </button>
+    {open && createPortal(<AuraChat onClose={close}/>, document.body)}
+  </div>;
 }

@@ -6,11 +6,13 @@ import WorkspaceResume from './WorkspaceResume';
 import PrimusSignIn from './PrimusSignIn';
 import BetaBadge from './BetaBadge';
 import MatrixLoading from './MatrixLoading';
+import AuraCheckIn from './AuraCheckIn';
 import JournalPage from './JournalPage';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
 import './site-preview.css';
 import './workspace-pages.css';
+import {useIdentity} from './WorkspacePages';
 import {useBullpen} from './hooks/usePresence';
 
 export const localSitePreview = () => document.querySelector('meta[name="primus-site-preview"]')?.content === 'true';
@@ -37,10 +39,11 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
   return <><header className={`pt-header ${actions ? "has-tools" : ""}`}>
     <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={29} strokeWidth={1.2}/><span>PRIMUS<span>TRADER</span></span></a>
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
-    <nav className={open?'is-open':''} aria-label="Primus navigation">
+    <nav onKeyDown={event=>{if(event.key==='Escape'){setOpen(false);event.currentTarget.previousElementSibling?.focus()}}} className={open?'is-open':''} aria-label="Primus navigation">
+      <a className="pt-nav-primary" href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
+      <a className="pt-nav-primary" href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
+      <hr className="pt-mobile-nav-divider" />
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
-      <a href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
-      <a href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting <BetaBadge/></a>}
       <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn <BetaBadge/> {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
       <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix <BetaBadge/></a>
@@ -147,8 +150,13 @@ function HomePage(){
 }
 function ArrowDownSmall(){return <ChevronDown size={13}/>}
 
+function SitePrimax() {
+  const {identity}=useIdentity();
+  return identity?.authenticated ? <AuraCheckIn/> : null;
+}
+
 export default function SiteExperience(){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{location.pathname==='/signin'?<PrimusSignIn/>:['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{!['/signin','/journal','/journal/'].includes(location.pathname)&&<SitePrimax/>}{location.pathname==='/signin'?<PrimusSignIn/>:['/learn','/market-lab','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/market-lab'?<MarketLabPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

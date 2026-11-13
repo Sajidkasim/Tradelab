@@ -1619,3 +1619,27 @@ User explicitly confirmed ProjectX data use is allowed and requested enabling it
 Local .env now enables JOURNAL_REPLAY_PROJECTX_APPROVED for owner only; no shared
 workspace access or deployment authorised. This is user-confirmed permission,
 not an independent licence audit. Secrets remain ignored and undisplayed.
+
+### Local Dukascopy Backtesting
+
+EURUSD, GBPUSD and XAUUSD use a separate private SQLite archive. Export
+one-minute **bid** OHLCV in UTC/GMT from Dukascopy Historical Data Export,
+then run the following for each symbol with its own export files:
+
+```sh
+.venv/bin/python tools/import_dukascopy_replay.py EURUSD /path/to/EURUSD*.csv
+```
+
+A successful import prints the actual first and last UTC dates. The market
+appears in New backtesting session when the archive contains candles for it.
+Existing prices are immutable, duplicate imports are safe, and a conflicting
+candle rolls back the import. Spot practice uses 1,000 base-currency units
+per EURUSD/GBPUSD lot and one troy ounce per XAUUSD lot. The single bid feed
+is a reference for simulated fills. It does not model a bid/ask spread.
+
+The direct minute feed returned HTTP 429 from the development machine.
+The official browser widget supplied real one-minute bid candles for all
+three symbols on 2026-11-13 (partial UTC day). All three charts were opened
+in the local preview. The full backfill remains pending. The archive is local-only.
+Dukascopy documents a separate AWS Requester Pays bulk export route. Check
+fees and obtain applicable data display rights before hosting these prices.

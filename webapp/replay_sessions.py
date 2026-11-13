@@ -19,7 +19,7 @@ from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from services.replay_engine import project, INSTRUMENTS
 from .schemas import CustomSelections
-from . import custom_trade_fields
+from . import custom_trade_fields, spot_replay
 
 ROOT=Path(__file__).resolve().parents[1]/'data/private'
 INDEX='primus_replay_sessions'
@@ -43,7 +43,7 @@ class SessionInput(BaseModel):
     name:str=Field(default='',max_length=80)
     day:date
     start_time:str=Field(default='13:30',pattern=r'^(?:[01]\d|2[0-3]):[0-5]\d$')
-    instrument:Literal['MNQ','NQ','MES','ES']='MNQ'
+    instrument:Literal['MNQ','NQ','MES','ES','EURUSD','GBPUSD','XAUUSD']='MNQ'
     capital:float=Field(default=50000,gt=0,le=1000000000)
     commission:float=Field(default=0.5,ge=0,le=100)
     slippage:int=Field(default=0,ge=0,le=20,strict=True)
@@ -86,7 +86,7 @@ class ActionInput(ProgressInput):
     event_id:UUID
     order:OrderInput|None=None
 
-def _root(instrument):return 'NQ' if instrument in ('MNQ','NQ') else 'ES'
+def _root(instrument):return 'NQ' if instrument in ('MNQ','NQ') else 'ES' if instrument in ('MES','ES') else instrument
 def _key(sid):
     try:return PREFIX+str(UUID(sid))
     except (ValueError,TypeError):raise HTTPException(404,'Session not found.') from None
@@ -225,7 +225,14 @@ def mount(app,config,workspace):
         return Archive(json.loads(path.read_text()),app.state.image_storage.client,config.r2_bucket)
     def available_manifest():
         return archive().manifest if archive() else json.loads(Path(config.replay_manifest).read_text())
-    def history(day):
+    def spot_path():
+        return ROOT / spot_replay.FILENAME
+
+    def history(day, root=None):
+        if root in spot_replay.SYMBOLS:
+            if not config.local:
+                raise ValueError('Dukascopy replay is available in the local workspace.')
+            return spot_replay.history(spot_path(), root, day)
         if config.local:return load_history(day)
         if archive():return archive().execution_history(day) if COMPACT_WIRE.get() else archive().history(day)
         manifest=json.loads(Path(config.replay_manifest).read_text())
@@ -286,11 +293,19 @@ def mount(app,config,workspace):
         cacheable=not config.local or (index.is_file() and index.stat().st_size>1024)
         stamp=index.stat().st_mtime_ns if index.is_file() else 0
         identity=(record['day'],record['data_digest'],record.get('extended'),tuple((p['day'],p['digest']) for p in record.get('continuation_days',[])),stamp,COMPACT_WIRE.get())
+        if record['root'] in spot_replay.SYMBOLS:
+            index=spot_path()
+            identity=(*identity,record['root'],index.stat().st_mtime_ns if index.is_file() else 0)
         cached=price_cache.get(identity) if cacheable else None
         if cached is not None:return cached
         try:
             old=ROOT/'replay-history'/f"{record['day']}.json"
-            data,digest=(_read(str(old),old.stat().st_mtime_ns) if config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest'] else (history if record.get('extended') else load_sample)(record['day']))
+            if record['root'] in spot_replay.SYMBOLS:
+                data,digest=history(record['day'],record['root'])
+            elif config.local and record.get('extended') and old.is_file() and sha256(old.read_bytes()).hexdigest()==record['data_digest']:
+                data,digest=_read(str(old),old.stat().st_mtime_ns)
+            else:
+                data,digest=(history if record.get('extended') else load_sample)(record['day'])
         except (ValueError,OSError):raise HTTPException(422,'The saved candle file is unavailable. Restore the local data before reopening this session.') from None
         if digest!=record['data_digest'] and not config.local:
             legacy=json.loads(Path(config.replay_manifest).read_text())['days'].get(record['day'])
@@ -300,7 +315,7 @@ def mount(app,config,workspace):
         if record.get('continuation_days'):
             data={**data,'markets':{root:{**market,'bars':list(market['bars'])} for root,market in data['markets'].items()}}
             for segment in record['continuation_days']:
-                extra,signature=history(segment['day'])
+                extra,signature=history(segment['day'], record['root'])
                 if signature!=segment['digest']:raise HTTPException(409,'Saved continuation candles changed. Restore the original data.')
                 for root,market in data['markets'].items():
                     market['bars'].extend(extra['markets'][root]['bars'])
@@ -316,7 +331,9 @@ def mount(app,config,workspace):
         if record['spec'].get('close_at_end',True):return None
         last=record.get('continuation_days',[{'day':record['day']}])[-1]['day']
         index=ROOT/'replay-index.db'
-        if config.local:
+        if record['root'] in spot_replay.SYMBOLS:
+            available=spot_replay.coverage(spot_path(), record['root'])
+        elif config.local:
             available=indexed_dates(str(index),index.stat().st_mtime_ns) if index.is_file() else []
         else:available=sorted(available_manifest()['days'])
         following=next((day for day in available if day>last),None)
@@ -345,6 +362,7 @@ def mount(app,config,workspace):
             data={**data,'chart_context_version':2 if context.get('ny_four_hour') else 1,'markets':{root:{**market,**({'four_hour_history_ny':context['markets'][root]['four_hour_history_ny']} if context.get('ny_four_hour') else {'four_hour_history':context['markets'][root]['four_hour_history']})} for root,market in data['markets'].items()}}
         safe={k:v for k,v in record.items() if k not in ('data_digest','commands','summary')}
         safe['next_day']=next_day(record)
+        if record['root'] in spot_replay.SYMBOLS:safe['price_source']='Dukascopy bid'
         safe['tick_size']=INSTRUMENTS[record['instrument']].tick_size
         safe['multiplier']=INSTRUMENTS[record['instrument']].multiplier
         wire_plan={**plan,'frames':plan['frames'].wire() if COMPACT_WIRE.get() else list(plan['frames'])} if include_projection else None
@@ -363,6 +381,15 @@ def mount(app,config,workspace):
                 row=db.get_setting(_key(sid))
                 if row:(deleted if row.get('deleted') else active).append(row['summary'])
             available=catalog()
+            if config.local:
+                for symbol in spot_replay.SYMBOLS:
+                    imported=spot_replay.coverage(spot_path(),symbol)
+                    if imported:
+                        available['instruments'].append({
+                            'symbol':symbol, 'name':INSTRUMENTS[symbol].name, 'commission':0,
+                            'first_day':imported[0], 'last_day':imported[-1], 'provider':'Dukascopy bid',
+                            'default_start':spot_replay.start_time(spot_path(),symbol,imported[-1]),
+                        })
             if not config.local:
                 days=sorted(available_manifest()['days'])
                 if days:available.update(first_day=days[0],last_day=days[-1],sample_day=next((d for d in reversed(days) if date.fromisoformat(d).weekday()<5),days[-1]),available_days=days,**({'indexed_days':len(days)} if archive() else {}))
@@ -371,8 +398,8 @@ def mount(app,config,workspace):
     def create(payload:SessionInput,member=Depends(workspace)):
         local_only()
         try:
-            data,digest=history(payload.day.isoformat())
-            root=_root(payload.instrument);bars=data['markets'][root]['bars']
+            root=_root(payload.instrument)
+            data,digest=history(payload.day.isoformat(),root);bars=data['markets'][root]['bars']
             stamp=int(datetime.fromisoformat(f'{payload.day}T{payload.start_time}:00+00:00').timestamp()*1000)
             eligible=[i for i,b in enumerate(bars) if b['time']+60000<=stamp]
             if not eligible:raise ValueError('Choose a start time after the first available candle closes, or another date.')
@@ -508,12 +535,12 @@ def mount(app,config,workspace):
                 record=deepcopy(record);combined=checked_data(record)
                 state=projection(record,combined)['frames'][payload.cursor-record['spec']['start_cursor']]
                 previous=record.get('continuation_days',[])
-                last_data=history(previous[-1]['day'])[0] if previous else combined
+                last_data=history(previous[-1]['day'],record['root'])[0] if previous else combined
                 added=0
                 for _ in range(payload.days):
                     day=next_day(record)
                     if not day:break
-                    extra,digest=history(day)
+                    extra,digest=history(day,record['root'])
                     if (state['position'] or state['order']) and contract_roll_required(record['root'],last_data['markets'][record['root']]['contract'],extra['markets'][record['root']]['contract']):
                         if added:break
                         raise ValueError('The next date changes futures contract. Close this position before starting a session in the new contract.')
@@ -572,7 +599,7 @@ def mount(app,config,workspace):
             app.state.workspaces.bump(member['key']);return result
 
     @app.get('/api/backtesting/sessions/{sid}/chart-history')
-    def chart_history(sid:str,root:Literal['NQ','ES'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
+    def chart_history(sid:str,root:Literal['NQ','ES','EURUSD','GBPUSD','XAUUSD'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
         local_only()
         if timeframe not in ('1D','1W','1M') and (not timeframe.isdigit() or not 1<=int(timeframe)<=720):raise HTTPException(422,'Unsupported timeframe.')
         if not 1<=limit<=1000:raise HTTPException(422,'Choose a page size between 1 and 1000.')
@@ -581,10 +608,14 @@ def mount(app,config,workspace):
             record=get_record(database(member),sid)
             if not record['spec']['start_cursor']<=cursor<=record['last_cursor']:raise HTTPException(422,'Invalid replay cursor.')
             data=checked_data(record)
+            if root not in data['markets']:
+                raise HTTPException(422,'This market is not available in the session.')
             cutoff=data['markets'][record['root']]['bars'][cursor]['time']
         edge=min(before if before is not None else cutoff+1,cutoff+1)
         index=ROOT/'replay-index.db'
         try:
+            if root in spot_replay.SYMBOLS:
+                return spot_replay.window(spot_path(),root,timeframe,edge,cutoff,limit,after)
             if config.local and index.is_file():
                 from .replay_chart_windows import window
                 return window(str(index),index.stat().st_mtime_ns,root,timeframe,edge,cutoff,limit,after)
