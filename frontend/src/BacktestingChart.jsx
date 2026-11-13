@@ -306,7 +306,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     {selected&&toolbarHost&&createPortal(<header className="bt-toolbar" aria-label="Chart controls">
       <a href="/backtesting" className="bt-back" aria-label="Back to sessions" title="Save & back to sessions" onClick={e=>{e.preventDefault();setPlaying(false);saveLayout().then(saveOtherLayout).then(onSessionBack).catch(()=>{})}}><ArrowLeft size={19}/><span>Back</span></a>
       <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={21}/><span>PRIMUS · BETA</span></a>
-      <div className="bt-market">{session.price_source && <small>{session.price_source}</small>}<Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>
+      {Object.keys(sample.markets).length>1 && <div className="bt-market"><Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>}
       <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
         {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>

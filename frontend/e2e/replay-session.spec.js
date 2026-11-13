@@ -385,7 +385,7 @@ test('delete all drawings confirms once and preserves the simulated position and
 test('selected and all sessions can be permanently deleted with exact confirmation',async({page})=>{
  await page.goto('http://127.0.0.1:8119/backtesting');
  await expect(page.getByRole('heading',{name:'Your practice desk.'})).toBeVisible();
- await expect(page.locator('.bt-data-status')).toContainText('Historical data');
+ await expect(page.getByText('Historical data', {exact:true})).toHaveCount(0);
  await expect(page.locator('.bt-sessions-heading').getByRole('button')).toHaveCount(1);
  await expect(page.locator('.bt-sessions-footer').getByRole('button',{name:'Give feedback'})).toBeVisible();
  for (const name of ['Purge preview','Purge remaining']) {
