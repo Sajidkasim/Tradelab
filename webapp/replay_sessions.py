@@ -636,7 +636,7 @@ def mount(app,config,workspace):
             app.state.workspaces.bump(member['key']);return result
 
     @app.get('/api/backtesting/sessions/{sid}/chart-history')
-    def chart_history(sid:str,root:Literal['NQ','ES','EURUSD','GBPUSD','XAUUSD','QQQ'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,member=Depends(workspace)):
+    def chart_history(sid:str,root:Literal['NQ','ES','EURUSD','GBPUSD','XAUUSD','QQQ'],timeframe:str,cursor:int,before:int|None=None,after:int|None=None,limit:int=750,hours:Literal['rth','extended']='extended',member=Depends(workspace)):
         local_only()
         if timeframe not in ('1D','1W','1M') and (not timeframe.isdigit() or not 1<=int(timeframe)<=720):raise HTTPException(422,'Unsupported timeframe.')
         if not 1<=limit<=1000:raise HTTPException(422,'Choose a page size between 1 and 1000.')
@@ -652,6 +652,9 @@ def mount(app,config,workspace):
         index=ROOT/'replay-index.db'
         try:
             if root == 'QQQ':
+                if hours == 'rth':
+                    from .qqq_sessions import regular_window
+                    return regular_window(qqq_path(),timeframe,edge,cutoff,limit,after)
                 return spot_replay.window(qqq_path(),root,timeframe,edge,cutoff,limit,after)
             if root in spot_replay.SYMBOLS:
                 return spot_replay.window(spot_path(),root,timeframe,edge,cutoff,limit,after)

@@ -4,7 +4,7 @@ import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
 import ReplayCanvasTools from './ReplayCanvasTools';
-import {captureReplayView,restoreReplayView,installFreeReplayNavigation} from './replayViewport';
+import {captureReplayView,restoreReplayView,installFreeReplayNavigation,replaceReplayHistory} from './replayViewport';
 import DrawingFavoritesBar,{toolNames} from './DrawingFavoritesBar';
 import Feedback from './Feedback';
 import {indicatorVisible,intervalChoices,visibilityController} from './replayPreferences';
@@ -42,6 +42,8 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   const closeDrawingMenu=useCallback(()=>setDrawingMenu(null),[]);
   const openDrawingEditor=useCallback((id,tab,template)=>setDrawingEditor({id,tab,template}),[]);
   const symbol=paneState.symbol,timeframe=paneState.timeframe;
+  const qqqHours=paneState.qqqHours==='extended'?'extended':'rth';
+  const renderedHours=useRef(qqqHours);
   const setSymbol=value=>{failedMarket.current=null;historyFeed.current?.cancel();onPaneChange(paneId,{symbol:value})};
   const setTimeframe=value=>{failedMarket.current=null;historyFeed.current?.cancel();onPaneChange(paneId,{timeframe:value})};
   const groupRef=useRef(chartGroup);groupRef.current=chartGroup;
@@ -86,9 +88,9 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   const selection = useRef({symbol, timeframe, theme, replayTime});
   selection.current = {symbol, timeframe, theme, replayTime};
   const [historyStatus,setHistoryStatus]=useState(null);
-  const replayRead=useRef(null);replayRead.current={cursor,time:replayTime,markets:sample.markets};
+  const replayRead=useRef(null);replayRead.current={cursor,time:replayTime,markets:sample.markets,qqqHours};
   const historyFeed=useRef(null);if(!historyFeed.current)historyFeed.current=new ReplayHistoryFeed(session.id,()=>replayRead.current,value=>setHistoryStatus({...value}));
-  const bars = useMemo(() => historyFeed.current.view(symbol,timeframe)||[], [sample,symbol,timeframe,replayTime,ready,marketVersion,historyStatus]);
+  const bars = useMemo(() => historyFeed.current.view(symbol,timeframe)||[], [sample,symbol,timeframe,qqqHours,replayTime,ready,marketVersion,historyStatus]);
   const edgeTimer=useRef(null),edgeBusy=useRef(false),edgeNavigation=useRef(0);
   const market = sample?.markets[symbol];
   const timeframeName = timeframeLabel(timeframe);
@@ -176,6 +178,25 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     const chart = chartRef.current;
     if (!ready || !chart || !market) return;
     if(marketRequest.current)return;
+    if(symbol==='QQQ'&&chart.market.symbol==='practice:QQQ'&&renderedHours.current!==qqqHours){
+      const key='QQQ|'+qqqHours;
+      if(failedMarket.current===key)return;
+      marketRequest.current={symbol,timeframe};
+      historyFeed.current.anchor=null;
+      setBusy(true);setError('');
+      marketSettled.current=historyFeed.current.initial(symbol,timeframe).then(series=>{
+        if(chartRef.current!==chart||replayRead.current.qqqHours!==qqqHours)return;
+        replaceReplayHistory(chart,series);
+        lastRendered.current=series;
+        renderedHours.current=qqqHours;
+      }).catch(error=>{
+        if(error.name!=='AbortError'&&chartRef.current===chart){failedMarket.current=key;setError(error.message)}
+      }).finally(()=>{
+        marketRequest.current=null;
+        if(chartRef.current===chart){setBusy(false);setMarketVersion(value=>value+1)}
+      });
+      return;
+    }
     if (chart.market.symbol === `practice:${market.contract}` && chart.market.timeframe === timeframe && lastRendered.current===bars) return;
     const previousSymbol = chart.market.symbol;
     const wanted=`practice:${market.contract}`;
@@ -204,16 +225,16 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     marketRequest.current={symbol:wanted,timeframe};
     const switchStarted=performance.now();
     marketSettled.current=historyFeed.current.initial(symbol,timeframe).then(()=>{if(selection.current.symbol!==symbol||selection.current.timeframe!==timeframe)return;drawingGeometry.current?.trace?.('before');return chart.setMarket({symbol:wanted,timeframe})}).then(()=>{
-      if(chartRef.current===chart&&selection.current.symbol===symbol&&selection.current.timeframe===timeframe){restoreReplayView(chart,snapshot);drawingGeometry.current?.trace?.('after');lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];setBusy(false);syncStudies()}
+      if(chartRef.current===chart&&selection.current.symbol===symbol&&selection.current.timeframe===timeframe){restoreReplayView(chart,snapshot);drawingGeometry.current?.trace?.('after');lastRendered.current=historyFeed.current.view(symbol,timeframe)||[];renderedHours.current=qqqHours;setBusy(false);syncStudies()}
     }).catch(e=>{if(chartRef.current===chart&&e.name!=='AbortError'){failedMarket.current=wanted+'|'+timeframe;setError(e.message);setBusy(false)}}).finally(()=>{recordTiming('switch:'+timeframe,switchStarted);marketRequest.current=null;if(chartRef.current===chart)setMarketVersion(value=>value+1)});
-  }, [ready, market, timeframe, bars, syncStudies, follow,marketVersion]);
+  }, [ready, market, symbol, timeframe, qqqHours, bars, syncStudies, follow,marketVersion]);
 
   useEffect(()=>{if(!busy&&(ready||error))reportReady(paneId)},[ready,busy,error,paneId,reportReady]);
 
   useEffect(()=>{if(!ready||busy||secondary||paneCount>2)return;const timer=setTimeout(()=>historyFeed.current.prefetch(symbol),250);return()=>clearTimeout(timer)},[ready,busy,symbol,secondary,paneCount]);
 
   async function loadEdge(chart){
-    if(edgeBusy.current||chartRef.current!==chart)return;
+    if(edgeBusy.current||marketRequest.current||chartRef.current!==chart)return;
     const selected=selection.current,slot=historyFeed.current.slot(selected.symbol,selected.timeframe);
     if(!slot?.bars.length)return;
     const range=captureReplayView(chart);if(!range)return;
@@ -267,7 +288,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     layoutDirty.current=false;const started=performance.now();
     drawings.current[chart.market.symbol]=chart.drawings.toJSON();
     const native=chart.renderer.renderer;
-    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,clockZone,watermark,minuteWatermarks,shortcuts,sessionRanges:sessionRangeOptions,clockDisplayVersion:2,drawings:drawings.current,favoriteBarPosition:favoriteBarPosition.current,drawingFavorites:layout.drawingFavorites||[],drawingToolFavorites:chart.drawings.favorites(),drawingTemplates:chart.drawings.toolTemplates(),drawingDefaults:chart.drawings.toolDefaults(),config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType&&h.nativeType!=='volume').map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:visibility.current.rules.get(h.id)?.visible??h.visible,maximum:visibility.current.rules.get(h.id)?.maximum||''})),...patch};
+    const value={chartGroup:groupRef.current,chartContextVersion:sample.chart_context_version||0,split:twoCharts,symbol,timeframe,qqqHours,clockZone,watermark,minuteWatermarks,shortcuts,sessionRanges:sessionRangeOptions,clockDisplayVersion:2,drawings:drawings.current,favoriteBarPosition:favoriteBarPosition.current,drawingFavorites:layout.drawingFavorites||[],drawingToolFavorites:chart.drawings.favorites(),drawingTemplates:chart.drawings.toolTemplates(),drawingDefaults:chart.drawings.toolDefaults(),config:chart.renderer.getConfig(),viewport:native?.coords?.getViewport?.(),priceScale:native?.scene?.panes?.get('price')?.manualScale,studies:chart.indicators().filter(h=>h.nativeType&&h.nativeType!=='volume').map(h=>({type:h.nativeType,inputs:h.inputValues(),visible:visibility.current.rules.get(h.id)?.visible??h.visible,maximum:visibility.current.rules.get(h.id)?.maximum||''})),...patch};
     const encoded=JSON.stringify(value);recordTiming('drawings:layout-snapshot',started);if(encoded===lastLayout.current)return layoutQueue.current;
     lastLayout.current=encoded;
     onPaneChange(paneId,{visibleRange:chart.getVisibleRange?.(),drawings:value.drawings,priceScale:value.priceScale,viewport:value.viewport});
@@ -275,7 +296,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   }
   saveCurrent.current=saveLayout;
   useEffect(()=>{registerLayoutSave?.((...args)=>saveCurrent.current(...args));return()=>registerLayoutSave?.(null)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
-  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,paneCount,chartGroup?.splitPercent,chartGroup?.threeWidth,chartGroup?.threeHeight,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
+  useEffect(()=>{dirtyLayout()},[symbol,timeframe,qqqHours,clockZone,twoCharts,paneCount,chartGroup?.splitPercent,chartGroup?.threeWidth,chartGroup?.threeHeight,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
   useEffect(()=>{if(ready&&chartRef.current)visibility.current.apply(chartRef.current,timeframe)},[timeframe,ready]);
   useEffect(()=>{const timer=setInterval(()=>saveCurrent.current?.(false).catch(()=>{}),10000);return()=>clearInterval(timer)},[]);
 
@@ -328,7 +349,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
       {ready&&drawingEditor&&<DrawingActions key={drawingEditor.id} chart={chartRef.current} id={drawingEditor.id}
         initialTab={drawingEditor.tab} initialTemplate={drawingEditor.template} onClose={()=>setDrawingEditor(null)}/>}
       {ready&&!secondary&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
-      {ready&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
+      {ready&&symbol!=='QQQ'&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
       {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span>{failedMarket.current&&<button onClick={()=>{failedMarket.current=null;setError('');setMarketVersion(n=>n+1)}}>Retry chart history</button>}<button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
@@ -336,6 +357,9 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
     {!secondary&&controlsHost&&createPortal(<ReplayTrading journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at,true)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
     <footer className="bt-clock-footer">
       <time dateTime={new Date(replayTime+60000).toISOString()} aria-label="Replay time">{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>
+      {symbol==='QQQ'&&<Select label="QQQ trading session" value={qqqHours} disabled={!ready||busy}
+        values={[{value:'rth',label:'Regular trading hours (RTH)'},{value:'extended',label:'Extended trading hours'}]}
+        onChange={event=>{failedMarket.current=null;historyFeed.current.cancel();onPaneChange(paneId,{qqqHours:event.target.value})}}/>}
       <Select label="Chart timezone" values={REPLAY_ZONES} value={clockZone} onChange={e=>setClockZone(e.target.value)}/>
       {['percent','log'].map(mode=><button key={mode} type="button" disabled={!ready}
         aria-label={mode==='percent'?'Percentage scale':'Logarithmic scale'}

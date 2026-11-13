@@ -28,13 +28,23 @@ export function nyFourHourOpen(time){
  return bucket-(local-Math.floor(time/60000)*60000);
 }
 // Chart session opens at 17:00 New York: 22:00 UTC winter, 21:00 UTC summer.
-function nyEpoch(year,month,day,hour){
- let guess=Date.UTC(year,month,day,hour);
+function nyEpoch(year,month,day,hour,minute=0){
+ let guess=Date.UTC(year,month,day,hour,minute);
  for(let i=0;i<3;i++){
   const p=Object.fromEntries(nyClock.formatToParts(guess).map(x=>[x.type,x.value]));
-  guess+=Date.UTC(year,month,day,hour)-Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute);
+  guess+=Date.UTC(year,month,day,hour,minute)-Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute);
  }
  return guess;
+}
+export function qqqRegularBucket(time,tf){
+ const parts=Object.fromEntries(nyClock.formatToParts(time).map(part=>[part.type,part.value]));
+ const minute=Number(parts.hour)*60+Number(parts.minute);
+ if(parts.weekday==='Sat'||parts.weekday==='Sun'||minute<570||minute>=960)return null;
+ const day=new Date(Date.UTC(+parts.year,+parts.month-1,+parts.day));
+ if(tf==='1W')day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);
+ if(tf==='1M')day.setUTCDate(1);
+ const opened=nyEpoch(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate(),9,30);
+ return /^\d+$/.test(tf)?opened+Math.floor((minute-570)/Number(tf))*Number(tf)*60000:opened;
 }
 export function replayBucketOpen(time,timeframe){
  const tf=String(timeframe);
