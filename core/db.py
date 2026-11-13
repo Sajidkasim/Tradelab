@@ -23,6 +23,7 @@ import sqlalchemy as sa
 from sqlalchemy import (Boolean, Column, DateTime, Float, Integer, MetaData, String, Table, Text,
                         UniqueConstraint, func, select)
 from sqlalchemy.engine import Engine
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.pool import StaticPool
 
 from .instruments import default_instruments
@@ -100,6 +101,7 @@ trades_t = Table(
     Column("rules_followed", Boolean),
     Column("mistake_tags", Text, default="[]"),
     Column("tags", Text, default="[]"),
+    Column("custom_metadata", sa.JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), "postgresql")),
     Column("confidence", Integer),
     Column("emotion", String(40), default=""),
     Column("screenshot_path", Text, default=""),

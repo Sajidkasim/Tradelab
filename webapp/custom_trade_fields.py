@@ -1,4 +1,5 @@
-"""Private Strategy Lab field definitions and values stored with trade tags."""
+"""Workspace field definitions and validation for private trade metadata."""
+import re
 from uuid import uuid4
 
 from core.edge import tag_list
@@ -38,21 +39,23 @@ def remove(database, field_id):
     return True
 
 
-def values(tags):
+def values(tags, metadata=None):
+    if isinstance(metadata, dict):
+        return metadata
     result = {}
     for tag in tag_list(tags):
         if tag.startswith(PREFIX):
             field_id, separator, value = tag[len(PREFIX):].partition(':')
-            if separator and value:
+            if separator and re.fullmatch(r'[a-f0-9]{32}', field_id) and 0 < len(value) <= 80:
                 result.setdefault(field_id, []).append(value)
     return result
 
 
-def write(tags, database, selected):
-    if selected is None:
-        return tags
+def merge(existing, database, selected):
+    if not selected:
+        return existing
     fields = {field['id']: field for field in definitions(database)}
-    updated = []
+    updated = dict(existing)
     for field_id, choices in selected.items():
         field = fields.get(field_id)
         if field is None:
@@ -61,10 +64,11 @@ def write(tags, database, selected):
             raise ValueError(f"Choose a saved option for {field['name']}.")
         if field['type'] == 'dropdown' and len(set(choices)) > 1:
             raise ValueError(f"Choose one option for {field['name']}.")
-        updated.extend(f'{PREFIX}{field_id}:{choice}' for choice in dict.fromkeys(choices))
-    kept = [tag for tag in tags if not (
-        tag.startswith(PREFIX) and tag[len(PREFIX):].partition(':')[0] in selected)]
-    return [*kept, *updated]
+        if choices:
+            updated[field_id] = list(dict.fromkeys(choices))
+        else:
+            updated.pop(field_id, None)
+    return updated
 
 
 def filter_frame(frame, database, selected):
@@ -78,8 +82,8 @@ def filter_frame(frame, database, selected):
     if any(not options.issubset(active[field_id]) for field_id, options in wanted.items()):
         raise ValueError('Choose a saved option for each custom trade field.')
 
-    def matches(tags):
-        recorded = values(tags)
+    def matches(recorded):
         return all(options.intersection(recorded.get(field_id, ())) for field_id, options in wanted.items())
 
-    return frame.loc[frame['tags'].map(matches)]
+    recorded = [values(tags, metadata) for tags, metadata in zip(frame['tags'], frame['custom_metadata'])]
+    return frame.loc[[matches(row) for row in recorded]]

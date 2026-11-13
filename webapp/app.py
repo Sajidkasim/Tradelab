@@ -591,7 +591,7 @@ def create_app(config: Settings | None = None):
         rows = records(frame)
         for row in rows:
             row['study_id'] = research.test_id(row.get('tags'))
-            row['custom_fields'] = custom_trade_fields.values(row.get('tags'))
+            row['custom_fields'] = custom_trade_fields.values(row.get('tags'), row.get('custom_metadata'))
             row.update(trade_review.missing(row))
         return rows
 
@@ -653,7 +653,7 @@ def create_app(config: Settings | None = None):
         values['source'] = Source(values['source'])
         trade = edge.build_trade(instruments=database.instruments(), tags=labels, **values)
         with app.state.workspaces.workspace_lock(member['key']):
-            trade.tags = custom_trade_fields.write(trade.tags, database, payload.custom_fields)
+            trade.custom_metadata = custom_trade_fields.merge({}, database, payload.custom_fields)
             journal_day = payload.journal_day.isoformat() if payload.journal_day else None
             if bool(journal_day) != bool(payload.journal_trade_id):
                 raise ValueError('Choose a saved journal trade and day.')
@@ -691,7 +691,9 @@ def create_app(config: Settings | None = None):
             fields = trade_labels.review_fields(trade, payload.strategy, payload.labels.model_dump(), payload.notes, payload.confirmed)
             if payload.risk_amount is not None and payload.risk_unavailable:
                 raise ValueError('Enter the original risk or mark it unavailable, not both.')
-            fields['tags'] = custom_trade_fields.write(fields['tags'], database, payload.custom_fields)
+            if payload.custom_fields is not None:
+                fields['custom_metadata'] = custom_trade_fields.merge(
+                    custom_trade_fields.values(trade.tags, trade.custom_metadata), database, payload.custom_fields)
             fields.update(trade_review.risk_fields(trade, payload.risk_amount, payload.risk_unavailable))
             if payload.risk_unavailable is not None or payload.risk_amount is not None:
                 fields['tags'] = [tag for tag in fields['tags'] if tag != trade_review.UNAVAILABLE]

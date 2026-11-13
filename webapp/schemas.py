@@ -195,6 +195,7 @@ class TourProgress(StrictModel):
 
 
 class JournalTrade(StrictModel):
+    custom_fields: CustomSelections | None = None
     account_ids: list[Annotated[int, Field(gt=0)]] = Field(default_factory=list, max_length=100)
     account_id: int | None = Field(default=None, gt=0)
     setup_grade: Literal['', 'A+', 'A', 'B'] = ''

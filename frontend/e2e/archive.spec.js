@@ -30,7 +30,7 @@ test('removed labels stay archived, can filter old trades, and restore from sett
     await page.getByRole('button',{name:'My lab',exact:true}).click();
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
     const dialog=page.getByRole('dialog',{name:'Lab settings',exact:true});
-    await dialog.getByRole('button',{name:'Strategies & levels',exact:true}).click();
+    await dialog.getByRole('button',{name:'Maintenance',exact:true}).click();
     await dialog.getByText('Archived key levels · 1',{exact:true}).click();
     await dialog.getByRole('button',{name:'Delete archived Archived level',exact:true}).click();
     await page.getByRole('dialog',{name:'Delete archived choice?'}).getByRole('button',{name:'Delete from archive'}).click();
@@ -38,7 +38,7 @@ test('removed labels stay archived, can filter old trades, and restore from sett
     expect((await(await page.request.get('/api/trades')).json()).find(t=>t.id===tradeId).labels.level).toBe('Archived level');
     await dialog.getByText('Archived strategies · 1',{exact:true}).first().click();
     await dialog.getByRole('button',{name:'Restore Archived setup',exact:true}).click();
-    await dialog.getByRole('button',{name:'Save strategies & levels',exact:true}).click();
+    await dialog.getByRole('button',{name:'Save setup labels',exact:true}).click();
     await expect(dialog).toHaveCount(0);
     expect((await(await page.request.get('/api/metadata')).json()).strategies).toContain('Archived setup');
   } finally {

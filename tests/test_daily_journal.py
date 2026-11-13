@@ -313,3 +313,54 @@ def test_shared_journal_card_counts_combined_result_once(draft):
     invalid = {**card, 'account_ids': [999999]}
     assert client.put(f'/api/journal/{day}', json={'trades': [invalid]}).status_code == 422
     assert client.get('/api/journal').json()[0]['trades'][0]['account_ids'] == accounts
+
+
+def test_custom_fields_follow_journal_trade_into_lab(draft):
+    from tests.test_webapp import trade_payload
+
+    client, app, state = draft
+    login(client, state)
+    response = client.post('/api/lab-settings/custom-fields', json={
+        'name': 'Indicator', 'type': 'dropdown', 'options': ['Present', 'Absent'],
+    })
+    field_id = response.json()['id']
+    choices = {field_id: ['Present']}
+    day = '2026-07-01'
+    record = journal_card()
+    response = client.put(f'/api/journal/{day}', json={'trades': [{**record, 'custom_fields': choices}]})
+    assert response.status_code == 200, response.text
+    assert response.json()['trades'][0]['custom_fields'] == choices
+    assert client.get('/api/trades').json() == []
+
+    response = client.post('/api/trades', json={
+        **trade_payload(), 'journal_day': day, 'journal_trade_id': record['id'], 'custom_fields': choices,
+    })
+    assert response.status_code == 200, response.text
+    linked = response.json()['journal_entry']['trades'][0]
+    assert linked['custom_fields'] == choices
+    response = client.patch(f"/api/trades/{linked['lab_trade_id']}", json={
+        'strategy': 'Reversal', 'labels': {}, 'custom_fields': {field_id: ['Absent']},
+    })
+    assert response.status_code == 200, response.text
+    entry = next(row for row in client.get('/api/journal').json() if row['day'] == day)
+    assert entry['trades'][0]['custom_fields'] == {field_id: ['Absent']}
+
+
+def test_custom_field_definitions_are_private(draft):
+    from tests.test_webapp import trade_payload
+
+    client, _, state = draft
+    login(client, state)
+    response = client.post('/api/lab-settings/custom-fields', json={
+        'name': 'Private indicator', 'type': 'dropdown', 'options': ['Present'],
+    })
+    assert response.status_code == 201, response.text
+    field_id = response.json()['id']
+
+    client.cookies.clear()
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert client.get('/api/metadata').json()['custom_trade_fields'] == []
+    assert client.delete(f'/api/lab-settings/custom-fields/{field_id}').status_code == 404
+    response = client.post('/api/trades', json={**trade_payload(), 'custom_fields': {field_id: ['Present']}})
+    assert response.status_code == 422
+    assert client.get('/api/trades').json() == []

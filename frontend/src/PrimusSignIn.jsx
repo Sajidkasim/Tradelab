@@ -46,7 +46,7 @@ export default function PrimusSignIn(){
 
 export function WorkspaceEntrance({workspace='home',session,ready=true,onUnlocked,returnTo}){
  const content=entrances[workspace]||entrances.home;
- const destination=returnTo||content.destination;
+ const destination=returnTo??content.destination;
  const [error,setError]=useState(()=>new URLSearchParams(location.search).get('login')==='blocked'?'Access is blocked. Please contact the owner.':new URLSearchParams(location.search).get('login')==='retry'?'Sign-in was not completed. Please try again.':''),[busy,setBusy]=useState(false),[password,setPassword]=useState(''),[visible,setVisible]=useState(false);
  async function submit(e){e.preventDefault();if(busy||!ready||!session?.csrf)return;setBusy(true);setError('');try{
   if(session.auth_mode==='google'){const result=await api('/login/google?return_to='+encodeURIComponent(destination),{method:'POST'});location.assign(result.url);return}

@@ -1,4 +1,5 @@
 import {AccountSelector,tradeAccountIds} from './JournalReview';
+import CustomTradeFields from "./CustomTradeFields";
 import React, {useRef,useState} from 'react';
 import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical} from 'lucide-react';
 import {Select} from './components';
@@ -102,6 +103,11 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
           <p>Key level timeframe is where you found the level; entry timeframe is where you entered. Enter a loss with a minus sign. A recorded result sets Win, Loss or Break-even when saved.</p>
         </details>
         <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><p>Tick what you saw at entry.</p><div>{Array.from(new Set([...(meta?.confirmations||[]),...(trade.confirmations||[])])).map(value=><label key={value}><input type="checkbox" checked={(trade.confirmations||[]).includes(value)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'confirmations',e.target.checked?[...(trade.confirmations||[]),value]:(trade.confirmations||[]).filter(item=>item!==value))}/>{value}</label>)}</div></fieldset>
+        {Boolean(meta?.custom_trade_fields?.length) && <div className="pj-trade-fields">
+          <CustomTradeFields definitions={meta.custom_trade_fields} value={trade.custom_fields || {}}
+            disabled={busy || Boolean(trade.lab_trade_id)}
+            onChange={(value) => onChange(trade.id, 'custom_fields', value)} />
+        </div>}
         <label className="pj-field">Trade notes<textarea aria-label="Trade notes" maxLength={6000} placeholder="Why I entered, how I managed it, and what happened…" value={trade.notes} disabled={busy} onChange={e=>onChange(trade.id,'notes',e.target.value)}/></label>
         <JournalScreenshots images={entry.images.filter(i=>i.trade_id===trade.id)} allImages={entry.images} day={entry.day} busy={busy} onUpload={file=>onUpload(file,trade.id)} onRemove={onRemoveImage} onView={onView} label={`Upload screenshot for trade ${index+1}`} canUpload={canUpload}/>
         <div className="pj-trade-actions">{trade.lab_trade_id&&<ReplayButton reference={`lab-${trade.lab_trade_id}`} notes={trade.notes}/>}<button type="button" className="pj-remove" disabled={busy} onClick={()=>onRemove(trade.id)}><Trash2 size={15}/> Remove card</button><div>{trade.lab_trade_id?<><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={()=>onLink(trade)}>Change link</button></>:<><button type="button" className="pj-link" disabled={busy||multi} onClick={()=>onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy||multi||!trade.symbol||!trade.direction||!trade.strategy.trim()} onClick={()=>onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div></div>

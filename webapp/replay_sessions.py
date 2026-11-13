@@ -18,6 +18,8 @@ from uuid import UUID, uuid4
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field, ConfigDict
 from services.replay_engine import project, INSTRUMENTS
+from .schemas import CustomSelections
+from . import custom_trade_fields
 
 ROOT=Path(__file__).resolve().parents[1]/'data/private'
 INDEX='primus_replay_sessions'
@@ -161,7 +163,12 @@ class DrawingTemplateInput(DrawingTemplateName):
 class TicketPreviewInput(ProgressInput):
     price:float=Field(gt=0,allow_inf_nan=False)
 
+from .schemas import CustomSelections
+from . import custom_trade_fields
+
+
 class JournalInput(BaseModel):
+    custom_fields: CustomSelections | None = None
     strategy:str=Field(default='',max_length=120)
     level:str=Field(default='',max_length=120)
     timeframe:str=Field(default='',max_length=120)
@@ -592,5 +599,12 @@ def mount(app,config,workspace):
     def journal(sid:str,payload:JournalInput,member=Depends(workspace)):
         local_only()
         with app.state.workspaces.workspace_lock(member['key']):
-            db=database(member);get_record(db,sid);db.set_setting(_key(sid)+':journal',payload.model_dump());app.state.workspaces.bump(member['key'])
+            db=database(member)
+            get_record(db,sid)
+            key = _key(sid)+':journal'
+            values = payload.model_dump()
+            previous = db.get_setting(key, {}).get('custom_fields') or {}
+            values['custom_fields'] = custom_trade_fields.merge(previous, db, payload.custom_fields)
+            db.set_setting(key, values)
+            app.state.workspaces.bump(member['key'])
         return {'saved':True}

@@ -9,6 +9,8 @@ import warnings
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from . import custom_trade_fields
+
 PREFIX = 'primus_daily_entry:'
 MAX_UPLOAD = 8 * 1024 * 1024
 MAX_IMAGES = 6
@@ -45,20 +47,21 @@ def with_day_result(database, row):
     """Journal-only totals use the tested core; missing results never imply zero."""
     import pandas as pd
     from core.metrics import daily_pnl
-    trades = row.get('trades', [])
+    trades = []
     amounts = []
     trade_results = []
     seen = set()
-    for card in trades:
+    for card in row.get('trades', []):
         linked = card.get('lab_trade_id')
+        trade = database.get_trade(linked) if linked else None
+        if trade is not None:
+            card = {**card, 'custom_fields': custom_trade_fields.values(trade.tags, trade.custom_metadata)}
+        trades.append(card)
         if linked and linked in seen:
             continue  # Two cards linked to one Lab trade are one financial result.
         if linked:
             seen.add(linked)
-            trade = database.get_trade(linked)
-            net = trade.net_pnl if trade is not None else card.get('net_pnl')
-        else:
-            net = card.get('net_pnl')
+        net = trade.net_pnl if trade is not None else card.get('net_pnl')
         amounts.append(net)
         result = {'account_id': card.get('account_id'), 'net_pnl': net}
         selected = card_accounts(card)
@@ -70,7 +73,7 @@ def with_day_result(database, row):
     if amounts and len(recorded) == len(amounts):
         frame = pd.DataFrame({'net_pnl': recorded, 'exit_time': [row['day']] * len(recorded)})
         total = float(daily_pnl(frame).iloc[0])
-    return {**row, 'trade_results': trade_results, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
+    return {**row, 'trades': trades, 'trade_results': trade_results, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
                                  'recorded_trades': len(recorded), 'total_trades': len(amounts)}}
 
 
@@ -150,8 +153,17 @@ def save_day(database, day, values):
             card = {'symbol':'', 'direction':'', 'strategy':'', 'time':'', 'source':'manual', 'notes':'',
                     'outcome':'not_recorded', 'confirmations':[], 'level':'Not recorded',
                     'timeframe':'Not recorded', 'entry_timeframe':'Not recorded',
-                    'risk_amount':None, 'net_pnl':None,
+                    'risk_amount':None, 'net_pnl':None, 'custom_fields':{},
                     **old.get(item['id'], {}), **item, 'lab_trade_id':linked_id}
+            if not linked_id:
+                submitted = item.get('custom_fields')
+                previous_fields = prior.get('custom_fields') or {}
+                if submitted is not None:
+                    # Older clients may round-trip unchanged archived values.
+                    changes = {key: value for key, value in submitted.items() if previous_fields.get(key) != value}
+                    card['custom_fields'] = custom_trade_fields.merge(previous_fields, database, changes)
+                else:
+                    card['custom_fields'] = previous_fields
             if linked_id:
                 # Linked setup/results come from the user's own Lab, never a
                 # Journal payload. Personal notes remain independently editable.
@@ -159,7 +171,7 @@ def save_day(database, day, values):
                 if not snapshot:
                     snapshot = {key:old[item['id']].get(key, card[key]) for key in
                                 ('symbol','direction','strategy','time','source','outcome','confirmations',
-                                 'level','timeframe','entry_timeframe','risk_amount','net_pnl')}
+                                 'level','timeframe','entry_timeframe','risk_amount','net_pnl','custom_fields')}
                 card.update(snapshot)
             elif card['net_pnl'] is not None:
                 card['outcome'] = outcome(card['net_pnl'])
@@ -194,6 +206,7 @@ def trade_snapshot(database, trade_id):
             'outcome':outcome(trade.net_pnl), 'confirmations':labels['confirmations'],
             'level':labels['level'], 'timeframe':labels['timeframe'], 'entry_timeframe':labels['entry_timeframe'],
             'risk_amount':trade.initial_risk, 'net_pnl':trade.net_pnl,
+            'custom_fields':custom_trade_fields.values(trade.tags, trade.custom_metadata),
             'time':clock.astimezone(ZoneInfo(journal_preferences.read(database)['timezone'])).strftime('%H:%M')}
 
 

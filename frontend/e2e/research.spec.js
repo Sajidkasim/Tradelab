@@ -162,7 +162,7 @@ test("risk review and saved setups preserve existing experiment data without tes
       .click();
     dialog = page.getByRole("dialog", { name: "Lab settings", exact: true });
     await dialog
-      .getByRole("button", { name: "Clean up tags", exact: true })
+      .getByRole("button", { name: "Maintenance", exact: true })
       .click();
     await dialog
       .getByRole("button", { name: "Second sweep / Second Sweep", exact: true })

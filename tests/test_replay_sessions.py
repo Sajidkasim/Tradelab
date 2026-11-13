@@ -240,12 +240,19 @@ def test_lab_setup_overrides_follow_export_without_changing_session_defaults(loc
     from core import edge
     from webapp import daily_journal
     client,app=local;sid=create(client)['session']['id'];root=f'/api/backtesting/sessions/{sid}'
-    defaults={'strategy':'Default','level':'Order block','timeframe':'4H','entry_timeframe':'1m','checklist':[],'notes':'Session defaults'}
+    response = client.post('/api/lab-settings/custom-fields', json={
+        'name': 'Entry trigger', 'type': 'checkbox', 'options': ['Sweep', 'Reclaim'],
+    })
+    assert response.status_code == 201
+    field_id = response.json()['id']
+    default_choices = {field_id: ['Sweep']}
+    override = {field_id: ['Sweep', 'Reclaim']}
+    defaults={'custom_fields':default_choices,'strategy':'Default','level':'Order block','timeframe':'4H','entry_timeframe':'1m','checklist':[],'notes':'Session defaults'}
     assert client.put(root+'/journal',json=defaults).status_code==200
     assert client.post(root+'/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','qty':2}}).status_code==200
     assert client.post(root+'/action',json={'version':1,'cursor':4,'kind':'close','event_id':str(uuid4())}).status_code==200
     assert client.put(root+'/progress',json={'version':2,'cursor':5}).status_code==200
-    setup={'strategy':'Reversal','level':'FVG','timeframe':'1H','entry_timeframe':'5m','checklist':['SMT','CISD'],'notes':'This trade only','news':'CPI','condition':'Trending'}
+    setup={'custom_fields':override,'strategy':'Reversal','level':'FVG','timeframe':'1H','entry_timeframe':'5m','checklist':['SMT','CISD'],'notes':'This trade only','news':'CPI','condition':'Trending'}
     payload={'destination':'both','strategy':'Reversal','entry_cursor':3,'setup':setup}
     reply=client.post(root+'/export',json=payload);assert reply.status_code==200,reply.text
     frame=app.state.workspaces.database('owner').trades_df();trade=frame.iloc[0]
@@ -254,6 +261,8 @@ def test_lab_setup_overrides_follow_export_without_changing_session_defaults(loc
     assert set(labels['confirmations'])=={'SMT','CISD'}
     assert trade.net_pnl==6 and 'This trade only' in trade.notes
     card=daily_journal.entry(app.state.workspaces.database('owner'),reply.json()['journal_day'])['trades'][0]
+    assert trade.custom_metadata == card['custom_fields'] == override
+    assert client.get(root).json()['journal']['custom_fields'] == default_choices
     assert card['level']=='FVG' and card['entry_timeframe']=='5m' and card['strategy']=='Reversal'
     assert client.get(root).json()['journal']['level']=='Order block'
     assert client.post(root+'/export',json=payload).json()==reply.json()

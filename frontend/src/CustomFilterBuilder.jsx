@@ -43,7 +43,7 @@ export default function CustomFilterBuilder({ definitions, refresh, toast }) {
       <p className="muted">Add an indicator, market condition, or any other detail you want to record on trades and filter by in Explore. These fields are private to your workspace.</p>
       <div className="form-grid">
         <Field label="Field name">
-          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} placeholder="e.g. EDRA" />
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="e.g. EDRA" />
         </Field>
         <Select label="Field type" values={types} value={type} onChange={(event) => setType(event.target.value)} />
         <Field label="Options" hint="Separate choices with commas.">

@@ -1,5 +1,11 @@
 """Validate portable backup references before replacing an empty workspace."""
 import json
+from typing import Annotated
+
+from pydantic import Field, TypeAdapter, ValidationError
+from .schemas import CustomFieldId, CustomOption
+
+TRADE_METADATA = TypeAdapter(dict[CustomFieldId, Annotated[list[CustomOption], Field(max_length=30)]])
 
 TABLES = {'accounts', 'instruments', 'setups', 'trades', 'settings', 'import_mappings', 'backtest_runs', 'rule_breaches'}
 
@@ -21,6 +27,11 @@ def validate(payload):
     for row in data['trades']:
         if row.get('account_id') is not None and row['account_id'] not in ids:
             raise ValueError('A trade refers to an account missing from this backup.')
+        if row.get('custom_metadata') is not None:
+            try:
+                TRADE_METADATA.validate_python(row['custom_metadata'], strict=True)
+            except ValidationError:
+                raise ValueError('The backup contains invalid custom trade fields.') from None
         for field in ('tags', 'mistake_tags'):
             value = row.get(field) or '[]'
             try:

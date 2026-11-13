@@ -70,8 +70,13 @@ export default function Results({
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
   const filters = React.useMemo(
-    () => ({ ...setupFilters, scope, study_id: "", account_id: null }),
-    [setupFilters, scope],
+    () => ({
+      ...setupFilters, scope, study_id: "", account_id: null,
+      custom_fields: Object.fromEntries((meta.custom_trade_fields || [])
+        .filter(({ id }) => setupFilters.custom_fields?.[id]?.length)
+        .map(({ id }) => [id, setupFilters.custom_fields[id]])),
+    }),
+    [setupFilters, scope, meta.custom_trade_fields],
   );
   useEffect(() => {
     setFilters((current) => {

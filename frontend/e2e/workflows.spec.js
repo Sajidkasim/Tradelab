@@ -245,14 +245,14 @@ test("backup download, playbook, themes and mobile layout", async ({
     .getByRole("button", { name: "Lab settings", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .getByRole("button", { name: "Setup Labels", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await dialog
     .getByLabel("Strategies", { exact: true })
     .fill("Browser setup\nReplay setup\nMy next model");
   await dialog
-    .getByRole("button", { name: "Save strategies & levels" })
+    .getByRole("button", { name: "Save setup labels" })
     .click();
   await expect(dialog).not.toBeVisible();
   await page.getByRole("button", { name: "My lab", exact: true }).click();
@@ -583,7 +583,7 @@ test("Lab settings expose exactly the requested windows and save custom names", 
   await page.getByRole("button", { name: "Lab settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog
-    .getByRole("button", { name: "Session windows", exact: true })
+    .getByRole("button", { name: "Time & Context", exact: true })
     .click();
   await expectValue(
     dialog.getByLabel("Session 1 starts", { exact: true }),
@@ -597,7 +597,7 @@ test("Lab settings expose exactly the requested windows and save custom names", 
     .getByLabel("Session 4 name", { exact: true })
     .fill("My opening window");
   await dialog
-    .getByRole("button", { name: "Save lab settings", exact: true })
+    .getByRole("button", { name: "Save time & context", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
   await expect(await options(sessions)).toContainText([
@@ -1239,7 +1239,7 @@ test("strategy editor matches Explore and removed choices do not return after re
     .getByRole("button", { name: "Lab settings", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .getByRole("button", { name: "Setup Labels", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await expectValue(
@@ -1251,7 +1251,7 @@ test("strategy editor matches Explore and removed choices do not return after re
     .getByLabel("Strategies", { exact: true })
     .fill(active.join("\n"));
   await dialog
-    .getByRole("button", { name: "Save strategies & levels", exact: true })
+    .getByRole("button", { name: "Save setup labels", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
   await expect(await options(strategy)).toHaveText([
@@ -1270,7 +1270,7 @@ test("strategy editor matches Explore and removed choices do not return after re
     .getByRole("button", { name: "Lab settings", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Strategies & levels", exact: true })
+    .getByRole("button", { name: "Setup Labels", exact: true })
     .click();
   await expectValue(
     dialog.getByLabel("Strategies", { exact: true }),
@@ -1278,7 +1278,7 @@ test("strategy editor matches Explore and removed choices do not return after re
   );
   await dialog.getByLabel("Strategies", { exact: true }).fill("Replay setup");
   await dialog
-    .getByRole("button", { name: "Save strategies & levels", exact: true })
+    .getByRole("button", { name: "Save setup labels", exact: true })
     .click();
   await expectValue(strategy, "All strategies");
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
@@ -1306,15 +1306,21 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await expect(
     dialog.getByLabel("Confirmations / confluence", { exact: true }),
   ).toBeVisible();
+  async function replaceLabels(dialog, label, values) {
+    const group = dialog.getByRole("group", { name: `Saved choices for ${label}`, exact: true });
+    const pills = group.getByRole("button");
+    while (await pills.count()) await pills.first().click();
+    const input = dialog.getByLabel(label, { exact: true });
+    for (const value of values) {
+      await input.fill(value);
+      await input.press("Enter");
+    }
+  }
+  await replaceLabels(dialog, "Confirmations / confluence", ["SMT", "MACRO", "My confluence"]);
+  await replaceLabels(dialog, "Key level timeframes", ["Daily", "2H"]);
+  await replaceLabels(dialog, "Entry timeframes", ["1m", "30s"]);
   await dialog
-    .getByLabel("Confirmations / confluence", { exact: true })
-    .fill("SMT\nMACRO\nMy confluence");
-  await dialog
-    .getByLabel("Key level timeframes", { exact: true })
-    .fill("Daily\n2H");
-  await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m\n30s");
-  await dialog
-    .getByRole("button", { name: "Save lab settings", exact: true })
+    .getByRole("button", { name: "Save setup labels", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
   await expect(
@@ -1329,14 +1335,10 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   ).toHaveText(["Any", "1m", "30s"]);
   await page.reload();
   dialog = await settings();
-  await expectValue(
-    dialog.getByLabel("Confirmations / confluence", { exact: true }),
-    "SMT\nMACRO\nMy confluence",
-  );
-  await expectValue(
-    dialog.getByLabel("Key level timeframes", { exact: true }),
-    "Daily\n2H",
-  );
+  await expect(dialog.getByRole("group", { name: "Saved choices for Confirmations / confluence" }).locator(".lab-tag"))
+    .toHaveText(["SMT", "MACRO", "My confluence"]);
+  await expect(dialog.getByRole("group", { name: "Saved choices for Key level timeframes" }).locator(".lab-tag"))
+    .toHaveText(["Daily", "2H"]);
   await page.screenshot({
     path: "test-results/primuslab-lab-setup-settings.png",
   });
@@ -1350,18 +1352,15 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     path: "test-results/primuslab-lab-setup-settings-mobile.png",
   });
   await dialog
-    .getByRole("button", { name: "Session windows", exact: true })
+    .getByRole("button", { name: "Time & Context", exact: true })
     .click();
   await expectValue(
     dialog.getByLabel("Session 4 name", { exact: true }),
     "My opening window",
   );
-  await dialog
-    .getByRole("button", { name: "News & market", exact: true })
-    .click();
   await expect(dialog.getByLabel("News labels", { exact: true })).toBeVisible();
   await dialog
-    .getByRole("button", { name: "Setup labels", exact: true })
+    .getByRole("button", { name: "Setup Labels", exact: true })
     .click();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "Close settings", exact: true }).click();
@@ -1389,13 +1388,11 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
   await pick(explorer.getByLabel("Key level timeframe", { exact: true }), "2H");
   await explorer.getByLabel("My confluence", { exact: true }).check();
   dialog = await settings();
+  await replaceLabels(dialog, "Confirmations / confluence", ["SMT", "MACRO"]);
+  await replaceLabels(dialog, "Key level timeframes", ["Daily"]);
+  await replaceLabels(dialog, "Entry timeframes", ["1m"]);
   await dialog
-    .getByLabel("Confirmations / confluence", { exact: true })
-    .fill("SMT\nMACRO");
-  await dialog.getByLabel("Key level timeframes", { exact: true }).fill("Daily");
-  await dialog.getByLabel("Entry timeframes", { exact: true }).fill("1m");
-  await dialog
-    .getByRole("button", { name: "Save lab settings", exact: true })
+    .getByRole("button", { name: "Save setup labels", exact: true })
     .click();
   await expectValue(
     explorer.getByLabel("Key level timeframe", { exact: true }),

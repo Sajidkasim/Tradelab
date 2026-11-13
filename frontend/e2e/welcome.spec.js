@@ -19,6 +19,7 @@ test('new Google journal starts with a personal welcome, blank labels and UK clo
   await expect(welcome).toHaveCount(0);
   await page.getByRole('button',{name:'Skip guide',exact:true}).click();
   await expect(page.locator('.guided-tour')).toHaveCount(0);
+  await page.getByRole('button',{name:'Got it',exact:true}).click();
   const meta = await (await page.request.get(`${origin}/api/metadata`)).json();
   expect(meta.strategies).toEqual([]);
   expect(meta.playbook.levels).toEqual([]);
@@ -32,7 +33,7 @@ test('new Google journal starts with a personal welcome, blank labels and UK clo
   await expect(welcome).toHaveCount(0);
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.locator('.workspace-menu').getByRole('button',{name:'Lab settings',exact:true}).click();
-  await page.getByRole('button',{name:'Tester clock',exact:true}).click();
+  await page.getByRole('button',{name:'Time & Context',exact:true}).click();
   await expect(page.getByRole('combobox',{name:'Tester clock',exact:true})).toHaveText('UK · GMT / BST');
   await page.screenshot({path:testInfo.outputPath('personal-uk-settings.png')});
 });

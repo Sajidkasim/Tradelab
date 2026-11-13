@@ -143,6 +143,7 @@ class Trade:
     initial_risk: Optional[float] = None
     r_multiple: Optional[float] = None
     id: Optional[int] = None
+    custom_metadata: dict[str, list[str]] | None = None
 
     @property
     def is_open(self) -> bool:

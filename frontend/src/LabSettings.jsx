@@ -3,7 +3,10 @@ import { Plus, Trash2 } from "lucide-react";
 import { api } from "./api";
 import { Modal, Field, Select, Button, Notice, Segments } from "./components";
 import CustomFilterBuilder from "./CustomFilterBuilder";
+import TagInput from "./TagInput";
 import TagCleanup from "./TagCleanup";
+
+const lines = (value) => value.split("\n").map((item) => item.trim()).filter(Boolean);
 
 export default function LabSettings({ meta, refresh, toast, onClose, onCreateFilter }) {
   const [journalClock, setJournalClock] = useState(meta.journal_preferences?.timezone || "America/New_York");
@@ -16,9 +19,9 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
   const [strategies, setStrategies] = useState(meta.playbook.strategies.join("\n"));
   const [levels, setLevels] = useState(meta.playbook.levels.join("\n"));
   const [labels, setLabels] = useState({
-    confirmations: settings.confirmations.join("\n"),
-    level_timeframes: settings.level_timeframes.join("\n"),
-    entry_timeframes: settings.entry_timeframes.join("\n"),
+    confirmations: settings.confirmations,
+    level_timeframes: settings.level_timeframes,
+    entry_timeframes: settings.entry_timeframes,
   });
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -53,7 +56,7 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
       strategies: "strategies", levels: "key levels", confirmations: "confirmations",
       level_timeframes: "key level timeframes", entry_timeframes: "entry timeframes",
     }[field];
-    const active = current.split("\n").map((value) => value.trim()).filter(Boolean);
+    const active = Array.isArray(current) ? current : lines(current);
     const removed = (meta.archived_choices?.[field] || []).filter((value) => !active.includes(value));
     if (!removed.length) return null;
     return (
@@ -65,7 +68,7 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
             <div className="archive-row" key={name}>
               <span>{name}</span>
               <div className="archive-actions">
-                <Button type="button" onClick={() => onRestore([...active, name].join("\n"))}>Restore {name}</Button>
+                <Button type="button" onClick={() => onRestore([...active, name])}>Restore {name}</Button>
                 <button className="icon-button delete-trade" type="button" aria-label={`Delete archived ${name}`}
                   onClick={() => { setError(""); setArchiveToDelete({ field, name }); }}>
                   <Trash2 size={16} />
@@ -82,40 +85,22 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
     setBusy(true);
     setError("");
     try {
-      if (tab === "clock") {
-        await api("/journal-preferences", { method: "PUT", body: { timezone: journalClock } });
-        await refresh(); toast("Tester clock saved."); onClose(); return;
+      if (tab === "context") {
+        await api("/lab-settings", { method: "PUT", body: {
+          sessions: settings.sessions, timezone: settings.timezone,
+          news: lines(news), conditions: lines(conditions),
+        } });
+        if (journalClock !== (meta.journal_preferences?.timezone || "America/New_York")) {
+          await api("/journal-preferences", { method: "PUT", body: { timezone: journalClock } });
+        }
+      } else {
+        await api("/lab-settings", { method: "PUT", body: { ...meta.lab_settings, ...labels } });
+        const strategyList = lines(strategies);
+        const levelList = lines(levels);
+        if (strategies !== meta.playbook.strategies.join("\n") || levels !== meta.playbook.levels.join("\n")) {
+          await api("/playbook", { method: "PUT", body: { strategies: strategyList, levels: levelList } });
+        }
       }
-      if (tab === "strategies") {
-        await api("/playbook", { method: "PUT", body: { strategies: strategies.split("\n"), levels: levels.split("\n") } });
-        await refresh();
-        toast("Your strategy and level lists are saved.");
-        onClose();
-        return;
-      }
-      await api("/lab-settings", {
-        method: "PUT",
-        body: {
-          ...settings,
-          ...Object.fromEntries(
-            Object.entries(labels).map(([key, value]) => [
-              key,
-              value
-                .split("\n")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            ]),
-          ),
-          news: news
-            .split("\n")
-            .map((v) => v.trim())
-            .filter(Boolean),
-          conditions: conditions
-            .split("\n")
-            .map((v) => v.trim())
-            .filter(Boolean),
-        },
-      });
       await refresh();
       toast("Lab settings saved. Explore and trade entry are updated.");
       onClose();
@@ -133,102 +118,72 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
     >
       <form
         onSubmit={(event) =>
-          ["cleanup", "advanced"].includes(tab) ? event.preventDefault() : save(event)
+          ["maintenance", "dynamic"].includes(tab) ? event.preventDefault() : save(event)
         }
         className="stack lab-settings-form"
       >
         <Segments
           label="Lab settings sections"
           values={[
-            { value: "clock", label: "Tester clock" },
-            { value: "strategies", label: "Strategies & levels" },
-            { value: "setup", label: "Setup labels" },
-            { value: "sessions", label: "Session windows" },
-            { value: "news", label: "News & market" },
-            { value: "cleanup", label: "Clean up tags" },
-            { value: "advanced", label: "Advanced" },
+            { value: "context", label: "Time & Context" },
+            { value: "setup", label: "Setup Labels" },
+            { value: "dynamic", label: "Dynamic Fields" },
+            { value: "maintenance", label: "Maintenance" },
           ]}
           value={tab}
           onChange={setTab}
         />
-        {tab === "clock" && <div className="stack">
-          <h3>Your tester clock</h3>
+        {tab === "context" && <section className="lab-settings-card stack">
+          <h3>Timezone Settings</h3>
           <Select label="Tester clock" value={journalClock} onChange={(e) => setJournalClock(e.target.value)} values={[{value:"America/New_York",label:"New York · EST / EDT"},{value:"Europe/London",label:"UK · GMT / BST"}]} />
           <p className="muted">Used for trade entry, trade dates, graph times and From/To date filters. UK time follows GMT and BST automatically. Stored trade timestamps stay in UTC.</p>
           <p className="muted">Session windows and the Day filter use the Session clock. CSV files use the export time zone in Import settings.</p>
-        </div>}
-        {tab === "strategies" && (
-          <div className="stack">
+        </section>}
+        {tab === "setup" && (
+          <div className="lab-settings-card stack">
             <div><h3>Strategies & key levels</h3><p className="muted">One name per line. Each choice becomes an import tag automatically and is shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
             <div className="form-grid two">
               <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
               <Field label="Key levels" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
             </div>
-            {archiveList('strategies',strategies,setStrategies)}
-            {archiveList('levels',levels,setLevels)}
             <small className="muted">Changing a list keeps existing trade labels. Use Clean up tags when you want to merge or rename labels already saved on trades.</small>
           </div>
         )}
-        {tab === "cleanup" && <TagCleanup refresh={refresh} toast={toast} />}
+        {tab === "maintenance" && <>
+          <section className="lab-settings-card stack"><TagCleanup refresh={refresh} toast={toast} /></section>
+          <section className="lab-settings-card stack">
+            <h3>Archived choices</h3>
+            {archiveList('strategies', strategies, (items) => { setStrategies(items.join("\n")); setTab("setup"); })}
+            {archiveList('levels', levels, (items) => { setLevels(items.join("\n")); setTab("setup"); })}
+            {Object.entries(labels).map(([key, values]) => <React.Fragment key={key}>
+              {archiveList(key, values, (items) => { setLabels((current) => ({ ...current, [key]: items })); setTab("setup"); })}
+            </React.Fragment>)}
+            {!Object.values(meta.archived_choices || {}).some((items) => items.length) && <p className="muted">No archived choices.</p>}
+          </section>
+        </>}
         {tab === "setup" && (
-          <div className="stack">
+          <section className="lab-settings-card stack">
             <div>
-              <h3>Your setup choices</h3>
-              <p className="muted">
-                One label per line. These lists are shared by Explore and trade
-                entry. Removing a choice keeps it on saved trades.
-              </p>
+              <h3>Setup choices</h3>
+              <p className="muted">Press Enter to add a choice. Removed choices stay on saved trades.</p>
             </div>
-            <Field
-              label="Confirmations / confluence"
-              hint="For example: SMT, CISD, MACRO — one per line."
-            >
-              <textarea
-                rows={6}
-                value={labels.confirmations}
-                onChange={(e) =>
-                  setLabels({ ...labels, confirmations: e.target.value })
-                }
-              />
-            </Field>
-            {archiveList('confirmations',labels.confirmations,value=>setLabels({...labels,confirmations:value}))}
+            <TagInput label="Confirmations / confluence" values={labels.confirmations}
+              onChange={(values) => setLabels((current) => ({ ...current, confirmations: values }))} />
             <div className="form-grid two">
-              <Field
-                label="Key level timeframes"
-                hint="For example: Weekly, Daily, 4H, 1H — one per line."
-              >
-                <textarea
-                  rows={6}
-                  value={labels.level_timeframes}
-                  onChange={(e) =>
-                    setLabels({ ...labels, level_timeframes: e.target.value })
-                  }
-                />
-              </Field>
-              <Field
-                label="Entry timeframes"
-                hint="For example: 15m, 5m, 1m, 15s — one per line."
-              >
-                <textarea
-                  rows={6}
-                  value={labels.entry_timeframes}
-                  onChange={(e) =>
-                    setLabels({ ...labels, entry_timeframes: e.target.value })
-                  }
-                />
-              </Field>
+              <TagInput label="Key level timeframes" values={labels.level_timeframes}
+                onChange={(values) => setLabels((current) => ({ ...current, level_timeframes: values }))} />
+              <TagInput label="Entry timeframes" values={labels.entry_timeframes}
+                onChange={(values) => setLabels((current) => ({ ...current, entry_timeframes: values }))} />
             </div>
-            {archiveList('level_timeframes',labels.level_timeframes,value=>setLabels({...labels,level_timeframes:value}))}
-            {archiveList('entry_timeframes',labels.entry_timeframes,value=>setLabels({...labels,entry_timeframes:value}))}
             <small className="muted">
               Every saved choice is recognised on import automatically. If the same
               timeframe is in both lists, use CSV tags such as Key level timeframe: 15m
               and Entry timeframe: 15m. Missing labels can be left blank.
             </small>
-          </div>
+          </section>
         )}
-        {tab === "sessions" && (
-          <>
+        {tab === "context" && (
+          <section className="lab-settings-card stack">
             <div>
               <h3>Session windows</h3>
               <p className="muted">
@@ -330,10 +285,10 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
               Start times are included; end times belong to the next window.
               Times outside your windows remain included under All sessions.
             </small>
-          </>
+          </section>
         )}
-        {tab === "news" && (
-          <div className="stack">
+        {tab === "context" && (
+          <section className="lab-settings-card stack">
             <h3>News & market condition labels</h3>
             <div className="form-grid two">
               <Field label="News labels" hint="One per line">
@@ -355,24 +310,26 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
               Removing a label from these lists keeps it on existing trades. Not
               recorded is provided automatically for unlabelled trades.
             </p>
-          </div>
+          </section>
         )}
-        {tab === "advanced" && (
-          <div className="stack">
-            <CustomFilterBuilder definitions={meta.custom_trade_fields || []} refresh={refresh} toast={toast} />
-            <h3>Saved Explore presets</h3>
-            <p className="muted">Save your current strategy, session and other Explore choices as a named setup you can apply again from the Results page.</p>
-            <Button type="button" onClick={() => setConfirmClose("filter")}>Create a saved filter</Button>
-          </div>
+        {tab === "dynamic" && (
+          <>
+            <div className="lab-settings-card"><CustomFilterBuilder definitions={meta.custom_trade_fields || []} refresh={refresh} toast={toast} /></div>
+            <section className="lab-settings-card stack">
+              <h3>Saved Explore presets</h3>
+              <p className="muted">Save your current Explore choices as a named setup.</p>
+              <div><Button type="button" onClick={() => setConfirmClose("filter")}>Create a saved filter</Button></div>
+            </section>
+          </>
         )}
         {error && !archiveToDelete && <Notice error>{error}</Notice>}
-        {!["cleanup", "advanced"].includes(tab) && (
+        {!["maintenance", "dynamic"].includes(tab) && (
           <div className="actions">
             <Button type="button" disabled={busy} onClick={requestClose}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" busy={busy}>
-              {tab === "strategies" ? "Save strategies & levels" : "Save lab settings"}
+              {tab === "setup" ? "Save setup labels" : "Save time & context"}
             </Button>
           </div>
         )}

@@ -229,7 +229,7 @@ export default function App() {
     return (
       <WorkspaceEntrance workspace="lab"
         session={entrancePreview?{...session,auth_mode:'google'}:session}
-        returnTo={sitePreview()?'/lab':'/'}
+        returnTo={sitePreview()?'/lab':''}
         ready={!entrancePreview&&Boolean(session.csrf)} onUnlocked={boot}
       />
     );

@@ -51,7 +51,7 @@ def serialise_trade(trade):
     row = asdict(trade)
     row.pop("screenshot_path", None)
     row["labels"] = edge.read_labels(trade.tags)
-    row["custom_fields"] = custom_trade_fields.values(trade.tags)
+    row["custom_fields"] = custom_trade_fields.values(trade.tags, trade.custom_metadata)
     row.update(fixed_rr.read(trade.tags))
     row["needs_tagging"] = not trade.setup_name.strip() or not row["labels"]["reviewed"]
     row['study_id'] = research.test_id(trade.tags)

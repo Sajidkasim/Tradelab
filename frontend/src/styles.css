@@ -2683,3 +2683,89 @@ td strong {
     to { opacity: 1; transform: translateY(0); }
   }
 }
+
+.lab-settings-modal .lab-settings-form > .segments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tl-ink) 4%, var(--tl-surface));
+}
+
+.lab-settings-modal .lab-settings-form > .segments > button {
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.lab-settings-modal .lab-settings-form > .segments > button.selected {
+  color: var(--tl-ink);
+  background: color-mix(in srgb, var(--tl-accent) 18%, var(--tl-surface));
+  box-shadow: none;
+}
+
+.lab-settings-card {
+  min-width: 0;
+  padding: clamp(14px, 2.5vw, 24px);
+  border: 1px solid var(--tl-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tl-ink) 2%, var(--tl-surface));
+}
+
+.lab-tag-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.lab-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.lab-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border-radius: 999px;
+  padding: 2px 4px 2px 10px;
+  background: color-mix(in srgb, var(--tl-accent) 12%, var(--tl-surface));
+}
+
+.lab-tag button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.lab-tag button:hover {
+  background: color-mix(in srgb, var(--tl-ink) 9%, transparent);
+}
+
+@media (max-width: 540px) {
+  .lab-settings-modal .lab-settings-form > .segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.custom-trade-field {
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}

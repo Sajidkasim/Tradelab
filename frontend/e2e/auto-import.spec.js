@@ -11,19 +11,20 @@ test("new Lab choices import automatically with case, space and spelling variati
     await page.getByRole('button',{name:'My lab',exact:true}).click();
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
     let dialog = page.getByRole('dialog',{name:'Lab settings',exact:true});
-    await dialog.getByRole('button',{name:'Strategies & levels',exact:true}).click();
+    await dialog.getByRole('button',{name:'Setup Labels',exact:true}).click();
     await dialog.getByLabel('Strategies',{exact:true}).fill([...original.playbook.strategies,'Breakout and retest'].join('\n'));
     await dialog.getByLabel('Key levels',{exact:true}).fill([...original.playbook.levels,'My weekly level'].join('\n'));
-    await dialog.getByRole('button',{name:'Save strategies & levels',exact:true}).click();
+    await dialog.getByRole('button',{name:'Save setup labels',exact:true}).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole('button',{name:'My lab',exact:true}).click();
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
     dialog = page.getByRole('dialog',{name:'Lab settings',exact:true});
-    await dialog.getByRole('button',{name:'Setup labels',exact:true}).click();
-    await dialog.getByLabel('Confirmations / confluence',{exact:true}).fill([...original.confirmations,'Volume reaction'].join('\n'));
-    await dialog.getByLabel('Key level timeframes',{exact:true}).fill([...original.level_timeframes,'2H'].join('\n'));
-    await dialog.getByLabel('Entry timeframes',{exact:true}).fill([...original.entry_timeframes,'30s'].join('\n'));
-    await dialog.getByRole('button',{name:'Save lab settings',exact:true}).click();
+    for (const [label, value] of [['Confirmations / confluence', 'Volume reaction'], ['Key level timeframes', '2H'], ['Entry timeframes', '30s']]) {
+      const input = dialog.getByLabel(label, { exact: true });
+      await input.fill(value);
+      await input.press('Enter');
+    }
+    await dialog.getByRole('button', { name: 'Save setup labels', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('.explorer').getByLabel('Key level timeframe',{exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Import',exact:true}).click();
