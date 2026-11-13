@@ -1,21 +1,19 @@
 """Release announcements, acknowledged independently in each private workspace."""
-VERSION = '2026-11-12-v1'
+VERSION = '2026-11-13-v1'
 KEY = 'primuslab_release_notes_seen'
 ITEMS = [
-    {'title': 'Mindset warm-up',
-     'text': 'Choose a breathing rhythm and see when to use it. Play 60-second rounds of Pattern Match or Visual Search on Easy or Hard, choose an affirmation, and track your editable pre-session checklist. The Brain Explorer stays visible on the Mindset page.'},
-    {'title': 'Chat with Primax',
-     'text': 'Open Primax to type or dictate a message. Follow-up questions use the open conversation, and new chats clear when you close it.'},
-    {'title': 'Journal accounts and copy-traded entries',
-     'text': 'Use Add account to create Funded, Eval or Personal accounts. If you copy-traded a setup, select multiple accounts on one Journal trade and enter the combined P&L and risk. The combined result appears under All accounts.'},
-    {'title': 'Journal trade replay',
-     'text': 'Import TopstepX or FTMO Trading Journal executions and replay supported markets with your entry and exit markers on 1-minute candles. Replay depends on market coverage and data access. Backtesting is still in beta.'},
-    {'title': 'Bullpen screen sharing on Android',
-     'text': 'In the Bullpen, choose Install plugin, then Prepare screen sharing and Open plugin for screen share. The plugin joins the same Bullpen call so your team can see the screen you share. Supported desktop browsers can share directly in the embedded call. The Bullpen also warns mobile users that switching apps or locking the screen can pause the microphone.'},
-    {'title': 'Strategy Lab settings',
-     'text': 'Clicking outside Lab Settings now asks before closing. Delete unused archived choices while keeping saved trade labels, or open Advanced to save your Explore filters. The strategy filter now reads Key level.'},
+    {'title': 'More markets to backtest',
+     'text': 'Replay EUR/USD, GBP/USD and Gold (XAU/USD) alongside Nasdaq (NQ) and S&P 500 (ES). Pick a historical date and practise your entries, exits and risk management as the candles unfold. Backtesting is in beta.'},
+    {'title': 'Primax is your AI trading assistant',
+     'text': 'Open the floating Primax orb to talk through a setup, sharpen an entry rule or reflect on a Journal entry. Try asking, “Help me define exactly what I need to see before my first trade today.”'},
+    {'title': 'Aura tracks your trading habits',
+     'text': 'The three rings show your daily progress across Prepare, Execute and Study. Tap them to see which activities counted and what’s left. Your 1% Daily Edge measures how consistently you follow your routine. Trade wins and losses do not affect it.'},
+    {'title': 'Pre-Market Warm-Up is in Mindset',
+     'text': 'Take about five minutes before the bell. Choose a breathing rhythm, play a one-minute focus game or read an affirmation. Jump straight into any exercise. Your Journal shows the status of that day’s pre-session checklist.'},
+    {'title': 'More server capacity for replay',
+     'text': 'The 1 CPU and 2 GB RAM compute upgrade gives PrimusTrader more headroom for simultaneous backtests. We’re watching how replay holds up during longer sessions.'},
 ]
 
 
 def read(database):
-    return {'version': VERSION, 'date': '12 November 2026', 'seen': database.get_setting(KEY) == VERSION, 'items': ITEMS}
+    return {'version': VERSION, 'date': '13 November 2026', 'seen': database.get_setting(KEY) == VERSION, 'items': ITEMS}
