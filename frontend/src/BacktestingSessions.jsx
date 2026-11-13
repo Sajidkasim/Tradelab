@@ -13,6 +13,32 @@ import {changePane,toggleIntervalSync} from './replayPreferences';
 const cash=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
 const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',hour:'2-digit',minute:'2-digit'});
 
+const clampSplit = value => Math.min(80, Math.max(20, value));
+const savedSplit = (value, fallback) => Number.isFinite(value) ? clampSplit(value) : fallback;
+
+function ChartDivider({host, label, orientation, value, reset, onResize}) {
+ const vertical = orientation === 'vertical';
+ const decrease = vertical ? 'ArrowLeft' : 'ArrowUp';
+ const increase = vertical ? 'ArrowRight' : 'ArrowDown';
+ return <div className={`bt-split-handle bt-split-handle-${orientation}`}
+  role="separator" aria-label={label} aria-orientation={orientation}
+  aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(value)} tabIndex={0}
+  onPointerDown={event=>{if(event.button===0)event.currentTarget.setPointerCapture(event.pointerId)}}
+  onPointerMove={event=>{
+   if(!event.currentTarget.hasPointerCapture(event.pointerId))return;
+   const rect=host.current.getBoundingClientRect();
+   const distance=vertical?event.clientX-rect.left:event.clientY-rect.top;
+   const length=vertical?rect.width:rect.height;
+   if(length>36)onResize(clampSplit(100*(distance-18)/(length-36)));
+  }}
+  onDoubleClick={()=>onResize(reset)}
+  onKeyDown={event=>{
+   if(![decrease,increase,'Home','End'].includes(event.key))return;
+   event.preventDefault();
+   onResize(event.key==='Home'?20:event.key==='End'?80:clampSplit(value+(event.key===decrease?-2:2)));
+  }}/>;
+}
+
 export default function BacktestingSessions({theme,onThemeToggle}) {
  const [identity,setIdentity]=useState(null);
  const [opening,setOpening]=useState(false);
@@ -22,6 +48,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const [renderedPanes,setRenderedPanes]=useState({});
  const reportReady=useCallback(id=>setRenderedPanes(panes=>panes[id]?panes:{...panes,[id]:true}),[]);
  const [splitPercent,setSplitPercent]=useState(50);
+ const [threeWidth,setThreeWidth]=useState(64);
+ const [threeHeight,setThreeHeight]=useState(50);
  const splitHost=useRef(null);
  const magnetMode=useRef('off');
  const selectMagnetMode=useCallback(mode=>{
@@ -30,10 +58,6 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
    if(chart&&chart.drawings.getSnapMode()!==mode)chart.drawings.setSnapMode(mode);
   }
  },[]);
- function resizeSplit(event){
-  const rect=splitHost.current.getBoundingClientRect();
-  setSplitPercent(Math.min(80,Math.max(20,100*(event.clientX-rect.left-18)/(rect.width-36))));
- }
  const drawingTool=useRef(null);
  const selectDrawingTool=useCallback((type)=>{
   drawingTool.current=type;
@@ -94,6 +118,9 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   setRenderedPanes({});
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
+  setSplitPercent(savedSplit(group.splitPercent,50));
+  setThreeWidth(savedSplit(group.threeWidth,64));
+  setThreeHeight(savedSplit(group.threeHeight,50));
   const count=[1,2,3].includes(group.paneCount)?group.paneCount:
    data.layout?.split?2:1+(data.session.comparison_charts?.length||0);
   const available=Object.keys(data.sample.markets);
@@ -170,16 +197,15 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&(!identity.authenticated||entrancePreview))return <WorkspaceEntrance workspace="backtesting" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={()=>location.reload()}/>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,paneCount,onLayoutCount:setLayoutCount,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{paneCount,activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,paneCount,onLayoutCount:setLayoutCount,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{paneCount,splitPercent,threeWidth,threeHeight,activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
-   <div ref={splitHost} className={`bt-panes${twoCharts?' bt-panes-split':''}${paneCount===3?' bt-panes-three':''}`} style={{'--bt-split-ratio':splitPercent/100}}>
-    {paneCount===2&&<div className="bt-split-handle" role="separator" aria-label="Resize split charts"
-      aria-orientation="vertical" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(splitPercent)} tabIndex={0}
-      onPointerDown={event=>{if(event.button===0)event.currentTarget.setPointerCapture(event.pointerId)}}
-      onPointerMove={event=>{if(event.currentTarget.hasPointerCapture(event.pointerId))resizeSplit(event)}}
-      onDoubleClick={()=>setSplitPercent(50)}
-      onKeyDown={event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();setSplitPercent(value=>event.key==='Home'?20:event.key==='End'?80:Math.max(20,Math.min(80,value+(event.key==='ArrowLeft'?-2:2))))}}/>}
+   <div ref={splitHost} className={`bt-panes${twoCharts?' bt-panes-split':''}${paneCount===3?' bt-panes-three':''}`} style={{'--bt-split-ratio':(paneCount===3?threeWidth:splitPercent)/100,'--bt-row-ratio':threeHeight/100}}>
+    {twoCharts&&<ChartDivider host={splitHost} label="Resize split charts" orientation="vertical"
+      value={paneCount===3?threeWidth:splitPercent} reset={paneCount===3?64:50}
+      onResize={paneCount===3?setThreeWidth:setSplitPercent}/>}
+    {paneCount===3&&<ChartDivider host={splitHost} label="Resize right charts" orientation="horizontal"
+      value={threeHeight} reset={50} onResize={setThreeHeight}/>}
     {chartWorkspace.charts.slice(0,paneCount).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id!=='primary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>Promise.all(Object.entries(layoutSavers.current).filter(([id])=>id!==pane.id).map(([,save])=>save?.()))}/>)}
    </div>
    <div className="bt-shared-playback" ref={setControlsHost}/>

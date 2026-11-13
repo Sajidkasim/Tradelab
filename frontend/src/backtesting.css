@@ -238,15 +238,23 @@ body:has(.backtesting-workspace){overflow:hidden}
 }
 
 .bt-panes-three {
-  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, calc((100% - 12px) * var(--bt-row-ratio, .5))) minmax(0, 1fr);
 }
-.bt-panes-three > .bt-chart-pane:first-child { grid-row: span 2; }
+.bt-panes-three > [data-pane-id="primary"] { grid-row: span 2; }
+.bt-panes-three > .bt-split-handle-horizontal {
+  inset: auto 12px auto calc(24px + (100% - 36px) * var(--bt-split-ratio, .64));
+  top: calc(18px + (100% - 36px) * var(--bt-row-ratio, .5));
+  width: auto;
+  height: 12px;
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+.bt-split-handle-horizontal::after { width: 42px; height: 3px; }
 @media (max-width: 900px) {
   .bt-panes-three {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: repeat(3, minmax(220px, 1fr));
     overflow-y: auto;
   }
-  .bt-panes-three > .bt-chart-pane:first-child { grid-row: auto; }
+  .bt-panes-three > [data-pane-id="primary"] { grid-row: auto; }
 }

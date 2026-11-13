@@ -830,6 +830,18 @@ test('opens three preselected charts in a large-left layout and restores them', 
   expect(top.x).toBe(bottom.x);
   expect(bottom.y).toBeGreaterThan(top.y);
 
+  const widthDivider = page.getByRole('separator', {name: 'Resize split charts'});
+  const heightDivider = page.getByRole('separator', {name: 'Resize right charts'});
+  const handle = await widthDivider.boundingBox();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + 70, handle.y + handle.height / 2, {steps: 4});
+  await page.mouse.up();
+  await expect.poll(async () => (await primary.boundingBox()).width).toBeGreaterThan(left.width + 40);
+  await heightDivider.press('ArrowDown');
+  await expect.poll(async () => (await secondary.boundingBox()).height).toBeGreaterThan(top.height);
+  const savedWidth = await widthDivider.getAttribute('aria-valuenow');
+
   const clock = primary.getByLabel('Replay time', {exact: true});
   const before = await clock.textContent();
   await page.getByRole('button', {name: 'Next candle', exact: true}).click();
@@ -838,6 +850,8 @@ test('opens three preselected charts in a large-left layout and restores them', 
   await expect(primary.locator('.bt-save-status')).toHaveText('Saved');
   await page.reload();
   await expect(tertiary.locator('.bt-pane-tag')).toContainText('NQ', {timeout: 15000});
+  await expect(widthDivider).toHaveAttribute('aria-valuenow', savedWidth);
+  await expect(heightDivider).toHaveAttribute('aria-valuenow', '52');
   const savedClock = await clock.textContent();
   await page.getByRole('button', {name: 'Toggle two charts', exact: true}).click();
   await expect(tertiary).toHaveCount(0);

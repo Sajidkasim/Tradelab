@@ -275,7 +275,7 @@ export default function BacktestingChart({reportReady,drawingTool,selectDrawingT
   }
   saveCurrent.current=saveLayout;
   useEffect(()=>{registerLayoutSave?.((...args)=>saveCurrent.current(...args));return()=>registerLayoutSave?.(null)},[ready,busy,symbol,timeframe,clockZone,twoCharts]);
-  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,paneCount,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
+  useEffect(()=>{dirtyLayout()},[symbol,timeframe,clockZone,twoCharts,paneCount,chartGroup?.splitPercent,chartGroup?.threeWidth,chartGroup?.threeHeight,chartGroup?.activeChartId,chartGroup?.syncCrosshair,chartGroup?.syncIntervals]);
   useEffect(()=>{if(ready&&chartRef.current)visibility.current.apply(chartRef.current,timeframe)},[timeframe,ready]);
   useEffect(()=>{const timer=setInterval(()=>saveCurrent.current?.(false).catch(()=>{}),10000);return()=>clearInterval(timer)},[]);
 
