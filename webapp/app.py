@@ -48,6 +48,11 @@ def create_app(config: Settings | None = None):
     @asynccontextmanager
     async def lifespan(app):
         app.state.image_storage = ImageStorage(config)
+        app.state.spot_archive = None
+        if not config.local and config.replay_enabled and config.r2_ready:
+            from .spot_archive import restore
+            app.state.spot_archive = await run_in_threadpool(
+                restore, app.state.image_storage.client, config.r2_bucket)
         app.state.workspaces = await run_in_threadpool(Workspaces, config)
         app.state.rate_counters = await run_in_threadpool(RateCounters, app.state.workspaces.root)
         if config.password_required:

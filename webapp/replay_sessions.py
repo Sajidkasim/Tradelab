@@ -226,12 +226,12 @@ def mount(app,config,workspace):
     def available_manifest():
         return archive().manifest if archive() else json.loads(Path(config.replay_manifest).read_text())
     def spot_path():
-        return ROOT / spot_replay.FILENAME
+        return ROOT / spot_replay.FILENAME if config.local else getattr(app.state, 'spot_archive', None)
 
     def history(day, root=None):
         if root in spot_replay.SYMBOLS:
-            if not config.local:
-                raise ValueError('Dukascopy replay is available in the local workspace.')
+            if spot_path() is None:
+                raise ValueError('Dukascopy history has not been published on this server.')
             return spot_replay.history(spot_path(), root, day)
         if config.local:return load_history(day)
         if archive():return archive().execution_history(day) if COMPACT_WIRE.get() else archive().history(day)
@@ -295,7 +295,7 @@ def mount(app,config,workspace):
         identity=(record['day'],record['data_digest'],record.get('extended'),tuple((p['day'],p['digest']) for p in record.get('continuation_days',[])),stamp,COMPACT_WIRE.get())
         if record['root'] in spot_replay.SYMBOLS:
             index=spot_path()
-            identity=(*identity,record['root'],index.stat().st_mtime_ns if index.is_file() else 0)
+            identity=(*identity,record['root'],index.stat().st_mtime_ns if index and index.is_file() else 0)
         cached=price_cache.get(identity) if cacheable else None
         if cached is not None:return cached
         try:
@@ -381,7 +381,7 @@ def mount(app,config,workspace):
                 row=db.get_setting(_key(sid))
                 if row:(deleted if row.get('deleted') else active).append(row['summary'])
             available=catalog()
-            if config.local:
+            if spot_path() is not None:
                 for symbol in spot_replay.SYMBOLS:
                     imported=spot_replay.coverage(spot_path(),symbol)
                     if imported:
