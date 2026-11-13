@@ -4,6 +4,7 @@ from threading import BoundedSemaphore
 import os
 import json
 import re
+from pathlib import Path
 from fastapi import Depends, HTTPException, Request, UploadFile, File, Form, Query
 from services import journal_replay as replay
 from . import journal_replay_providers as providers
@@ -75,7 +76,14 @@ def mount(app, config, workspace):
                                 headers={'Retry-After': str(retry)})
         if not workers.acquire(blocking=False):raise HTTPException(429,'Candle providers are busy. Retry shortly.')
         try:
-            bars=providers.validate_bars(getattr(providers,provider)(row['symbol'],begin,end)) if begin<end else []
+            options = {}
+            if provider == 'dukascopy':
+                archive = getattr(app.state, 'spot_archive', None)
+                if config.local:
+                    archive = Path(__file__).resolve().parents[1] / 'data/private' / providers.spot_replay.FILENAME
+                if archive and archive.is_file():
+                    options['archive'] = archive
+            bars=providers.validate_bars(getattr(providers,provider)(row['symbol'],begin,end,**options)) if begin<end else []
             bars=sorted({b['time']:b for b in bars if start<=b['time']<end.timestamp()*1000}.values(),key=lambda b:b['time'])[:750]
         except Exception:
             raise HTTPException(502,'The candle provider could not supply this window. Check account access, exact contract and history coverage.') from None

@@ -150,3 +150,16 @@ The supplied May–June 2026 records are summer GMT+3: first entry 18:23:30 maps
 to 15:23:30 UTC. All 227 records / 454 markers parsed in memory using the
 preset, with no actual journal writes. This supersedes the timezone blocker
 above. Missing provider approvals/credentials and CFD mappings remain blockers.
+
+## Local provider verification — 13 November 2026
+
+Saved ProjectX credentials returned 180 valid one-minute candles for the exact
+MNQ December 2026 contract on 10 November. This checked provider access using
+a representative window. The original exports were unavailable for comparison.
+
+Journal Replay now reads supported FTMO reference candles from the indexed
+Dukascopy Backtesting archive when the requested window contains data. It
+retains the direct feed for windows or symbols outside the archive. The
+workspace permission checks still apply. Local archive checks returned 180
+candles each for EURUSD, GBPUSD and XAUUSD on 5 June. These are Dukascopy
+reference candles. US100.cash remains unmapped.

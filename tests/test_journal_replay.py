@@ -54,13 +54,13 @@ def test_private_import_atomic_duplicates_and_provider_gate(draft,monkeypatch):
     assert client.get(url+'/candles',params={'start':start}).status_code==503
     monkeypatch.setenv('JOURNAL_REPLAY_DUKASCOPY_APPROVED','1')
     monkeypatch.setenv('JOURNAL_REPLAY_DUKASCOPY_WORKSPACES','owner')
-    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a:[{'time':start,'open':1,'high':1,'low':1,'close':1,'volume':0}])
+    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a, **kwargs:[{'time':start,'open':1,'high':1,'low':1,'close':1,'volume':0}])
     response=client.get(url+'/candles',params={'start':start})
     assert response.status_code==200 and len(response.json()['bars'])==1
     assert client.get(url+'/candles',params={'start':0}).status_code==422
-    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a:[])
+    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a, **kwargs:[])
     assert client.get(url+'/candles',params={'start':start}).json()['bars']==[]
-    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a:[{'time':start,'open':float('nan'),'high':1,'low':1,'close':1,'volume':0}])
+    monkeypatch.setattr('webapp.journal_replay_providers.dukascopy',lambda *a, **kwargs:[{'time':start,'open':float('nan'),'high':1,'low':1,'close':1,'volume':0}])
     assert client.get(url+'/candles',params={'start':start}).status_code==502
     assert client.get('/api/trades').json()==before
     client.post('/api/logout')
@@ -132,3 +132,27 @@ def test_ftmo_platform_clock_seasonal_offsets():
     assert utc('2026-10-28 18:23:30','FTMO_MT5')=='2026-10-28T15:23:30+00:00'
     with pytest.raises(ValueError):utc('2026-11-01 08:30:00','FTMO_MT5')
     with pytest.raises(ValueError):utc('2026-03-08 09:30:00','FTMO_MT5')
+
+
+def test_dukascopy_reuses_bounded_archive_window(tmp_path, monkeypatch):
+    import sqlite3
+    from tools.import_dukascopy_replay import SCHEMA
+    from webapp.journal_replay_providers import dukascopy
+
+    archive = tmp_path / 'spot.db'
+    start = datetime(2024, 5, 15, 12, 30, tzinfo=timezone.utc)
+    end = start.replace(minute=32)
+    timestamp = int(start.timestamp() * 1000)
+    with sqlite3.connect(archive) as connection:
+        connection.executescript(SCHEMA)
+        connection.executemany('INSERT INTO spot_bars VALUES (?,?,?,?,?,?,?)', [
+            ('EURUSD', timestamp + offset * 60000, 1.08, 1.09, 1.07, 1.08, 5)
+            for offset in (-1, 0, 1, 2)
+        ])
+
+    def unexpected_fetch(*args, **kwargs):
+        pytest.fail('The indexed archive already covers this window.')
+
+    monkeypatch.setattr('webapp.journal_replay_providers.requests.get', unexpected_fetch)
+    bars = dukascopy('EURUSD', start, end, archive=archive)
+    assert [bar['time'] for bar in bars] == [timestamp, timestamp + 60000]

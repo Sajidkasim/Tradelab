@@ -4,8 +4,10 @@ import lzma
 import math
 import struct
 import requests
+from pathlib import Path
 from core.projectx_api import ProjectXClient, Unit
 from services.journal_replay import FX
+from . import spot_replay
 
 
 def projectx(symbol, start, end):
@@ -32,7 +34,16 @@ def decode_candles(content, day, symbol):
     return result
 
 
-def dukascopy(symbol,start,end):
+def dukascopy(symbol,start,end,*,archive:Path|None=None):
+    if archive and archive.is_file() and symbol in spot_replay.SYMBOLS:
+        with spot_replay.connect(archive) as connection:
+            rows = connection.execute(
+                'SELECT time,open,high,low,close,volume FROM spot_bars '
+                'WHERE symbol=? AND time>=? AND time<? ORDER BY time LIMIT 750',
+                (symbol, int(start.timestamp()*1000), int(end.timestamp()*1000)),
+            ).fetchall()
+        if rows:
+            return [dict(zip(spot_replay.FIELDS, row)) for row in rows]
     day=start.replace(hour=0,minute=0,second=0,microsecond=0)
     rows=[]
     while day<end:
