@@ -54,6 +54,29 @@ const RHYTHMS = [
 
 function Breathwork({onNext}) {
   const [rhythm, setRhythm] = useState(0);
+  const [creditError, setCreditError] = useState("");
+  const [creditPending, setCreditPending] = useState(false);
+  const breathAttempt = useRef(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    breathAttempt.current = api("/mindset/breathwork/start", { method: "POST", signal: controller.signal })
+      .then((response) => response.attempt).catch(() => null);
+    return () => controller.abort();
+  }, []);
+  async function proceed() {
+    if (!finished || creditError) { onNext(); return; }
+    setCreditPending(true);
+    try {
+      const attempt = await breathAttempt.current;
+      if (!attempt) throw new Error();
+      await api("/mindset/breathwork/finish", { method: "POST", body: { attempt } });
+      onNext();
+    } catch {
+      setCreditError("Couldn’t record breathwork credit. You can still continue.");
+    } finally {
+      setCreditPending(false);
+    }
+  }
   const [deadline, setDeadline] = useState(() => Date.now() + BREATH_MS);
   const remaining = Math.min(BREATH_MS, useCountdown(deadline) ?? BREATH_MS);
   const [paused, setPaused] = useState(null);
@@ -96,8 +119,9 @@ function Breathwork({onNext}) {
         if (paused == null) {setPaused(left); setDeadline(null);}
         else {setDeadline(Date.now() + paused); setPaused(null);}
       }}>{paused == null ? 'Pause' : 'Resume'}</Button>}
-      <Button variant="primary" onClick={onNext}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
+      <Button variant="primary" busy={creditPending} onClick={proceed}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
     </div>
+    {creditError && <Notice error>{creditError}</Notice>}
   </section>;
 }
 

@@ -58,6 +58,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
 
  const layoutSavers=useRef({}),prefetch=useRef(null);
  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState('');
+ const manualCursor=useRef(null);
  const latest=useRef({data:null,cursor:0}),queue=useRef(Promise.resolve()),locked=useRef(false);
  latest.current={data:active,cursor};
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
@@ -75,6 +76,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   drawingTool.current=null;
   const group=data.layout?.chartGroup||{};
   setChartWorkspace({charts:[{...data.layout,id:'primary',symbol:data.layout?.symbol||data.session.root,timeframe:data.layout?.timeframe||'1'}, {...data.layout_secondary,id:'secondary',symbol:data.layout_secondary?.symbol||'ES',timeframe:data.layout_secondary?.timeframe||'1'}],activeChartId:data.layout?.split&&group.activeChartId==='secondary'?'secondary':'primary',syncCrosshair:Boolean(group.syncCrosshair),syncIntervals:Boolean(group.syncIntervals)});
+  manualCursor.current=null;
   setTwoCharts(Boolean(data.layout?.split));latest.current={data,cursor:data.session.cursor};setActive(data);setCursor(data.session.cursor);setSaveError('');history.replaceState({},'',`/backtesting?session=${data.session.id}${new URLSearchParams(location.search).get('drawingDebug')==='1'?'&drawingDebug=1':''}`)
  }
  useEffect(()=>{
@@ -85,8 +87,9 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  function enqueue(job){const task=queue.current.catch(()=>{}).then(job);queue.current=task;return task}
  const save=useCallback(()=>enqueue(async()=>{
   const {data,cursor:at}=latest.current;if(!data||at===data.session.cursor)return;
+  const manual=manualCursor.current;
   setSaving(true);
-  try{const reply=await api(`/backtesting/sessions/${data.session.id}/progress`,{method:'PUT',body:{version:data.session.version,cursor:at}});accept(reply);setSaveError('')}
+  try{const reply=await api(`/backtesting/sessions/${data.session.id}/progress`,{method:'PUT',body:{version:data.session.version,cursor:at,manual_interaction:manual?.sid===data.session.id&&manual.at<=at}});if(manualCursor.current===manual)manualCursor.current=null;accept(reply);setSaveError('')}
   catch(e){setSaveError(e.message);throw e}
   finally{setSaving(false)}
  }),[accept]);
@@ -129,7 +132,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&(!identity.authenticated||entrancePreview))return <WorkspaceEntrance workspace="backtesting" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={()=>location.reload()}/>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:at=>{if(!locked.current){latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,onSplit:toggleSplit,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div ref={splitHost} className={twoCharts?'bt-panes bt-panes-split':'bt-panes'} style={{'--bt-split-ratio':splitPercent/100}}>

@@ -17,6 +17,8 @@ from .bullpen import _team_name
 from .schemas import StrictModel
 
 NY = ZoneInfo('America/New_York')
+from . import compound_edge
+
 PREP = 'primus_mindset_prep_v1:'
 ATTEMPT = 'primus_mindset_attempt_v1'
 TEAM_SCORES = 'primus_mindset_team_score_v1'
@@ -85,6 +87,10 @@ class DrillResponse(StrictModel):
 class ScoreSubmission(StrictModel):
     attempt_id: AttemptId
     responses: list[DrillResponse] = Field(max_length=12)
+
+
+class BreathworkCompletion(StrictModel):
+    attempt: str = Field(min_length=1, max_length=512)
 
 
 class Completion(StrictModel):
@@ -339,6 +345,7 @@ def mount(app, config, workspace):
             if payload.items is not None:
                 db.set_setting(CHECKLIST, items)
             db.set_setting(PREP + day, value)
+            compound_edge.record(db, checklist=bool(ids) and len(value['checklist']) == len(ids))
             workspaces().bump(member['key'])
             return view(db, member, day, reset)
 
@@ -393,9 +400,12 @@ def mount(app, config, workspace):
                 if elapsed > 900:
                     raise HTTPException(409, 'This drill has expired. Start a new warm-up.')
                 attempt['score'] = score_drill(attempt['mode'], attempt['rounds'], payload.responses)
+                attempt['participated'] = bool(payload.responses)
                 db.set_setting(ATTEMPT, signer.dumps(attempt))
                 workspaces().bump(member['key'])
             score = attempt['score']
+            if attempt.get('participated'):
+                compound_edge.record(db, now, mindset=True)
             name = team_name(member)
             if name:
                 with workspaces().lock:
@@ -405,6 +415,27 @@ def mount(app, config, workspace):
                     if name not in scores or score > scores[name]:
                         root.set_setting(TEAM_SCORES, {'day': attempt['day'], 'scores': {**scores, name: score}})
             return {'score': score, 'max_score': 60}
+
+    @app.post('/api/mindset/breathwork/start')
+    def start_breathwork(member=Depends(workspace)):
+        now = now_utc()
+        return {'attempt': signer.dumps({
+            'workspace': member['key'], 'breathwork_started': now.timestamp(),
+        })}
+
+    @app.post('/api/mindset/breathwork/finish')
+    def finish_breathwork(payload: BreathworkCompletion, member=Depends(workspace)):
+        now = now_utc()
+        try:
+            attempt = signer.loads(payload.attempt)
+            elapsed = now.timestamp() - attempt['breathwork_started']
+        except (BadSignature, KeyError, TypeError):
+            raise HTTPException(422, 'Start a new breathwork exercise.') from None
+        if attempt['workspace'] != member['key'] or not 120 <= elapsed <= 1800:
+            raise HTTPException(422, 'Finish the two-minute exercise to earn credit.')
+        with workspaces().workspace_lock(member['key']):
+            compound_edge.record(database(member), now, mindset=True)
+        return {'completed': True}
 
     @app.post('/api/mindset/complete')
     def complete(payload: Completion, member=Depends(workspace)):

@@ -15,6 +15,7 @@ import { JournalClock } from "./JournalClock";
 import GuidedTour from "./GuidedTour";
 import Welcome from "./Welcome";
 import ReleaseNotes from "./ReleaseNotes";
+import CompoundEdge from "./CompoundEdge";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
@@ -284,6 +285,7 @@ export default function App() {
                     <p>Find the setups worth repeating.</p>
                   </div>
                 </div>
+                <CompoundEdge />
                 <div className="research-toolbar">
                   <Button
                     variant="primary"

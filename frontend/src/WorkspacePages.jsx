@@ -9,9 +9,9 @@ export function useIdentity(){
  useEffect(()=>{load();const out=()=>setIdentity({authenticated:false,auth_mode:'google'});window.addEventListener('primus:logout',out);return()=>window.removeEventListener('primus:logout',out)},[]);
  return {identity,error,reload:load};
 }
-export function WorkspacePage({active,kicker,title,intro,children,hideHeading=false,className=""}){
+export function WorkspacePage({active,kicker,title,intro,children,heroAside,hideHeading=false,className=""}){
  useEffect(()=>{document.title=`${title} — PrimusTrader`},[title]);
- return <div className={`pt-site workspace-page ${className}`}><PrimusHeader active={active}/><main className="pt-wrap wp-main">{!hideHeading&&<header className="wp-heading"><span className="pt-overline">{kicker}</span><h1>{title}</h1><p>{intro}</p></header>}{children}</main></div>;
+ return <div className={`pt-site workspace-page ${className}`}><PrimusHeader active={active}/><main className="pt-wrap wp-main">{!hideHeading&&<div className={heroAside?"ce-hero-layout":undefined}><header className="wp-heading"><span className="pt-overline">{kicker}</span><h1>{title}</h1><p>{intro}</p></header>{heroAside}</div>}{children}</main></div>;
 }
 export function SignInPanel({identity,path,reload,title='Your space stays private'}){
  const [password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');

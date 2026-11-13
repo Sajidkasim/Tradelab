@@ -66,7 +66,10 @@ class OrderInput(BaseModel):
     stop:float|None=None
     target:float|None=None
 
+from . import compound_edge
+
 class ProgressInput(BaseModel):
+    manual_interaction: bool = False
     model_config=ConfigDict(extra='forbid')
     version:int=Field(ge=0)
     cursor:int=Field(ge=0)
@@ -489,8 +492,10 @@ def mount(app,config,workspace):
         with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=get_record(db,sid)
             if payload.version!=record['version']:raise HTTPException(409,'This session changed in another tab. Reopen it before continuing.')
-            valid_cursor(record,payload.cursor);record['cursor']=payload.cursor;record['version']+=1
+            valid_cursor(record,payload.cursor);advanced=payload.cursor>record['cursor'];record['cursor']=payload.cursor;record['version']+=1
             data=checked_data(record);plan=projection(record,data);save(db,record,plan,data);app.state.workspaces.bump(member['key'])
+            if advanced and payload.manual_interaction:
+                compound_edge.replay_interaction(db, sid)
             return {'session':result(record,plan,include_projection=False)['session']}
     @app.post('/api/backtesting/sessions/{sid}/continue')
     def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
@@ -540,6 +545,7 @@ def mount(app,config,workspace):
                     command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
                 record=deepcopy(record);record['commands'].append(command);record['cursor']=payload.cursor
                 plan=projection(record,data);record['version']+=1;save(db,record,plan,data);app.state.workspaces.bump(member['key'])
+                compound_edge.replay_interaction(db, sid)
                 return result(record,plan)
         except ValueError as e:raise HTTPException(422,str(e)) from None
 

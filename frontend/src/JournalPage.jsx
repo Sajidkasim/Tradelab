@@ -110,7 +110,7 @@ export default function JournalPage({theme = "light"}){
   const timezone=meta?.journal_preferences?.timezone||'America/New_York';
   function upsert(value){const row=normalize(value);setRows(old=>[...old.filter(item=>item.day!==row.day),row].sort((a,b)=>b.day.localeCompare(a.day)));setEntry(row);setDirty(false)}
   function selectDay(value){if(busy||!value)return;if(dirty&&!window.confirm('Leave this day without saving your changes?'))return;setDay(value);setEntry(rows.find(row=>row.day===value)||blank(value));setDirty(false);setNotice('');setError('');setMonth(value.slice(0,7));setExpanded(null)}
-  const body=()=>({plan:entry.plan,notes:entry.notes,lesson:entry.lesson,mindset:entry.mindset,plan_followed:entry.plan_followed,traded_today:entry.traded_today,trades:entry.trades.map(trade=>({
+  const body=()=>({plan:entry.plan,notes:entry.notes,lesson:entry.lesson,mindset:entry.mindset,plan_followed:entry.plan_followed,no_trade_plan:entry.traded_today==='No'&&Boolean(entry.no_trade_plan),traded_today:entry.traded_today,trades:entry.trades.map(trade=>({
     ...narrative(trade),
     custom_fields: Object.fromEntries((meta?.custom_trade_fields || [])
       .filter(({id}) => Object.hasOwn(trade.custom_fields || {}, id))
@@ -200,6 +200,11 @@ export default function JournalPage({theme = "light"}){
                   {option}
                 </button>)}
               </div>
+              {entry.traded_today==='No' && !entry.trades.length && <label>
+                <input type="checkbox" checked={Boolean(entry.no_trade_plan)} disabled={busy}
+                  onChange={event=>edit('no_trade_plan',event.target.checked)}/>
+                I stayed with my plan by not trading
+              </label>}
             </div>
           </div>
           <JournalReplayImports/>

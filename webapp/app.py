@@ -348,7 +348,8 @@ def create_app(config: Settings | None = None):
     replay_sessions.mount(app, config, workspace)
     from . import journal_replay
     journal_replay.mount(app, config, workspace)
-    from . import learning
+    from . import compound_edge, learning
+    compound_edge.mount(app, workspace)
     learning.mount(app, config, workspace)
     from . import mindset
     mindset.mount(app, config, workspace)
@@ -464,7 +465,9 @@ def create_app(config: Settings | None = None):
             if values.get('trades') is None:
                 values.pop('trades', None)
             try:
-                result = daily_journal.save_day(db(request, member), day.isoformat(), values)
+                database = db(request, member)
+                result = daily_journal.save_day(database, day.isoformat(), values)
+                compound_edge.journal_saved(database, day, result)
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
             app.state.workspaces.bump(member['key'])
@@ -705,6 +708,9 @@ def create_app(config: Settings | None = None):
                 research.attach(database, trade, payload.study_id)
                 fields['tags'] = trade.tags
             database.update_trade(trade_id, **fields)
+            compound_edge.lab_review(database, trade_id,
+                                     bool(payload.notes.strip()) and payload.notes.strip() != (trade.notes or '').strip(),
+                                     payload.confirmed)
             app.state.workspaces.bump(member["key"])
             return serialise_trade(database.get_trade(trade_id))
 
