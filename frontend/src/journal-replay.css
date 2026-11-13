@@ -7,3 +7,14 @@
 .jr-import-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--tl-border)}
 .jr-notes{white-space:pre-wrap}.jr-modal li{font-size:12px}.jr-modal p{font-size:13px;line-height:1.6}
 @media(max-width:600px){.jr-chart{height:320px}.jr-import-row{align-items:flex-start;flex-direction:column}}
+
+.jr-import-form{display:grid;gap:12px;margin-top:12px}
+.jr-import-form fieldset{display:grid;gap:12px;border:0;margin:0;padding:0;min-width:0}
+.jr-import-clock,.jr-import-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.jr-import-actions label,.jr-import-advanced label{display:grid;gap:4px;min-width:0}
+.jr-import-actions input,.jr-import-advanced input{max-width:100%}
+.jr-import-actions{align-items:end}
+.jr-import-actions button:disabled{opacity:.6}
+.jr-import-advanced{font-size:.875rem;overflow-wrap:anywhere}
+.jr-import-list{margin-top:16px}
+.jr-import-row time{display:inline-block;margin-inline-start:8px}

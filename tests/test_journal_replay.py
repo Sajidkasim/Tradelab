@@ -156,3 +156,29 @@ def test_dukascopy_reuses_bounded_archive_window(tmp_path, monkeypatch):
     monkeypatch.setattr('webapp.journal_replay_providers.requests.get', unexpected_fetch)
     bars = dukascopy('EURUSD', start, end, archive=archive)
     assert [bar['time'] for bar in bars] == [timestamp, timestamp + 60000]
+
+
+def test_projectx_bullpen_access_keeps_trade_records_private(draft, monkeypatch):
+    from webapp.bullpen import TEAM
+
+    client, _, state = draft
+    teammate = 'teammate@example.com'
+    monkeypatch.setenv(f'BULLPEN_{next(iter(TEAM)).upper()}_EMAIL', teammate)
+    monkeypatch.setenv('JOURNAL_REPLAY_PROJECTX_APPROVED', '1')
+    monkeypatch.setenv('JOURNAL_REPLAY_PROJECTX_WORKSPACES', 'owner,bullpen')
+    monkeypatch.setattr('webapp.journal_replay_providers.projectx', lambda *args: [])
+    start = int(datetime(2026, 11, 10, 15, 23, tzinfo=timezone.utc).timestamp() * 1000)
+
+    login(client, state, teammate, 'bullpen-sub')
+    assert client.post('/api/journal-replay/import', files={'file': ('trades.csv', TOPSTEP)}).status_code == 200
+    reference = client.get('/api/journal-replay').json()[0]['id']
+    url = f'/api/journal-replay/{reference}/candles'
+    assert client.get(url, params={'start': start}).status_code == 200
+
+    client.post('/api/logout')
+    login(client, state, 'outside@example.com', 'outside-sub')
+    assert client.get(url, params={'start': start}).status_code == 404
+    other_csv = TOPSTEP.replace(b'synthetic-1', b'synthetic-outside')
+    assert client.post('/api/journal-replay/import', files={'file': ('trades.csv', other_csv)}).status_code == 200
+    other_ref = client.get('/api/journal-replay').json()[0]['id']
+    assert client.get(f'/api/journal-replay/{other_ref}/candles', params={'start': start}).status_code == 503

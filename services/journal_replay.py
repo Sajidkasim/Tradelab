@@ -55,6 +55,8 @@ def parse_executions(content, zone):
         return native_report(rows,zone,'topstepx')
     if {'Ticket','Open','Close','Volume','Symbol','Type'}.issubset(header) and header.count('Price')==2:
         return native_report(rows,zone,'ftmo')
+    if {'ContractName','Status','FilledAt','ExecutePrice','PositionDisposition'}.issubset(header):
+        raise ValueError('This is a TopstepX Orders export. Open the Trades tab in TopstepX and export the Trades CSV.')
     return parse_execution_rows(csv.DictReader(io.StringIO(text)),zone)
 
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import Depends, HTTPException, Request, UploadFile, File, Form, Query
 from services import journal_replay as replay
 from . import journal_replay_providers as providers
+from .bullpen import _team_name
 
 KEY='journal_replay_records:v1'
 
@@ -62,7 +63,13 @@ def mount(app, config, workspace):
         if provider=='unavailable':raise HTTPException(422,'No verified candle mapping is configured for this broker symbol. Your imported trade is preserved; no substitute instrument was used.')
         prefix='JOURNAL_REPLAY_'+provider.upper()
         allowed={s.strip() for s in os.getenv(prefix+'_WORKSPACES','').split(',') if s.strip()}
-        if os.getenv(prefix+'_APPROVED')!='1' or member['key'] not in allowed:
+        team_access = (
+            provider == 'projectx'
+            and 'bullpen' in allowed
+            and config.google_required
+            and bool(_team_name(member.get('email')))
+        )
+        if os.getenv(prefix+'_APPROVED')!='1' or (member['key'] not in allowed and not team_access):
             raise HTTPException(503,'This candle source is not enabled for your workspace. Provider access and display permission must be configured first.')
         first=datetime.fromisoformat(row['executions'][0]['time'])
         last=datetime.fromisoformat(row['executions'][-1]['time'])

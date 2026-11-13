@@ -74,10 +74,76 @@ export function ReplayButton({reference,notes}){
  async function open(){setBusy(true);setError('');request.current?.abort();request.current=new AbortController();try{setRecord(await api(`/journal-replay/${reference}`,{signal:request.current.signal}))}catch(e){if(e.name!=='AbortError')setError(e.message)}finally{setBusy(false)}}
  return <><button type="button" className="pt-btn" disabled={busy} onClick={open}>{busy?'Opening replay…':'Replay'}</button>{error&&<p role="alert">{error}</p>}{record&&<Modal title={`${record.symbol} · Trade replay`} className="jr-modal" onClose={()=>setRecord(null)}><ReplayChart record={notes===undefined?record:{...record,notes}} reference={reference}/></Modal>}</>;
 }
+const tradeDate = new Intl.DateTimeFormat('en-GB', {
+ dateStyle:'medium', timeStyle:'short', timeZone:'America/New_York',
+});
+
 export default function JournalReplayImports(){
- const [rows,setRows]=useState([]),[zone,setZone]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[opened,setOpened]=useState(false);
- const request=useRef(null);useEffect(()=>()=>request.current?.abort(),[]);
- async function refresh(){request.current?.abort();request.current=new AbortController();try{setRows(await api('/journal-replay',{signal:request.current.signal}))}catch(e){if(e.name!=='AbortError')setMessage(e.message)}}
- async function upload(file){if(!file)return;setBusy(true);try{const body=new FormData();body.append('file',file);body.append('source_timezone',zone);const result=await api('/journal-replay/import',{method:'POST',body});setMessage(`${result.inserted} replay trades imported; ${result.skipped} duplicates skipped. Financial records unchanged.`);await refresh()}catch(e){setMessage(e.message)}finally{setBusy(false)}}
- return <details className="pj-session-images" onToggle={e=>{if(e.currentTarget.open&&!opened){setOpened(true);refresh()}}}><summary>Trade replay <span>Imported executions · forward playback</span></summary><p>Import execution detail for replay only. This does not add results to your financial journal. Accepts TopstepX Trades CSV, FTMO website Trading Journal CSV and execution CSV. FTMO timestamps require the export clock to be confirmed; unsupported markets are preserved with a clear unavailable message.</p><p>Execution interchange CSV columns: trade_id, execution_id, symbol, timestamp, side, quantity, price, role, notes (optional). Use buy/sell and entry/exit. TopstepX dates use month/day/year; compact contracts such as MNQZ6 retain their expiry. FTMO’s two Price columns remain separate entry/exit prices.</p><label>Export timezone (required for timestamps without offsets)<input aria-label="Replay export timezone" placeholder="e.g. America/New_York — do not guess" value={zone} onChange={e=>setZone(e.target.value)}/></label><button type="button" className="pt-btn" onClick={()=>setZone('FTMO_MT5')}>Use FTMO MT5 platform time (GMT+2/+3)</button><label>Execution CSV<input aria-label="Replay execution CSV" type="file" accept=".csv" disabled={busy} onChange={e=>{upload(e.target.files[0]);e.target.value=''}}/></label>{message&&<p role="status">{message}</p>}{rows.map(row=><div key={row.id} className="jr-import-row"><span>{row.symbol} · {row.executions[0]?.time} · {row.executions.length} executions</span><ReplayButton reference={row.id}/></div>)}</details>;
+ const [rows,setRows]=useState([]),[zone,setZone]=useState(''),[file,setFile]=useState(null);
+ const [message,setMessage]=useState(null),[busy,setBusy]=useState(false),[opened,setOpened]=useState(false);
+ const request=useRef(null);
+ const fileInput=useRef(null);
+ useEffect(()=>()=>request.current?.abort(),[]);
+
+ async function refresh(){
+  request.current?.abort();
+  request.current=new AbortController();
+  try{setRows(await api('/journal-replay',{signal:request.current.signal}))}
+  catch(error){
+   if(error.name!=='AbortError')setMessage({error:true,text:error.message});
+  }
+ }
+
+ async function upload(event){
+  event.preventDefault();
+  if(!file||busy)return;
+  setBusy(true);
+  setMessage(null);
+  try{
+   const body=new FormData();
+   body.append('file',file);
+   body.append('source_timezone',zone);
+   const {inserted,skipped}=await api('/journal-replay/import',{method:'POST',body});
+   setFile(null);
+   fileInput.current.value='';
+   setMessage({text:`${inserted} replay ${inserted===1?'trade':'trades'} imported.${skipped?` ${skipped} already imported.`:''}`});
+   await refresh();
+  }catch(error){setMessage({error:true,text:error.message})}
+  finally{setBusy(false)}
+ }
+
+ return <details className="pj-session-images jr-imports" onToggle={event=>{
+  if(event.currentTarget.open&&!opened){setOpened(true);refresh()}
+ }}>
+  <summary>Trade replay</summary>
+  <form className="jr-import-form" onSubmit={upload}>
+   <p>Import a TopstepX <strong>Trades CSV</strong> or an FTMO <strong>Trading Journal CSV</strong> to replay past trades.</p>
+   <fieldset disabled={busy}>
+    <label className="jr-import-clock">
+     <input type="checkbox" checked={zone==='FTMO_MT5'} onChange={event=>setZone(event.target.checked?'FTMO_MT5':'')}/>
+     Use FTMO MT5 platform time
+    </label>
+    <div className="jr-import-actions">
+     <label>Trade CSV<input ref={fileInput} aria-label="Replay execution CSV" type="file" accept=".csv,text/csv"
+      onChange={event=>{setFile(event.target.files[0]||null);setMessage(null)}}/></label>
+     <button type="submit" className="pt-btn" disabled={!file}>{busy?'Importing…':'Import trades'}</button>
+    </div>
+    <details className="jr-import-advanced">
+     <summary>Custom CSV or timezone</summary>
+     <label>Export timezone<input aria-label="Replay export timezone" placeholder="e.g. America/New_York"
+      value={zone} onChange={event=>setZone(event.target.value)}/></label>
+     <p>Custom CSV columns <code>trade_id, execution_id, symbol, timestamp, side, quantity, price, role</code>. Use buy/sell and entry/exit. Include a timestamp offset or enter the export timezone above.</p>
+    </details>
+   </fieldset>
+   {message&&<p role={message.error?'alert':'status'}>{message.text}</p>}
+  </form>
+  {rows.length>0&&<section className="jr-import-list" aria-label="Imported replay trades">
+   <h3>Imported trades <span>{rows.length}</span></h3>
+   <p>Trade times are shown in New York time.</p>
+   {rows.map(row=><div key={row.id} className="jr-import-row">
+    <div><strong>{row.symbol}</strong> <time dateTime={row.executions[0].time}>{tradeDate.format(new Date(row.executions[0].time))}</time></div>
+    {row.provider==='unavailable'?<span>Replay unavailable for this market</span>:<ReplayButton reference={row.id}/>}
+   </div>)}
+  </section>}
+ </details>;
 }
