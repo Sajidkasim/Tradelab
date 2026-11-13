@@ -42,3 +42,29 @@ def test_spot_import_and_session(local, tmp_path, monkeypatch):
     response = client.post(root + '/continue', json={'version': 0, 'cursor': session['cursor']})
     assert response.status_code == 200, response.text
     assert response.json()['session']['last_cursor'] == 19
+
+
+def test_private_spot_archive_verifies_download(tmp_path, monkeypatch):
+    import gzip
+    import hashlib
+    import io
+    import json
+    from types import SimpleNamespace
+
+    import pytest
+    from webapp import spot_archive
+
+    content = b'private spot candle fixture'
+    manifest = tmp_path / 'manifest.json'
+    monkeypatch.setattr(spot_archive, 'MANIFEST', manifest)
+    monkeypatch.setattr(spot_archive.tempfile, 'gettempdir', lambda: str(tmp_path))
+    digest = hashlib.sha256(content).hexdigest()
+    manifest.write_text(json.dumps({'sha256': digest, 'size': len(content)}))
+    storage = SimpleNamespace(get_object=lambda **_: {'Body': io.BytesIO(gzip.compress(content))})
+    path = spot_archive.restore(storage, 'private')
+    assert path.read_bytes() == content
+    path.unlink()
+    storage = SimpleNamespace(get_object=lambda **_: {'Body': io.BytesIO(gzip.compress(b'invalid'))})
+    with pytest.raises(ValueError, match='integrity'):
+        spot_archive.restore(storage, 'private')
+    assert not path.exists()
