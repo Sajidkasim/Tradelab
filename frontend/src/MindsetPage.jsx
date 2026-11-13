@@ -6,6 +6,7 @@ import VisionBoard from './VisionBoard';
 import {Notice, Button} from './components';
 import {api} from './api';
 import PrepProgress from './PrepProgress';
+import CompoundEdge from './CompoundEdge';
 import AuraCheckIn from './AuraCheckIn';
 import './mindset-warmup.css';
 
@@ -63,7 +64,7 @@ function MorningCards({state, onEdit, onSave, status}) {
     onEdit({items:items.filter(item => item.id !== id), checklist:state.checklist.filter(value => value !== id)});
   }
   return <div className="mw-prep-grid">
-      <AuraCheckIn/>
+      <div className="mw-aura-stack"><AuraCheckIn/><CompoundEdge/></div>
       <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
         <h2 id="prep-checklist">Pre-Session Checklist</h2>
         <PrepProgress checked={checked} total={items.length}/>

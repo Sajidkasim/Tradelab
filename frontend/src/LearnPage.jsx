@@ -2,7 +2,6 @@ import React, {lazy, Suspense, useEffect, useState} from 'react';
 import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
 import {PrimusHeader} from './SiteExperience';
-import CompoundEdge from './CompoundEdge';
 import LearnFoundations from './LearnFoundations';
 import ResourceLibrary from './ResourceLibrary';
 import {Button, Notice} from './components';
@@ -57,7 +56,6 @@ export default function LearnPage() {
    </div>
    <div hidden={isRoomActive&&!minimised}>
    <WorkspacePage active="learn" kicker="THE PRIMUS LIBRARY" title="Learn"
-    heroAside={identity?.authenticated && <CompoundEdge variant="expanded" />}
     intro="Take an idea from understanding to practice. Start with the basics, find the words, then explore videos and guides from the Primus team.">
     {access&&<section className="wp-panel bullpen-entry">
       <div><span className="pt-overline">TEAM WORKSPACE</span><h2>Live Trading Bullpen</h2>
