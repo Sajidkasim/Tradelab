@@ -114,7 +114,7 @@ function AuraChat({onClose}) {
   const voiceLabel = {
     idle: 'Dictate message', listening: 'Stop dictation', blocked: 'Microphone blocked', missed: 'Didn’t catch that',
   }[dictationState];
-  return <Modal title="Aura" className="mw-modal mw-aura-modal" onClose={onClose}>
+  return <Modal title="Primax" className="mw-modal mw-aura-modal" onClose={onClose}>
     <div className={`mw-aura-dialog ${turns.length ? '' : 'is-empty'}`}>
       <div className="mw-aura-thread" role="log" aria-label="Conversation" ref={timeline}>
         <header className="mw-aura-opening">
@@ -132,14 +132,14 @@ function AuraChat({onClose}) {
           <div className="mw-aura-message">
             <span className="mw-aura-avatar" aria-hidden="true"><Sparkles size={17}/></span>
             {answer ? <p>{answer}</p> : failed
-              ? <p>Aura is resting. {index === turns.length - 1 && <button type="button" className="mw-aura-retry"
+              ? <p>Primax is resting. {index === turns.length - 1 && <button type="button" className="mw-aura-retry"
                 disabled={busy || listening} onClick={() => send(question, index)}>Try again</button>}</p>
               : <p className="mw-aura-thinking">Thinking…</p>}
           </div>
         </React.Fragment>)}
       </div>
       <form className="mw-aura-compose" onSubmit={(event) => {event.preventDefault(); send(draft.trim());}}>
-        <textarea aria-label="Message Aura" placeholder="What’s the plan today?" rows={2} maxLength={400}
+        <textarea aria-label="Message Primax" placeholder="What’s the plan today?" rows={2} maxLength={400}
           value={draft} readOnly={listening} onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -167,10 +167,10 @@ function AuraChat({onClose}) {
 export default function AuraCheckIn() {
   const [open, setOpen] = useState(false);
   return <section className="wp-panel mw-card mw-aura-card" aria-labelledby="morning-check-in">
-    <h2 id="morning-check-in">Aura</h2>
+    <h2 id="morning-check-in">Primax</h2>
     <div className="mw-aura-orb-stage">
-      <button type="button" className="aura-orb mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Aura" title="Ask Aura">
-        <Sparkles size={32} strokeWidth={1.65} aria-hidden="true"/><span>Aura</span>
+      <button type="button" className="aura-orb mw-aura-orb" onClick={() => setOpen(true)} aria-label="Ask Primax" title="Ask Primax">
+        <Sparkles size={32} strokeWidth={1.65} aria-hidden="true"/><span>Primax</span>
       </button>
     </div>
     {open && createPortal(<AuraChat onClose={() => setOpen(false)}/>, document.body)}

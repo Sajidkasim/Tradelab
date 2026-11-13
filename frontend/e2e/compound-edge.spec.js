@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Compound Edge shows private routine progress in the Mindset", async ({ page }) => {
+test("Aura shows private routine progress in the Mindset", async ({ page }) => {
   await page.route("**/api/compound-edge", (route) => route.fulfill({ json: {
     today: "2026-11-10",
     days: [
@@ -13,14 +13,14 @@ test("Compound Edge shows private routine progress in the Mindset", async ({ pag
   await page.setViewportSize({ width: 380, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("http://127.0.0.1:8119/mindset");
-  const card = page.getByRole("button", { name: /Open Compound Edge/ });
-  await expect(card).toHaveText("1 of 3 pillars done today");
+  const card = page.getByRole("button", { name: /Open Aura/ });
+  await expect(card).toContainText("1 of 3 pillars done today");
   await expect(page.locator(".ce-drawer")).toHaveCount(0);
   await expect(card.locator(".ce-ring-progress")).toHaveCount(2);
   await expect(card.getByRole("img", { name: "Execute: 50% complete" })).toBeVisible();
   await card.focus();
   await card.press("Enter");
-  const drawer = page.getByRole("dialog", { name: "Compound Edge" });
+  const drawer = page.getByRole("dialog", { name: "Aura" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Open checklist" })).toBeVisible();
   await expect(drawer.getByRole("tooltip")).toHaveCount(0);

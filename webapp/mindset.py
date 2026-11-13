@@ -364,14 +364,14 @@ def mount(app, config, workspace):
         from extensions.ai_coach import aura_check_in
 
         if payload.step == 'intention' and len(payload.reflection.strip()) < 10:
-            raise HTTPException(422, 'Write at least 10 characters before asking Aura for a rule.')
+            raise HTTPException(422, 'Write at least 10 characters before asking Primax for a rule.')
         raw = aura_check_in(payload.model_dump(), current_aura_context(member, now_utc())).strip()
         if raw.startswith('```json') and raw.endswith('```'):
             raw = raw[7:-3].strip()
         try:
             return AuraReply.model_validate_json(raw)
         except ValidationError:
-            raise HTTPException(502, 'Aura returned an unreadable reply. Try again.') from None
+            raise HTTPException(502, 'Primax returned an unreadable reply. Try again.') from None
 
     @app.post('/api/mindset/drill')
     def start_drill(payload: StartDrill, member=Depends(workspace)):

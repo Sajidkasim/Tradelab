@@ -55,20 +55,20 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
   return <section className="pj-coach card" aria-labelledby={titleId}>
     <header>
       <div className="pj-aura-title">
-        <h3 id={titleId}>Aura</h3>
+        <h3 id={titleId}>Primax</h3>
         <div className="pj-aura-info" data-open={showPrivacy} onBlur={() => setShowPrivacy(false)}>
           <button type="button" aria-label="Journal privacy information" aria-describedby={titleId + '-privacy'}
             aria-expanded={showPrivacy} onClick={() => setShowPrivacy(value => !value)}><Info size={15} aria-hidden="true"/></button>
           <p id={titleId + '-privacy'} className="pj-aura-tooltip" role="tooltip">Cloudflare receives this day’s saved notes, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
         </div>
       </div>
-      <button type="button" className="pj-aura-close" onClick={onClose} aria-label="Close Aura" autoFocus><X size={20} aria-hidden="true"/></button>
+      <button type="button" className="pj-aura-close" onClick={onClose} aria-label="Close Primax" autoFocus><X size={20} aria-hidden="true"/></button>
     </header>
     {dirty && <p>Save your entry to include your latest notes.</p>}
-    {turns.length > 0 && <div className="pj-coach-review" role="log" aria-label="Conversation with Aura">
+    {turns.length > 0 && <div className="pj-coach-review" role="log" aria-label="Conversation with Primax">
       {turns.map((turn, index) => <article key={index}>
         <p className="pj-aura-question">{turn.question}</p>
-        <div className="pj-aura-answer" aria-label="Aura"><CoachMarkdown text={turn.answer}/></div>
+        <div className="pj-aura-answer" aria-label="Primax"><CoachMarkdown text={turn.answer}/></div>
       </article>)}
     </div>}
     {!turns.length && <div className="pj-aura-suggestions" role="group" aria-label="Suggested questions">
@@ -89,7 +89,7 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
         <ArrowUp size={19} aria-hidden="true"/>
       </button>
     </form>
-    {loading && <p role="status">Aura is thinking…</p>}
+    {loading && <p role="status">Primax is thinking…</p>}
     {error && <p role="alert">{error}</p>}
   </section>;
 }
@@ -111,11 +111,11 @@ export default function FloatingAura({day, account, dirty}) {
       close();
     }
   }}>
-    <button ref={button} type="button" className="aura-orb pj-aura-orb" hidden={open} aria-label="Aura - Trading Assistant"
+    <button ref={button} type="button" className="aura-orb pj-aura-orb" hidden={open} aria-label="Primax - Trading Assistant"
       aria-expanded={open} aria-controls={open ? panelId : undefined}
       onClick={() => setOpen(value => !value)}>
       <Sparkles size={19} strokeWidth={1.65} aria-hidden="true"/>
-      <span>Aura</span>
+      <span>Primax</span>
     </button>
     {open && <div id={panelId} className="pj-aura-panel">
       <AuraReview key={JSON.stringify([day, account])} day={day} account={account}

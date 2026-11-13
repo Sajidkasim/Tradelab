@@ -42,9 +42,9 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
     return route.fulfill({json:{text:'Until you can clearly state your entry criteria.'}});
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Aura'}).click();
-  const aura = page.getByRole('dialog',{name:'Aura',exact:true});
-  const composer = aura.getByRole('textbox',{name:'Message Aura'});
+  await page.getByRole('button',{name:'Ask Primax'}).click();
+  const aura = page.getByRole('dialog',{name:'Primax',exact:true});
+  const composer = aura.getByRole('textbox',{name:'Message Primax'});
   const thread = aura.getByRole('log');
   await composer.fill('I rushed into trades after a loss.');
   await composer.press('Enter');
@@ -56,7 +56,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(composer).toBeEmpty();
   await expect(thread).toContainText('Until you can clearly state your entry criteria.');
   await aura.getByRole('button',{name:'Close'}).click();
-  await page.getByRole('button',{name:'Ask Aura'}).click();
+  await page.getByRole('button',{name:'Ask Primax'}).click();
   await expect(thread).not.toContainText('I rushed into trades after a loss.');
   await aura.getByRole('button',{name:'Close'}).click();
   const progress = page.getByRole('progressbar',{name:'Pre-session checklist progress'});
@@ -106,7 +106,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   const saved = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
   expect(saved.affirmation).toBe('The next trade has to meet my rules. It does not owe me back the last loss.');
-  await expect(page.getByRole('button',{name:'Ask Aura'})).toHaveCSS('border-radius','50%');
+  await expect(page.getByRole('button',{name:'Ask Primax'})).toHaveCSS('border-radius','50%');
 });
 
 test('Pattern Match works at 390px in dark mode with reduced motion',async({page},info)=>{
@@ -177,7 +177,7 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
 });
 
-test('Aura puts dictated words into the composer for review', async ({page}) => {
+test('Primax puts dictated words into the composer for review', async ({page}) => {
   await page.addInitScript(()=>{
     window.SpeechRecognition = class {
       start(){setTimeout(()=>{
@@ -189,27 +189,27 @@ test('Aura puts dictated words into the composer for review', async ({page}) => 
   });
   await page.setViewportSize({width:390,height:844});
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Aura'}).click();
-  const dialog=page.getByRole('dialog',{name:'Aura',exact:true});
+  await page.getByRole('button',{name:'Ask Primax'}).click();
+  const dialog=page.getByRole('dialog',{name:'Primax',exact:true});
   await dialog.getByRole('button',{name:'Dictate message'}).click();
-  await expect(dialog.getByRole('textbox',{name:'Message Aura'})).toHaveValue('I feel ready to wait for my setup.');
+  await expect(dialog.getByRole('textbox',{name:'Message Primax'})).toHaveValue('I feel ready to wait for my setup.');
   await expect(dialog.getByRole('button',{name:'Send message'})).toBeEnabled();
 });
 
 for (const failure of ['timeout', 'server error']) {
-  test(`Aura keeps the message available to retry after a ${failure}`, async ({page}) => {
+  test(`Primax keeps the message available to retry after a ${failure}`, async ({page}) => {
     await page.clock.install();
     await page.route('**/api/mindset/check-in/reflect', (route) => failure === 'timeout'
       ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 6500))
       : route.fulfill({status:500, json:{detail:'unavailable'}}));
     await page.goto(`${origin}/mindset`);
-    await page.getByRole('button',{name:'Ask Aura'}).click();
-    const aura = page.getByRole('dialog',{name:'Aura',exact:true});
-    const composer = aura.getByRole('textbox',{name:'Message Aura'});
+    await page.getByRole('button',{name:'Ask Primax'}).click();
+    const aura = page.getByRole('dialog',{name:'Primax',exact:true});
+    const composer = aura.getByRole('textbox',{name:'Message Primax'});
     await composer.fill('I’m tempted to rush');
     await aura.getByRole('button',{name:'Send message'}).click();
     if (failure === 'timeout') await page.clock.fastForward(5001);
-    await expect(aura.getByRole('log')).toContainText('Aura is resting');
+    await expect(aura.getByRole('log')).toContainText('Primax is resting');
     await expect(aura.getByRole('log')).toContainText('I’m tempted to rush');
     await page.route('**/api/mindset/check-in/reflect', (route) =>
       route.fulfill({json:{text:'Wait for your entry criteria.'}}));
@@ -219,7 +219,7 @@ for (const failure of ['timeout', 'server error']) {
   });
 }
 
-test('Aura shows and clears a blocked microphone state', async ({page}) => {
+test('Primax shows and clears a blocked microphone state', async ({page}) => {
   await page.clock.install();
   await page.addInitScript(() => {
     window.SpeechRecognition = class {
@@ -228,8 +228,8 @@ test('Aura shows and clears a blocked microphone state', async ({page}) => {
     };
   });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Aura'}).click();
-  const aura = page.getByRole('dialog',{name:'Aura',exact:true});
+  await page.getByRole('button',{name:'Ask Primax'}).click();
+  const aura = page.getByRole('dialog',{name:'Primax',exact:true});
   await aura.getByRole('button',{name:'Dictate message'}).click();
   await expect(aura.getByRole('button',{name:'Stop dictation'})).toBeVisible();
   await page.clock.fastForward(100);
@@ -299,7 +299,7 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
   await expect(summary).toContainText(`${prep.items[0].label} · Done`);
 });
 
-test('Aura opens with a contextual prompt and quick replies on a dark surface', async ({page}) => {
+test('Primax opens with a contextual prompt and quick replies on a dark surface', async ({page}) => {
   await page.route('**/api/mindset/check-in/opening', (route) => route.fulfill({json:{
     text:'Yesterday was a red day. What will help you trade your plan today?',
     suggestions:['Help me reset after yesterday'],
@@ -310,8 +310,8 @@ test('Aura opens with a contextual prompt and quick replies on a dark surface', 
   });
   await page.goto(`${origin}/mindset`);
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
-  await page.getByRole('button',{name:'Ask Aura'}).click();
-  const dialog = page.getByRole('dialog',{name:'Aura',exact:true});
+  await page.getByRole('button',{name:'Ask Primax'}).click();
+  const dialog = page.getByRole('dialog',{name:'Primax',exact:true});
   await expect(dialog).toHaveCSS('background-color','rgb(40, 43, 46)');
   await expect(dialog.getByRole('heading',{name:'Prime your execution for the session.'})).toBeVisible();
   await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();

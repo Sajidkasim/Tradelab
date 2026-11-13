@@ -16,7 +16,7 @@ test('release notes can be reopened, fit phones, and remain dismissed after relo
   const dialog=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
   await expect(dialog).toContainText('12 November 2026');
   await expect(dialog).toContainText('Pattern Match');
-  await expect(dialog).toContainText('Chat with Aura');
+  await expect(dialog).toContainText('Chat with Primax');
   await expect(dialog).toContainText('Journal accounts and copy-traded entries');
   await expect(dialog).toContainText('Journal trade replay');
   await expect(dialog).toContainText('Bullpen screen sharing on Android');

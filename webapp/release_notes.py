@@ -4,8 +4,8 @@ KEY = 'primuslab_release_notes_seen'
 ITEMS = [
     {'title': 'Mindset warm-up',
      'text': 'Choose a breathing rhythm and see when to use it. Play 60-second rounds of Pattern Match or Visual Search on Easy or Hard, choose an affirmation, and track your editable pre-session checklist. The Brain Explorer stays visible on the Mindset page.'},
-    {'title': 'Chat with Aura',
-     'text': 'Open Aura to type or dictate a message. Follow-up questions use the open conversation, and new chats clear when you close it.'},
+    {'title': 'Chat with Primax',
+     'text': 'Open Primax to type or dictate a message. Follow-up questions use the open conversation, and new chats clear when you close it.'},
     {'title': 'Journal accounts and copy-traded entries',
      'text': 'Use Add account to create Funded, Eval or Personal accounts. If you copy-traded a setup, select multiple accounts on one Journal trade and enter the combined P&L and risk. The combined result appears under All accounts.'},
     {'title': 'Journal trade replay',

@@ -394,9 +394,9 @@ def create_app(config: Settings | None = None):
         journal_preview()
         check_write(request, allow_missing_origin=request.method == "GET")
         load_extensions(Path(__file__).resolve().parents[1] / 'extensions')
-        provider = COACH_PROVIDERS.get('Aura - Trading Assistant')
+        provider = COACH_PROVIDERS.get('Primax - Trading Assistant')
         if provider is None:
-            raise HTTPException(503, 'Aura is unavailable.')
+            raise HTTPException(503, 'Primax is unavailable.')
         database = db(request, member)
         accounts = database.accounts()
         account = next((item for item in accounts if account_id is None or item.id == account_id), None)

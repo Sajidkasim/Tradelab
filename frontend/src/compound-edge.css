@@ -96,3 +96,13 @@ button.ce-square { cursor: pointer; }
 :root:not([data-theme="dark"]) .ce-trigger:focus-visible { outline-color: var(--pt-ink, var(--tl-ink)); }
 .ce-ghost-grid .ce-square { opacity: .34; }
 .ce-curve .ce-preview-curve polyline { opacity: .32; stroke-dasharray: 1 5; stroke-linecap: round; }
+
+.ce-widget { position: relative; }
+.ce-widget-heading { position: absolute; inset: 15px 17px auto; pointer-events: none; }
+.ce-widget-heading h3 { margin: 0; color: #f2f6ee; font-size: 1rem; }
+.ce-widget-heading p { margin: 3px 0 0; color: #acb9af; font-size: .78rem; }
+.ce-widget .ce-trigger { padding-top: 60px; }
+:root:not([data-theme="dark"]) .ce-widget-heading h3 { color: var(--pt-ink, var(--tl-ink)); }
+:root:not([data-theme="dark"]) .ce-widget-heading p { color: var(--pt-muted, var(--tl-muted)); }
+.ce-ring-metric { fill: #f2f6ee; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ce-ring-metric-full { fill: var(--ce-prep); filter: drop-shadow(0 0 3px var(--ce-prep)); }

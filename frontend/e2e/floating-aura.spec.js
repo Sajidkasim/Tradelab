@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 
-test('Aura stays in the corner, opens without sending, and renders a requested review', async ({page}) => {
+test('Primax stays in the corner, opens without sending, and renders a requested review', async ({page}) => {
   await page.setViewportSize({width:390, height:844});
   let requests = 0;
   await page.route('**/api/journal/coach?*', async route => {
@@ -10,7 +10,7 @@ test('Aura stays in the corner, opens without sending, and renders a requested r
     await route.fulfill({json:{markdown:'### Risk check\nReview your **entry timing**.'}});
   });
   await page.goto('http://127.0.0.1:8119/journal');
-  const orb = page.getByRole('button', {name:'Aura - Trading Assistant'});
+  const orb = page.getByRole('button', {name:'Primax - Trading Assistant'});
   await expect(orb).toBeVisible();
   const start = await orb.boundingBox();
   expect(390 - start.x - start.width).toBeCloseTo(24);
@@ -27,7 +27,7 @@ test('Aura stays in the corner, opens without sending, and renders a requested r
 
   await orb.focus();
   await page.keyboard.press('Enter');
-  const panel = page.getByRole('region', {name:'Aura',exact:true});
+  const panel = page.getByRole('region', {name:'Primax',exact:true});
   await expect(panel).toBeVisible();
   await expect(orb).toBeHidden();
   await expect(panel.getByRole('group',{name:'Suggested questions'}).getByRole('button')).toHaveCount(3);
@@ -42,7 +42,7 @@ test('Aura stays in the corner, opens without sending, and renders a requested r
   await panel.getByLabel('Your question').fill('How was my entry timing?');
   await panel.getByRole('button', {name:'Send question'}).click();
   await expect(panel.getByRole('heading', {name:'Risk check'})).toBeVisible();
-  await expect(panel.getByLabel('Aura',{exact:true}).locator('strong')).toHaveText('entry timing');
+  await expect(panel.getByLabel('Primax',{exact:true}).locator('strong')).toHaveText('entry timing');
   expect(requests).toBe(1);
   await panel.getByLabel('Your question').press('Escape');
   await expect(panel).toHaveCount(0);

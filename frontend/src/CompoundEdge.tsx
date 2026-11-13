@@ -213,7 +213,7 @@ function EdgeDrawer({ data, onSaved, onClose, onJump }: {
           event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
     }}>
     <div className="ce-drawer-content grid gap-4">
-      <header className="ce-drawer-header"><h2 id={title}>Compound Edge</h2>
+      <header className="ce-drawer-header"><h2 id={title}>Aura</h2>
         <button type="button" aria-label="Close" onClick={onClose}><X size={21} aria-hidden="true" /></button>
       </header>
       <div className={`ce-drawer-rings ${data?.score === 100 ? "ce-celebrate" : ""}`}>
@@ -258,9 +258,10 @@ export default function CompoundEdge() {
       }
     });
   }
-  return <section aria-label="Compound Edge" className="ce-widget">
+  return <section aria-label="Aura" className="ce-widget">
+    <header className="ce-widget-heading"><h3>Your Aura</h3><p>Track your 1% daily edge.</p></header>
     <button ref={trigger} type="button" className={`ce-trigger ${complete === 3 ? "ce-celebrate" : ""}`}
-      aria-label={`Open Compound Edge. ${message}`} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
+      aria-label={`Open Aura. ${message}`} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
       onClick={() => setOpen(true)}>
       <TradingRings scores={data?.pillars ?? emptyScores} />
       <span>{message}</span>
