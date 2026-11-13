@@ -58,11 +58,25 @@ test("tag inputs and dynamic trade fields update Strategy Lab without reloading"
     await page.getByRole("button", { name: "Lab settings", exact: true }).click();
     await dialog.getByRole("button", { name: "Dynamic Fields" }).click();
     await dialog.getByLabel("Field name").fill("Browser indicator");
-    await dialog.getByLabel("Options").fill("Present, Absent");
+    const options = dialog.getByRole("textbox", { name: "Options", exact: true });
+    await options.fill("Present");
+    await options.press("Enter");
+    await expect(options).toHaveValue("");
+    await options.fill("Absent");
+    await options.press(",");
+    await expect(options).toHaveValue("");
+    await options.fill("Temporary");
+    await options.press("Enter");
+    await options.press("Backspace");
+    await expect(dialog.getByRole("button", { name: "Remove option Temporary" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Remove option Absent" }).click();
+    await expect(options).toBeFocused();
+    await options.fill("Absent");
     const creation = page.waitForResponse((response) =>
       response.url().endsWith("/lab-settings/custom-fields") && response.status() === 201);
     await dialog.getByRole("button", { name: "Add trade field" }).click();
     field = await (await creation).json();
+    expect(field.options).toEqual(["Present", "Absent"]);
     await expect(dialog.getByText("Browser indicator", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await page.getByRole("button", { name: "Close settings", exact: true }).click();

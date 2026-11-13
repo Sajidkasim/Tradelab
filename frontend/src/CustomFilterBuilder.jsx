@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import OptionTokenizer, { appendOptions } from "./OptionTokenizer";
 import { api } from "./api";
 import { Button, Field, Notice, Select } from "./components";
 
@@ -10,7 +11,8 @@ const types = [
 export default function CustomFilterBuilder({ definitions, refresh, toast }) {
   const [name, setName] = useState("");
   const [type, setType] = useState("dropdown");
-  const [options, setOptions] = useState("");
+  const [options, setOptions] = useState([]);
+  const [optionDraft, setOptionDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,10 +25,11 @@ export default function CustomFilterBuilder({ definitions, refresh, toast }) {
       } else {
         await api("/lab-settings/custom-fields", {
           method: "POST",
-          body: { name: name.trim(), type, options: options.split(",").map((item) => item.trim()).filter(Boolean) },
+          body: { name: name.trim(), type, options: appendOptions(options, optionDraft) },
         });
         setName("");
-        setOptions("");
+        setOptions([]);
+        setOptionDraft("");
       }
       await refresh();
       toast(id ? "Trade field removed." : "Trade field added to Strategy Lab.");
@@ -46,12 +49,11 @@ export default function CustomFilterBuilder({ definitions, refresh, toast }) {
           <input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} placeholder="e.g. EDRA" />
         </Field>
         <Select label="Field type" values={types} value={type} onChange={(event) => setType(event.target.value)} />
-        <Field label="Options" hint="Separate choices with commas.">
-          <input value={options} onChange={(event) => setOptions(event.target.value)} placeholder="e.g. Present, Absent" />
-        </Field>
+        <OptionTokenizer options={options} draft={optionDraft} onChange={setOptions}
+          onDraftChange={setOptionDraft} disabled={pending} />
       </div>
       <div className="actions">
-        <Button type="button" variant="primary" disabled={pending || !name.trim() || !options.trim()} onClick={() => save()}>
+        <Button type="button" variant="primary" disabled={pending || !name.trim() || (!options.length && !optionDraft.trim())} onClick={() => save()}>
           Add trade field
         </Button>
       </div>
