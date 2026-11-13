@@ -92,7 +92,11 @@ export function ConsistencyCurve({ days }: { days: Day[] }) {
       <polyline className="ce-ideal" points={points("ideal")} />
       <polyline points={points("actual")} />
     </svg>
-    <small>Solid · Your routine　 Dashed · Every qualifying day</small></> : <p>Your curve takes shape as you log more qualifying days.</p>}
+    <small>Solid · Your routine　 Dashed · Every qualifying day</small></> : <svg className="ce-preview-curve" viewBox="0 0 320 56" preserveAspectRatio="none"
+      role="img" aria-label="Illustrative consistency target before enough qualifying days are recorded">
+      <polyline points={Array.from({ length: 41 }, (_, i) =>
+        `${i * 8},${52 - 47 * (1.01 ** (365 * i / 40) - 1) / (1.01 ** 365 - 1)}`).join(" ")} />
+    </svg>}
   </figure>;
 }
 
@@ -109,7 +113,11 @@ export function YearlyCompoundGrid({ days }: { days: Day[] }) {
   const offset = days.length ? (new Date(`${days[0].date}T00:00:00Z`).getUTCDay() + 6) % 7 : 0;
   return <section className="ce-panel" aria-label="Routine history">
     <h3>Your routine history</h3>
-    {days.length < 2 ? <p>Your grid fills in as you go.</p> : <>
+    {days.length < 2 ? <div className="ce-grid-scroll">
+      <div className="ce-grid ce-ghost-grid" role="img" aria-label="Preview of the 365-day routine grid">
+        {Array.from({ length: 365 }, (_, i) => <span className="ce-square" key={i} aria-hidden="true" />)}
+      </div>
+    </div> : <>
       <div className="ce-grid-scroll">
         <div className="ce-grid" aria-label="Daily routine history">
           {Array.from({ length: offset }, (_, i) => <span aria-hidden="true" key={`space-${i}`} />)}

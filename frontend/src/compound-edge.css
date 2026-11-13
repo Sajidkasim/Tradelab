@@ -75,3 +75,24 @@ button.ce-square { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .ce-trigger, .ce-drawer, .ce-ring-progress, .ce-celebrate .ce-rings { transition: none; animation: none; }
 }
+
+.mw-aura-stack { align-content: stretch; grid-template-rows: 1fr 1fr; }
+.mw-aura-stack > .mw-aura-card { margin: 0; }
+.mw-aura-stack .mw-aura-orb-stage { min-height: 128px; }
+.ce-widget { display: grid; }
+.ce-trigger { align-content: center; min-height: 200px; }
+.ce-trigger .ce-rings { width: 124px; }
+.ce-widget, .ce-drawer { --ce-prep: #adf94e; --ce-execute: #39ead7; --ce-study: #70aaff; }
+:root:not([data-theme="dark"]) .ce-trigger {
+  background: var(--pt-white, var(--tl-surface));
+  border-color: var(--pt-line, var(--tl-border));
+  color: var(--pt-ink, var(--tl-ink));
+}
+:root:not([data-theme="dark"]) .ce-trigger .ce-rings {
+  background: radial-gradient(circle at 50% 25%, #203830, #101613 74%);
+  border-radius: 50%;
+  padding: 7px;
+}
+:root:not([data-theme="dark"]) .ce-trigger:focus-visible { outline-color: var(--pt-ink, var(--tl-ink)); }
+.ce-ghost-grid .ce-square { opacity: .34; }
+.ce-curve .ce-preview-curve polyline { opacity: .32; stroke-dasharray: 1 5; stroke-linecap: round; }
