@@ -243,7 +243,7 @@ export default function CompoundEdge() {
     `${name} ${Math.round(100 * (data?.pillars[i] ?? 0) / cap)}% complete`).join(", ");
   const complete = ringPillars.filter(({ cap }, i) => data?.pillars[i] === cap).length;
   const message = loading ? "Loading your routine…" : error && !data ? "Routine unavailable" :
-    complete === 3 ? "You showed up today" : !data?.score ? "Start with your pre-session checklist" :
+    complete === 3 ? "You showed up today" : !data?.score ? "" :
       complete === 0 ? "Your routine is underway" : `${complete} of 3 pillars done today`;
   function close(href?: string) {
     setOpen(false);
@@ -259,12 +259,12 @@ export default function CompoundEdge() {
     });
   }
   return <section aria-label="Aura" className="ce-widget">
-    <header className="ce-widget-heading"><h3>Your Aura</h3><p>Track your 1% daily edge.</p></header>
+    <header className="ce-widget-heading"><h2>YOUR AURA</h2><p>TRACK YOUR 1% DAILY EDGE.</p></header>
     <button ref={trigger} type="button" className={`ce-trigger ${complete === 3 ? "ce-celebrate" : ""}`}
-      aria-label={`Open Aura. ${message}`} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
+      aria-label={message ? `Open Aura. ${message}` : "Open Aura"} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
       onClick={() => setOpen(true)}>
       <TradingRings scores={data?.pillars ?? emptyScores} />
-      <span>{message}</span>
+      <span className="ce-widget-status">{message}</span>
     </button>
     {open && <EdgeDrawer data={data} onSaved={setData} onClose={() => close()} onJump={close} />}
   </section>;
