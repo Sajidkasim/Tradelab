@@ -169,6 +169,13 @@ def _compute_stored_trade(t: Trade) -> None:
     from .metrics import compute_trade_fields
     supplied_risk = t.initial_risk if t.stop_price is None else None
     compute_trade_fields(t)
+    # Replay settles each closed position to cents. A weighted exit can be
+    # fractional even when every fill was tick-aligned.
+    if (t.external_id or '').startswith('replay:') and t.net_pnl is not None:
+        t.gross_pnl = round(t.gross_pnl, 2)
+        t.net_pnl = round(t.net_pnl, 2)
+        if t.initial_risk:
+            t.r_multiple = t.net_pnl / t.initial_risk
     if supplied_risk is not None and supplied_risk > 0:
         t.initial_risk = supplied_risk
         t.r_multiple = t.net_pnl / supplied_risk if t.net_pnl is not None else None

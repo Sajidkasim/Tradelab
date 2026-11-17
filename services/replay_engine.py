@@ -50,7 +50,7 @@ def project(bars, spec, commands, *, compact=False):
         raise ValueError('Invalid simulation costs or capital.')
     start=spec['start_cursor']
     if not 0<=start<len(bars):raise ValueError('Invalid session start.')
-    balance=capital;position=None;order=None;closing=False
+    balance=capital;position=None;order=None;closing=None
     from .replay_frames import CompactFrames
     frames=CompactFrames(start) if compact else [];trades=[];fills=[];by_cursor={};previous=start
     for command in commands:
@@ -58,18 +58,38 @@ def project(bars, spec, commands, *, compact=False):
         if at<previous or at>=len(bars):raise ValueError('Replay actions must be in time order.')
         previous=at;by_cursor.setdefault(at,[]).append(command)
     def fill_event(i,kind,**values):fills.append({'cursor':i,'time':bars[i]['time'],'kind':kind,**values})
-    def exit_position(i,price,reason):
+    def exit_position(i,price,reason,qty=None):
         nonlocal balance,position,closing
+        remaining=position['qty']
+        qty=remaining if qty is None else qty
         direction=1 if position['side']=='buy' else -1
-        gross=(price-position['entry'])*direction*instrument.multiplier*position['qty']
-        balance+=gross-fee*position['qty']
-        trades.append({**position,'exit':price,'exit_cursor':i,'exit_time':bars[i]['time'],'reason':reason,
-                       'gross':round(gross,2),'fees':round(2*fee*position['qty'],2),'net':round(gross-2*fee*position['qty'],2)})
-        fill_event(i,'exit',side=position['side'],price=price,qty=position['qty'],reason=reason)
-        position=None;closing=False
+        price=round_to_tick(price,instrument.tick_size)
+        gross=(price-position['entry'])*direction*instrument.multiplier*qty
+        balance+=gross-fee*qty
+        fill_event(i,'exit',side=position['side'],price=price,qty=qty,reason=reason)
+        closing=None
+        if qty<remaining:
+            position.setdefault('partial_exits',[]).append({
+                'price':price,'qty':qty,'cursor':i,'time':bars[i]['time'],
+                'net':round(gross-2*fee*qty,2),'reason':reason,
+            })
+            position['qty']-=qty
+            return
+        legs=position.get('partial_exits',[])
+        total_qty=qty+sum(leg['qty'] for leg in legs)
+        if legs:
+            gross+=math.fsum((leg['price']-position['entry'])*direction*instrument.multiplier*leg['qty'] for leg in legs)
+        average_exit=(price*qty+math.fsum(leg['price']*leg['qty'] for leg in legs))/total_qty if legs else price
+        trades.append({**position,'qty':total_qty,'exit':average_exit,'exit_cursor':i,'exit_time':bars[i]['time'],'reason':reason,
+                       'gross':round(gross,2),'fees':round(2*fee*total_qty,2),'net':round(gross-2*fee*total_qty,2)})
+        position=None
+
     for i in range(start,len(bars)):
         bar=bars[i];new_intrabar=False
-        if closing and position:exit_position(i,bar['open']-slip*(1 if position['side']=='buy' else -1),'close')
+        if closing and closing['price'] is None:
+            sign=1 if position['side']=='buy' else -1
+            qty=closing['qty']
+            exit_position(i,bar['open']-slip*sign,'partial close' if qty<position['qty'] else 'close',qty)
         if order and i>order['submitted']:
             sign=1 if order['side']=='buy' else -1
             price=None
@@ -96,8 +116,13 @@ def project(bars, spec, commands, *, compact=False):
                 base=stop if new_intrabar else (min(stop,bar['open']) if sign==1 else max(stop,bar['open']))
                 price=base-slip*sign
                 exit_position(i,round_to_tick(price,instrument.tick_size),'stop')
-            elif targeted and not new_intrabar:
-                exit_position(i,max(target,bar['open']) if sign==1 else min(target,bar['open']),'target')
+            elif not new_intrabar:
+                level=closing['price'] if closing else None
+                if level is not None and (bar['high']>=level if sign==1 else bar['low']<=level):
+                    price=max(level,bar['open']) if sign==1 else min(level,bar['open'])
+                    exit_position(i,price,'partial target',closing['qty'])
+                if targeted:
+                    exit_position(i,max(target,bar['open']) if sign==1 else min(target,bar['open']),'target')
         if (i==len(bars)-1 and spec.get('close_at_end',True)) or i in spec.get('legacy_end_cursors',[]):
             if position:exit_position(i,bar['close']-slip*(1 if position['side']=='buy' else -1),'session end')
             if order:fill_event(i,'cancel',reason='Session ended');order=None
@@ -114,19 +139,44 @@ def project(bars, spec, commands, *, compact=False):
                     order=validate_order({**order,**command['order'],'side':order['side'],'type':order['type'],'qty':order['qty']},bar['close'],spec)
                     order['submitted']=submitted
                     continue
-                if not position or closing:raise ValueError('There is no editable open position.')
+                if not position or (closing and closing['price'] is None):raise ValueError('There is no editable open position.')
                 proposed=validate_order({**position,**command['order'],'side':position['side'],'type':'market','qty':position['qty']},position['entry'],spec,open_position=True)
+                if closing and proposed['target'] is not None:
+                    sign=1 if position['side']=='buy' else -1
+                    if (proposed['target']-closing['price'])*sign<0:
+                        raise ValueError('The final target must be at or beyond the partial target.')
                 position['stop']=proposed['stop'];position['target']=proposed['target']
             elif kind=='cancel':
                 if order:fill_event(i,'cancel',reason='Cancelled by you')
                 order=None
             elif kind=='close':
                 if not position or closing:raise ValueError('There is no open position to close.')
-                closing=True
+                qty=command.get('qty',position['qty'])
+                if type(qty) is not int or not 1<=qty<=position['qty']:
+                    raise ValueError('Choose a whole quantity within the remaining position.')
+                price=command.get('price')
+                if price is not None:
+                    if qty==position['qty']:
+                        raise ValueError('Use the regular take-profit target to close the full position at a price.')
+                    if not math.isfinite(price) or price<=0 or abs(round_to_tick(price,instrument.tick_size)-price)>1e-8:
+                        raise ValueError(f'Choose a positive target in {instrument.tick_size} ticks.')
+                    sign=1 if position['side']=='buy' else -1
+                    if (price-bar['close'])*sign<=0:
+                        raise ValueError('Set the partial target above the current price for a long or below it for a short.')
+                    if position['target'] is not None and (position['target']-price)*sign<0:
+                        raise ValueError('The partial target must be at or before the final target.')
+                closing={'qty':qty,'price':price}
+            elif kind=='cancel_partial':
+                if not closing or closing['price'] is None:
+                    raise ValueError('There is no partial target to cancel.')
+                closing=None
             else:raise ValueError('Unknown replay action.')
         unrealized=0 if not position else (bar['close']-position['entry'])*(1 if position['side']=='buy' else -1)*instrument.multiplier*position['qty']
         visible_position=deepcopy(position)
-        if visible_position:visible_position['closing']=closing
+        if visible_position:
+            visible_position['closing']=bool(closing and closing['price'] is None)
+            if closing and closing['price'] is not None:
+                visible_position['partial_target']=closing.copy()
         ticket=None
         active=position or order
         if active:

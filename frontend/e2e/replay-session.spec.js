@@ -6,7 +6,7 @@ test.beforeEach(async({page})=>{
  const identity=await (await page.request.get('http://127.0.0.1:8119/api/session')).json();
  const reset=await page.request.put('http://127.0.0.1:8119/api/backtesting/chart-defaults',{headers:{'X-Primus-CSRF':identity.csrf,Origin:'http://127.0.0.1:8119'},data:{layout:{}}});expect(reset.status()).toBe(200);
 });
-test('create, replay, buy two contracts, close, place/cancel a limit and resume saved practice without future results',async({page},testInfo)=>{
+test('create, replay, scale out of two contracts, place/cancel a limit and resume saved practice without future results',async({page},testInfo)=>{
  let writes=0;
  page.on('request',r=>{if(r.method()!=='GET'&&r.url().includes('/api/backtesting/'))writes++});
  await page.goto('http://127.0.0.1:8119/backtesting');
@@ -18,6 +18,15 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  await page.screenshot({path:testInfo.outputPath('new-session.png')});
  await dialog.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
+ await page.route('**/api/backtesting/economic-calendar?day=2010-06-01', route => route.fulfill({json: {
+  status:'available', events:[{name:'CPI inflation', source:'BLS', scheduled_at:'2010-06-17T08:30:00-04:00'}],
+  sources:[{name:'BLS', url:'https://www.bls.gov/schedule/news_release/', available:true}],
+ }}));
+ await page.getByRole('button',{name:'USD economic calendar',exact:true}).click();
+ const calendar = page.getByRole('dialog',{name:'USD economic calendar'});
+ await expect(calendar).toContainText('June 2010');
+ await expect(calendar).toContainText('CPI inflation');
+ await calendar.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Increase contracts',exact:true}).click();
  await expect(page.getByRole('spinbutton',{name:'Contracts',exact:true})).toHaveValue('2');
  await page.getByRole('button',{name:'Buy',exact:true}).click();
@@ -44,7 +53,19 @@ test('create, replay, buy two contracts, close, place/cancel a limit and resume 
  const amendment=await amended;expect(amendment.status()).toBe(200);
  const state=await amendment.json();expect(replayFrames(state.projection.frames)[1].position.stop).not.toBeNull();
  await page.screenshot({path:testInfo.outputPath('active-levels.png')});
+ const clearedStop = page.waitForResponse(r=>r.url().includes('/action')&&r.request().postDataJSON()?.order?.stop===null);
+ await page.getByRole('button',{name:'Remove stop loss',exact:true}).click();
+ expect((await clearedStop).status()).toBe(200);
+ await page.getByRole('button',{name:'Close chart position',exact:true}).click();
+ const close = page.getByRole('dialog',{name:'Close position',exact:true});
+ await close.getByRole('button',{name:'50%',exact:true}).click();
+ await close.getByRole('button',{name:'Take partial',exact:true}).click();
+ await expect(close).not.toBeVisible();
+ await page.getByRole('button',{name:'Next candle',exact:true}).click();
+ await expect(page.locator('.bt-position-strip')).toContainText('Long 1 NQ');
  await page.getByRole('button',{name:'Close position',exact:true}).click();
+ await close.getByRole('button',{name:'Close full position',exact:true}).click();
+ await expect(close).not.toBeVisible();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
  await expect(page.locator('.bt-position-strip')).toContainText('No open position');
  await page.getByRole('button',{name:'Orders and trade history',exact:true}).click();

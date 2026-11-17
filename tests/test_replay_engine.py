@@ -180,3 +180,35 @@ def test_open_position_can_move_target_past_entry_and_reject_off_tick_price():
     assert amend(100)['frames'][1]['position']['target']==100
     with pytest.raises(ValueError, match='ticks'):
         amend(100.1)
+
+
+def test_partial_target_and_final_target_keep_one_weighted_trade():
+    plan = project(BARS, SPEC, [
+        command(0, qty=4, stop=95, target=106),
+        {'at': 1, 'kind': 'close', 'qty': 1, 'price': 104},
+    ], compact=True)
+    assert plan['frames'][1]['position']['partial_target'] == {'price': 104, 'qty': 1}
+    assert [(fill['qty'], fill['price']) for fill in plan['fills'] if fill['kind'] == 'exit'] == [(1, 104), (3, 106)]
+    trade, = plan['trades']
+    assert (trade['qty'], trade['exit'], trade['fees'], trade['net']) == (4, 105.5, 4, 32)
+    assert plan['frames'][2]['balance'] == SPEC['capital'] + trade['net']
+
+
+def test_stop_wins_over_partial_target_and_cancel_only_removes_partial_target():
+    close = {'at': 1, 'kind': 'close', 'qty': 1, 'price': 104}
+    stopped = project(BARS, SPEC, [command(0, qty=3, stop=99, target=106), close])
+    assert [(t['qty'], t['reason']) for t in stopped['trades']] == [(3, 'stop')]
+    cancelled = project(BARS, SPEC, [command(0, qty=3, target=106), close, {'at': 1, 'kind': 'cancel_partial'}])
+    assert [(t['qty'], t['reason']) for t in cancelled['trades']] == [(3, 'target')]
+
+
+def test_short_partial_market_exit_charges_exit_slippage_and_leaves_smaller_stop():
+    plan = project(BARS, {**SPEC, 'slippage': 1}, [
+        command(0, side='sell', qty=3, stop=105),
+        {'at': 1, 'kind': 'close', 'qty': 1},
+    ])
+    assert [(fill['qty'], fill['price'], fill['reason']) for fill in plan['fills'] if fill['kind'] == 'exit'] == [
+        (1, 103.25, 'partial close'), (2, 105.25, 'stop'),
+    ]
+    trade, = plan['trades']
+    assert trade['net'] == -26 and plan['frames'][2]['balance'] == 49974

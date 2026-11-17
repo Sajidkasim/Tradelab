@@ -417,3 +417,61 @@ def test_three_chart_setup_keeps_qqq_on_the_futures_clock(local, candles, tmp_pa
     reopened = client.get(url).json()
     assert reopened['layout_secondary']['symbol'] == 'ES'
     assert reopened['layout_tertiary'] == {'symbol': 'QQQ', 'timeframe': '240'}
+
+
+def test_partial_close_persists_and_transfer_uses_weighted_exit(local,candles):
+    client,_ = local
+    root = f"/api/backtesting/sessions/{create(client)['session']['id']}"
+    def post(kind, version, cursor, **fields):
+        return client.post(root + '/action', json={
+            'version': version, 'cursor': cursor, 'kind': kind, 'event_id': str(uuid4()), **fields,
+        })
+    assert post('order', 0, 2, order={'side': 'buy', 'qty': 3}).status_code == 200
+    assert post('close', 1, 3, close_qty=4).status_code == 422
+    assert post('close', 1, 3, close_qty=0).status_code == 422
+    assert post('close', 1, 3, close_qty=1, close_price=105.1).status_code == 422
+    assert post('close', 1, 3, close_qty=1).status_code == 200
+    reopened = client.get(root).json()
+    assert reopened['projection']['frames'][2]['position']['qty'] == 2
+    result = post('close', 2, 4).json()
+    trade, = result['projection']['trades']
+    assert trade['qty'] == 3 and trade['exit'] == pytest.approx(104 + 2/3)
+    assert trade['net'] == 7
+    assert client.put(root + '/progress', json={'version': 3, 'cursor': 5}).status_code == 200
+    body = {'entry_cursor': 3, 'destination': 'both', 'strategy': 'Scale out'}
+    assert client.post(root + '/export', json=body).status_code == 200
+    assert client.get('/api/trades').json()[0]['net_pnl'] == 7
+
+
+def test_calendar_returns_available_source_when_other_source_fails(local,monkeypatch):
+    from io import BytesIO
+    from webapp import economic_calendar
+
+    client,_ = local
+    monkeypatch.setattr(economic_calendar, '_cache', {})
+    def fetch(request, **kwargs):
+        if 'bea.gov' not in request.full_url:
+            raise OSError('Upstream unavailable')
+        return BytesIO(b'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n'
+                       b'SUMMARY:Personal Income and Outlays\\, October 2026\r\n'
+                       b'DTSTART;VALUE=DATE-TIME:20261125T133000Z\r\n'
+                       b'END:VEVENT\r\nEND:VCALENDAR\r\n')
+    monkeypatch.setattr(economic_calendar, 'urlopen', fetch)
+    response = client.get('/api/backtesting/economic-calendar?day=2026-11-01')
+    assert response.status_code == 200
+    assert response.json()['events'] == [{
+        'name': 'Personal Income and Outlays (PCE)', 'source': 'BEA', 'currency': 'USD',
+        'scheduled_at': '2026-11-25T08:30:00-05:00',
+    }]
+    assert [source['available'] for source in response.json()['sources']] == [False, True, False]
+
+
+def test_bls_calendar_uses_scheduled_dates_and_eastern_daylight_time():
+    from datetime import date
+    from webapp.economic_calendar import parse_schedule
+
+    html = '''<table>
+      <tr><td>Thursday, October 10, 2024</td><td>08:30 AM</td><td>Consumer Price Index for September 2024</td></tr>
+      <tr><td>Monday, October 14, 2024</td><td></td><td>Columbus Day</td></tr>
+    </table>'''
+    assert parse_schedule(html, date(2024, 10, 1))[0]['scheduled_at'] == '2024-10-10T08:30:00-04:00'

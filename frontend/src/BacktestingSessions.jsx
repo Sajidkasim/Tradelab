@@ -4,6 +4,8 @@ import {WorkspaceEntrance} from './PrimusSignIn';
 import {api,setCsrf} from './api';
 import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
+import ReplayEconomicCalendar,{calendarToday} from './ReplayEconomicCalendar';
+import ReplayClosePosition from './ReplayClosePosition';
 import BacktestingChart from './BacktestingChart';
 import Feedback from './Feedback';
 import compassLogo from '../../assets/primus-compass.png';
@@ -155,10 +157,12 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   const exit=()=>{const {data,cursor:at}=latest.current;if(!data||saving||locked.current||at===data.session.cursor)return;api(`/backtesting/sessions/${data.session.id}/progress`,{method:'PUT',keepalive:true,body:{version:data.session.version,cursor:at}}).catch(()=>{})};
   window.addEventListener('pagehide',exit);return()=>window.removeEventListener('pagehide',exit);
  },[saving]);
+ const [closeTicket,setCloseTicket]=useState(false);
+ const [calendarDay,setCalendarDay]=useState(null);
  async function action(kind,order){
   const background=kind==='amend';
   if(!background){locked.current=true;setBusy(true)}setSaveError('');
-  try{await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/action`,{method:'POST',body:{version:data.session.version,cursor:at,kind,event_id:crypto.randomUUID(),...(order?{order}: {})}});accept(reply)})}
+  try{await enqueue(async()=>{const {data,cursor:at}=latest.current;const reply=await api(`/backtesting/sessions/${data.session.id}/action`,{method:'POST',body:{version:data.session.version,cursor:at,kind,event_id:crypto.randomUUID(),...(kind==='close'?order:order?{order}:{})}});accept(reply)})}
   catch(e){setSaveError(e.message);throw e}
   finally{if(!background){locked.current=false;setBusy(false)}}
  }
@@ -197,7 +201,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  if(identity&&(!identity.authenticated||entrancePreview))return <WorkspaceEntrance workspace="backtesting" session={entrancePreview?{...identity,auth_mode:'google'}:identity} ready={!entrancePreview&&Boolean(identity.csrf)} onUnlocked={()=>location.reload()}/>;
  if(opening&&!active)return loading;
  if(active){
-  const common={reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,paneCount,onLayoutCount:setLayoutCount,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{paneCount,splitPercent,threeWidth,threeHeight,activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
+  const closeFrame=active.projection.frames[cursor-active.session.spec.start_cursor];
+  const common={closeTicket,calendarOpen:Boolean(calendarDay),onOpenCalendar:setCalendarDay,onOpenClose:()=>setCloseTicket(true),reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,owner:identity?.owner===true,theme,onThemeToggle,twoCharts,paneCount,onLayoutCount:setLayoutCount,journal:active.journal||{},sample:active.sample,session:active.session,projection:active.projection,cursor,onCursor:(at,manual)=>{if(!locked.current){if(manual&&at>latest.current.cursor)manualCursor.current={sid:active.session.id,at};latest.current.cursor=at;setCursor(at)}},onContinue:continueSession,onAction:action,onSessionBack:leave,onSave:save,saving,saveError,sessionBusy:busy,toolbarHost,controlsHost,onPaneChange:updatePane,registerChart,onCrosshair:syncPointer,chartGroup:{paneCount,splitPercent,threeWidth,threeHeight,activeChartId:chartWorkspace.activeChartId,syncCrosshair:chartWorkspace.syncCrosshair,syncIntervals:chartWorkspace.syncIntervals},onToggleIntervals:()=>setChartWorkspace(toggleIntervalSync),onToggleCrosshair:toggleCrosshair};
   return <>{opening&&loading}<div className="backtesting-workspace bt-layout" inert={opening||undefined} style={opening?{position:"fixed",inset:0,visibility:"hidden"}:undefined}>
    <div className="bt-shared-toolbar" ref={setToolbarHost}/>
    <div ref={splitHost} className={`bt-panes${twoCharts?' bt-panes-split':''}${paneCount===3?' bt-panes-three':''}`} style={{'--bt-split-ratio':(paneCount===3?threeWidth:splitPercent)/100,'--bt-row-ratio':threeHeight/100}}>
@@ -209,7 +214,9 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
     {chartWorkspace.charts.slice(0,paneCount).map(pane=><BacktestingChart {...common} key={active.session.id+pane.id} paneId={pane.id} paneState={pane} selected={chartWorkspace.activeChartId===pane.id} onSelect={()=>setChartWorkspace(state=>state.activeChartId===pane.id?state:{...state,activeChartId:pane.id})} secondary={pane.id!=='primary'} layout={pane} registerLayoutSave={fn=>{layoutSavers.current[pane.id]=fn}} saveOtherLayout={()=>Promise.all(Object.entries(layoutSavers.current).filter(([id])=>id!==pane.id).map(([,save])=>save?.()))}/>)}
    </div>
    <div className="bt-shared-playback" ref={setControlsHost}/>
-  </div></>;
+  </div>{calendarDay&&<ReplayEconomicCalendar day={calendarDay} onClose={()=>setCalendarDay(null)}/>}
+   {closeTicket&&closeFrame?.position&&<ReplayClosePosition position={closeFrame.position} session={active.session}
+    disabled={busy||(cursor===active.session.last_cursor&&!active.session.next_day&&!closeFrame.position.partial_target)} onClose={()=>setCloseTicket(false)} onAction={action}/>}</>;
  }
 
  return <div className="pt-site bt-session-site"><PrimusHeader active="backtesting"/><main className="pt-wrap bt-sessions-page">
@@ -219,8 +226,10 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
       <h1>Your practice desk.</h1>
       <p>Replay a trading day and test your setups with a practice balance.</p>
     </div>
-    <Button variant="primary" className="bt-new-session" disabled={!listing||busy} onClick={newSession}><Plus size={17}/>New session</Button>
+    <div className="bt-close-presets"><Button onClick={()=>setCalendarDay(calendarToday())}><CalendarDays size={17}/>USD calendar</Button>
+    <Button variant="primary" className="bt-new-session" disabled={!listing||busy} onClick={newSession}><Plus size={17}/>New session</Button></div>
   </header>
+  {calendarDay&&<ReplayEconomicCalendar day={calendarDay} onClose={()=>setCalendarDay(null)}/>}
   {error&&!form&&<Notice error>{error} <Button onClick={()=>{setError('');setRetryOpening(n=>n+1)}}>Retry loading</Button></Notice>}
   {!listing?<p role="status">Loading your sessions…</p>:listing.sessions.length===0?<div className="bt-session-empty"><FlaskConical size={32}/><h2>Your first session starts here.</h2><p>Choose a market and date to start replaying.</p></div>:<section className="bt-saved-sessions" aria-label="Saved backtesting sessions"><h2>Recent sessions <span>{listing.sessions.length}</span></h2>{listing.sessions.map(item=><article className="bt-session-card" key={item.id}><input type="checkbox" aria-label={`Select ${item.name}`} checked={selectedSessions.includes(item.id)} onChange={e=>setSelectedSessions(ids=>e.target.checked?[...ids,item.id]:ids.filter(id=>id!==item.id))}/><div className="bt-session-symbol">{item.instrument}</div><div className="bt-session-info"><h3>{item.name}</h3><p><CalendarDays size={13}/>{item.day} · {clock(item.clock)} UTC · {item.finished?'Completed':'In progress'}</p><small>{item.closed} closed trades · Starting capital {cash(item.capital)}</small></div><strong>{cash(item.equity)}</strong><Button disabled={busy} onClick={()=>resume(item.id)}><Play size={15}/>{item.finished?'View session':'Resume'}</Button><Button disabled={busy} aria-label={`Delete ${item.name}`} onClick={()=>confirmDelete([item])}><Trash2 size={16}/></Button></article>)}</section>}
   {listing && selectedSessions.length > 0 && <div className="bt-bulk-actions" role="group" aria-label="Session selection actions">

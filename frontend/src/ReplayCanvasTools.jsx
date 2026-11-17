@@ -3,7 +3,7 @@ import {ticketLabelOffset} from './replayTicketLayout';
 import {recordTiming} from './replayTiming';
 import {replayProjector} from './replayViewport';
 const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v);
-export default function ReplayCanvasTools({chart,host,frame,session,price,qty,disabled,onAction,pause,onError,cursor,version}){
+export default function ReplayCanvasTools({chart,host,frame,session,price,qty,disabled,onAction,onOpenClose,pause,onError,cursor,version}){
  const [geometry,setGeometry]=useState(null),[menu,setMenu]=useState(null),[drag,setDrag]=useState(null);
  const menuRef=useRef(null),ticket=frame.ticket;
  const [pendingLevel,setPendingLevel]=useState(null);
@@ -16,9 +16,9 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
 
  useEffect(()=>{
   if(!ticket){setGeometry(null);return}let raf;const update=()=>{const proj=replayProjector(chart);const pane=proj?.paneRect('price');
-   if(proj&&pane&&ticket){const g={axis:Math.max(0,host.current.clientWidth-proj.width),top:pane.top,bottom:pane.top+pane.height,entry:proj.yOf(ticket.reference,'price'),stop:proj.yOf(ticket.stop_price,'price'),target:proj.yOf(ticket.target_price,'price')};setGeometry(old=>JSON.stringify(old)===JSON.stringify(g)?old:g)}
+   if(proj&&pane&&ticket){const g={axis:Math.max(0,host.current.clientWidth-proj.width),top:pane.top,bottom:pane.top+pane.height,entry:proj.yOf(ticket.reference,'price'),stop:proj.yOf(ticket.stop_price,'price'),target:proj.yOf(ticket.target_price,'price'),partial:frame.position?.partial_target ? proj.yOf(frame.position.partial_target.price,'price') : null};setGeometry(old=>JSON.stringify(old)===JSON.stringify(g)?old:g)}
    raf=requestAnimationFrame(update)};update();return()=>cancelAnimationFrame(raf);
- },[chart,ticket]);
+ },[chart,ticket,frame.position?.partial_target]);
  useEffect(()=>{
   const el=host.current;if(!el)return;
   const context=e=>{const bounds=el.getBoundingClientRect(),proj=replayProjector(chart);const pointOnChart=chart.renderer.renderer.input.local(e);if(!proj||pointOnChart.x<0||pointOnChart.x>=proj.width||proj.paneIdAtY(pointOnChart.y)!=='price')return;e.preventDefault();e.stopImmediatePropagation();pause();const point=proj.pxToPoint(pointOnChart.x,pointOnChart.y,'price');setMenu({x:Math.max(8,Math.min(e.clientX-bounds.left,bounds.width-245)),y:Math.max(8,Math.min(e.clientY-bounds.top,bounds.height-235)),price:Math.round(point.price*4)/4})};
@@ -30,7 +30,9 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
  function atPointer(e){const started=performance.now();const r=host.current.getBoundingClientRect();const value=Math.max(tick,Math.round(replayProjector(chart).pxToPoint(e.clientX-r.left,e.clientY-r.top-(latestDrag.current?.offset||0),'price').price/tick)*tick);recordTiming('pointer handler',started);return value}
  function place(side){const type=side==='buy'?(menu.price<=price?'limit':'stop'):(menu.price>=price?'limit':'stop');send('order',{side,type,qty:Number(qty),price:menu.price});setMenu(null)}
  return <>
- {ticket&&geometry&&<div className="bt-ticket-layer" style={{'--bt-price-gutter': geometry.axis+'px'}} aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['stop','target'].map(kind=>{const value=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:ticket[kind+'_price'];const y=replayProjector(chart)?.yOf(value,'price');return y==null?null:<div key={kind+'zone'} className={`bt-risk-zone ${kind}`} style={{top:Math.min(y,geometry.entry),height:Math.abs(y-geometry.entry)}}/>})}{frame.position&&<button className="bt-break-even" onClick={()=>amend('stop',frame.position.entry)}>SL to break-even</button>}{['entry','stop','target'].map(kind=>{
+ {ticket&&geometry&&<div className="bt-ticket-layer" style={{'--bt-price-gutter': geometry.axis+'px'}} aria-label={ticket.pending?'Pending order on chart':'Position on chart'}>{['stop','target'].map(kind=>{const value=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:ticket[kind+'_price'];const y=replayProjector(chart)?.yOf(value,'price');return y==null?null:<div key={kind+'zone'} className={`bt-risk-zone ${kind}`} style={{top:Math.min(y,geometry.entry),height:Math.abs(y-geometry.entry)}}/>})}{geometry.partial!=null&&geometry.partial>=geometry.top&&geometry.partial<=geometry.bottom&&
+ <div className="bt-partial-line" style={{top:geometry.partial}}><button type="button" onClick={()=>{pause();onOpenClose()}} disabled={disabled}>Partial · {frame.position?.partial_target?.qty}</button></div>}
+ {frame.position&&<button className="bt-break-even" onClick={()=>amend('stop',frame.position.entry)}>SL to break-even</button>}{['entry','stop','target'].map(kind=>{
  const active=kind==='entry'||(kind==='stop'?ticket.stop_result:ticket.target_result)!=null;
  const level=drag?.kind===kind?drag.price:pendingLevel?.kind===kind?pendingLevel.price:kind==='entry'?ticket.reference:ticket[kind+'_price'];
  const amount=(level-ticket.reference)*(ticket.side==='buy'?1:-1)*multiplier*ticket.qty;
@@ -56,7 +58,7 @@ export default function ReplayCanvasTools({chart,host,frame,session,price,qty,di
  }} onPointerUp={e=>{e.stopPropagation();if(latestDrag.current?.kind!==kind)return;cancelAnimationFrame(dragRaf.current);dragRaf.current=null;const value=latestDrag.current.price;latestDrag.current=null;const pending={kind,price:value};setPendingLevel(pending);setDrag(null);Promise.resolve(amend(field,value)).finally(()=>setPendingLevel(current=>current===pending?null:current))}} onPointerCancel={()=>{cancelAnimationFrame(dragRaf.current);dragRaf.current=null;latestDrag.current=null;setDrag(null)}}>
  <span aria-hidden="true">↕</span><b>{kind==='entry'?`${ticket.side==='buy'?'BUY':'SELL'} ${ticket.qty}`:kind==='stop'?'SL':'TP'}</b>
  <span>{level.toFixed(2)}</span><strong>{drag?.kind===kind?`${money(amount)} · ${points.toFixed(2)} pt${rr==null?'':` · ${rr.toFixed(2)}R`}`:kind==='entry'?(ticket.pending?'Pending':money(frame.unrealized)):active?money(ticket[kind+'_result']):'Drag to set'}</strong>
- </button><button disabled={disabled||frame.position?.closing} aria-label={kind==='entry'?(ticket.pending?'Cancel chart order':'Close chart position'):`Remove ${kind==='stop'?'stop loss':'take profit'}`} onClick={()=>kind==='entry'?send(ticket.pending?'cancel':'close'):amend(field,null)}>×</button>
+ </button><button disabled={disabled||frame.position?.closing} aria-label={kind==='entry'?(ticket.pending?'Cancel chart order':'Close chart position'):`Remove ${kind==='stop'?'stop loss':'take profit'}`} onClick={()=>kind==='entry'?(ticket.pending?send('cancel'):(pause(),onOpenClose())):amend(field,null)}>×</button>
  </div></div>})}<small className="bt-ticket-note">{ticket.pending?'Pending entry · market fill price may differ. ':''}SL/TP amounts are gross, before fees.</small></div>}
  {menu&&<div className="bt-chart-menu" role="menu" aria-label="Chart options" tabIndex={-1} ref={menuRef} style={{left:menu.x,top:menu.y}}>
  <button role="menuitem" disabled={disabled||Boolean(ticket)} onClick={()=>place('buy')}>↗ Buy {qty} {session.instrument} @ {menu.price.toFixed(2)} {menu.price<=price?'limit':'stop'}</button>

@@ -83,8 +83,10 @@ class PurgeInput(BaseModel):
     confirmation:str=Field(max_length=80)
 
 class ActionInput(ProgressInput):
-    kind:Literal['order','cancel','close','amend']
+    kind:Literal['order','cancel','close','amend','cancel_partial']
     event_id:UUID
+    close_qty:int|None=Field(default=None,ge=1,le=50,strict=True)
+    close_price:float|None=Field(default=None,gt=0,allow_inf_nan=False,strict=True)
     order:OrderInput|None=None
 
 def _root(instrument):return 'NQ' if instrument in ('MNQ','NQ') else 'ES' if instrument in ('MES','ES') else instrument
@@ -197,6 +199,11 @@ def summary(record,plan):
         'clock':record['clock'],'finished':record['cursor']==record['last_cursor']}
 
 def mount(app,config,workspace):
+    @app.get('/api/backtesting/economic-calendar')
+    def economic_calendar(day:date, member=Depends(workspace)):
+        from .economic_calendar import monthly_schedule
+        return monthly_schedule(day)
+
     replay_gate=asyncio.Semaphore(1)
     @app.middleware('http')
     async def replay_wire(request,call_next):
@@ -607,6 +614,9 @@ def mount(app,config,workspace):
                 if payload.kind in ('order','amend'):
                     if not payload.order:raise ValueError('Choose an order.')
                     command['order']=payload.order.model_dump(exclude_unset=payload.kind=='amend')
+                if payload.kind=='close':
+                    if payload.close_qty is not None:command['qty']=payload.close_qty
+                    if payload.close_price is not None:command['price']=payload.close_price
                 record=deepcopy(record);record['commands'].append(command);record['cursor']=payload.cursor
                 plan=projection(record,data);record['version']+=1;save(db,record,plan,data);app.state.workspaces.bump(member['key'])
                 compound_edge.replay_interaction(db, sid)
