@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 BLS = 'https://www.bls.gov/schedule'
 BEA = 'https://www.bea.gov/news/schedule'
+BEA_ARCHIVE = 'https://www.bea.gov/news/archive'
 BEA_FEED = BEA + '/ics/online-calendar-subscription.ics'
 FED = 'https://www.federalreserve.gov/newsevents'
 EASTERN = ZoneInfo('America/New_York')
@@ -69,9 +70,7 @@ def parse_schedule(html, month):
         if scheduled_day.replace(day=1) != month:
             continue
         dates_found = True
-        name = next((label for title, label in RELEASES.items() if release == title or release.startswith(title + ' for ')), None)
-        if not name:
-            continue
+        name = next((label for title, label in RELEASES.items() if release == title or release.startswith(title + ' for ')), release)
         try:
             clock = datetime.strptime(time, '%I:%M %p').time()
         except ValueError:
@@ -104,7 +103,7 @@ def parse_bea_feed(text):
         title = fields.get('SUMMARY', '').replace(r'\,', ',')
         if title.startswith('Personal Income and Outlays'):
             title = 'Personal Income and Outlays (PCE)'
-        elif not title.startswith(('Gross Domestic Product,', 'GDP (')):
+        if not title:
             continue
         events.append({'name': title, 'source': 'BEA', 'currency': 'USD', 'scheduled_at': at.isoformat()})
     if not events:
@@ -137,6 +136,52 @@ def parse_fed_schedule(html, month):
     return events
 
 
+def bea_archive_years(html):
+    select = re.search(r'<select[^>]*name="created_1"[^>]*>(.*?)</select>', html, re.S)
+    if not select:
+        raise ValueError('BEA archive year selector unavailable.')
+    return {int(year): key for key, year in re.findall(r'<option value="(\d+)"[^>]*>\s*(\d{4})\s*</option>', select[1])}
+
+
+def parse_bea_archive(html):
+    releases = []
+    for row in re.findall(r'<tr class="release-row">(.*?)</tr>', html, re.S):
+        link = re.search(r'<a href="(/news/[^"<>]+)"[^>]*>(.*?)</a>', row, re.S)
+        stamp = re.search(r'<time datetime="([^"]+)"', row)
+        if not link or not stamp:
+            continue
+        try:
+            at = datetime.fromisoformat(stamp[1])
+            if at.utcoffset() is None:
+                continue
+        except ValueError:
+            continue
+        releases.append({'name': unescape(re.sub(r'<[^>]+>', '', link[2])).strip(),
+                         'source': 'BEA', 'currency': 'USD', 'url': 'https://www.bea.gov' + link[1],
+                         'scheduled_at': at.astimezone(EASTERN).isoformat()})
+    if not releases or re.search(r'rel="next"|class="[^"]*pager__item--next', html):
+        raise ValueError('A complete BEA archive product page is unavailable.')
+    return releases
+
+
+def archived_bea_events(month):
+    years = cached_schedule(BEA_ARCHIVE, bea_archive_years) or {}
+    year = years.get(month.year)
+    if year is None:
+        return [], False
+    events = []
+    complete = True
+    # BEA's archive product IDs for GDP and Personal Income and Outlays.
+    for product in (451, 476):
+        url = f'{BEA_ARCHIVE}?created_1={year}&field_related_product_target_id={product}&title='
+        rows = cached_schedule(url, parse_bea_archive)
+        if rows is None:
+            complete = False
+        else:
+            events.extend(event for event in rows if event['scheduled_at'].startswith(month.isoformat()[:7]))
+    return events, complete
+
+
 def cached_schedule(url, parser, *, calendar=False):
     now = monotonic()
     with _lock:
@@ -166,13 +211,19 @@ def monthly_schedule(day: date):
     bls_events = cached_schedule(bls_url, lambda html: parse_schedule(html, month))
     bea = cached_schedule(BEA_FEED, parse_bea_feed, calendar=True)
     bea_available = bea is not None and month in bea[0]
+    if bea_available:
+        bea_events = [event for event in bea[1] if event['scheduled_at'].startswith(month.isoformat()[:7])]
+        bea_url = BEA
+    else:
+        bea_events, bea_available = archived_bea_events(month)
+        bea_url = BEA_ARCHIVE
     fed_url = f'{FED}/{month.year}-{month_name[month.month].lower()}.htm'
     fed_events = cached_schedule(fed_url, lambda html: parse_fed_schedule(html, month))
-    events = (bls_events or []) + (fed_events or []) + ([event for event in bea[1] if event['scheduled_at'].startswith(month.isoformat()[:7])] if bea_available else [])
+    events = (bls_events or []) + (fed_events or []) + bea_events
     sources = [
         {'name': 'BLS', 'url': bls_url, 'available': bls_events is not None},
-        {'name': 'BEA', 'url': BEA, 'available': bea_available},
+        {'name': 'BEA', 'url': bea_url, 'available': bea_available},
         {'name': 'Fed', 'url': fed_url, 'available': fed_events is not None},
     ]
     return {'events': sorted(events, key=lambda event: event['scheduled_at']), 'sources': sources,
-            'status': 'available' if any(source['available'] for source in sources) else 'unavailable'}
+            'status': 'available' if events or any(source['available'] for source in sources) else 'unavailable'}

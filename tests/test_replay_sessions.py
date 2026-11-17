@@ -478,3 +478,28 @@ def test_bls_calendar_uses_scheduled_dates_and_eastern_daylight_time():
       <tr><td>Monday, October 14, 2024</td><td></td><td>Columbus Day</td></tr>
     </table>'''
     assert parse_schedule(html, date(2024, 10, 1))[0]['scheduled_at'] == '2024-10-10T08:30:00-04:00'
+
+
+def test_replay_news_returns_only_requested_date_from_bea_archive(local,monkeypatch):
+    from io import BytesIO
+    from webapp import economic_calendar
+
+    client,_ = local
+    monkeypatch.setattr(economic_calendar, '_cache', {})
+    def fetch(request, **kwargs):
+        url = request.full_url
+        if url == economic_calendar.BEA_ARCHIVE:
+            return BytesIO(b'<select name="created_1"><option value="12">2013</option></select>')
+        if url.startswith(economic_calendar.BEA_ARCHIVE + '?'):
+            gdp = 'target_id=451' in url
+            day, name = ('30', 'GDP second estimate') if gdp else ('31', 'Personal Income and Outlays')
+            return BytesIO(f'<tr class="release-row"><td><a href="/news/2013/test">{name}</a></td>'
+                           f'<td><time datetime="2013-05-{day}T08:30:00-04:00"></time></td></tr>'.encode())
+        raise OSError('Upstream unavailable')
+    monkeypatch.setattr(economic_calendar, 'urlopen', fetch)
+    response = client.get('/api/backtesting/economic-calendar?day=2013-05-30&scope=day')
+    assert response.status_code == 200
+    assert response.json()['events'] == [{
+        'name': 'GDP second estimate', 'source': 'BEA', 'currency': 'USD',
+        'scheduled_at': '2013-05-30T08:30:00-04:00', 'url': 'https://www.bea.gov/news/2013/test',
+    }]

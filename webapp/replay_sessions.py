@@ -200,9 +200,13 @@ def summary(record,plan):
 
 def mount(app,config,workspace):
     @app.get('/api/backtesting/economic-calendar')
-    def economic_calendar(day:date, member=Depends(workspace)):
+    def economic_calendar(day:date, scope:Literal['day','month']='month', member=Depends(workspace)):
         from .economic_calendar import monthly_schedule
-        return monthly_schedule(day)
+        result = monthly_schedule(day)
+        if scope == 'day':
+            return {**result, 'events': [event for event in result['events']
+                                         if event['scheduled_at'][:10] == day.isoformat()]}
+        return result
 
     replay_gate=asyncio.Semaphore(1)
     @app.middleware('http')

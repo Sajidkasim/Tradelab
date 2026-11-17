@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2, CalendarDays} from 'lucide-react';
+import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2, Newspaper} from 'lucide-react';
 import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
@@ -34,7 +34,7 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({closeTicket,onOpenClose,calendarOpen,onOpenCalendar,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({closeTicket,onOpenClose,newsOpen,newsToggle,onToggleNews,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -54,7 +54,7 @@ export default function BacktestingChart({closeTicket,onOpenClose,calendarOpen,o
   const visibility=useRef(null);if(!visibility.current)visibility.current=visibilityController();
   const [follow,setFollow]=useState(false),[clearDrawings,setClearDrawings]=useState(false);
   const [playing,setPlaying]=useState(false),[speed,setSpeed]=useState('1'),[step,setStep]=useState('1');
-  useEffect(()=>{if(closeTicket||calendarOpen)setPlaying(false)},[closeTicket,calendarOpen]);
+  useEffect(()=>{if(closeTicket)setPlaying(false)},[closeTicket]);
   const timeline=sample.markets[session.root].bars;
   const replayTime=timeline[cursor].time;
   const confirmedFrame=projection.frames[cursor-session.spec.start_cursor];
@@ -257,7 +257,7 @@ export default function BacktestingChart({closeTicket,onOpenClose,calendarOpen,o
     onCursor(nextReplayCursor(timeline,cursor,Number(step)),true);
   }
   const playback=useRef(null),continuing=useRef(null);
-  playback.current={enabled:playing&&!closeTicket&&!calendarOpen&&!secondary&&ready&&!busy&&!sessionBusy&&!saveError,speed,step,timeline,cursor,finished,nextDay:session.next_day,lastCursor:session.last_cursor,onCursor,onContinue};
+  playback.current={enabled:playing&&!closeTicket&&!secondary&&ready&&!busy&&!sessionBusy&&!saveError,speed,step,timeline,cursor,finished,nextDay:session.next_day,lastCursor:session.last_cursor,onCursor,onContinue};
   useEffect(()=>{
     if(saveError||(finished&&!session.next_day))setPlaying(false);
   },[saveError,finished,session.next_day]);
@@ -334,6 +334,8 @@ export default function BacktestingChart({closeTicket,onOpenClose,calendarOpen,o
       <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
       <div className="bt-tools"><button onClick={()=>selectDrawingTool(null)} title="Stop drawing and select objects">Select drawings</button><button aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button><button aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button><button aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
         <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
+        <button type="button" ref={newsToggle} aria-label="Economic news" aria-expanded={newsOpen}
+          aria-controls={newsOpen?'bt-replay-news':undefined} onClick={onToggleNews}><Newspaper size={16}/><span>News</span></button>
         <Feedback owner={owner}/>{!secondary&&<button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button>}<button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>
         <button disabled={!ready || busy} className="bt-icon" aria-label="Chart settings" title="Chart settings" onClick={() => chartRef.current?.renderer.openSettings()}><Settings2 size={18}/></button>
@@ -357,8 +359,6 @@ export default function BacktestingChart({closeTicket,onOpenClose,calendarOpen,o
     </main>
     {!secondary&&controlsHost&&createPortal(<ReplayTrading onOpenClose={onOpenClose} journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at,true)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}
     <footer className="bt-clock-footer">
-      {!secondary&&<button type="button" aria-label="USD economic calendar" title="USD economic calendar"
-        onClick={()=>{setPlaying(false);onOpenCalendar(clockParts(replayTime+60000,'America/New_York').day)}}><CalendarDays size={16}/></button>}
       <time dateTime={new Date(replayTime+60000).toISOString()} aria-label="Replay time">{clockParts(replayTime+60000,clockZone).day} · {replayClockLabel(replayTime+60000,clockZone)}</time>
       {symbol==='QQQ'&&<Select label="QQQ trading session" value={qqqHours} disabled={!ready||busy}
         values={[{value:'rth',label:'Regular trading hours (RTH)'},{value:'extended',label:'Extended trading hours'}]}

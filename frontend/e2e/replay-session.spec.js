@@ -10,6 +10,7 @@ test('create, replay, scale out of two contracts, place/cancel a limit and resum
  let writes=0;
  page.on('request',r=>{if(r.method()!=='GET'&&r.url().includes('/api/backtesting/'))writes++});
  await page.goto('http://127.0.0.1:8119/backtesting');
+ await expect(page.getByRole('button',{name:'USD calendar',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'New session',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'New backtesting session',exact:true});
  await dialog.getByLabel('Session name',{exact:true}).fill('Morning practice');
@@ -18,15 +19,16 @@ test('create, replay, scale out of two contracts, place/cancel a limit and resum
  await page.screenshot({path:testInfo.outputPath('new-session.png')});
  await dialog.getByRole('button',{name:'Open session',exact:true}).click();
  await expect(page.getByRole('status',{name:'Chart status',exact:true})).toHaveText('Chart ready',{timeout:15000});
- await page.route('**/api/backtesting/economic-calendar?day=2010-06-01', route => route.fulfill({json: {
-  status:'available', events:[{name:'CPI inflation', source:'BLS', scheduled_at:'2010-06-17T08:30:00-04:00'}],
+ await page.route('**/api/backtesting/economic-calendar?day=2010-06-07&scope=day', route => route.fulfill({json: {
+  status:'available', events:[{name:'CPI inflation', source:'BLS', scheduled_at:'2010-06-07T10:00:00-04:00'}],
   sources:[{name:'BLS', url:'https://www.bls.gov/schedule/news_release/', available:true}],
  }}));
- await page.getByRole('button',{name:'USD economic calendar',exact:true}).click();
- const calendar = page.getByRole('dialog',{name:'USD economic calendar'});
- await expect(calendar).toContainText('June 2010');
+ await page.getByRole('button',{name:'Economic news',exact:true}).click();
+ const calendar = page.getByRole('complementary',{name:'Economic news'});
+ await expect(calendar).toContainText('7 June 2010');
  await expect(calendar).toContainText('CPI inflation');
- await calendar.getByRole('button',{name:'Close',exact:true}).click();
+ await expect(calendar).toContainText('Upcoming');
+ await calendar.getByRole('button',{name:'Close economic news',exact:true}).click();
  await page.getByRole('button',{name:'Increase contracts',exact:true}).click();
  await expect(page.getByRole('spinbutton',{name:'Contracts',exact:true})).toHaveValue('2');
  await page.getByRole('button',{name:'Buy',exact:true}).click();
