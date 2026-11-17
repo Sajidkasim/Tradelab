@@ -30,6 +30,7 @@ export default function ReplayClosePosition({position, session, onClose, onActio
       if (valid && !disabled && !pending && !target) submit('close');
     }}>
       <p>{position.side === 'buy' ? 'Long' : 'Short'} {session.instrument} · {position.qty} remaining</p>
+      {!target && position.qty === 1 && <small>Only one unit remains. A partial close needs at least two.</small>}
       {target ? <>
         <p>Partial target pending · {target.qty} at {target.price}</p>
         <Button type="button" disabled={disabled} busy={pending} onClick={() => submit('cancel_partial')}>Cancel partial target</Button>
@@ -39,7 +40,9 @@ export default function ReplayClosePosition({position, session, onClose, onActio
             const size = Math.floor(position.qty * percent / 100);
             return <Button type="button" key={percent}
               disabled={size < 1 || (atLevel && size === position.qty) || pending}
-              onClick={() => setQuantity(String(size))}>{percent}%</Button>;
+              onClick={() => setQuantity(String(size))}>
+                <span>{percent}%</span><small>{size > 0 ? `${size} to close` : 'Below minimum'}</small>
+              </Button>;
           })}
         </div>
         <Field label="Quantity to close">

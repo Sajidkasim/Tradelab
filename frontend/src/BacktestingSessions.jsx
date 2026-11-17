@@ -15,6 +15,12 @@ import {changePane,toggleIntervalSync} from './replayPreferences';
 const cash=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
 const clock=value=>new Date(value).toLocaleTimeString('en-GB',{timeZone:'UTC',hour:'2-digit',minute:'2-digit'});
 
+const layoutChoices = [
+ {count:1,label:'Single'},
+ {count:2,label:'Side by side'},
+ {count:3,label:'Three charts'},
+];
+const marketNames = {NQ:'NQ · Nasdaq E-mini',MNQ:'MNQ · Nasdaq Micro',ES:'ES · S&P 500 E-mini'};
 const clampSplit = value => Math.min(80, Math.max(20, value));
 const savedSplit = (value, fallback) => Number.isFinite(value) ? clampSplit(value) : fallback;
 
@@ -191,6 +197,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const comparisonMarkets=['NQ','ES'].includes(primaryMarket)
   ?[primaryMarket,primaryMarket==='NQ'?'ES':'NQ',...(listing.history.qqq_days?.includes(form.day)?['QQQ']:[])]
   :[primaryMarket];
+ const selectedMarket=listing?.history.instruments.find(item=>item.symbol===form?.instrument);
  const initialChartsReady=Boolean(active&&chartWorkspace.charts.length>=paneCount&&chartWorkspace.charts.slice(0,paneCount).every(pane=>renderedPanes[pane.id]));
  useEffect(()=>{if(initialChartsReady)setOpening(false)},[initialChartsReady]);
  const loading=<div className="loading-screen pt-loading" role="status" aria-live="polite">
@@ -246,14 +253,55 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   </footer>
  </main>{form&&<Modal title="New backtesting session" className="bt-session-modal" onClose={()=>!busy&&setForm(null)}><form className="stack" onSubmit={create}>
   <fieldset disabled={busy} className="bt-session-fields">
-  <Field label="Session name"><input value={form.name} placeholder="e.g. New York reversals" maxLength={80} onChange={e=>change('name',e.target.value)}/></Field>
-  <div className="form-grid two"><Field label="Trading date"><input required type="date" min={listing.history.instruments.find(item=>item.symbol===form.instrument)?.first_day||listing.history.first_day} max={listing.history.instruments.find(item=>item.symbol===form.instrument)?.last_day||listing.history.last_day} value={form.day} onInput={e=>change('day',e.target.value)} onChange={e=>change('day',e.target.value)}/></Field><Field label="Start time (UTC)"><input required type="time" value={form.start_time} onChange={e=>change('start_time',e.target.value)}/></Field></div>
-  <div className="form-grid two"><Select label="Contract size / market" values={listing.history.instruments.map(item=>({value:item.symbol,label:item.symbol}))} value={form.instrument} onChange={e=>{const market=listing.history.instruments.find(item=>item.symbol===e.target.value);setForm(f=>({...f,instrument:market.symbol,commission:market.commission,start_time:market.default_start||'13:30',day:(f.day<(market.first_day||listing.history.first_day)||f.day>(market.last_day||listing.history.last_day))?(market.last_day||listing.history.sample_day):f.day}))}}/><Field label="Starting capital ($)"><input required type="number" min="1" max="1000000000" step="0.01" value={form.capital} onChange={e=>change('capital',e.target.value)}/></Field></div>
-  <Select label="Chart layout" values={[{value:'1',label:'One chart'},{value:'2',label:'Two charts, side by side'},{value:'3',label:'Three charts, one left and two right'}]} value={String(form.paneCount)} onChange={event=>{
-    const count=Number(event.target.value);
-    setForm(current=>({...current,paneCount:count,comparison_charts:[comparisonMarkets[1]||primaryMarket,comparisonMarkets[2]||primaryMarket]}));
-  }}/>
-  {form.comparison_charts.slice(0,form.paneCount-1).map((symbol,index)=><Select key={index} label={index===0?'Comparison chart 1':'Comparison chart 2'} values={comparisonMarkets} value={comparisonMarkets.includes(symbol)?symbol:''} empty="Choose a market" onChange={event=>change('comparison_charts',form.comparison_charts.map((value,position)=>position===index?event.target.value:value))}/>)}
+  <section className="bt-session-section" aria-labelledby="bt-market-heading">
+    <h3 id="bt-market-heading">Market &amp; timing</h3>
+    <Select label="Trading market" values={listing.history.instruments.map(item=>({value:item.symbol,label:marketNames[item.symbol]||item.symbol}))}
+      value={form.instrument} onChange={e=>{
+        const market=listing.history.instruments.find(item=>item.symbol===e.target.value);
+        setForm(f=>({...f,instrument:market.symbol,commission:market.commission,start_time:market.default_start||'13:30',
+          day:(f.day<(market.first_day||listing.history.first_day)||f.day>(market.last_day||listing.history.last_day))?(market.last_day||listing.history.sample_day):f.day}));
+      }}/>
+    {form.instrument==='MNQ'&&<small>10 MNQ match 1 NQ in dollar exposure per point. Scale out in whole micro contracts.</small>}
+    <div className="form-grid two">
+      <Field label="Trading date"><input required type="date" min={selectedMarket?.first_day||listing.history.first_day}
+        max={selectedMarket?.last_day||listing.history.last_day} value={form.day} onInput={e=>change('day',e.target.value)} onChange={e=>change('day',e.target.value)}/></Field>
+      <Field label="Start time (UTC)"><input required type="time" value={form.start_time} onChange={e=>change('start_time',e.target.value)}/></Field>
+    </div>
+  </section>
+  <section className="bt-session-section" aria-labelledby="bt-layout-heading">
+    <h3 id="bt-layout-heading">Chart layout</h3>
+    <div className="bt-layout-choices" role="group" aria-labelledby="bt-layout-heading">
+      {layoutChoices.map(({count,label})=><button className="bt-layout-choice" key={count} type="button"
+        aria-pressed={form.paneCount===count} onClick={()=>setForm(current=>({...current,paneCount:count,
+          comparison_charts:[0,1].map(index=>comparisonMarkets.includes(current.comparison_charts[index])&&
+            (index<current.paneCount-1 || current.paneCount===count)
+            ?current.comparison_charts[index]:comparisonMarkets[index+1]||primaryMarket),
+        }))}>
+        <span className={`bt-layout-preview bt-layout-preview-${count}`} aria-hidden="true">
+          {Array.from({length:count},(_,index)=><span key={index}/>)}
+        </span>
+        {label}
+      </button>)}
+    </div>
+    {form.paneCount>1&&<>
+      <div className="form-grid two">
+        {form.comparison_charts.slice(0,form.paneCount-1).map((symbol,index)=><Select key={index}
+          label={index===0?'Comparison chart 1':'Comparison chart 2'} values={comparisonMarkets}
+          value={comparisonMarkets.includes(symbol)?symbol:''} empty="Choose a market"
+          onChange={event=>change('comparison_charts',form.comparison_charts.map((value,position)=>position===index?event.target.value:value))}/>)}
+      </div>
+      {['NQ','ES'].includes(primaryMarket)&&<small>{comparisonMarkets.includes('QQQ')
+        ?'QQQ is available as a comparison chart.'
+        :'QQQ comparison is unavailable for this date.'}</small>}
+    </>}
+  </section>
+  <section className="bt-session-section" aria-labelledby="bt-details-heading">
+    <h3 id="bt-details-heading">Session details</h3>
+    <div className="form-grid two">
+      <Field label="Session name"><input value={form.name} placeholder="Optional" maxLength={80} onChange={e=>change('name',e.target.value)}/></Field>
+      <Field label="Starting capital ($)"><input required type="number" min="1" max="1000000000" step="0.01" value={form.capital} onChange={e=>change('capital',e.target.value)}/></Field>
+    </div>
+  </section>
   <details className="disclosure"><summary>Costs & fill rules</summary><div className="stack"><div className="form-grid two"><Field label="Commission per contract / side ($)"><input required type="number" min="0" max="100" step="0.01" value={form.commission} onChange={e=>change('commission',e.target.value)}/></Field><Field label="Slippage (ticks)"><input required type="number" min="0" max="20" step="1" value={form.slippage} onChange={e=>change('slippage',e.target.value)}/></Field></div><small>Market orders fill at the next one-minute open. Stop loss wins if both stop and target touch in a candle. Intrabar entries cannot claim an ambiguous same-candle target. Positions stay open across days until you close them or a stop or target is reached. No exchange margin or liquidation model is applied.</small></div></details>
   </fieldset>
   {busy&&<p role="status">Preparing your candles…</p>}{error&&<Notice error>{error}</Notice>}

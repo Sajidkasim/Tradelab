@@ -58,7 +58,7 @@ test('create, replay, scale out of two contracts, place/cancel a limit and resum
  expect((await clearedStop).status()).toBe(200);
  await page.getByRole('button',{name:'Close chart position',exact:true}).click();
  const close = page.getByRole('dialog',{name:'Close position',exact:true});
- await close.getByRole('button',{name:'50%',exact:true}).click();
+ await close.getByRole('button',{name:'50% 1 to close',exact:true}).click();
  await close.getByRole('button',{name:'Take partial',exact:true}).click();
  await expect(close).not.toBeVisible();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
@@ -836,8 +836,7 @@ test('opens three preselected charts in a large-left layout and restores them', 
   const setup = page.getByRole('dialog', {name: 'New backtesting session'});
   await setup.getByLabel('Session name').fill('Three chart layout');
   await setup.getByLabel('Trading date').fill('2010-06-07');
-  await setup.getByRole('combobox', {name: 'Chart layout'}).click();
-  await setup.getByRole('option', {name: 'Three charts, one left and two right'}).click();
+  await setup.getByRole('button', {name: 'Three charts', exact: true}).click();
   await setup.getByRole('button', {name: 'Open session', exact: true}).click();
 
   const primary = page.locator('[data-pane-id="primary"]');

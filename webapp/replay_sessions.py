@@ -111,7 +111,7 @@ def catalog():
         available=days(ROOT/'replay-index.db')
         if available:indexed={'indexed_days':len(available),'first_day':available[0],'last_day':available[-1]}
     return {**{'first_day':source.get('first_day',day),'last_day':source.get('last_day',day),'sample_day':day,
-            'instruments':[{'symbol':k,'name':v.name,'multiplier':v.multiplier,'tick_size':v.tick_size,'commission':v.commission_per_contract/2} for k,v in INSTRUMENTS.items() if k in ('NQ','ES')]},**indexed}
+            'instruments':[{'symbol':k,'name':v.name,'multiplier':v.multiplier,'tick_size':v.tick_size,'commission':v.commission_per_contract/2} for k,v in INSTRUMENTS.items() if k in ('NQ','MNQ','ES')]},**indexed}
 
 def load_sample(day):
     # Only a validated ISO date can become a filename; never accept a path from the browser.

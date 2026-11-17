@@ -266,3 +266,18 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-calendar-month { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .bt-calendar-events { list-style: none; padding: 0; margin: 0; }
 .bt-calendar-events li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; padding: .65rem 0; border-bottom: 1px solid var(--bt-border, #8885); }
+
+.bt-session-section { display: grid; gap: .75rem; min-width: 0; }
+.bt-session-section + .bt-session-section { border-top: 1px solid var(--desk-border, #8884); padding-top: 1rem; }
+.bt-session-section h3 { margin: 0; font-size: .95rem; font-weight: 650; }
+.bt-layout-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.bt-layout-choice { display: grid; place-items: center; gap: .45rem; padding: .6rem .25rem; min-height: 64px; border: 1px solid var(--desk-border, #8884); border-radius: 12px; background: transparent; color: inherit; font: inherit; font-size: .8rem; cursor: pointer; }
+.bt-layout-choice[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 7%, transparent); font-weight: 650; }
+.bt-layout-choice:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.bt-layout-preview { display: grid; width: 34px; height: 21px; gap: 2px; }
+.bt-layout-preview > span { border: 1px solid currentColor; border-radius: 2px; }
+.bt-layout-preview-2 { grid-template-columns: repeat(2, 1fr); }
+.bt-layout-preview-3 { grid-template-columns: 3fr 2fr; grid-template-rows: repeat(2, 1fr); }
+.bt-layout-preview-3 > span:first-child { grid-row: span 2; }
+.bt-close-presets > button:has(small) { display: grid; place-content: center; gap: .2rem; }
+.bt-close-presets > button > small { font-size: .7rem; opacity: .8; }

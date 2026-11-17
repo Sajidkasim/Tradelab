@@ -21,6 +21,9 @@ def create(client):
 def test_sessions_create_resume_progress_and_orders_do_not_change_journal(local,candles):
     client,app=local
     before=client.get('/api/trades').json()
+    markets=client.get('/api/backtesting/sessions').json()['history']['instruments']
+    micro=next(item for item in markets if item['symbol']=='MNQ')
+    assert micro['multiplier']==2 and micro['tick_size']==0.25 and micro['commission']==0.5
     created=create(client);s=created['session'];sid=s['id']
     assert s['cursor']==2 and s['spec']['start_cursor']==2
     response=client.post(f'/api/backtesting/sessions/{sid}/action',json={'version':0,'cursor':2,'kind':'order','event_id':str(uuid4()),'order':{'side':'buy','type':'market','qty':2}})
