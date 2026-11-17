@@ -48,6 +48,12 @@ test('create, replay, scale out of two contracts, place/cancel a limit and resum
  await ledger.getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Next candle',exact:true}).click();
  await expect(page.locator('.bt-position-strip')).toContainText('Long 2 NQ');
+ await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
+ await expect(page.locator('[data-pane-id="secondary"]')).toContainText('Comparison');
+ await expect(page.getByLabel('Position on chart',{exact:true})).toHaveCount(1);
+ await expect(page.locator('[data-pane-id="secondary"] .bt-ticket-layer')).toHaveCount(0);
+ await page.getByRole('button',{name:'Toggle two charts',exact:true}).click();
+
  const amended=page.waitForResponse(r=>r.url().includes('/action')&&r.request().postDataJSON()?.kind==='amend');
  const stopHandle=page.getByRole('button',{name:'Drag stop price',exact:true});
  const handle=await stopHandle.boundingBox();

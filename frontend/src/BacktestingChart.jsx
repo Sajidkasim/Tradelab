@@ -34,7 +34,7 @@ const chartTheme = mode => ({
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({closeTicket,onOpenClose,newsOpen,newsToggle,onToggleNews,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,newsOpen,newsToggle,onToggleNews,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -342,7 +342,7 @@ export default function BacktestingChart({closeTicket,onOpenClose,newsOpen,newsT
         <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
       </div>
     </header>,toolbarHost)}
-    {twoCharts&&<div className="bt-pane-heading"><button className="bt-pane-tag" aria-pressed={selected} onClick={onSelect}>{symbol} · {timeframeName}</button></div>}
+    {twoCharts&&<div className="bt-pane-heading"><button className="bt-pane-tag" aria-pressed={selected} onClick={onSelect}>{symbol} · {timeframeName}</button><small className="bt-pane-role">{paneId===tradingPane?'Trading '+session.instrument:'Comparison'}</small></div>}
     <main className="bt-canvas-area" aria-label="Backtesting chart workspace">
       <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={17}/></button>
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
@@ -354,7 +354,7 @@ export default function BacktestingChart({closeTicket,onOpenClose,newsOpen,newsT
       {ready&&!secondary&&<DrawingFavoritesBar chart={chartRef.current} position={favoriteBarPosition.current} onPosition={value=>{favoriteBarPosition.current=value;dirtyLayout()}}/>}
       {ready&&symbol!=='QQQ'&&<SessionRanges timeframe={timeframe} id={paneId} chart={chartRef.current} sample={sample} symbol={symbol} session={session} cursor={cursor} clock={replayTime} options={sessionRangeOptions}/>}
       {watermark&&minuteWatermarks[timeframe]!==false&&<div className="bt-timeframe-watermark" aria-label="Timeframe watermark">{timeframeName}</div>}
-      {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} disabled={sessionBusy||finished||symbol!==session.root} onAction={submitAction} onOpenClose={onOpenClose} pause={()=>setPlaying(false)} onError={setError}/>}
+      {ready&&!busy&&<ReplayCanvasTools chart={chartRef.current} cursor={cursor} version={session.version} host={host} frame={frame} session={session} price={timeline[cursor].close} qty={orderQty} trading={paneId===tradingPane} disabled={sessionBusy||finished} onAction={submitAction} onOpenClose={onOpenClose} pause={()=>setPlaying(false)} onError={setError}/>}
       {error && <div className="bt-error" role="alert"><span>{error}</span>{failedMarket.current&&<button onClick={()=>{failedMarket.current=null;setError('');setMarketVersion(n=>n+1)}}>Retry chart history</button>}<button aria-label="Dismiss chart message" onClick={() => setError('')}><X size={16}/></button></div>}
     </main>
     {!secondary&&controlsHost&&createPortal(<ReplayTrading onOpenClose={onOpenClose} journal={journal} qty={orderQty} setQty={setOrderQty} session={session} frame={frame} projection={projection} cursor={cursor} price={timeline[cursor].close} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed} step={step} setStep={setStep} next={next} onContinue={onContinue} bars={timeline} onCursor={at=>{jumpToLatest.current=true;onCursor(at,true)}} onAction={submitAction} onSave={()=>saveLayout().then(saveOtherLayout).then(onSave)} onError={setError} disabled={!ready||busy||sessionBusy} finished={finished} saving={saving} saveError={saveError} comparison={symbol!==session.root}/>,controlsHost)}

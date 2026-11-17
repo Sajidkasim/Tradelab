@@ -86,7 +86,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-clear-drawings{position:absolute;left:8px;bottom:52px;z-index:4;width:30px;height:30px;display:grid;place-items:center;background:var(--bt-surface);color:var(--bt-ink);border:1px solid var(--bt-border);border-radius:5px;cursor:pointer}
 .bt-statusbar .bt-sample{margin-left:auto;font-variant-numeric:tabular-nums;cursor:pointer}.bt-statusbar .bt-sample:focus-visible{outline:2px solid var(--bt-accent);outline-offset:3px}
 
-.bt-ticket-drag{cursor:ns-resize;touch-action:none}.bt-ticket-drag:hover{filter:brightness(1.15);outline:1px solid currentColor}.bt-ticket-line.dropping{transition:top 80ms ease-out}.bt-ticket-layer:has(.bt-ticket-drag:active) .bt-ticket-line{transition:none}.bt-risk-zone{position:absolute;left:42px;right:70px;pointer-events:none;background:#d368711a}.bt-risk-zone.target{background:#3894831a}.bt-break-even{position:absolute;pointer-events:auto;left:55px;top:40px;background:var(--bt-surface);color:var(--bt-ink);border:1px solid var(--bt-border);padding:5px 8px;border-radius:4px}
+.bt-ticket-drag{cursor:ns-resize;touch-action:none}.bt-ticket-drag:hover{filter:brightness(1.15);outline:1px solid currentColor}.bt-ticket-line.dropping{transition:top 80ms ease-out}.bt-ticket-layer:has(.bt-ticket-drag:active) .bt-ticket-line{transition:none}.bt-risk-zone{position:absolute;left:42px;right:70px;pointer-events:none;background:#d368711a}.bt-risk-zone.target{background:#3894831a}
 
 .bt-ticket-line.dragging{transition:none}.bt-ticket-drag{white-space:nowrap}.bt-risk-zone{max-height:100%;overflow:hidden}
 
@@ -296,3 +296,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 @media(max-width:740px) {
   .bt-news-panel { position: absolute; z-index: 8; inset: 0 0 0 auto; width: min(320px, 92%); box-shadow: -8px 0 24px #0002; }
 }
+
+.bt-pane-role { margin-inline-start: .5rem; color: var(--bt-muted); font-size: 11px; }
+.bt-price-ticket .bt-ticket-be { border-left: 1px solid color-mix(in srgb, var(--ticket) 35%, transparent); font-size: .72rem; font-weight: 650; }
+.bt-price-ticket .bt-ticket-be:not(:disabled):hover { background: var(--bt-border); }
