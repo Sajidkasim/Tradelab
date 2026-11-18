@@ -69,32 +69,50 @@ function locatePosition(image: ImageBitmap): ChartRead['position'] {
   };
 }
 
-async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal) {
+async function startWorker() {
   const [engine, {default: workerPath}, {default: corePath}] = await Promise.all([
     import('tesseract.js'),
     import('tesseract.js/dist/worker.min.js?url'),
     import('tesseract.js-core/tesseract-core-lstm.wasm.js?url'),
   ]);
+  const worker = await engine.createWorker('eng', engine.OEM.LSTM_ONLY, {
+    workerPath, corePath, workerBlobURL:false, langPath:'/assets/chart-ocr-eng-v1',
+  });
+  try {
+    await worker.setParameters({tessedit_pageseg_mode:engine.PSM.SPARSE_TEXT});
+    return worker;
+  } catch (error) {
+    await worker.terminate();
+    throw error;
+  }
+}
+
+export class ChartOcrSession {
+  private worker?: ReturnType<typeof startWorker>;
+
+  acquire() {
+    return this.worker ??= startWorker();
+  }
+
+  dispose() {
+    const pending = this.worker;
+    this.worker = undefined;
+    if (pending) void pending.then(worker=>worker.terminate()).catch(()=>{});
+  }
+}
+
+async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal, session: ChartOcrSession) {
   signal.throwIfAborted();
   const image = await createImageBitmap(file);
-  let worker: Awaited<ReturnType<typeof engine.createWorker>> | undefined;
   let stop = () => {};
   try {
     if (image.width*image.height > 32_000_000) throw new Error('Choose a chart image under 32 megapixels.');
+    signal.throwIfAborted();
     const cancel = new Promise<never>((_, reject) => {
-      stop = () => {
-        if (worker) void worker.terminate();
-        reject(signal.reason);
-      };
+      stop = () => reject(signal.reason);
       signal.addEventListener('abort', stop, {once:true});
     });
-    signal.throwIfAborted();
-    const pending = engine.createWorker('eng', engine.OEM.LSTM_ONLY, {
-      workerPath, corePath, workerBlobURL:false, langPath:'/assets/chart-ocr-eng-v1',
-    });
-    pending.then(instance=>{if(signal.aborted) void instance.terminate()}).catch(()=>{});
-    worker = await Promise.race([pending, cancel]);
-    await Promise.race([worker.setParameters({tessedit_pageseg_mode:engine.PSM.SPARSE_TEXT}),cancel]);
+    const worker = await Promise.race([session.acquire(), cancel]);
     const readings: OCRLine[][] = [];
     for (const {area,size} of regions) {
       const {canvas} = sample(image,area,size);
@@ -108,22 +126,24 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
                      words:line.words.map(word=>({text:word.text,box:locate(word.bbox)}))})));
     }
     return {readings, position:regions[1]?.area===whole?locatePosition(image):undefined};
+  } catch (error) {
+    session.dispose();
+    throw error;
   } finally {
     signal.removeEventListener('abort',stop);
-    if (worker && !signal.aborted) await worker.terminate();
     image.close();
   }
 }
 
-export async function scanChart(file: File, signal: AbortSignal): Promise<ChartRead> {
-  const {readings,position} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800}],signal);
+export async function scanChart(file: File, signal: AbortSignal, session: ChartOcrSession): Promise<ChartRead> {
+  const {readings,position} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800}],signal,session);
   return {header:readings[0],lines:readings[1],position};
 }
 
-export async function scanEntry(file: File, point: Point, signal: AbortSignal) {
+export async function scanEntry(file: File, point: Point, signal: AbortSignal, session: ChartOcrSession) {
   const neighbourhood={x:Math.max(0,Math.min(.60,point.x-.09)),y:Math.max(0,Math.min(.72,point.y-.11)),width:.40,height:.28};
   const entryLine = entryRegion({x:point.x+.14,y:point.y},.32,.10);
-  const {readings} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750}],signal);
+  const {readings} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750}],signal,session);
   return readings.flat();
 }
 
@@ -152,8 +172,8 @@ function confirmationLabel(line: OCRLine, vocabulary: Vocabulary) {
   return label ? {...label,value:aliases[label.value]} : findLabel(line,vocabulary.confirmations);
 }
 
-export async function scanLabel(file: File, point: Point, vocabulary: Vocabulary, signal: AbortSignal): Promise<Finding[]> {
-  const {readings} = await readRegions(file,[{area:entryRegion(point,.16,.095),size:1250}],signal);
+export async function scanLabel(file: File, point: Point, vocabulary: Vocabulary, signal: AbortSignal, session: ChartOcrSession): Promise<Finding[]> {
+  const {readings} = await readRegions(file,[{area:entryRegion(point,.16,.095),size:1250}],signal,session);
   return readings[0].filter(line=>line.confidence>=25).sort((a,b)=>{
     const distance = ({box}: OCRLine)=>Math.hypot(point.x-box.x-box.width/2,point.y-box.y-box.height/2);
     return distance(a)-distance(b);

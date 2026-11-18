@@ -20,6 +20,7 @@ const niceDay=day=>dayDate(day).toLocaleDateString('en-GB',{day:'numeric',month:
 const blank=day=>({day,plan:'',notes:'',lesson:'',mindset:'Not set',plan_followed:null,traded_today:null,images:[],trades:[]});
 const normalize=row=>({...blank(row.day),...row,trades:row.trades||[]});
 const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','planned_rr','risk_amount','net_pnl','setup_grade','account_id','account_ids','replay_id'].map(key=>[key,trade[key]]));
+const visionFields={asset:'symbol',direction:'direction',entry_timeframe:'entry_timeframe',key_level:'level',level_timeframe:'timeframe'};
 const sections=[
   {id:'plan',label:'Before the session',title:'What’s the plan?',hint:'Your market view, the levels you’re watching and the setups you want to take.',placeholder:'My plan for this session…'},
   {id:'notes',label:'During the session',title:'What happened?',hint:'Record what you noticed and the decisions you made. Add individual trades below.',placeholder:'What I saw and how I responded…'},
@@ -93,6 +94,7 @@ export default function JournalPage({theme = "light"}){
   const [deleting,setDeleting]=useState(false),[trash,setTrash]=useState(null),[undoId,setUndoId]=useState(null);
   const labDismissal=useTradeDismissal(()=>setLabDraft(null));
   const viewer=useRef();
+  const visionEdits=useRef(new Map());
   async function boot(){
     try{const session=await api('/session');setCsrf(session.csrf);setIdentity(session);
       if(session.authenticated){const [list,metadata]=await Promise.all([api('/journal'),api('/metadata')]);const normalized=list.map(normalize);setRows(normalized);setMeta(metadata);setEntry(normalized.find(row=>row.day===day)||blank(day));}}
@@ -125,20 +127,42 @@ export default function JournalPage({theme = "light"}){
   async function removeImage(id){if(!window.confirm('Remove this screenshot from this entry?'))return;setBusy(true);setError('');try{const updated=await api(`/journal/${day}/images/${id}`,{method:'DELETE'});setEntry(old=>({...old,images:updated.images}));setRows(old=>old.map(row=>row.day===day?{...row,images:updated.images}:row));setNotice('Screenshot removed.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   function edit(field,value){setEntry(old=>({...old,[field]:value}));setDirty(true);setNotice('')}
   function addTrade(){setSelection(null);const trade={id:crypto.randomUUID().replaceAll('-',''),symbol:'',direction:'',strategy:'',time:'',source:'manual',notes:'',outcome:'not_recorded',confirmations:[],lab_trade_id:null};edit('trades',[...entry.trades,trade]);setExpanded(trade.id);setFreshTradeId(trade.id)}
-  function editTrade(id,field,value){edit('trades',entry.trades.map(trade=>trade.id===id?{...trade,[field]:value,...(field==='account_ids'?{account_id:value.length===1?value[0]:null}:field==='account_id'?{account_ids:value==null?[]:[value]}:{})}:trade))}
-  function applyVision(tradeId,findings){
-    const fields={asset:'symbol',direction:'direction',entry_timeframe:'entry_timeframe',key_level:'level',level_timeframe:'timeframe'};
-    if(!findings.some(({kind})=>kind==='confirmation'||Object.hasOwn(fields,kind)))return;
+  function editTrade(id,field,value){
+    const edits=visionEdits.current.get(id)||{fields:new Set(),confirmations:new Map()};
+    if(field==='confirmations'){
+      const previous=entry.trades.find(trade=>trade.id===id)?.confirmations||[];
+      const selected=new Set(value.map(tag=>tag.toLowerCase()));
+      for(const tag of previous)if(!selected.has(tag.toLowerCase()))edits.confirmations.set(tag.toLowerCase(),false);
+      for(const tag of selected)edits.confirmations.set(tag,true);
+    }else if(Object.values(visionFields).includes(field)){
+      edits.fields.add(field);
+    }
+    visionEdits.current.set(id,edits);
+    setEntry(old=>({...old,trades:old.trades.map(trade=>trade.id===id?{
+      ...trade,[field]:value,...(field==='account_ids'?{account_id:value.length===1?value[0]:null}:
+        field==='account_id'?{account_ids:value==null?[]:[value]}:{}),
+    }:trade)}));
+    setDirty(true);setNotice('');
+  }
+  function applyVision(tradeId,findings,explicit=false){
+    const edits=visionEdits.current.get(tradeId);
+    const allowed=findings.filter(({kind,value})=>kind==='confirmation'
+      ?explicit||edits?.confirmations.get(value.toLowerCase())!==false
+      :Object.hasOwn(visionFields,kind)&&!edits?.fields.has(visionFields[kind]));
+    if(!allowed.length)return;
+    if(explicit&&edits){
+      for(const {kind,value} of allowed)if(kind==='confirmation')edits.confirmations.set(value.toLowerCase(),true);
+    }
     setEntry(old=>({...old,trades:old.trades.map(trade=>{
       if(trade.id!==tradeId||trade.lab_trade_id)return trade;
       const next={...trade};
       let confirmations=next.confirmations||[];
-      const primary=findings.find(({kind})=>kind==='key_level');
-      for(const {kind,value} of findings){
+      const primary=allowed.find(({kind})=>kind==='key_level');
+      for(const {kind,value} of allowed){
         if(kind==='confirmation'){
           if(confirmations.length<30&&!confirmations.some(tag=>tag.toLowerCase()===value.toLowerCase()))confirmations=[...confirmations,value];
-        }else if(Object.hasOwn(fields,kind)){
-          const field=fields[kind];
+        }else{
+          const field=visionFields[kind];
           if(kind==='level_timeframe'&&(!primary||Boolean(trade.level&&trade.level!=='Not recorded'&&trade.level!==primary.value)))continue;
           if(!next[field]||next[field]==='Not recorded')next[field]=value;
         }
@@ -156,7 +180,7 @@ export default function JournalPage({theme = "light"}){
     })}));
     setDirty(true);setNotice('');
   }
-  function removeTrade(id){if(!window.confirm('Remove this card from the Journal? Its Lab trade stays saved. Screenshots will remain with the day.'))return;edit('trades',entry.trades.filter(trade=>trade.id!==id));edit('images',entry.images.map(image=>image.trade_id===id?{...image,trade_id:null}:image));setExpanded(null)}
+  function removeTrade(id){if(!window.confirm('Remove this card from the Journal? Its Lab trade stays saved. Screenshots will remain with the day.'))return;visionEdits.current.delete(id);edit('trades',entry.trades.filter(trade=>trade.id!==id));edit('images',entry.images.map(image=>image.trade_id===id?{...image,trade_id:null}:image));setExpanded(null)}
   async function prepareLab(trade){setBusy(true);setError('');try{await persist();setLabDraft(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function prepareLink(trade){setBusy(true);setError('');try{await persist();const list=await api('/trades');setLabTrades(list);setSelectedLink(trade.lab_trade_id?String(trade.lab_trade_id):'');setLinking(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function linkTrade(){setBusy(true);setError('');try{upsert(await api(`/journal/${day}/trades/${linking.id}/link`,{method:'PUT',body:{trade_id:selectedLink?Number(selectedLink):null}}));setLinking(null);setNotice(selectedLink?'Trade linked. No duplicate was added to the Lab.':'Lab link removed. The original Lab trade stays saved.')}catch(e){setError(e.message)}finally{setBusy(false)}}

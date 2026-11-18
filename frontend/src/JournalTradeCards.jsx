@@ -95,7 +95,7 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
           cloudEnabled={Boolean(visionCloudEnabled)} tradeDirection={trade.direction} savedRR={trade.planned_rr} realised={realisedR(trade.net_pnl,trade.risk_amount)} disabled={busy}
           focusedConfirmation={visionFocus?.key===evidenceKey?visionFocus.value:undefined}
           onFindings={findings=>setVisionEvidence({key:evidenceKey,values:findings.filter(item=>item.kind==='confirmation').map(item=>item.value)})}
-          onDraft={findings=>onVision(trade.id,findings)} onProjection={value=>onProjection(trade.id,value)}
+          onDraft={(findings,explicit)=>onVision(trade.id,findings,explicit)} onProjection={value=>onProjection(trade.id,value)}
           onAttach={canUpload&&entry.images.length<6?file=>onUpload(file,trade.id):undefined}/>}
         <fieldset className="pj-outcome"><legend>Trade outcome</legend><div>{outcomes.map(item=><button key={item.value} type="button" aria-pressed={(trade.outcome||'not_recorded')===item.value} disabled={busy||!!trade.lab_trade_id} onClick={()=>onChange(trade.id,'outcome',item.value)} className={item.value}>{(trade.outcome||'not_recorded')===item.value&&<span aria-hidden="true">✓ </span>}{item.label}</button>)}</div></fieldset>
         <div className="pj-trade-fields">

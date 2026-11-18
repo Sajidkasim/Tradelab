@@ -119,7 +119,19 @@ test('Journal-only grades persist and calendar dots follow whole-day P&L',async(
  await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('');await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot')).toHaveCount(0);await expect(page.getByLabel('Day profit and loss')).toContainText('incomplete');
 });
 
-test('local chart scan reads the header and Cloudflare receives a crop only on request', async ({page}) => {
+for (const [device,viewport,day] of [
+  ['desktop',{width:1440,height:1000},'2026-08-19'],
+  ['mobile',{width:390,height:844},'2026-08-20'],
+]) {
+test(`local chart scan reuses its worker on ${device}`, async ({page}) => {
+  await page.setViewportSize(viewport);
+  const ocrWorkers = [];
+  let closedWorkers = 0;
+  page.on('worker',worker=>{
+    if(!new URL(worker.url()).pathname.includes('/worker.min-'))return;
+    ocrWorkers.push(worker);
+    worker.on('close',()=>closedWorkers++);
+  });
   await page.route('**/api/session', async route => {
     const response = await route.fetch();
     await route.fulfill({response, json: {...await response.json(), chart_vision_cloud_enabled: true}});
@@ -132,7 +144,7 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
       {kind: 'confirmation', value: 'SMT', text: 'SMT', box: {x:.2,y:.3,width:.12,height:.1}},
     ]}});
   });
-  await page.goto(`${origin}/journal?day=2026-08-19`);
+  await page.goto(`${origin}/journal?day=${day}`);
   await page.getByRole('button', {name: 'Add trade', exact: true}).click();
   const card = page.getByRole('article', {name: 'Journal trade 1', exact: true});
   await choose(card, 'Buy or sell', 'Buy');
@@ -149,21 +161,32 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
     return canvas.toDataURL().split(',')[1];
   });
   const upload=card.getByLabel('Choose chart to scan');
+  const initialStarted = performance.now();
   await upload.setInputFiles({name:'chart.png',mimeType:'image/png',buffer:Buffer.from(encoded,'base64')});
   await expect(card.getByRole('combobox', {name:'Market',exact:true})).toHaveText('NQ',{timeout:45000});
   await expect(card.getByRole('combobox', {name:'Buy or sell',exact:true})).toHaveText('Buy');
   await expect(card.getByRole('checkbox', {name:/^MSS/})).toBeChecked();
+  const initialMs = performance.now()-initialStarted;
+  expect(ocrWorkers).toHaveLength(1);
   expect(cloudScans).toBe(0);
   await card.getByRole('checkbox', {name:/^MSS/}).focus();
   await expect(card.getByRole('button', {name:'Add MSS to confirmations'})).toHaveClass(/is-highlighted/);
+  await card.getByRole('checkbox', {name:/^MSS/}).uncheck();
   await card.getByRole('button', {name:'Improve with Cloudflare'}).click();
   await expect(card.getByRole('checkbox', {name:/^SMT/})).toBeChecked();
+  await expect(card.getByRole('checkbox', {name:/^MSS/})).not.toBeChecked();
   expect(cloudScans).toBe(1);
   await card.getByRole('button',{name:'Rescan a label',exact:true}).click();
   const labelArea=card.getByRole('button',{name:'Pick label area on chart',exact:true});
   const bounds=await labelArea.boundingBox();
+  const rescanStarted = performance.now();
   await labelArea.click({position:{x:bounds.width*.327,y:bounds.height*.435}});
   await expect(card.getByRole('button',{name:'Add MSS',exact:true})).toBeVisible({timeout:10000});
+  const rescanMs = performance.now()-rescanStarted;
+  expect(ocrWorkers).toHaveLength(1);
+  console.log(`OCR ${device}: full chart ${Math.round(initialMs)} ms, label rescan ${Math.round(rescanMs)} ms`);
+  await card.getByRole('button',{name:'Add MSS',exact:true}).click();
+  await expect(card.getByRole('checkbox', {name:/^MSS/})).toBeChecked();
   expect(cloudScans).toBe(1);
 
   await card.getByText('Remember a chart label',{exact:true}).click();
@@ -187,7 +210,10 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
   await expect(card.locator('.pj-trade-metrics').getByText('+1.40R',{exact:true})).toBeVisible();
   await page.locator('#journal-entry').getByRole('button',{name:'Save entry',exact:true}).click();
   await expect(page.getByText(/Entry saved/)).toBeVisible();
+  await card.locator('.pj-trade-summary').click();
+  await expect.poll(()=>closedWorkers).toBe(1);
   await page.reload();
   await expect(card.getByText('1:2.50',{exact:true})).toBeVisible();
 
 });
+}

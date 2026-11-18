@@ -3,7 +3,7 @@ import {ScanLine, Sparkles} from 'lucide-react';
 import {api} from './api';
 import InteractiveChartPreview, {type Finding} from './InteractiveChartPreview';
 import JournalChartProjection, {projectionFields, type Projection, type ProjectionField} from './JournalChartProjection';
-import type {ChartRead, Point, Vocabulary} from './chartVisionLocal';
+import type {ChartOcrSession, ChartRead, Point, Vocabulary} from './chartVisionLocal';
 import './chart-vision.css';
 
 const mediaTypes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -51,7 +51,7 @@ type Props = {
   realised?: number | null;
   focusedConfirmation?: string;
   onFindings: (findings: Finding[]) => void;
-  onDraft: (findings: Finding[]) => void;
+  onDraft: (findings: Finding[], explicit?: boolean) => void;
   onProjection: (projection: Projection) => void;
   onAttach?: (file: File) => Promise<boolean | undefined>;
 };
@@ -59,6 +59,7 @@ type Props = {
 export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirection, disabled, savedRR, realised, focusedConfirmation, onFindings, onDraft, onProjection, onAttach}: Props) {
   const picker = useRef<HTMLInputElement>(null);
   const active = useRef<AbortController | null>(null);
+  const ocr = useRef<ChartOcrSession | null>(null);
   const draft = useRef(onDraft);
   draft.current = onDraft;
   const [url, setUrl] = useState('');
@@ -98,7 +99,11 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   }
 
 
-  useEffect(() => () => active.current?.abort(), []);
+  useEffect(() => () => {
+    active.current?.abort();
+    ocr.current?.dispose();
+    ocr.current = null;
+  }, []);
   useEffect(() => () => {if (url) URL.revokeObjectURL(url)}, [url]);
 
   function publish(next: Finding[], proposed=next) {
@@ -153,9 +158,11 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       setChart(new File([jpeg], 'chart.jpg', {type: 'image/jpeg'}));
       setOriginal(file);
       setUrl(URL.createObjectURL(jpeg));
-      const {scanChart, chartFindings} = await import('./chartVisionLocal');
+      const {ChartOcrSession, scanChart, chartFindings} = await import('./chartVisionLocal');
+      signal.throwIfAborted();
+      const session = ocr.current ??= new ChartOcrSession();
       const [read, savedAliases] = await Promise.all([
-        scanChart(file,signal),
+        scanChart(file,signal,session),
         api('/vision/aliases',{signal}).catch(()=>aliases),
       ]);
       signal.throwIfAborted();
@@ -171,11 +178,13 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     setMarking(false);
     setReview([]);
     await run(async signal => {
-      const {scanEntry,chartFindings} = await import('./chartVisionLocal');
+      const {ChartOcrSession,scanEntry,chartFindings} = await import('./chartVisionLocal');
+      signal.throwIfAborted();
+      const session = ocr.current ??= new ChartOcrSession();
       const previous = local || {header:[],lines:[]};
       const existing = chartFindings(previous,dictionary,selected);
       publish(existing);
-      const lines = await scanEntry(original,selected,signal);
+      const lines = await scanEntry(original,selected,signal,session);
       signal.throwIfAborted();
       const expanded = {...previous,lines:[...lines,...previous.lines]};
       setLocal(expanded);
@@ -188,8 +197,10 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     setReadingLabel(false);
     setCropFindings([]);
     await run(async signal=>{
-      const {scanLabel} = await import('./chartVisionLocal');
-      const matches = await scanLabel(original,selected,dictionary,signal);
+      const {ChartOcrSession,scanLabel} = await import('./chartVisionLocal');
+      signal.throwIfAborted();
+      const session = ocr.current ??= new ChartOcrSession();
+      const matches = await scanLabel(original,selected,dictionary,signal,session);
       signal.throwIfAborted();
       setCropFindings(matches);
       setPicked(matches.length?'Choose a label from the crop.':'No readable label in that crop. Try tapping closer to the text.');
@@ -249,7 +260,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   function addConfirmation(finding: Finding) {
     if (disabled) return;
     const text = finding.value;
-    onDraft([{...finding, kind: 'confirmation', value: text}]);
+    onDraft([{...finding, kind: 'confirmation', value: text}],true);
     setHighlight(finding);
     setAliasLabel(finding.text===finding.value?'':finding.text);
     setPicked(`Selected ${text} for confirmations.`);
