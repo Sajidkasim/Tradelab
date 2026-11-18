@@ -30,12 +30,10 @@ export default function JournalChartProjection({levels, prices, onPrice, marking
   const hasPrices = projectionFields.some(field=>prices[field].trim());
   const projection: Projection|null = hasPrices ? priceProjection : chartProjection;
   const conflict = Boolean(projection && tradeDirection && projection.direction !== tradeDirection);
-  const suggestedOutcome = !projection || projection.outcome || conflict ? null
-    : touch==='target'?'Win suggested':touch==='stop'?'Loss suggested':null;
   return <details className="pj-vision-projection">
     <summary><span>Projection &amp; trade result</span>
       {projection&&<small className="pj-vision-projection-summary">
-        R:R 1:{projection.plannedRR.toFixed(2)}{suggestedOutcome&&<> · {suggestedOutcome}</>}
+        R:R 1:{projection.plannedRR.toFixed(2)}
       </small>}
     </summary>
     <div className="pj-vision-projection-content">
@@ -57,15 +55,9 @@ export default function JournalChartProjection({levels, prices, onPrice, marking
         {' · '}{projection.direction==='long'?'Buy':'Sell'}
         {projection.outcome&&<> · {projection.outcome==='breakeven'?'Break-even':projection.outcome==='win'?'Win':'Loss'} from exit price</>}
       </p>}
-      {projection&&touch&&<p role="status">{touch==='ambiguous'?'Target and stop order unclear on the chart.':
-        `Chart suggests ${touch==='target'?'Win · target reached first':'Loss · stop reached first'}. Confirm your fill below.`}</p>}
+      {projection&&touch==='ambiguous'&&<p role="status">Target and stop order unclear on the chart.</p>}
       {!projection&&!marking&&!hasPrices&&<small>Position drawing unclear. Mark its three lines or enter the prices.</small>}
-      <small>Use your confirmed exit. A candle crossing a line can’t establish your fill. Fees and partial fills can change the result.</small>
       {conflict&&<p role="alert">The projection direction differs from this trade. Check the levels or the trade direction before applying.</p>}
-      {projection&&!projection.outcome&&!conflict&&<div className="pj-vision-tags">
-        <button type="button" disabled={disabled} onClick={()=>onApply({...projection,outcome:'win'})}>Confirm closed at target</button>
-        <button type="button" disabled={disabled} onClick={()=>onApply({...projection,outcome:'loss'})}>Confirm closed at stop</button>
-      </div>}
       <button className="pt-btn" type="button" disabled={disabled||!projection||conflict} onClick={()=>projection&&onApply(projection)}>
         {projection?.outcome?'Use R:R and outcome':'Use planned R:R'}
       </button>

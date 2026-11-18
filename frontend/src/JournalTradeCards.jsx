@@ -95,7 +95,7 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
           cloudEnabled={Boolean(visionCloudEnabled)} tradeDirection={trade.direction} savedRR={trade.planned_rr} realised={realisedR(trade.net_pnl,trade.risk_amount)} disabled={busy}
           focusedConfirmation={visionFocus?.key===evidenceKey?visionFocus.value:undefined}
           onFindings={findings=>setVisionEvidence({key:evidenceKey,values:findings.filter(item=>item.kind==='confirmation').map(item=>item.value)})}
-          onDraft={(findings,explicit)=>onVision(trade.id,findings,explicit)} onProjection={value=>onProjection(trade.id,value)}
+          onDraft={(findings,explicit)=>onVision(trade.id,findings,explicit)} onProjection={(value,automatic)=>onProjection(trade.id,value,automatic)}
           onAttach={canUpload&&entry.images.length<6?file=>onUpload(file,trade.id):undefined}/>}
         <fieldset className="pj-outcome"><legend>Trade outcome</legend><div>{outcomes.map(item=><button key={item.value} type="button" aria-pressed={(trade.outcome||'not_recorded')===item.value} disabled={busy||!!trade.lab_trade_id} onClick={()=>onChange(trade.id,'outcome',item.value)} className={item.value}>{(trade.outcome||'not_recorded')===item.value&&<span aria-hidden="true">✓ </span>}{item.label}</button>)}</div></fieldset>
         <div className="pj-trade-fields">
@@ -109,11 +109,12 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
           <Select label="Trade type" value={trade.source} onChange={e=>onChange(trade.id,'source',e.target.value)} values={[{value:'manual',label:'Live'},{value:'backtest',label:'Backtesting'}]} disabled={busy||!!trade.lab_trade_id}/>
         </div>
         <details className="pj-setup-result" open={(trade.net_pnl!=null||trade.risk_amount!=null||(trade.level&&trade.level!=='Not recorded'))||undefined}>
-          <summary>Setup & result <span>Optional · key level, timeframes and money</span></summary>
+          <summary>Setup & result <span>Optional · key level, timeframes, R:R and money</span></summary>
           <div className="pj-trade-fields">
             <VocabularySelect label="Key level / PDA" value={trade.level==='Not recorded'?'':trade.level||''} values={[{value:'',label:'Choose…'},...(meta?.playbook?.levels||[])]} archived={[...(meta?.archived_choices?.levels||[]),trade.level]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'level',e.target.value||'Not recorded')}/>
             <VocabularySelect label="Key level timeframe" value={trade.timeframe==='Not recorded'?'':trade.timeframe||''} values={[{value:'',label:'Choose…'},...(meta?.level_timeframes||[])]} archived={[...(meta?.archived_choices?.level_timeframes||[]),trade.timeframe]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'timeframe',e.target.value||'Not recorded')}/>
             <VocabularySelect label="Entry timeframe" value={trade.entry_timeframe==='Not recorded'?'':trade.entry_timeframe||''} values={[{value:'',label:'Choose…'},...(meta?.entry_timeframes||[])]} archived={[...(meta?.archived_choices?.entry_timeframes||[]),trade.entry_timeframe]} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'entry_timeframe',e.target.value||'Not recorded')}/>
+            <label className="pj-field">Planned R:R<input type="number" inputMode="decimal" min="0.01" max="1000" step="any" placeholder="e.g. 2.5 for 1:2.5" value={trade.planned_rr??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'planned_rr',e.target.value===''?null:Number(e.target.value))}/></label>
             <label className="pj-field">Amount risked ($)<input type="number" inputMode="decimal" min="0.01" step="any" aria-label="Amount risked ($)" placeholder="e.g. 50" value={trade.risk_amount??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'risk_amount',e.target.value===''?null:Number(e.target.value))}/></label>
             <label className="pj-field">Profit / loss ($)<input type="number" inputMode="decimal" step="any" aria-label="Profit / loss ($)" placeholder="e.g. 150 or -50" value={trade.net_pnl??''} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'net_pnl',e.target.value===''?null:Number(e.target.value))}/></label>
           </div>

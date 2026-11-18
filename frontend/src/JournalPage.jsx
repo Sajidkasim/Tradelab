@@ -134,7 +134,7 @@ export default function JournalPage({theme = "light"}){
       const selected=new Set(value.map(tag=>tag.toLowerCase()));
       for(const tag of previous)if(!selected.has(tag.toLowerCase()))edits.confirmations.set(tag.toLowerCase(),false);
       for(const tag of selected)edits.confirmations.set(tag,true);
-    }else if(Object.values(visionFields).includes(field)){
+    }else if(Object.values(visionFields).includes(field)||field==='outcome'||field==='planned_rr'){
       edits.fields.add(field);
     }
     visionEdits.current.set(id,edits);
@@ -171,12 +171,17 @@ export default function JournalPage({theme = "light"}){
     })}));
     setDirty(true);setNotice('');
   }
-  function applyProjection(tradeId,value){
+  function applyProjection(tradeId,value,automatic=false){
+    const edited=visionEdits.current.get(tradeId)?.fields;
     setEntry(old=>({...old,trades:old.trades.map(trade=>{
       if(trade.id!==tradeId||trade.lab_trade_id||(trade.direction&&trade.direction!==value.direction))return trade;
-      const addOutcome=value.outcome&&(!trade.outcome||trade.outcome==='not_recorded')&&trade.net_pnl==null;
-      return {...trade,direction:trade.direction||value.direction,planned_rr:value.plannedRR,
-        ...(addOutcome?{outcome:value.outcome}:{})};
+      const addOutcome=value.outcome&&trade.net_pnl==null&&
+        (!automatic||(!edited?.has('outcome')&&(!trade.outcome||trade.outcome==='not_recorded')));
+      const addRatio=!automatic||(!edited?.has('planned_rr')&&trade.planned_rr==null);
+      const addDirection=!trade.direction&&!edited?.has('direction');
+      if(!addOutcome&&!addRatio&&!addDirection)return trade;
+      return {...trade,...(addDirection?{direction:value.direction}:{}),
+        ...(addRatio?{planned_rr:value.plannedRR}:{}),...(addOutcome?{outcome:value.outcome}:{})};
     })}));
     setDirty(true);setNotice('');
   }

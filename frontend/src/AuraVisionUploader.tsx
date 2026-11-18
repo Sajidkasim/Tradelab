@@ -3,6 +3,7 @@ import {ScanLine, Sparkles} from 'lucide-react';
 import {api} from './api';
 import InteractiveChartPreview, {type Finding} from './InteractiveChartPreview';
 import JournalChartProjection, {projectionFields, type Projection, type ProjectionField} from './JournalChartProjection';
+import {readProjection} from './journalProjection';
 import type {ChartOcrSession, ChartRead, Point, Vocabulary} from './chartVisionLocal';
 import './chart-vision.css';
 
@@ -42,6 +43,13 @@ async function compressChart(file: File): Promise<Blob> {
   }
 }
 
+function positionLevels(position: ChartRead['position']): Partial<Record<ProjectionField,number>> {
+  if (!position) return {};
+  const {entry, box, direction} = position;
+  const bottom = box.y + box.height;
+  return {entry:entry.y, stop:direction==='long'?bottom:box.y, target:direction==='long'?box.y:bottom};
+}
+
 type Props = {
   vocabulary: Vocabulary;
   cloudEnabled: boolean;
@@ -52,7 +60,7 @@ type Props = {
   focusedConfirmation?: string;
   onFindings: (findings: Finding[]) => void;
   onDraft: (findings: Finding[], explicit?: boolean) => void;
-  onProjection: (projection: Projection) => void;
+  onProjection: (projection: Projection, automatic?: boolean) => void;
   onAttach?: (file: File) => Promise<boolean | undefined>;
 };
 
@@ -89,12 +97,21 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   const estimates = !Object.keys(levels).length&&!markProjection ? local?.projection?.prices : undefined;
   const prices = {entry:priceEdits.entry??String(estimates?.entry??''),stop:priceEdits.stop??String(estimates?.stop??''),
     target:priceEdits.target??String(estimates?.target??''),exit:priceEdits.exit??''};
-  const position = local?.position;
-  const chartLevels = Object.keys(levels).length || markProjection ? levels : position ? {
-    entry:position.entry.y,
-    stop:position.direction==='long'?position.box.y+position.box.height:position.box.y,
-    target:position.direction==='long'?position.box.y:position.box.y+position.box.height,
-  } : {};
+  const chartLevels = Object.keys(levels).length || markProjection ? levels : positionLevels(local?.position);
+
+  function applyChartProjection(read: ChartRead) {
+    const geometry = positionLevels(read.position);
+    const projection = readProjection({
+      entry:read.projection?.prices?.entry ?? -(geometry.entry ?? NaN),
+      stop:read.projection?.prices?.stop ?? -(geometry.stop ?? NaN),
+      target:read.projection?.prices?.target ?? -(geometry.target ?? NaN),
+      exit:NaN,
+    });
+    if (!projection) return;
+    const touch = read.projection?.touch;
+    onProjection({...projection, outcome:touch==='stop'?'loss':touch==='target'?'win':null}, true);
+  }
+
   function markLevel(selected: Point) {
     if (!markProjection) return;
     setLevels(current=>({...current,[markProjection]:selected.y}));
@@ -172,6 +189,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       setAliases(savedAliases);
       setLocal(read);
       publish(chartFindings(read,{...vocabulary,aliases:savedAliases}));
+      applyChartProjection(read);
     });
   }
 
@@ -192,6 +210,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       const expanded = {...previous,...evidence,lines:[...evidence.lines,...previous.lines]};
       setLocal(expanded);
       publish(chartFindings(expanded,dictionary,selected));
+      applyChartProjection(expanded);
     });
   }
 
@@ -283,7 +302,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       <input ref={picker} type="file" hidden aria-label="Choose chart to scan" accept={mediaTypes.join(',')}
         disabled={disabled || scanning} onChange={event=>{void scan(event.target.files?.[0]);event.target.value=''}}/>
     </div>
-    {scanning&&<div className="pj-vision-loading" role="status">Scanning chart…<span/><span/></div>}
+    {scanning&&<div className="pj-vision-loading" role="status">Analysing chart…<span/><span/></div>}
     {error&&<p role="alert">{error}</p>}
     {url&&<div className="pj-vision-review">
     <InteractiveChartPreview url={url} findings={findings || []} highlight={highlight || findings?.find(finding =>
