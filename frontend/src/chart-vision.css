@@ -1,0 +1,18 @@
+.pj-vision { display: grid; gap: .65rem; min-width: 0; }
+.pj-vision p { margin: 0; }
+.pj-vision-chart { position: relative; background: var(--pt-paper); line-height: 0; }
+.pj-vision-chart img { width: 100%; height: auto; }
+.pj-vision-box { position: absolute; border: 1px solid #148b78; background: #1bbfad26; padding: 0; border-radius: 2px; }
+button.pj-vision-box { cursor: pointer; }
+.pj-vision-box.is-highlighted, .pj-vision-box:focus-visible, .pj-vision-box:hover { outline: 2px solid #0fb698; background: #1bbfad55; box-shadow: 0 0 12px #12d7ad; z-index: 1; }
+.pj-vision-label { display: flex; align-items: center; gap: .4rem; font-weight: 650; }
+.pj-vision-help { font-size: .8rem; }
+.pj-vision-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+.pj-vision-tags button { font: inherit; font-size: .8rem; padding: .3rem .65rem; border: 1px solid currentColor; border-radius: 999px; background: transparent; color: inherit; cursor: pointer; }
+.pj-vision-tags small { opacity: .75; }
+.pj-vision-loading { display: grid; gap: .35rem; }
+.pj-vision-loading span { height: .55rem; width: 65%; border-radius: 999px; background: currentColor; opacity: .14; }
+.pj-vision-loading span:last-child { width: 42%; }
+.pj-vision-entry { position: absolute; transform: translate(-50%,-50%); width: 14px; height: 14px; border: 2px solid #0fb698; border-radius: 50%; box-shadow: 0 0 0 2px #121e18; z-index: 2; pointer-events: none; }
+.pj-vision-entry-target { position: absolute; inset: 0; z-index: 3; border: 2px dashed #0fb698; background: transparent; cursor: crosshair; }
+.pj-vision-tags button:disabled { cursor: default; opacity: .55; }

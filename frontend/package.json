@@ -13,10 +13,12 @@
     "@jitsi/react-sdk": "^1.4.4",
     "@luxalgo/vela": "0.9.3",
     "@supabase/supabase-js": "^2.119.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "lucide-react": "^0.468.0",
     "plotly.js-basic-dist-min": "^3.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "tesseract.js": "^7.0.0",
     "three": "^0.180.0"
   },
   "devDependencies": {

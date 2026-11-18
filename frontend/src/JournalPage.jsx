@@ -120,12 +120,33 @@ export default function JournalPage({theme = "light"}){
   async function save(){setBusy(true);setError('');try{await persist();setNotice(localSitePreview()?'Entry saved for this local preview.':'Entry saved.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function upload(file,tradeId=''){
     if(!file||busy)return;if(file.size>8*1024*1024){setError('Choose a screenshot smaller than 8 MB.');return}
-    setBusy(true);setError('');try{await persist();const form=new FormData();form.append('file',file);upsert(await api(`/journal/${day}/images${tradeId?`?trade_id=${tradeId}`:''}`,{method:'POST',body:form}));setNotice('Screenshot added. Your entry is saved too.')}catch(e){setError(e.message)}finally{setBusy(false)}
+    setBusy(true);setError('');try{await persist();const form=new FormData();form.append('file',file);upsert(await api(`/journal/${day}/images${tradeId?`?trade_id=${tradeId}`:''}`,{method:'POST',body:form}));setNotice('Screenshot added. Your entry is saved too.');return true}catch(e){setError(e.message);return false}finally{setBusy(false)}
   }
   async function removeImage(id){if(!window.confirm('Remove this screenshot from this entry?'))return;setBusy(true);setError('');try{const updated=await api(`/journal/${day}/images/${id}`,{method:'DELETE'});setEntry(old=>({...old,images:updated.images}));setRows(old=>old.map(row=>row.day===day?{...row,images:updated.images}:row));setNotice('Screenshot removed.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   function edit(field,value){setEntry(old=>({...old,[field]:value}));setDirty(true);setNotice('')}
   function addTrade(){setSelection(null);const trade={id:crypto.randomUUID().replaceAll('-',''),symbol:'',direction:'',strategy:'',time:'',source:'manual',notes:'',outcome:'not_recorded',confirmations:[],lab_trade_id:null};edit('trades',[...entry.trades,trade]);setExpanded(trade.id);setFreshTradeId(trade.id)}
   function editTrade(id,field,value){edit('trades',entry.trades.map(trade=>trade.id===id?{...trade,[field]:value,...(field==='account_ids'?{account_id:value.length===1?value[0]:null}:field==='account_id'?{account_ids:value==null?[]:[value]}:{})}:trade))}
+  function applyVision(tradeId,findings){
+    const fields={asset:'symbol',direction:'direction',entry_timeframe:'entry_timeframe',key_level:'level',level_timeframe:'timeframe'};
+    if(!findings.some(({kind})=>kind==='confirmation'||Object.hasOwn(fields,kind)))return;
+    setEntry(old=>({...old,trades:old.trades.map(trade=>{
+      if(trade.id!==tradeId||trade.lab_trade_id)return trade;
+      const next={...trade};
+      let confirmations=next.confirmations||[];
+      const primary=findings.find(({kind})=>kind==='key_level');
+      for(const {kind,value} of findings){
+        if(kind==='confirmation'){
+          if(confirmations.length<30&&!confirmations.some(tag=>tag.toLowerCase()===value.toLowerCase()))confirmations=[...confirmations,value];
+        }else if(Object.hasOwn(fields,kind)){
+          const field=fields[kind];
+          if(kind==='level_timeframe'&&(!primary||Boolean(trade.level&&trade.level!=='Not recorded'&&trade.level!==primary.value)))continue;
+          if(!next[field]||next[field]==='Not recorded')next[field]=value;
+        }
+      }
+      return {...next,confirmations};
+    })}));
+    setDirty(true);setNotice('');
+  }
   function removeTrade(id){if(!window.confirm('Remove this card from the Journal? Its Lab trade stays saved. Screenshots will remain with the day.'))return;edit('trades',entry.trades.filter(trade=>trade.id!==id));edit('images',entry.images.map(image=>image.trade_id===id?{...image,trade_id:null}:image));setExpanded(null)}
   async function prepareLab(trade){setBusy(true);setError('');try{await persist();setLabDraft(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function prepareLink(trade){setBusy(true);setError('');try{await persist();const list=await api('/trades');setLabTrades(list);setSelectedLink(trade.lab_trade_id?String(trade.lab_trade_id):'');setLinking(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -212,7 +233,7 @@ export default function JournalPage({theme = "light"}){
             setEntry(unlink);
             setRows(current=>current.map(unlink));
           }}/>
-          <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId}/>
+          <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId} visionCloudEnabled={identity.chart_vision_cloud_enabled} onVision={applyVision}/>
           {(identity.images_enabled??localSitePreview())&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>
           <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Save your notes here. Only trades you add to the Lab affect Lab results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>

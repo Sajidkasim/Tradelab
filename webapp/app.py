@@ -165,7 +165,8 @@ def create_app(config: Settings | None = None):
         # A single owner; neither request bodies nor cookies can select a trader.
         return {'key': 'owner', 'name': 'My lab', 'slot': 0}
 
-    from . import bullpen
+    from . import bullpen, chart_vision
+    chart_vision.mount(app, workspace)
     bullpen.mount(app, config, workspace, check_write)
 
     # Expose dependency to tests, never an impersonation route.
@@ -277,7 +278,8 @@ def create_app(config: Settings | None = None):
             return {'authenticated': False, 'local': config.local, 'csrf': request.session['csrf'], 'auth_mode': config.auth_mode, 'images_enabled': request.app.state.image_storage.enabled}
         return {'authenticated': True, 'name': member['name'], 'owner': member['key'] == 'owner', 'local': config.local,
                 'auth_mode': config.auth_mode, 'can_lock': config.password_required or config.google_required,
-                'csrf': request.session['csrf'], 'images_enabled': request.app.state.image_storage.enabled}
+                'csrf': request.session['csrf'], 'images_enabled': request.app.state.image_storage.enabled,
+                'chart_vision_cloud_enabled': chart_vision.enabled()}
 
     def google_return_paths():
         paths = ('/lab', '/journal', '/learn', '/market-lab', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)

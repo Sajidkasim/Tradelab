@@ -890,3 +890,48 @@ def test_readiness_times_out_without_starting_a_second_database_probe(local, mon
     finally:
         release.set()
         assert finished.wait(timeout=5)
+
+
+def test_chart_vision_maps_nearby_workspace_tags_and_keeps_distant_labels(local, monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+    from webapp import chart_vision
+
+    client, _ = local
+    monkeypatch.setenv('PRIMUS_VISION_CF_ACCOUNT_ID', 'a' * 32)
+    monkeypatch.setenv('PRIMUS_VISION_CF_TOKEN', 'test-token')
+    monkeypatch.setenv('PRIMUS_VISION_CF_FREE_ONLY', '1')
+    meta = client.get('/api/metadata').json()
+    confirmation = meta['confirmations'][0]
+    box = {'x': .2, 'y': .4, 'width': .04, 'height': .02}
+    far = {**box, 'y': .05}
+
+    def scan(credentials, jpeg, vocabulary):
+        assert credentials == ('a'*32, 'test-token')
+        assert vocabulary['confirmation'] == [confirmation]
+        return chart_vision.Extraction.model_validate({
+            'position': {'x': .2, 'y': .2, 'width': .3, 'height': .3},
+            'entry_anchor': box,
+            'findings': [
+                {'kind': 'asset', 'value': 'NQ1!', 'text': 'NQ1!', 'box': far},
+                {'kind': 'direction', 'value': 'long', 'text': 'Long position tool', 'box': box},
+                {'kind': 'confirmation', 'value': confirmation, 'text': 'MSS', 'box': box},
+                {'kind': 'key_level', 'value': 'PDL', 'text': 'PDL', 'box': far},
+                {'kind': 'confirmation', 'value': 'Unmapped', 'text': 'SMT', 'box': box},
+            ],
+        })
+
+    monkeypatch.setattr(chart_vision, 'scan', scan)
+    image = BytesIO()
+    Image.new('RGB', (100, 100)).save(image, format='JPEG')
+    data = {'user_tags': json.dumps([confirmation, 'Unmapped'])}
+    response = client.post('/api/vision/extract', data=data, files={'image': ('chart.jpg', image.getvalue(), 'image/jpeg')})
+    assert response.status_code == 200, response.text
+    assert [(row['kind'], row['value']) for row in response.json()['findings']] == [
+        ('asset', 'NQ'), ('direction', 'long'), ('confirmation', confirmation),
+        ('visible_level', 'PDL'), ('annotation', 'SMT'),
+    ]
+    invalid = client.post('/api/vision/extract', data=data, files={'image': ('chart.jpg', b'invalid', 'image/jpeg')})
+    assert invalid.status_code == 422
+    client.headers.pop('X-Primus-CSRF')
+    assert client.post('/api/vision/extract', data=data, files={'image': ('chart.jpg', image.getvalue(), 'image/jpeg')}).status_code == 403

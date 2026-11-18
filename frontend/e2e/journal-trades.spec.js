@@ -118,3 +118,45 @@ test('Journal-only grades persist and calendar dots follow whole-day P&L',async(
  await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('-100');await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot.breakeven')).toBeVisible();
  await second.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('');await page.getByRole('button',{name:'Save entry',exact:true}).first().click();await expect(calendar.locator('.pj-day-dot')).toHaveCount(0);await expect(page.getByLabel('Day profit and loss')).toContainText('incomplete');
 });
+
+test('local chart scan reads the header and Cloudflare receives a crop only on request', async ({page}) => {
+  await page.route('**/api/session', async route => {
+    const response = await route.fetch();
+    await route.fulfill({response, json: {...await response.json(), chart_vision_cloud_enabled: true}});
+  });
+  let cloudScans = 0;
+  await page.route('**/api/vision/extract', async route => {
+    cloudScans++;
+    expect(route.request().postDataBuffer().length).toBeLessThan(540000);
+    await route.fulfill({json: {findings: [
+      {kind: 'confirmation', value: 'SMT', text: 'SMT', box: {x:.2,y:.3,width:.12,height:.1}},
+    ]}});
+  });
+  await page.goto(`${origin}/journal?day=2026-08-19`);
+  await page.getByRole('button', {name: 'Add trade', exact: true}).click();
+  const card = page.getByRole('article', {name: 'Journal trade 1', exact: true});
+  await choose(card, 'Buy or sell', 'Buy');
+  const encoded = await page.evaluate(() => {
+    const canvas=document.createElement('canvas');
+    canvas.width=1600;
+    canvas.height=800;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle='white';ctx.fillRect(0,0,1600,800);
+    ctx.fillStyle='#afe9d8';ctx.fillRect(570,235,410,155);
+    ctx.fillStyle='#efa6a3';ctx.fillRect(570,390,410,93);
+    ctx.fillStyle='black';ctx.font='bold 38px sans-serif';
+    ctx.fillText('NQ  1m',40,63);ctx.fillText('MSS',480,364);
+    return canvas.toDataURL().split(',')[1];
+  });
+  const upload=card.getByLabel('Choose chart to scan');
+  await upload.setInputFiles({name:'chart.png',mimeType:'image/png',buffer:Buffer.from(encoded,'base64')});
+  await expect(card.getByRole('combobox', {name:'Market',exact:true})).toHaveText('NQ',{timeout:45000});
+  await expect(card.getByRole('combobox', {name:'Buy or sell',exact:true})).toHaveText('Buy');
+  await expect(card.getByRole('checkbox', {name:/^MSS/})).toBeChecked();
+  expect(cloudScans).toBe(0);
+  await card.getByRole('checkbox', {name:/^MSS/}).focus();
+  await expect(card.getByRole('button', {name:'Add MSS to confirmations'})).toHaveClass(/is-highlighted/);
+  await card.getByRole('button', {name:'Improve with Cloudflare'}).click();
+  await expect(card.getByRole('checkbox', {name:/^SMT/})).toBeChecked();
+  expect(cloudScans).toBe(1);
+});

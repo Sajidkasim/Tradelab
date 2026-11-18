@@ -1,3 +1,4 @@
+import AuraVisionUploader from './AuraVisionUploader';
 import {AccountSelector,tradeAccountIds} from './JournalReview';
 import CustomTradeFields from "./CustomTradeFields";
 import React, {useRef,useState} from 'react';
@@ -68,7 +69,9 @@ function TradeMetrics({trade}){
   </div>)}</dl>;
 }
 
-export default function JournalTradeCards({entry,meta,palette,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId}){
+export default function JournalTradeCards({entry,meta,palette,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId,visionCloudEnabled,onVision}){
+  const [visionEvidence,setVisionEvidence]=useState(null);
+  const [visionFocus,setVisionFocus]=useState(null);
   const visibleTrades=entry.trades.filter(trade=>accountFilter==null||tradeAccountIds(trade).includes(accountFilter));
   const choices=meta?.strategies||[];
   const markets=Object.keys(meta?.instruments||{});
@@ -76,10 +79,20 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
   return <section className="pj-trades" aria-label="Trades taken today">
     <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{visibleTrades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone==='Europe/London'?'UK time':meta?.journal_preferences?.timezone==='Etc/GMT+4'?'fixed UTC−4':'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy||entry.trades.length>=30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
     {!visibleTrades.length&&<div className="pj-trades-empty"><FlaskConical size={24}/><div><strong>{accountFilter==null?'What did you trade?':'No trades for this account'}</strong><p>{accountFilter==null?'Add the trades you took, or leave this empty for a no-trade day.':'Choose All accounts to see or assign unassigned trades.'}</p></div></div>}
-    <div className="pj-trade-list">{visibleTrades.map((trade,index)=>{const open=expanded===trade.id;const selected=tradeAccountIds(trade);const multi=selected.length>1;return <article key={trade.id} className={`pj-trade-card ${open?'is-open':''} ${trade.id===freshTradeId?'is-new':''}`} aria-label={`Journal trade ${index+1}`}>
+    <div className="pj-trade-list">{visibleTrades.map((trade,index)=>{const open=expanded===trade.id;const selected=tradeAccountIds(trade);const multi=selected.length>1;const evidenceKey=entry.day+':'+trade.id;
+    const inferred=visionEvidence?.key===evidenceKey?visionEvidence.values:[];
+    return <article key={trade.id} className={`pj-trade-card ${open?'is-open':''} ${trade.id===freshTradeId?'is-new':''}`} aria-label={`Journal trade ${index+1}`}>
       <button type="button" className="pj-trade-summary" aria-expanded={open} onClick={()=>setExpanded(open?null:trade.id)}><span className="pj-trade-index">{String(index+1).padStart(2,'0')}</span><span className="pj-trade-name"><strong>{trade.symbol||'New trade'} <em>{trade.direction==='long'?'Buy':trade.direction==='short'?'Sell':''}</em></strong><small>{trade.strategy||'Choose a strategy'}{trade.time?` · ${trade.time}`:''} · {accounts?.filter(account=>selected.includes(account.id)).map(account=>account.name).join(', ') || 'Unassigned'}</small></span>{trade.outcome&&trade.outcome!=='not_recorded'&&<span className={`pj-outcome-badge ${trade.outcome}`} style={{'--pj-outcome-tone':trade.outcome==='win'?palette?.good:trade.outcome==='loss'?palette?.critical:palette?.axis}}>{outcomes.find(item=>item.value===trade.outcome)?.label}</span>}<span className={`pj-trade-state ${trade.lab_trade_id?'linked':''}`}>{trade.lab_trade_id?'In Strategy Lab':`${entry.images.filter(i=>i.trade_id===trade.id).length} charts`}</span><ChevronDown size={18}/></button>
       <TradeMetrics trade={trade}/>
       {open&&<div className="pj-trade-body">
+        {!trade.lab_trade_id&&<AuraVisionUploader key={`${entry.day}:${trade.id}`}
+          vocabulary={{markets, confirmations:meta?.confirmations||[],levels:meta?.playbook?.levels||[],
+            entryTimeframes:meta?.entry_timeframes||[],levelTimeframes:meta?.level_timeframes||[]}}
+          cloudEnabled={Boolean(visionCloudEnabled)} disabled={busy}
+          focusedConfirmation={visionFocus?.key===evidenceKey?visionFocus.value:undefined}
+          onFindings={findings=>setVisionEvidence({key:evidenceKey,values:findings.filter(item=>item.kind==='confirmation').map(item=>item.value)})}
+          onDraft={findings=>onVision(trade.id,findings)}
+          onAttach={canUpload&&entry.images.length<6?file=>onUpload(file,trade.id):undefined}/>}
         <fieldset className="pj-outcome"><legend>Trade outcome</legend><div>{outcomes.map(item=><button key={item.value} type="button" aria-pressed={(trade.outcome||'not_recorded')===item.value} disabled={busy||!!trade.lab_trade_id} onClick={()=>onChange(trade.id,'outcome',item.value)} className={item.value}>{(trade.outcome||'not_recorded')===item.value&&<span aria-hidden="true">✓ </span>}{item.label}</button>)}</div></fieldset>
         <div className="pj-trade-fields">
           {accounts?.length>1&&!trade.lab_trade_id?<fieldset className="pj-confirmations pj-wide"><legend>Trade accounts</legend><div>{accounts.map(account=><label key={account.id}><input type="checkbox" checked={selected.includes(account.id)} disabled={busy} onChange={e=>onChange(trade.id,'account_ids',e.target.checked?[...selected,account.id]:selected.filter(id=>id!==account.id))}/>{account.name}</label>)}</div>{multi&&<p>Enter the combined P&amp;L and risk for the selected accounts. Combined P&amp;L appears under All accounts.</p>}</fieldset>:<AccountSelector label="Trade account" accounts={accounts} value={trade.account_id} unassigned disabled={busy||!accounts} onChange={value=>onChange(trade.id,'account_id',value)}/>}
@@ -102,7 +115,10 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
           </div>
           <p>Key level timeframe is where you found the level; entry timeframe is where you entered. Enter a loss with a minus sign. A recorded result sets Win, Loss or Break-even when saved.</p>
         </details>
-        <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><p>Tick what you saw at entry.</p><div>{Array.from(new Set([...(meta?.confirmations||[]),...(trade.confirmations||[])])).map(value=><label key={value}><input type="checkbox" checked={(trade.confirmations||[]).includes(value)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'confirmations',e.target.checked?[...(trade.confirmations||[]),value]:(trade.confirmations||[]).filter(item=>item!==value))}/>{value}</label>)}</div></fieldset>
+        <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><p>Tick what you saw at entry.</p><div>{Array.from(new Set([...(meta?.confirmations||[]),...(trade.confirmations||[])])).map(value=><label key={value}
+          onMouseEnter={()=>setVisionFocus({key:evidenceKey,value})} onMouseLeave={()=>setVisionFocus(null)}
+          onFocus={()=>setVisionFocus({key:evidenceKey,value})} onBlur={()=>setVisionFocus(null)}>
+          <input type="checkbox" checked={(trade.confirmations||[]).includes(value)} disabled={busy||!!trade.lab_trade_id} onChange={e=>onChange(trade.id,'confirmations',e.target.checked?[...(trade.confirmations||[]),value]:(trade.confirmations||[]).filter(item=>item!==value))}/>{value}{inferred.includes(value)&&(trade.confirmations||[]).includes(value)&&<span aria-label="Chart auto-fill" title="Chart auto-fill">✧</span>}</label>)}</div></fieldset>
         {Boolean(meta?.custom_trade_fields?.length) && <div className="pj-trade-fields">
           <CustomTradeFields definitions={meta.custom_trade_fields} value={trade.custom_fields || {}}
             disabled={busy || Boolean(trade.lab_trade_id)}
