@@ -84,8 +84,11 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   const [review, setReview] = useState<Finding[]>([]);
   const point = anchor || local?.position?.entry;
   const [levels,setLevels] = useState<Partial<Record<ProjectionField,number>>>({});
-  const [prices,setPrices] = useState({entry:'',stop:'',target:'',exit:''});
+  const [priceEdits,setPrices] = useState<Partial<Record<ProjectionField|'exit',string>>>({});
   const [markProjection,setMarkProjection] = useState<ProjectionField>();
+  const estimates = !Object.keys(levels).length&&!markProjection ? local?.projection?.prices : undefined;
+  const prices = {entry:priceEdits.entry??String(estimates?.entry??''),stop:priceEdits.stop??String(estimates?.stop??''),
+    target:priceEdits.target??String(estimates?.target??''),exit:priceEdits.exit??''};
   const position = local?.position;
   const chartLevels = Object.keys(levels).length || markProjection ? levels : position ? {
     entry:position.entry.y,
@@ -147,7 +150,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     setLocal(null);
     setAnchor(null);
     setLevels({});
-    setPrices({entry:'',stop:'',target:'',exit:''});
+    setPrices({});
     setMarkProjection(undefined);
     setMarking(false);
     setReview([]);
@@ -184,9 +187,9 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       const previous = local || {header:[],lines:[]};
       const existing = chartFindings(previous,dictionary,selected);
       publish(existing);
-      const lines = await scanEntry(original,selected,signal,session);
+      const evidence = await scanEntry(original,selected,signal,session);
       signal.throwIfAborted();
-      const expanded = {...previous,lines:[...lines,...previous.lines]};
+      const expanded = {...previous,...evidence,lines:[...evidence.lines,...previous.lines]};
       setLocal(expanded);
       publish(chartFindings(expanded,dictionary,selected));
     });
@@ -332,6 +335,8 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     {findings?.length===0&&<p>No readable trade labels found. Try a tighter crop of the setup.</p>}
     {picked&&<p role="status">{picked}</p>}
     {url&&!scanning&&<JournalChartProjection levels={chartLevels} prices={prices}
+      estimated={Boolean(estimates && projectionFields.some(field=>priceEdits[field]===undefined))}
+      touch={Object.keys(levels).length||Object.keys(priceEdits).some(field=>field!=='exit')?null:local?.projection?.touch}
       onPrice={(field,value)=>setPrices(current=>({...current,[field]:value}))}
       marking={Boolean(markProjection)} nextLevel={markProjection} tradeDirection={tradeDirection} disabled={disabled}
       onMark={()=>{

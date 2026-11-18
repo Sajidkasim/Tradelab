@@ -12,13 +12,15 @@ type Props = {
   nextLevel?: ProjectionField;
   onMark: () => void;
   disabled: boolean;
+  estimated: boolean;
+  touch?: 'target'|'stop'|'ambiguous'|null;
   tradeDirection?: 'long' | 'short' | '';
   onApply: (result: Projection) => void;
 };
 
 const labels = {entry:'Entry price',stop:'Stop price',target:'Target price',exit:'Actual exit price'};
 
-export default function JournalChartProjection({levels, prices, onPrice, marking, nextLevel, onMark, disabled, tradeDirection, onApply}: Props) {
+export default function JournalChartProjection({levels, prices, onPrice, marking, nextLevel, onMark, disabled, estimated, touch, tradeDirection, onApply}: Props) {
   const priceProjection = readProjection({
     entry:priceInput(prices.entry), stop:priceInput(prices.stop), target:priceInput(prices.target), exit:priceInput(prices.exit),
   });
@@ -42,12 +44,16 @@ export default function JournalChartProjection({levels, prices, onPrice, marking
             onChange={event=>onPrice(field,event.target.value)}/>
         </label>)}
       </div>
-      <small>{hasPrices?'Enter all three planned prices. The stop and target must be on opposite sides of entry.':
-        'Chart estimates assume a linear price scale. Enter exact prices for log or percentage charts.'}</small>
+      {estimated&&<small>Prices estimated from the chart scale. Check them against the position tool before saving.</small>}
+      {!estimated&&<small>{hasPrices?'Enter all three planned prices. The stop and target must be on opposite sides of entry.':
+        'Chart estimates assume a linear price scale. Enter exact prices for log or percentage charts.'}</small>}
       {projection&&<p role="status"><strong>Planned R:R 1:{projection.plannedRR.toFixed(2)}</strong>
         {' · '}{projection.direction==='long'?'Buy':'Sell'}
         {projection.outcome&&<> · {projection.outcome==='breakeven'?'Break-even':projection.outcome==='win'?'Win':'Loss'} from exit price</>}
       </p>}
+      {projection&&touch&&<p role="status">{touch==='ambiguous'?'Target and stop order unclear on the chart.':
+        `Chart suggests ${touch==='target'?'Win · target reached first':'Loss · stop reached first'}. Confirm your fill below.`}</p>}
+      {!projection&&!marking&&!hasPrices&&<small>Position drawing unclear. Mark its three lines or enter the prices.</small>}
       <small>Use your confirmed exit. A candle crossing a line can’t establish your fill. Fees and partial fills can change the result.</small>
       {conflict&&<p role="alert">The projection direction differs from this trade. Check the levels or the trade direction before applying.</p>}
       {projection&&!projection.outcome&&!conflict&&<div className="pj-vision-tags">

@@ -1,3 +1,4 @@
+import {fitChartPriceAxis, firstBoundaryTouch} from './chartProjectionEvidence';
 import type {Finding} from './InteractiveChartPreview';
 
 export type Point = {x: number; y: number};
@@ -8,9 +9,12 @@ export type Vocabulary = {
   markets: string[]; confirmations: string[]; levels: string[];
   entryTimeframes: string[]; levelTimeframes: string[]; aliases?: Record<string,string>;
 };
-export type ChartRead = {header: OCRLine[]; lines: OCRLine[]; position?: {entry: Point; box: Box; direction: 'long' | 'short'}};
+type Position = {entry: Point; box: Box; direction: 'long' | 'short'};
+export type ProjectionEvidence = {prices?: {entry: number; stop: number; target: number}; touch: 'target'|'stop'|'ambiguous'|null};
+export type ChartRead = {header: OCRLine[]; lines: OCRLine[]; position?: Position; projection?: ProjectionEvidence};
 
 const whole = {x: 0, y: 0, width: 1, height: 1};
+const priceAxis = {x:.92,y:.025,width:.08,height:.9};
 const header = {x: 0, y: 0, width: .64, height: .13};
 const simplify = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
@@ -34,8 +38,8 @@ export function entryRegion(point: Point, width: number, height: number): Box {
   return {x,y,width,height};
 }
 
-function locatePosition(image: ImageBitmap): ChartRead['position'] {
-  const {canvas, context} = sample(image, whole, 180);
+function locatePosition(image: ImageBitmap, anchor?: Point): ChartRead['position'] {
+  const {canvas, context} = sample(image, whole, 360);
   const {width, height} = canvas;
   const {data} = context.getImageData(0, 0, width, height);
   const bands: {sign: number; left: number; right: number; top: number; bottom: number}[] = [];
@@ -44,7 +48,10 @@ function locatePosition(image: ImageBitmap): ChartRead['position'] {
     for (let x = 0; x <= width; x++) {
       const i = (y*width+x)*4;
       const r = data[i], g = data[i+1], b = data[i+2];
-      const shade = x === width ? 0 : g-r >= 14 && g >= b-5 ? 1 : r-g >= 15 && r-b >= 9 ? -1 : 0;
+      const shade = x === width || g < 95 || r < 70 ? 0
+        : g-r >= 28 && r<215 && g >= b-7 ? 1
+        : r-g >= 15 && r-b >= 9 ? -1
+        : r < 220 && g-r >= 3 && g-r <= 28 && Math.abs(g-b)<=7 ? 2 : 0;
       if (shade === sign) continue;
       if (sign && x-left >= width*.08 && x-left <= width*.68) {
         const previous = bands.find(band => band.sign === sign && band.bottom === y &&
@@ -56,17 +63,88 @@ function locatePosition(image: ImageBitmap): ChartRead['position'] {
       sign = shade;
     }
   }
-  const candidates = bands.filter(band => band.bottom-band.top >= 3);
-  const pairs = candidates.flatMap(upper => candidates.filter(lower => upper.sign !== lower.sign &&
-    Math.abs(upper.bottom-lower.top) <= 2 && Math.abs(upper.left-lower.left) <= 2 &&
-    Math.abs(upper.right-lower.right) <= 2).map(lower => ({upper,lower})));
-  if (pairs.length !== 1) return;
+  const candidates = bands.filter(band => band.bottom-band.top >= 4);
+  const pairs = candidates.flatMap(upper => candidates.filter(lower => {
+    if (upper.sign===lower.sign || (upper.sign!==1 && lower.sign!==1 && (upper.sign===2 || lower.sign===2))) return false;
+    if (Math.abs(upper.bottom-lower.top)>3 || Math.abs(upper.left-lower.left)>3) return false;
+    if (Math.abs(upper.right-lower.right)>width*(upper.sign===2||lower.sign===2?.065:.018)) return false;
+    return !anchor || (Math.abs(upper.bottom/height-anchor.y)<.035 &&
+      anchor.x>=Math.min(upper.left,lower.left)/width-.025 && anchor.x<=Math.max(upper.right,lower.right)/width+.025);
+  }).map(lower=>({upper,lower})));
+  if (pairs.length !== 1) {
+    const starts = [...new Set(candidates.filter(band=>band.sign===1).map(band=>band.left))];
+    const possible: Position[] = [];
+    for (const left of starts) {
+      if (anchor && (anchor.x*width < left-9 || anchor.x*width > left+width*.24)) continue;
+      const columnEnd=Math.min(width,left+Math.round(width*.055));
+      const rows=Array.from({length:height},(_,y)=>{
+        let teal=0, grey=0;
+        for(let x=left+3;x<columnEnd;x++){
+          const i=(y*width+x)*4, r=data[i], g=data[i+1], b=data[i+2];
+          if(r>=85&&r<205&&g-r>=29&&Math.abs(g-b)<13)teal++;
+          if(r>=145&&r<215&&g-r>=6&&g-r<=28&&Math.abs(g-b)<9)grey++;
+        }
+        return teal>=Math.ceil((columnEnd-left-3)*.48)?1:grey>=Math.ceil((columnEnd-left-3)*.48)?2:0;
+      });
+      for(let seam=8;seam<height-8;seam++){
+        if(rows[seam]!==2||rows[seam-2]!==1||rows[seam-1]===2)continue;
+        if(anchor&&Math.abs(anchor.y-seam/height)>.035)continue;
+        let top=seam-2, bottom=seam;
+        while(top>3&&(rows[top-1]===1||rows.slice(top-3,top).includes(1)))top--;
+        while(bottom<height-4&&(rows[bottom+1]===2||rows.slice(bottom+1,bottom+4).includes(2)))bottom++;
+        while(top<seam&&rows[top]!==1)top++;
+        while(bottom>seam&&rows[bottom]!==2)bottom--;
+        if(seam-top<height*.07||bottom-seam<height*.035)continue;
+        const lower=candidates.filter(band=>band.sign===2&&Math.abs(band.left-left)<=7&&band.top>=seam-3&&band.bottom<=bottom+4)
+          .sort((a,b)=>b.right-a.right)[0];
+        if(!lower)continue;
+        const position: Position={entry:{x:left/width,y:seam/height},direction:'long',
+          box:{x:left/width,y:top/height,width:(lower.right-left)/width,height:(bottom+1-top)/height}};
+        if(!possible.some(prior=>Math.abs(prior.entry.x-position.entry.x)<.025&&Math.abs(prior.entry.y-position.entry.y)<.025))possible.push(position);
+      }
+    }
+    return possible.length===1?possible[0]:undefined;
+  }
   const {upper, lower} = pairs[0];
+  const left=Math.min(upper.left,lower.left), right=Math.max(upper.right,lower.right);
   return {
-    entry: {x: upper.left/width, y: upper.bottom/height},
-    box: {x: upper.left/width, y: upper.top/height, width: (upper.right-upper.left)/width, height: (lower.bottom-upper.top)/height},
+    entry: {x:left/width,y:(upper.bottom+lower.top)/2/height},
+    box: {x:left/width,y:upper.top/height,width:(right-left)/width,height:(lower.bottom-upper.top)/height},
     direction: upper.sign === 1 ? 'long' : 'short',
   };
+}
+
+function projectionEvidence(image: ImageBitmap, position: Position, axis: OCRLine[]): ProjectionEvidence {
+  const long = position.direction==='long';
+  const upper=position.box.y, lower=upper+position.box.height;
+  const stop=long?lower:upper, target=long?upper:lower;
+  const quotes=axis.flatMap(line=>line.words).flatMap(({text,box})=>{
+    if (!/^[0-9][0-9,]*\.[0-9]{1,5}$/.test(text)) return [];
+    return [{price:Number(text.replaceAll(',','')),y:box.y+box.height/2}];
+  });
+  const at=fitChartPriceAxis(quotes);
+  const estimate=(y:number)=>Number(at!(y).toFixed(5));
+  const prices=at?{entry:estimate(position.entry.y),stop:estimate(stop),target:estimate(target)}:undefined;
+
+  const {canvas,context}=sample(image,whole,1800);
+  const {width,height}=canvas;
+  const {data}=context.getImageData(0,0,width,height);
+  const left=Math.ceil((position.box.x+.008)*width), right=Math.floor((position.box.x+position.box.width)*width);
+  function firstCrossing(level:number) {
+    const y=Math.round(level*height);
+    if (y<4 || y+4>=height) return null;
+    const dark=(x:number,row:number)=>{
+      const i=(row*width+x)*4;
+      return data[i]<105&&data[i+1]<116&&data[i+2]<124;
+    };
+    for(let x=left;x<right;x++){
+      // Wicks have a narrow, mostly vertical dark stroke on both sides.
+      const wick=[-3,-2,-1,0,1,2,3].filter(offset=>dark(x,y+offset)).length>=6;
+      if(wick&&![-9,9].some(dx=>dark(x+dx,y-2)&&dark(x+dx,y+2)))return x;
+    }
+    return null;
+  }
+  return {prices,touch:firstBoundaryTouch({target:firstCrossing(target),stop:firstCrossing(stop)})};
 }
 
 async function startWorker() {
@@ -101,7 +179,7 @@ export class ChartOcrSession {
   }
 }
 
-async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal, session: ChartOcrSession) {
+async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal, session: ChartOcrSession, anchor?: Point) {
   signal.throwIfAborted();
   const image = await createImageBitmap(file);
   let stop = () => {};
@@ -125,7 +203,9 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
         .map(line=>({text:line.text.trim(), box:locate(line.bbox), confidence:line.confidence,
                      words:line.words.map(word=>({text:word.text,box:locate(word.bbox)}))})));
     }
-    return {readings, position:regions[1]?.area===whole?locatePosition(image):undefined};
+    const axis=regions.findIndex(region=>region.area===priceAxis);
+    const position=axis>=0?locatePosition(image,anchor):undefined;
+    return {readings,position,projection:position?projectionEvidence(image,position,readings[axis]):undefined};
   } catch (error) {
     session.dispose();
     throw error;
@@ -136,15 +216,15 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
 }
 
 export async function scanChart(file: File, signal: AbortSignal, session: ChartOcrSession): Promise<ChartRead> {
-  const {readings,position} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800}],signal,session);
-  return {header:readings[0],lines:readings[1],position};
+  const {readings,position,projection} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800},{area:priceAxis,size:2450}],signal,session);
+  return {header:readings[0],lines:readings[1],position,projection};
 }
 
 export async function scanEntry(file: File, point: Point, signal: AbortSignal, session: ChartOcrSession) {
   const neighbourhood={x:Math.max(0,Math.min(.60,point.x-.09)),y:Math.max(0,Math.min(.72,point.y-.11)),width:.40,height:.28};
   const entryLine = entryRegion({x:point.x+.14,y:point.y},.32,.10);
-  const {readings} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750}],signal,session);
-  return readings.flat();
+  const {readings,position,projection} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750},{area:priceAxis,size:2450}],signal,session,point);
+  return {lines:[...readings[0],...readings[1]],position,projection};
 }
 
 function findLabel(line: OCRLine, choices: string[]) {
