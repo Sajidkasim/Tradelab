@@ -180,7 +180,7 @@ def create_app(config: Settings | None = None):
         return [asdict(account) for account in db(request, member).accounts()]
 
     def write_journal_account(database, payload, account_id=None):
-        values = payload.model_dump()
+        values = payload.model_dump(exclude_unset=True)
         values["name"] = values["name"].strip()
         if not values["name"]:
             raise HTTPException(422, "Enter an account name.")
@@ -212,7 +212,7 @@ def create_app(config: Settings | None = None):
         database = db(request, member)
         with app.state.workspaces.workspace_lock(member['key']):
             if daily_journal.references_account(database, account_id):
-                raise HTTPException(409, "This account has linked Journal trades and cannot be deleted.")
+                raise HTTPException(409, "This account has linked Journal trades. Mark it as Blown to keep its history.")
             if not database.delete_unused_account(account_id):
                 accounts = database.accounts()
                 if not any(account.id == account_id for account in accounts):

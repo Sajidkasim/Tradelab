@@ -76,6 +76,7 @@ class Account:
     max_trades_per_day: int = 10
     id: Optional[int] = None
     account_type: str = "Personal"
+    status: str = "active"
 
 
 @dataclass

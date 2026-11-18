@@ -6,7 +6,7 @@ export function AccountSelector({accounts, label, value, onChange, unassigned = 
   return <label className="pj-field">{label}
     <select aria-label={label} value={value ?? ''} disabled={disabled} onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}>
       <option value="">{unassigned ? 'Unassigned' : 'All accounts'}</option>
-      {(accounts || []).map(account => <option key={account.id} value={account.id}>{account.name} · {account.account_type}</option>)}
+      {(accounts || []).map(account => <option key={account.id} value={account.id}>{account.name} · {account.account_type}{account.status==='blown'?' · Blown':''}</option>)}
     </select>
   </label>;
 }

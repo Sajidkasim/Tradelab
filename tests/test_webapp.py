@@ -800,8 +800,13 @@ def test_journal_accounts_reuse_trade_accounts_and_protect_linked_trades(local):
     other = client.post('/api/journal-accounts', json=values)
     assert other.status_code == 201
     assert client.delete(f"/api/journal-accounts/{original['id']}").status_code == 409
+    original_url = f"/api/journal-accounts/{original['id']}"
+    original_values = {key: original[key] for key in ('name', 'starting_balance', 'account_type')}
+    assert original['status'] == 'active'
+    assert client.put(original_url, json={**original_values, 'status': 'blown'}).json()['status'] == 'blown'
+    assert client.put(original_url, json=original_values).json()['status'] == 'blown'
     assert len(client.get('/api/trades').json()) == 1
-
+    assert client.put(original_url, json={**original_values, 'status': 'active'}).json()['status'] == 'active'
 
 def test_personal_trading_rules_persist_without_timezone_updates_erasing_them(local):
     client, app = local

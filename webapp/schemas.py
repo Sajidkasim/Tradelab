@@ -13,6 +13,7 @@ class JournalAccount(StrictModel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     starting_balance: Annotated[float, Field(gt=0)]
     account_type: Literal["Funded", "Eval", "Personal"]
+    status: Literal["active", "blown"] = "active"
 
 
 class AccountAccess(StrictModel):

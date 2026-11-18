@@ -37,6 +37,7 @@ accounts_t = Table(
     Column("name", String(120), nullable=False, unique=True),
     Column("starting_balance", Float, nullable=False),
     Column("account_type", String(16), nullable=False, default="Personal", server_default="Personal"),
+    Column("status", String(16), nullable=False, default="active", server_default="active"),
     Column("daily_loss_limit", Float, nullable=False),
     Column("max_trailing_drawdown", Float, nullable=False),
     Column("max_contracts", Integer, default=5),

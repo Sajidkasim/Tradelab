@@ -310,6 +310,14 @@ def test_shared_journal_card_counts_combined_result_once(draft):
     assert entry['day_result']['net_pnl'] == 90
     assert entry['trade_results'] == [{'account_id': None, 'account_ids': accounts, 'net_pnl': 90}]
     assert client.delete(f'/api/journal-accounts/{accounts[1]}').status_code == 409
+    status = client.put(f'/api/journal-accounts/{accounts[1]}', json={
+        'name': 'Copy Two', 'starting_balance': 50000, 'account_type': 'Eval', 'status': 'blown',
+    })
+    assert status.status_code == 200
+    assert status.json()['status'] == 'blown'
+    saved = client.put(f'/api/journal/{day}', json={'trades': [{**card, 'notes': 'Updated review.'}]})
+    assert saved.status_code == 200
+    assert saved.json()['trades'][0]['account_ids'] == accounts
     invalid = {**card, 'account_ids': [999999]}
     assert client.put(f'/api/journal/{day}', json={'trades': [invalid]}).status_code == 422
     assert client.get('/api/journal').json()[0]['trades'][0]['account_ids'] == accounts
