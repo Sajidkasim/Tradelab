@@ -61,15 +61,16 @@ function TradeMetrics({trade}){
     ['Key level',setupValue(trade.level)],
     ['Level timeframe',setupValue(trade.timeframe)],
     ['Entry timeframe',setupValue(trade.entry_timeframe)],
+    ...(trade.planned_rr==null?[]:[['Planned R:R',`1:${Number(trade.planned_rr).toFixed(2)}`]]),
     ['Original risk',money(trade.risk_amount).replace(/^\+/, '')],
     ['Net P&L',money(trade.net_pnl)],
   ];
-  return <dl className="pj-trade-metrics">{metrics.map(([label,value])=><div key={label}>
+  return <dl className={`pj-trade-metrics${trade.planned_rr==null?'':' has-projection'}`}>{metrics.map(([label,value])=><div key={label}>
     <dt>{label}</dt><dd>{value}</dd>
   </div>)}</dl>;
 }
 
-export default function JournalTradeCards({entry,meta,palette,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId,visionCloudEnabled,onVision}){
+export default function JournalTradeCards({entry,meta,palette,accounts,accountFilter,busy,expanded,setExpanded,onChange,onAdd,onRemove,onUpload,onRemoveImage,onView,onAddToLab,onLink,canUpload,freshTradeId,visionCloudEnabled,onVision,onProjection}){
   const [visionEvidence,setVisionEvidence]=useState(null);
   const [visionFocus,setVisionFocus]=useState(null);
   const visibleTrades=entry.trades.filter(trade=>accountFilter==null||tradeAccountIds(trade).includes(accountFilter));
@@ -88,10 +89,10 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
         {!trade.lab_trade_id&&<AuraVisionUploader key={`${entry.day}:${trade.id}`}
           vocabulary={{markets, confirmations:meta?.confirmations||[],levels:meta?.playbook?.levels||[],
             entryTimeframes:meta?.entry_timeframes||[],levelTimeframes:meta?.level_timeframes||[]}}
-          cloudEnabled={Boolean(visionCloudEnabled)} disabled={busy}
+          cloudEnabled={Boolean(visionCloudEnabled)} tradeDirection={trade.direction} disabled={busy}
           focusedConfirmation={visionFocus?.key===evidenceKey?visionFocus.value:undefined}
           onFindings={findings=>setVisionEvidence({key:evidenceKey,values:findings.filter(item=>item.kind==='confirmation').map(item=>item.value)})}
-          onDraft={findings=>onVision(trade.id,findings)}
+          onDraft={findings=>onVision(trade.id,findings)} onProjection={value=>onProjection(trade.id,value)}
           onAttach={canUpload&&entry.images.length<6?file=>onUpload(file,trade.id):undefined}/>}
         <fieldset className="pj-outcome"><legend>Trade outcome</legend><div>{outcomes.map(item=><button key={item.value} type="button" aria-pressed={(trade.outcome||'not_recorded')===item.value} disabled={busy||!!trade.lab_trade_id} onClick={()=>onChange(trade.id,'outcome',item.value)} className={item.value}>{(trade.outcome||'not_recorded')===item.value&&<span aria-hidden="true">✓ </span>}{item.label}</button>)}</div></fieldset>
         <div className="pj-trade-fields">

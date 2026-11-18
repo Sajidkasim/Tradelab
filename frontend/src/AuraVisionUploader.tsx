@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import {ScanLine, Sparkles} from 'lucide-react';
 import {api} from './api';
 import InteractiveChartPreview, {type Finding} from './InteractiveChartPreview';
+import JournalChartProjection, {projectionFields, type Projection, type ProjectionField} from './JournalChartProjection';
 import type {ChartRead, Point, Vocabulary} from './chartVisionLocal';
 import './chart-vision.css';
 
@@ -44,14 +45,16 @@ async function compressChart(file: File): Promise<Blob> {
 type Props = {
   vocabulary: Vocabulary;
   cloudEnabled: boolean;
+  tradeDirection?: 'long' | 'short' | '';
   disabled: boolean;
   focusedConfirmation?: string;
   onFindings: (findings: Finding[]) => void;
   onDraft: (findings: Finding[]) => void;
+  onProjection: (projection: Projection) => void;
   onAttach?: (file: File) => Promise<boolean | undefined>;
 };
 
-export default function AuraVisionUploader({vocabulary, cloudEnabled, disabled, focusedConfirmation, onFindings, onDraft, onAttach}: Props) {
+export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirection, disabled, focusedConfirmation, onFindings, onDraft, onProjection, onAttach}: Props) {
   const picker = useRef<HTMLInputElement>(null);
   const active = useRef<AbortController | null>(null);
   const draft = useRef(onDraft);
@@ -69,6 +72,21 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, disabled, 
   const [marking, setMarking] = useState(false);
   const [review, setReview] = useState<Finding[]>([]);
   const point = anchor || local?.position?.entry;
+  const [levels,setLevels] = useState<Partial<Record<ProjectionField,number>>>({});
+  const [prices,setPrices] = useState({entry:'',stop:'',target:'',exit:''});
+  const [markProjection,setMarkProjection] = useState<ProjectionField>();
+  const position = local?.position;
+  const chartLevels = Object.keys(levels).length || markProjection ? levels : position ? {
+    entry:position.entry.y,
+    stop:position.direction==='long'?position.box.y+position.box.height:position.box.y,
+    target:position.direction==='long'?position.box.y:position.box.y+position.box.height,
+  } : {};
+  function markLevel(selected: Point) {
+    if (!markProjection) return;
+    setLevels(current=>({...current,[markProjection]:selected.y}));
+    setMarkProjection(projectionFields[projectionFields.indexOf(markProjection)+1]);
+  }
+
 
   useEffect(() => () => active.current?.abort(), []);
   useEffect(() => () => {if (url) URL.revokeObjectURL(url)}, [url]);
@@ -111,6 +129,9 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, disabled, 
     setOriginal(null);
     setLocal(null);
     setAnchor(null);
+    setLevels({});
+    setPrices({entry:'',stop:'',target:'',exit:''});
+    setMarkProjection(undefined);
     setMarking(false);
     setReview([]);
     setUrl('');
@@ -209,9 +230,11 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, disabled, 
     {error&&<p role="alert">{error}</p>}
     {url&&<InteractiveChartPreview url={url} findings={findings || []} highlight={highlight || findings?.find(finding =>
       ['confirmation','annotation'].includes(finding.kind) && finding.value === focusedConfirmation) || null}
-      disabled={disabled || scanning} onPick={addConfirmation} anchor={point} marking={marking} onMark={markEntry}/>}
+      disabled={disabled || scanning} onPick={addConfirmation} anchor={point} projectionLevels={markProjection||Object.keys(levels).length?levels:undefined}
+      marking={marking||Boolean(markProjection)} markingLabel={markProjection?`Mark ${markProjection} on projection`:undefined}
+      onMark={markProjection?markLevel:markEntry}/>}
     {url&&!scanning&&<div className="pj-vision-tags">
-      <button type="button" aria-pressed={marking} disabled={disabled} onClick={()=>setMarking(value=>!value)}>
+      <button type="button" aria-pressed={marking} disabled={disabled} onClick={()=>{setMarkProjection(undefined);setMarking(value=>!value)}}>
         {marking?'Cancel marking':point?'Move entry marker':'Mark entry on chart'}
       </button>
       {cloudEnabled&&<button type="button" disabled={disabled||!point} onClick={()=>void improve()}>Improve with Cloudflare</button>}
@@ -233,6 +256,18 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, disabled, 
     </>}
     {findings?.length===0&&<p>No readable trade labels found. Try a tighter crop of the setup.</p>}
     {picked&&<p role="status">{picked}</p>}
+    {url&&!scanning&&<JournalChartProjection levels={chartLevels} prices={prices}
+      onPrice={(field,value)=>setPrices(current=>({...current,[field]:value}))}
+      marking={Boolean(markProjection)} nextLevel={markProjection} tradeDirection={tradeDirection} disabled={disabled}
+      onMark={()=>{
+        setMarking(false);
+        if(markProjection){setMarkProjection(undefined);setLevels({})}
+        else{setLevels({});setMarkProjection('entry')}
+      }}
+      onApply={projection=>{
+        onProjection(projection);
+        setPicked('Projection added to available Journal fields.');
+      }}/>}
     {chart&&onAttach&&!scanning&&<button type="button" className="pt-btn" disabled={disabled}
       onClick={async()=>{if(await onAttach(chart))setChart(null)}}>Save entry &amp; attach chart</button>}
   </section>;

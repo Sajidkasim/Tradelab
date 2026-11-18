@@ -13,17 +13,22 @@ type Props = {
   highlight: Finding | null;
   disabled: boolean;
   anchor?: {x:number;y:number};
+  projectionLevels?: Partial<Record<'entry'|'stop'|'target',number>>;
   marking: boolean;
+  markingLabel?: string;
   onMark: (point:{x:number;y:number})=>void;
   onPick: (finding: Finding) => void;
 };
 
-export default function InteractiveChartPreview({url, findings, highlight, disabled, onPick, anchor, marking, onMark}: Props) {
+export default function InteractiveChartPreview({url, findings, highlight, disabled, onPick, anchor, projectionLevels, marking, markingLabel, onMark}: Props) {
   return <div className="pj-vision-chart">
     <img src={url} alt="Uploaded chart with selectable annotation regions"/>
     {anchor&&<span className="pj-vision-entry" aria-label="Entry marker" style={{left:`${anchor.x*100}%`,top:`${anchor.y*100}%`}}/>}
-    {marking&&<button type="button" className="pj-vision-entry-target" aria-label="Mark entry point (centre with keyboard)"
+    {Object.entries(projectionLevels||{}).map(([name,y])=><span key={name} className="pj-vision-projection-line"
+      style={{top:`${y*100}%`}}><span>{name}</span></span>)}
+    {marking&&<button type="button" className="pj-vision-entry-target" aria-label={markingLabel || "Mark entry point (centre with keyboard)"}
       onClick={event=>{
+        if (markingLabel && !event.detail) return;
         const bounds=event.currentTarget.getBoundingClientRect();
         onMark(event.detail?{x:(event.clientX-bounds.left)/bounds.width,y:(event.clientY-bounds.top)/bounds.height}:{x:.5,y:.5});
       }}/>}

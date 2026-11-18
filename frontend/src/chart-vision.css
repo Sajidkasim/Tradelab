@@ -16,3 +16,9 @@ button.pj-vision-box { cursor: pointer; }
 .pj-vision-entry { position: absolute; transform: translate(-50%,-50%); width: 14px; height: 14px; border: 2px solid #0fb698; border-radius: 50%; box-shadow: 0 0 0 2px #121e18; z-index: 2; pointer-events: none; }
 .pj-vision-entry-target { position: absolute; inset: 0; z-index: 3; border: 2px dashed #0fb698; background: transparent; cursor: crosshair; }
 .pj-vision-tags button:disabled { cursor: default; opacity: .55; }
+.pj-vision-projection { border: 1px solid var(--pt-line, #8885); border-radius: 10px; padding: .65rem .8rem; }
+.pj-vision-projection summary { cursor: pointer; font-weight: 600; }
+.pj-vision-projection-content { display: grid; gap: .65rem; margin-top: .65rem; }
+.pj-vision-projection-content > button { justify-self: start; }
+.pj-vision-projection-line { position:absolute; inset-inline:0; z-index:2; border-top:1px dashed #0e9075; pointer-events:none; }
+.pj-vision-projection-line > span { position:absolute; right:.5rem; top:-.65rem; line-height:1.25; background:#173f34; color:#fff; padding:.1rem .35rem; border-radius:3px; font-size:.72rem; text-transform:capitalize; }

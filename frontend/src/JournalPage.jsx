@@ -19,7 +19,7 @@ const dayDate=day=>new Date(day+'T12:00:00');
 const niceDay=day=>dayDate(day).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 const blank=day=>({day,plan:'',notes:'',lesson:'',mindset:'Not set',plan_followed:null,traded_today:null,images:[],trades:[]});
 const normalize=row=>({...blank(row.day),...row,trades:row.trades||[]});
-const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','risk_amount','net_pnl','setup_grade','account_id','account_ids','replay_id'].map(key=>[key,trade[key]]));
+const narrative=trade=>Object.fromEntries(['id','symbol','direction','strategy','time','source','notes','outcome','confirmations','level','timeframe','entry_timeframe','planned_rr','risk_amount','net_pnl','setup_grade','account_id','account_ids','replay_id'].map(key=>[key,trade[key]]));
 const sections=[
   {id:'plan',label:'Before the session',title:'What’s the plan?',hint:'Your market view, the levels you’re watching and the setups you want to take.',placeholder:'My plan for this session…'},
   {id:'notes',label:'During the session',title:'What happened?',hint:'Record what you noticed and the decisions you made. Add individual trades below.',placeholder:'What I saw and how I responded…'},
@@ -147,6 +147,15 @@ export default function JournalPage({theme = "light"}){
     })}));
     setDirty(true);setNotice('');
   }
+  function applyProjection(tradeId,value){
+    setEntry(old=>({...old,trades:old.trades.map(trade=>{
+      if(trade.id!==tradeId||trade.lab_trade_id||(trade.direction&&trade.direction!==value.direction))return trade;
+      const addOutcome=value.outcome&&(!trade.outcome||trade.outcome==='not_recorded')&&trade.net_pnl==null;
+      return {...trade,direction:trade.direction||value.direction,planned_rr:value.plannedRR,
+        ...(addOutcome?{outcome:value.outcome}:{})};
+    })}));
+    setDirty(true);setNotice('');
+  }
   function removeTrade(id){if(!window.confirm('Remove this card from the Journal? Its Lab trade stays saved. Screenshots will remain with the day.'))return;edit('trades',entry.trades.filter(trade=>trade.id!==id));edit('images',entry.images.map(image=>image.trade_id===id?{...image,trade_id:null}:image));setExpanded(null)}
   async function prepareLab(trade){setBusy(true);setError('');try{await persist();setLabDraft(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function prepareLink(trade){setBusy(true);setError('');try{await persist();const list=await api('/trades');setLabTrades(list);setSelectedLink(trade.lab_trade_id?String(trade.lab_trade_id):'');setLinking(trade)}catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -233,7 +242,7 @@ export default function JournalPage({theme = "light"}){
             setEntry(unlink);
             setRows(current=>current.map(unlink));
           }}/>
-          <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId} visionCloudEnabled={identity.chart_vision_cloud_enabled} onVision={applyVision}/>
+          <JournalTradeCards palette={meta.palette[theme]} accountFilter={account} accounts={accounts} entry={entry} meta={meta} busy={busy} expanded={expanded} setExpanded={setExpanded} onChange={editTrade} onAdd={addTrade} onRemove={removeTrade} onUpload={upload} onRemoveImage={removeImage} onView={setViewing} onAddToLab={prepareLab} onLink={prepareLink} canUpload={Boolean(identity.images_enabled??localSitePreview())} freshTradeId={freshTradeId} visionCloudEnabled={identity.chart_vision_cloud_enabled} onVision={applyVision} onProjection={applyProjection}/>
           {(identity.images_enabled??localSitePreview())&&<details className="pj-session-images" open={entry.images.some(image=>!image.trade_id)||undefined}><summary>Session screenshots <span>Optional · charts for the whole day</span></summary><JournalScreenshots images={entry.images.filter(image=>!image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file=>upload(file)} onRemove={removeImage} onView={setViewing}/></details>}
           <div className="pt-mindset"><div><span className="pt-overline">A QUICK CHECK-IN</span><h3>How did you show up?</h3></div><div role="group" aria-label="Session mindset">{['Focused','Patient','Distracted','Frustrated'].map(value=><button disabled={busy} key={value} aria-pressed={entry.mindset===value} onClick={()=>edit('mindset',entry.mindset===value?'Not set':value)}>{value}</button>)}</div></div>
           <div className="pt-day-bottom"><span><LockKeyhole size={14}/> Save your notes here. Only trades you add to the Lab affect Lab results.</span><button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy?'Saving…':'Save entry'} <Check size={16}/></button></div>

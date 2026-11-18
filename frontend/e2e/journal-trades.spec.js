@@ -159,4 +159,18 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
   await card.getByRole('button', {name:'Improve with Cloudflare'}).click();
   await expect(card.getByRole('checkbox', {name:/^SMT/})).toBeChecked();
   expect(cloudScans).toBe(1);
+  await card.getByText('Projection & trade result',{exact:true}).click();
+  await expect(card.getByText(/Planned R:R 1:/)).toBeVisible();
+  await card.getByLabel('Entry price',{exact:true}).fill('26923.25');
+  await card.getByLabel('Stop price',{exact:true}).fill('26839.25');
+  await card.getByLabel('Target price',{exact:true}).fill('27133.25');
+  await card.getByLabel('Actual exit price',{exact:true}).fill('27100');
+  await card.getByRole('button',{name:'Use R:R and outcome',exact:true}).click();
+  await expect(card.getByRole('button',{name:'Win',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(card.getByText('1:2.50',{exact:true})).toBeVisible();
+  await page.locator('#journal-entry').getByRole('button',{name:'Save entry',exact:true}).click();
+  await expect(page.getByText(/Entry saved/)).toBeVisible();
+  await page.reload();
+  await expect(card.getByText('1:2.50',{exact:true})).toBeVisible();
+
 });

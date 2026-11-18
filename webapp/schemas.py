@@ -203,6 +203,7 @@ class JournalTrade(StrictModel):
     level: str = Field(default=edge.UNKNOWN, max_length=120)
     timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
     entry_timeframe: str = Field(default=edge.UNKNOWN, max_length=120)
+    planned_rr: float | None = Field(default=None, ge=0.01, le=1000, allow_inf_nan=False)
     risk_amount: float | None = Field(default=None, gt=0)
     net_pnl: float | None = None
     outcome: Literal['not_recorded', 'win', 'loss', 'breakeven'] = 'not_recorded'
