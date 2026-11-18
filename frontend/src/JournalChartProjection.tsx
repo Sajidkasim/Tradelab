@@ -30,8 +30,14 @@ export default function JournalChartProjection({levels, prices, onPrice, marking
   const hasPrices = projectionFields.some(field=>prices[field].trim());
   const projection: Projection|null = hasPrices ? priceProjection : chartProjection;
   const conflict = Boolean(projection && tradeDirection && projection.direction !== tradeDirection);
+  const suggestedOutcome = !projection || projection.outcome || conflict ? null
+    : touch==='target'?'Win suggested':touch==='stop'?'Loss suggested':null;
   return <details className="pj-vision-projection">
-    <summary>Projection &amp; trade result</summary>
+    <summary><span>Projection &amp; trade result</span>
+      {projection&&<small className="pj-vision-projection-summary">
+        R:R 1:{projection.plannedRR.toFixed(2)}{suggestedOutcome&&<> · {suggestedOutcome}</>}
+      </small>}
+    </summary>
     <div className="pj-vision-projection-content">
       <button className="pt-btn" type="button" disabled={disabled} aria-pressed={marking} onClick={onMark}>
         {marking?'Cancel marking':'Mark entry, stop and target on chart'}
@@ -46,7 +52,7 @@ export default function JournalChartProjection({levels, prices, onPrice, marking
       </div>
       {estimated&&<small>Prices estimated from the chart scale. Check them against the position tool before saving.</small>}
       {!estimated&&<small>{hasPrices?'Enter all three planned prices. The stop and target must be on opposite sides of entry.':
-        'Chart estimates assume a linear price scale. Enter exact prices for log or percentage charts.'}</small>}
+        'Prices need a readable linear price scale. The projection can still estimate R:R from the drawing.'}</small>}
       {projection&&<p role="status"><strong>Planned R:R 1:{projection.plannedRR.toFixed(2)}</strong>
         {' · '}{projection.direction==='long'?'Buy':'Sell'}
         {projection.outcome&&<> · {projection.outcome==='breakeven'?'Break-even':projection.outcome==='win'?'Win':'Loss'} from exit price</>}

@@ -18,6 +18,7 @@ button.pj-vision-box { cursor: pointer; }
 .pj-vision-tags button:disabled { cursor: default; opacity: .55; }
 .pj-vision-projection { border: 1px solid var(--pt-line, #8885); border-radius: 10px; padding: .65rem .8rem; }
 .pj-vision-projection summary { cursor: pointer; font-weight: 600; }
+.pj-vision-projection-summary { margin-inline-start: .65rem; font-weight: 500; }
 .pj-vision-projection-content { display: grid; gap: .65rem; margin-top: .65rem; }
 .pj-vision-projection-content > button { justify-self: start; }
 .pj-vision-projection-line { position:absolute; inset-inline:0; z-index:2; border-top:1px dashed #0e9075; pointer-events:none; }

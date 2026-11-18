@@ -38,6 +38,87 @@ export function entryRegion(point: Point, width: number, height: number): Box {
   return {x,y,width,height};
 }
 
+// The reward fill darkens the red channel more than green. Compare across
+// the tool edges so this also works when a session shade sits underneath.
+function locateTranslucentPosition(image: ImageBitmap, anchor?: Point): Position | undefined {
+  const {canvas, context} = sample(image,whole,720);
+  const {width,height}=canvas;
+  const {data}=context.getImageData(0,0,width,height);
+  const pixel=(x:number,y:number,c:number)=>data[(y*width+x)*4+c];
+  function rewardEdge(x:number,y:number,side:number) {
+    const outside=x-side*4, inside=x+side*4;
+    const r=pixel(outside,y,0)-pixel(inside,y,0);
+    const g=pixel(outside,y,1)-pixel(inside,y,1);
+    const b=pixel(outside,y,2)-pixel(inside,y,2);
+    return r>=24&&r<=85&&g>=10&&b>=8&&r-g>=9&&r-b>=9;
+  }
+  function boundary(x:number,right:number,y:number,kind:'reward' | 'risk' | 'seam', direction:'long'|'short') {
+    const profitableAbove=direction==='long';
+    let votes=0;
+    for(let column=x+7;column<right-6;column+=3){
+      const sign=(kind==='reward')===profitableAbove?1:-1;
+      const r=sign*(pixel(column,y-3,0)-pixel(column,y+3,0));
+      const g=sign*(pixel(column,y-3,1)-pixel(column,y+3,1));
+      const b=sign*(pixel(column,y-3,2)-pixel(column,y+3,2));
+      const match=kind==='reward'? r>=24&&r<=85&&g>=10&&b>=8&&r-g>=9&&r-b>=9
+        :kind==='risk'? Math.min(r,g,b)>=14&&Math.max(r,g,b)<=65&&Math.max(r,g,b)-Math.min(r,g,b)<16
+        : r>=3&&r<60&&r-g>9&&r-b>9;
+      if(match)votes++;
+    }
+    return votes;
+  }
+  const minHeight=Math.round(height*.028), candidates:{score:number;position:Position}[]=[];
+  const ax=anchor&&anchor.x*width, ay=anchor&&anchor.y*height;
+  for(let x=Math.max(6,Math.floor((ax??0)-width*.24));x<Math.min(width-28,(ax??width)+9);x++){
+    const rewardRows=Array.from({length:height},(_,y)=>rewardEdge(x,y,1));
+    for(let top=6;top<height-2*minHeight;top++){
+      if(!rewardRows[top])continue;
+      let bottom=top;
+      while(bottom+6<height&&rewardRows.slice(bottom+1,bottom+7).some(Boolean))bottom++;
+      const rewardTop=top;
+      top=bottom;
+      if(bottom-rewardTop<minHeight)continue;
+      for(let right=Math.max(x+22,Math.floor((ax??0)-4));right<Math.min(width-6,x+width*.48);right++){
+        let support=0;
+        for(let y=rewardTop+2;y<bottom-1;y+=3) if(rewardEdge(right,y,-1))support++;
+        if(support<(bottom-rewardTop)*.17)continue;
+        const minimum=Math.max(3,(right-x-13)*.13);
+        for(const direction of ['long','short'] as const){
+          const approxSeam=direction==='long'?bottom:rewardTop;
+          const approxTarget=direction==='long'?rewardTop:bottom;
+          if(ay!==undefined&&Math.abs(approxSeam-ay)>height*.055)continue;
+          const nearestBoundary=(from:number,to:number,kind:Parameters<typeof boundary>[3], guess:number)=>{
+            let best:{row:number;votes:number;score:number}|undefined;
+            for(let row=Math.max(5,from);row<=Math.min(height-5,to);row++){
+              const votes=boundary(x,right,row,kind,direction);
+              const score=votes-Math.abs(row-guess)*.12;
+              if(votes>=minimum&&(!best||score>best.score))best={row,votes,score};
+            }
+            return best;
+          };
+          const seam=nearestBoundary(approxSeam-12,approxSeam+12,'seam',ay??approxSeam);
+          const target=nearestBoundary(approxTarget-8,approxTarget+8,'reward',approxTarget);
+          if(!seam||!target||Math.abs(seam.row-target.row)<minHeight)continue;
+          const stop=direction==='long'
+            ?nearestBoundary(seam.row+minHeight,seam.row+height*.24,'risk',seam.row)
+            :nearestBoundary(seam.row-height*.24,seam.row-minHeight,'risk',seam.row);
+          if(!stop)continue;
+          const y=Math.min(target.row,stop.row), end=Math.max(target.row,stop.row);
+          candidates.push({score:support+seam.score+target.score+stop.score,
+            position:{direction, entry:{x:x/width,y:seam.row/height},
+              box:{x:x/width,y:y/height,width:(right-x)/width,height:(end-y)/height}}});
+        }
+      }
+    }
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];
+  if(!best)return;
+  const rival=candidates.find(({position})=>Math.abs(position.entry.x-best.position.entry.x)>.025||
+    Math.abs(position.entry.y-best.position.entry.y)>.035||position.direction!==best.position.direction);
+  if(!rival||best.score-rival.score>4)return best.position;
+}
+
 function locatePosition(image: ImageBitmap, anchor?: Point): ChartRead['position'] {
   const {canvas, context} = sample(image, whole, 360);
   const {width, height} = canvas;
@@ -103,7 +184,7 @@ function locatePosition(image: ImageBitmap, anchor?: Point): ChartRead['position
         if(!possible.some(prior=>Math.abs(prior.entry.x-position.entry.x)<.025&&Math.abs(prior.entry.y-position.entry.y)<.025))possible.push(position);
       }
     }
-    return possible.length===1?possible[0]:undefined;
+    return possible.length===1?possible[0]:locateTranslucentPosition(image,anchor);
   }
   const {upper, lower} = pairs[0];
   const left=Math.min(upper.left,lower.left), right=Math.max(upper.right,lower.right);
@@ -129,7 +210,7 @@ function projectionEvidence(image: ImageBitmap, position: Position, axis: OCRLin
   const {canvas,context}=sample(image,whole,1800);
   const {width,height}=canvas;
   const {data}=context.getImageData(0,0,width,height);
-  const left=Math.ceil((position.box.x+.008)*width), right=Math.floor((position.box.x+position.box.width)*width);
+  const left=Math.ceil((position.box.x+.008)*width), right=Math.min(width-10,Math.floor((position.box.x+position.box.width+.004)*width));
   function firstCrossing(level:number) {
     const y=Math.round(level*height);
     if (y<4 || y+4>=height) return null;
@@ -179,6 +260,10 @@ export class ChartOcrSession {
   }
 }
 
+function levelLabelRegion(point:Point): Region {
+  return {x:Math.min(.53,point.x+.10),y:Math.max(0,Math.min(.84,point.y-.075)),width:.46,height:.16};
+}
+
 async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal, session: ChartOcrSession, anchor?: Point) {
   signal.throwIfAborted();
   const image = await createImageBitmap(file);
@@ -192,6 +277,11 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
     });
     const worker = await Promise.race([session.acquire(), cancel]);
     const readings: OCRLine[][] = [];
+    const axis=regions.findIndex(region=>region.area===priceAxis);
+    const position=axis>=0?locatePosition(image,anchor):undefined;
+    if(position&&regions.some(region=>region.area===whole)) {
+      regions.push({area:levelLabelRegion(position.entry),size:2200});
+    }
     for (const {area,size} of regions) {
       const {canvas} = sample(image,area,size);
       const {data: result} = await Promise.race([worker.recognize(canvas, {}, {blocks:true}),cancel]);
@@ -203,8 +293,6 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
         .map(line=>({text:line.text.trim(), box:locate(line.bbox), confidence:line.confidence,
                      words:line.words.map(word=>({text:word.text,box:locate(word.bbox)}))})));
     }
-    const axis=regions.findIndex(region=>region.area===priceAxis);
-    const position=axis>=0?locatePosition(image,anchor):undefined;
     return {readings,position,projection:position?projectionEvidence(image,position,readings[axis]):undefined};
   } catch (error) {
     session.dispose();
@@ -217,14 +305,15 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
 
 export async function scanChart(file: File, signal: AbortSignal, session: ChartOcrSession): Promise<ChartRead> {
   const {readings,position,projection} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800},{area:priceAxis,size:2450}],signal,session);
-  return {header:readings[0],lines:readings[1],position,projection};
+  return {header:readings[0],lines:[...(readings[3]||[]),...readings[1]],position,projection};
 }
 
 export async function scanEntry(file: File, point: Point, signal: AbortSignal, session: ChartOcrSession) {
   const neighbourhood={x:Math.max(0,Math.min(.60,point.x-.09)),y:Math.max(0,Math.min(.72,point.y-.11)),width:.40,height:.28};
   const entryLine = entryRegion({x:point.x+.14,y:point.y},.32,.10);
-  const {readings,position,projection} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750},{area:priceAxis,size:2450}],signal,session,point);
-  return {lines:[...readings[0],...readings[1]],position,projection};
+  const {readings,position,projection} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750},
+    {area:levelLabelRegion(point),size:2200},{area:priceAxis,size:2450}],signal,session,point);
+  return {lines:[...readings[2],...readings[0],...readings[1]],position,projection};
 }
 
 function findLabel(line: OCRLine, choices: string[]) {
@@ -296,17 +385,21 @@ export function chartFindings(chart: ChartRead, vocabulary: Vocabulary, anchor?:
   for (const line of chart.lines.filter(line=>line.confidence>=24 && line.box.y>.085 && line.box.x<.94)) {
     const tag = confirmationLabel(line,vocabulary);
     const explicit = line.text.match(/(?:^|[-—_.]{3,}\s*)([A-Za-z][A-Za-z0-9 /-]{2,55})\s*\((?:W|D|M|[0-9]+[HM])\)\s*$/i);
-    const recognizedLevel = findLabel(line,vocabulary.levels);
-    const labelledZone = explicit && explicit[1].trim().replace(/([a-z])([A-Z])/g,'$1 $2');
-    const level = recognizedLevel || (labelledZone && /\b(?:RB|OB|FVG|IFVG|WICK|PDA|GAP)\b/i.test(labelledZone)
-      ? {value:labelledZone,text:line.text,box:line.box} : null);
+    const quadrant = line.text.match(/\b(?:upper|lower)\s*quadrant\s*(?:\d+\s*(?:h(?:r|our)?|m(?:in)?)\s*)?(?:OB|RB|order blocks?|rejection blocks?)\b/i);
+    const recognisedLevel = findLabel(line,vocabulary.levels);
+    const labelledZone = (quadrant?.[0] || explicit?.[1])?.trim().replace(/([a-z])([A-Z])/g,'$1 $2');
+    const level = labelledZone && /\b(?:RB|OB|FVG|IFVG|WICK|PDA|GAP|blocks?)\b/i.test(labelledZone)
+      ? {value:vocabulary.levels.find(choice=>simplify(choice)===simplify(labelledZone)) || labelledZone,
+        text:line.text,box:line.box} : recognisedLevel;
     const midY = line.box.y+line.box.height/2;
     const gapX = point ? Math.max(point.x-line.box.x-line.box.width,line.box.x-point.x,0) : 1;
     const gapY = point ? Math.abs(midY-point.y) : 1;
     if (tag) findings.push({kind:gapX<.23 && gapY<.115?'confirmation':'annotation',...tag});
     if (level) {
       const suffix = line.text.match(/\((W|D|M|[0-9]+[HM])\)/i)?.[1]?.toUpperCase();
-      const normalized = suffix && ({W:'Weekly',D:'Daily',M:'Monthly'}[suffix]||suffix);
+      const inline = quadrant?.[0].match(/(\d+)\s*(h(?:r|our)?|m(?:in)?)/i);
+      const normalized = suffix ? ({W:'Weekly',D:'Daily',M:'Monthly'}[suffix]||suffix)
+        : inline ? inline[1]+(inline[2].toLowerCase().startsWith('h')?'H':'m') : undefined;
       const timeframe = vocabulary.levelTimeframes.find(item=>item.toLowerCase()===normalized?.toLowerCase());
       rankedLevels.push({score:gapX<.33 && gapY<.12?gapX*.3+gapY:Infinity,
                          item:{kind:'visible_level',...level,text:line.text,box:line.box},timeframe});
