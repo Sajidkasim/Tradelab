@@ -4,7 +4,7 @@ import type {Finding} from './InteractiveChartPreview';
 export type Point = {x: number; y: number};
 export type Box = Finding['box'];
 type Region = Box;
-type OCRLine = {text: string; box: Box; confidence: number; words: {text: string; box: Box}[]};
+type OCRLine = {text: string; box: Box; confidence: number; isolated?: boolean; words: {text: string; box: Box}[]};
 export type Vocabulary = {
   markets: string[]; confirmations: string[]; levels: string[];
   entryTimeframes: string[]; levelTimeframes: string[]; aliases?: Record<string,string>;
@@ -264,7 +264,39 @@ function levelLabelRegion(point:Point): Region {
   return {x:Math.min(.53,point.x+.10),y:Math.max(0,Math.min(.84,point.y-.075)),width:.46,height:.16};
 }
 
-async function readRegions(file: File, regions: {area: Region; size: number}[], signal: AbortSignal, session: ChartOcrSession, anchor?: Point) {
+// Remove connected drawing strokes wider or taller than nearby chart text.
+function isolateChartText(context:CanvasRenderingContext2D,width:number,height:number) {
+  const image = context.getImageData(0,0,width,height);
+  const pixels = image.data;
+  const ink = new Uint8Array(width*height);
+  for (let i=0;i<ink.length;i++) {
+    const offset=i*4;
+    ink[i]=pixels[offset]+pixels[offset+1]+pixels[offset+2]<435?1:0;
+    pixels[offset]=pixels[offset+1]=pixels[offset+2]=255;
+  }
+  for (let i=0;i<ink.length;i++) {
+    if (!ink[i]) continue;
+    const component=[i];
+    ink[i]=0;
+    let left=width,right=0,top=height,bottom=0;
+    for (let j=0;j<component.length;j++) {
+      const p=component[j], x=p%width, y=Math.floor(p/width);
+      left=Math.min(left,x); right=Math.max(right,x);
+      top=Math.min(top,y); bottom=Math.max(bottom,y);
+      for (let ny=Math.max(0,y-1);ny<=Math.min(height-1,y+1);ny++) {
+        for (let nx=Math.max(0,x-1);nx<=Math.min(width-1,x+1);nx++) {
+          const next=ny*width+nx;
+          if (ink[next]) {ink[next]=0;component.push(next);}
+        }
+      }
+    }
+    if (right-left>width*.09 || bottom-top>height*.28 || component.length<5) continue;
+    for (const p of component) pixels[p*4]=pixels[p*4+1]=pixels[p*4+2]=0;
+  }
+  context.putImageData(image,0,0);
+}
+
+async function readRegions(file: File, regions: {area: Region; size: number; isolateText?: boolean; shear?: number}[], signal: AbortSignal, session: ChartOcrSession, anchor?: Point) {
   signal.throwIfAborted();
   const image = await createImageBitmap(file);
   let stop = () => {};
@@ -279,18 +311,36 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
     const readings: OCRLine[][] = [];
     const axis=regions.findIndex(region=>region.area===priceAxis);
     const position=axis>=0?locatePosition(image,anchor):undefined;
-    if(position&&regions.some(region=>region.area===whole)) {
-      regions.push({area:levelLabelRegion(position.entry),size:2200});
+    const fullChart = regions.some(region=>region.area===whole);
+    if (position && fullChart) regions.push({area:levelLabelRegion(position.entry),size:2200},
+      {area:entryRegion({x:position.entry.x+.14,y:position.entry.y},.32,.10),size:1750});
+    if (position || anchor) {
+      const entry = anchor || position!.entry;
+      const bottom = position ? position.box.y + position.box.height : entry.y + .07;
+      regions.push({area:entryRegion({x:entry.x+.025,y:bottom+.044},.115,.072),size:850,isolateText:true},
+        {area:entryRegion({x:entry.x+.025,y:bottom+.044},.115,.072),size:850,isolateText:true,shear:.16});
     }
-    for (const {area,size} of regions) {
-      const {canvas} = sample(image,area,size);
+    const {PSM} = await import('tesseract.js');
+    for (const {area,size,isolateText,shear=0} of regions) {
+      const {canvas,context} = sample(image,area,size);
+      if (isolateText) isolateChartText(context,canvas.width,canvas.height);
+      if (shear) {
+        const source = await createImageBitmap(canvas);
+        context.fillStyle = '#fff';
+        context.fillRect(0,0,canvas.width,canvas.height);
+        context.setTransform(1,shear,0,1,0,-shear*canvas.width/2);
+        context.drawImage(source,0,0);
+        source.close();
+      }
+      if (shear) await worker.setParameters({tessedit_pageseg_mode:PSM.SINGLE_LINE});
       const {data: result} = await Promise.race([worker.recognize(canvas, {}, {blocks:true}),cancel]);
+      if (shear) await worker.setParameters({tessedit_pageseg_mode:PSM.SPARSE_TEXT});
       const locate = ({x0,y0,x1,y1}: {x0:number;y0:number;x1:number;y1:number}): Box => ({
-        x:area.x+x0/canvas.width*area.width, y:area.y+y0/canvas.height*area.height,
-        width:(x1-x0)/canvas.width*area.width, height:(y1-y0)/canvas.height*area.height,
+        x:area.x+x0/canvas.width*area.width, y:area.y+(y0-shear*(x1-canvas.width/2))/canvas.height*area.height,
+        width:(x1-x0)/canvas.width*area.width, height:(y1-y0+shear*(x1-x0))/canvas.height*area.height,
       });
       readings.push((result.blocks || []).flatMap(block=>block.paragraphs).flatMap(paragraph=>paragraph.lines)
-        .map(line=>({text:line.text.trim(), box:locate(line.bbox), confidence:line.confidence,
+        .map(line=>({text:line.text.trim(), box:locate(line.bbox), confidence:line.confidence, isolated:Boolean(shear),
                      words:line.words.map(word=>({text:word.text,box:locate(word.bbox)}))})));
     }
     return {readings,position,projection:position?projectionEvidence(image,position,readings[axis]):undefined};
@@ -305,7 +355,7 @@ async function readRegions(file: File, regions: {area: Region; size: number}[], 
 
 export async function scanChart(file: File, signal: AbortSignal, session: ChartOcrSession): Promise<ChartRead> {
   const {readings,position,projection} = await readRegions(file,[{area:header,size:2100},{area:whole,size:2800},{area:priceAxis,size:2450}],signal,session);
-  return {header:readings[0],lines:[...(readings[3]||[]),...readings[1]],position,projection};
+  return {header:readings[0],lines:[...readings.slice(3).flat(),...readings[1]],position,projection};
 }
 
 export async function scanEntry(file: File, point: Point, signal: AbortSignal, session: ChartOcrSession) {
@@ -313,7 +363,7 @@ export async function scanEntry(file: File, point: Point, signal: AbortSignal, s
   const entryLine = entryRegion({x:point.x+.14,y:point.y},.32,.10);
   const {readings,position,projection} = await readRegions(file,[{area:neighbourhood,size:2350},{area:entryLine,size:1750},
     {area:levelLabelRegion(point),size:2200},{area:priceAxis,size:2450}],signal,session,point);
-  return {lines:[...readings[2],...readings[0],...readings[1]],position,projection};
+  return {lines:[...readings[2],...readings.slice(4).flat(),...readings[0],...readings[1]],position,projection};
 }
 
 function findLabel(line: OCRLine, choices: string[]) {
@@ -335,10 +385,15 @@ function findLabel(line: OCRLine, choices: string[]) {
   }
 }
 
-function confirmationLabel(line: OCRLine, vocabulary: Vocabulary) {
-  const aliases = vocabulary.aliases || {};
-  const label = findLabel(line,Object.keys(aliases).filter(key=>vocabulary.confirmations.includes(aliases[key])));
-  return label ? {...label,value:aliases[label.value]} : findLabel(line,vocabulary.confirmations);
+function confirmationLabels(line: OCRLine, vocabulary: Vocabulary) {
+  const terms = new Map(vocabulary.confirmations.map(value=>[value,value]));
+  for (const [alias, value] of Object.entries(vocabulary.aliases || {})) {
+    if (vocabulary.confirmations.includes(value)) terms.set(alias,value);
+  }
+  return [...terms].flatMap(([term,value])=>{
+    const label = findLabel(line,[term]);
+    return label ? [{...label,value}] : [];
+  });
 }
 
 export async function scanLabel(file: File, point: Point, vocabulary: Vocabulary, signal: AbortSignal, session: ChartOcrSession): Promise<Finding[]> {
@@ -347,7 +402,7 @@ export async function scanLabel(file: File, point: Point, vocabulary: Vocabulary
     const distance = ({box}: OCRLine)=>Math.hypot(point.x-box.x-box.width/2,point.y-box.y-box.height/2);
     return distance(a)-distance(b);
   }).flatMap((line): Finding[]=>{
-    const term = confirmationLabel(line,vocabulary);
+    const [term] = confirmationLabels(line,vocabulary);
     const label = term || {text:line.text,value:line.text,box:line.box};
     if (!/^[A-Za-z][A-Za-z0-9 ().+/-]{0,55}$/.test(label.text) || label.box.width>.15 || label.box.height>.06) return [];
     return [{kind:'annotation',...label}];
@@ -382,32 +437,52 @@ export function chartFindings(chart: ChartRead, vocabulary: Vocabulary, anchor?:
     findings.push({kind:'direction',value:position.direction,text:'Position drawing',box:position.box});
   }
   const rankedLevels: {score:number; item:Finding; timeframe?: string}[] = [];
-  for (const line of chart.lines.filter(line=>line.confidence>=24 && line.box.y>.085 && line.box.x<.94)) {
-    const tag = confirmationLabel(line,vocabulary);
+  for (const line of chart.lines.filter(line=>(line.confidence>=24 || line.isolated) && line.box.y>.085 && line.box.x<.94)) {
+    const tags = confirmationLabels(line,vocabulary).filter(tag=>line.confidence>=24 || (
+      // Whole-line confidence is penalised by stray strokes outside the label.
+      tag.text===tag.value && /^[A-Z]{2,5}$/.test(tag.text)
+    ));
     const explicit = line.text.match(/(?:^|[-—_.]{3,}\s*)([A-Za-z][A-Za-z0-9 /-]{2,55})\s*\((?:W|D|M|[0-9]+[HM])\)\s*$/i);
     const quadrant = line.text.match(/\b(?:upper|lower)\s*quadrant\s*(?:\d+\s*(?:h(?:r|our)?|m(?:in)?)\s*)?(?:OB|RB|order blocks?|rejection blocks?)\b/i);
     const recognisedLevel = findLabel(line,vocabulary.levels);
+    const highLow = line.text.match(/\bhighs?\s*(?:and|&|\/)\s*lows?\b/i);
     const labelledZone = (quadrant?.[0] || explicit?.[1])?.trim().replace(/([a-z])([A-Z])/g,'$1 $2');
-    const level = labelledZone && /\b(?:RB|OB|FVG|IFVG|WICK|PDA|GAP|blocks?)\b/i.test(labelledZone)
+    const level = highLow ? {
+      value:vocabulary.levels.find(choice=>/^highs?(?:and)?lows?$/i.test(simplify(choice))) || 'High and Low',
+      text:highLow[0],box:findLabel(line,[highLow[0]])?.box || line.box,
+    } : labelledZone && /\b(?:RB|OB|FVG|IFVG|WICK|PDA|GAP|blocks?)\b/i.test(labelledZone)
       ? {value:vocabulary.levels.find(choice=>simplify(choice)===simplify(labelledZone)) || labelledZone,
         text:line.text,box:line.box} : recognisedLevel;
     const midY = line.box.y+line.box.height/2;
     const gapX = point ? Math.max(point.x-line.box.x-line.box.width,line.box.x-point.x,0) : 1;
     const gapY = point ? Math.abs(midY-point.y) : 1;
-    if (tag) findings.push({kind:gapX<.23 && gapY<.115?'confirmation':'annotation',...tag});
-    if (level) {
+    for (const tag of tags) {
+      const {x,y,width,height} = tag.box;
+      const right = position ? position.box.x + position.box.width : point?.x ?? 0;
+      const nearX = point && x < right+.23 && x+width > point.x-.23;
+      const mid = y+height/2;
+      const nearY = point && (Math.abs(mid-point.y)<.14 ||
+        (position && mid>=position.box.y-.055 && mid<=position.box.y+position.box.height+.075));
+      findings.push({kind:nearX && nearY?'confirmation':'annotation',...tag});
+    }
+    if (level && line.confidence>=24) {
       const suffix = line.text.match(/\((W|D|M|[0-9]+[HM])\)/i)?.[1]?.toUpperCase();
-      const inline = quadrant?.[0].match(/(\d+)\s*(h(?:r|our)?|m(?:in)?)/i);
+      const inline = line.text.match(/\b(\d+)\s*(h(?:ours?|rs?)?|m(?:in(?:utes?)?)?)\b/i);
       const normalized = suffix ? ({W:'Weekly',D:'Daily',M:'Monthly'}[suffix]||suffix)
         : inline ? inline[1]+(inline[2].toLowerCase().startsWith('h')?'H':'m') : undefined;
       const timeframe = vocabulary.levelTimeframes.find(item=>item.toLowerCase()===normalized?.toLowerCase());
       rankedLevels.push({score:gapX<.33 && gapY<.12?gapX*.3+gapY:Infinity,
                          item:{kind:'visible_level',...level,text:line.text,box:line.box},timeframe});
-    } else if (!tag && line.confidence>=40 && /^[A-Za-z][A-Za-z0-9 ().+/-]{1,55}$/.test(line.text)) {
+    } else if (!tags.length && line.confidence>=40 && /^[A-Za-z][A-Za-z0-9 ().+/-]{1,55}$/.test(line.text)) {
       findings.push({kind:'annotation',value:line.text,text:line.text,box:line.box});
     }
   }
   rankedLevels.sort((a,b)=>a.score-b.score);
+  for (const level of rankedLevels) {
+    if (level.timeframe) continue;
+    level.timeframe = rankedLevels.find(other=>other.item.value===level.item.value && other.timeframe &&
+      Math.abs(other.item.box.y-level.item.box.y)<.015 && Math.abs(other.item.box.x-level.item.box.x)<.04)?.timeframe;
+  }
   const best = rankedLevels[0], next = rankedLevels.find(entry=>entry.item.value!==best?.item.value);
   if (best && Number.isFinite(best.score) && (!next || next.score-best.score>.02)) {
     best.item.kind='key_level';
