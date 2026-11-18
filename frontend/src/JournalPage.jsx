@@ -94,6 +94,7 @@ export default function JournalPage({theme = "light"}){
   const [deleting,setDeleting]=useState(false),[trash,setTrash]=useState(null),[undoId,setUndoId]=useState(null);
   const labDismissal=useTradeDismissal(()=>setLabDraft(null));
   const viewer=useRef();
+  const entryHeading=useRef(null);
   const visionEdits=useRef(new Map());
   async function boot(){
     try{const session=await api('/session');setCsrf(session.csrf);setIdentity(session);
@@ -111,7 +112,26 @@ export default function JournalPage({theme = "light"}){
   const current=sections.find(item=>item.id===section);
   const timezone=meta?.journal_preferences?.timezone||'America/New_York';
   function upsert(value){const row=normalize(value);setRows(old=>[...old.filter(item=>item.day!==row.day),row].sort((a,b)=>b.day.localeCompare(a.day)));setEntry(row);setDirty(false)}
-  function selectDay(value){if(busy||!value)return;if(dirty&&!window.confirm('Leave this day without saving your changes?'))return;setDay(value);setEntry(rows.find(row=>row.day===value)||blank(value));setDirty(false);setNotice('');setError('');setMonth(value.slice(0,7));setExpanded(null)}
+  function showDay(value){
+    const url=new URL(window.location.href);
+    url.searchParams.set('day',value);
+    window.history.replaceState(window.history.state,'',url);
+    setDay(value);
+    setMonth(value.slice(0,7));
+  }
+  function selectDay(value){
+    if(busy||!value)return false;
+    if(value===day)return true;
+    if(dirty&&!window.confirm('Leave this day without saving your changes?'))return false;
+    showDay(value);
+    setEntry(rows.find(row=>row.day===value)||blank(value));
+    setDirty(false);setNotice('');setError('');setExpanded(null);
+    return true;
+  }
+  function editSavedEntry(value){
+    if(!selectDay(value))return;
+    requestAnimationFrame(()=>entryHeading.current?.focus());
+  }
   const body=()=>({plan:entry.plan,notes:entry.notes,lesson:entry.lesson,mindset:entry.mindset,plan_followed:entry.plan_followed,no_trade_plan:entry.traded_today==='No'&&Boolean(entry.no_trade_plan),traded_today:entry.traded_today,trades:entry.trades.map(trade=>({
     ...narrative(trade),
     custom_fields: Object.fromEntries((meta?.custom_trade_fields || [])
@@ -191,7 +211,7 @@ export default function JournalPage({theme = "light"}){
   async function linkTrade(){setBusy(true);setError('');try{upsert(await api(`/journal/${day}/trades/${linking.id}/link`,{method:'PUT',body:{trade_id:selectedLink?Number(selectedLink):null}}));setLinking(null);setNotice(selectedLink?'Trade linked. No duplicate was added to the Lab.':'Lab link removed. The original Lab trade stays saved.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function deleteDay(){setBusy(true);setError('');try{if(dirty)await persist();const result=await api(`/journal/${day}`,{method:'DELETE'});setUndoId(result.archive_id);setRows(old=>old.filter(row=>row.day!==day));setEntry(blank(day));setDirty(false);setExpanded(null);setDeleting(false);setNotice('Entry moved to deleted entries. Your Lab trades are unchanged.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   async function openTrash(){setError('');try{setTrash(await api('/journal/trash'))}catch(e){setError(e.message)}}
-  async function restoreDay(id){setBusy(true);setError('');try{const restored=await api(`/journal/trash/${id}/restore`,{method:'POST'});upsert(restored);setDay(restored.day);setMonth(restored.day.slice(0,7));setTrash(null);setUndoId(null);setNotice('Journal entry restored.')}catch(e){setError(e.message)}finally{setBusy(false)}}
+  async function restoreDay(id){setBusy(true);setError('');try{const restored=await api(`/journal/trash/${id}/restore`,{method:'POST'});upsert(restored);showDay(restored.day);setTrash(null);setUndoId(null);setNotice('Journal entry restored.')}catch(e){setError(e.message)}finally{setBusy(false)}}
   function shiftMonth(amount){const date=new Date(month+'-15T12:00:00');date.setMonth(date.getMonth()+amount);setMonth(ymd(date).slice(0,7))}
   const monthDate=new Date(month+'-01T12:00:00'),startOffset=(monthDate.getDay()+6)%7,monthDays=new Date(monthDate.getFullYear(),monthDate.getMonth()+1,0).getDate();
   function dailyResult(row) {
@@ -231,12 +251,12 @@ export default function JournalPage({theme = "light"}){
             <div className="pt-calendar-grid">{['M','T','W','T','F','S','S'].map((value,index)=><span key={'head'+index}>{value}</span>)}{Array.from({length:startOffset},(_,index)=><span key={'blank'+index}/>)}{Array.from({length:monthDays},(_,index)=>{const value=`${month}-${String(index+1).padStart(2,'0')}`,saved=knownDays.has(value),row=monthRows.find(row=>row.day===value),result=dailyResult(row),followed=row?.plan_followed,traded=row?.traded_today,colour=result?.outcome,label=colour&&colour!=='not_recorded'?`${colour==='win'?'Profit':colour==='loss'?'Loss':'Break-even'}: ${money(result.net_pnl)}`:saved?'Saved entry · P&L incomplete or no trades':'Start an entry';const markers=[followed&&`Plan followed: ${followed}`,traded&&`Traded: ${traded}`].filter(Boolean).join(' · ');return <button key={value} className={`${day===value?'selected':''} ${saved?'has-entry':''}`} aria-label={niceDay(value)} title={markers?`${label} · ${markers}`:label} aria-description={markers||undefined} aria-pressed={day===value} disabled={busy} onClick={()=>selectDay(value)}>{index+1}{['win','loss','breakeven'].includes(colour)&&<i className={`pj-day-dot ${colour}`} role="img" aria-label={label}/>}
                 {traded&&<span className="pj-traded-marker" aria-hidden="true">{traded==='Yes'?'✓':'–'}</span>}{followed&&<span className="pj-plan-marker" aria-hidden="true">{followed[0]}</span>}</button>})}</div><p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p><p>Dots use the saved total of the day’s trades. Enter P&amp;L for every trade in the selected account to see a dot. Y / P / N marks whether you followed the plan. ✓ traded · – did not trade.</p>
           </div>
-          <details className="pj-history" open><summary>Entries this month <span>{monthRows.length}</span></summary><div className="pt-recent-entries">{monthRows.map(row=><button key={row.day} aria-label={`Open entry ${niceDay(row.day)}`} aria-pressed={row.day===day} disabled={busy} onClick={()=>selectDay(row.day)}><CalendarDays size={18}/><span><strong>{dayDate(row.day).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong><small>{row.trades.length?`${row.trades.length} trade${row.trades.length===1?'':'s'} · `:''}{row.lesson||row.notes||row.plan||'Session saved'}</small></span><ArrowUpRight size={14}/></button>)}{!monthRows.length&&<p>No saved entries this month. Pick a day to start, or browse another month.</p>}</div></details>
+          <details className="pj-history" open><summary>Entries this month <span>{monthRows.length}</span></summary><div className="pt-recent-entries">{monthRows.map(row=><button key={row.day} aria-label={`Edit entry ${niceDay(row.day)}`} aria-pressed={row.day===day} disabled={busy} onClick={()=>editSavedEntry(row.day)}><CalendarDays size={18}/><span><strong>{dayDate(row.day).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong><small>{row.trades.length?`${row.trades.length} trade${row.trades.length===1?'':'s'} · `:''}{row.lesson||row.notes||row.plan||'Session saved'}</small></span><NotebookPen size={14} aria-hidden="true"/></button>)}{!monthRows.length&&<p>No saved entries this month. Pick a day to start, or browse another month.</p>}</div></details>
           <a className="pt-download-notes" href="/api/journal/export"><Download size={16}/> Download your Journal</a>
           <button className="pj-trash-link" onClick={openTrash} disabled={busy}><Trash2 size={15}/> Deleted entries</button><p className="pj-storage-note">{localSitePreview()?'Local design preview · example entries and screenshots stay in this temporary workspace.':'Your entries are saved privately in the cloud.'}</p>
         </aside>
         <section className="pt-day-editor" aria-label="Daily journal editor">
-          <div className="pt-day-heading" id="journal-entry"><div><span className="pt-overline">{day===today?'TODAY':dayDate(day).toLocaleDateString('en-GB',{weekday:'long'}).toUpperCase()}</span><h2>{niceDay(day)}</h2><p aria-label="Day profit and loss">{dirty?'Save entry to update the day’s P&L':dayResult?.net_pnl!=null?`Day P&L: ${money(dayResult.net_pnl)}`:hasDayTrades?'Day P&L incomplete · enter a result for every trade':account===null?'No trades recorded':'No trades recorded for this selection'}{entry.plan_followed&&<span> · Plan followed: {entry.plan_followed}</span>}</p></div><div><span className="pt-save-state" role="status">{dirty?'Unsaved changes':entry.updated_at?<><Check size={15}/> Saved</>:'A fresh page'}</span><button className="pt-btn pt-btn-dark" disabled={busy} onClick={save}><Save size={16}/>{busy?'Saving…':'Save entry'}</button><button className="pj-delete-entry" onClick={()=>setDeleting(true)} disabled={busy||(!entry.updated_at&&!dirty)} aria-label="Delete journal entry"><Trash2 size={17}/></button></div></div>
+          <div className="pt-day-heading" id="journal-entry"><div><span className="pt-overline">{day===today?'TODAY':dayDate(day).toLocaleDateString('en-GB',{weekday:'long'}).toUpperCase()}</span><h2 ref={entryHeading} tabIndex={-1}>{niceDay(day)}</h2><p aria-label="Day profit and loss">{dirty?'Save entry to update the day’s P&L':dayResult?.net_pnl!=null?`Day P&L: ${money(dayResult.net_pnl)}`:hasDayTrades?'Day P&L incomplete · enter a result for every trade':account===null?'No trades recorded':'No trades recorded for this selection'}{entry.plan_followed&&<span> · Plan followed: {entry.plan_followed}</span>}</p></div><div><span className="pt-save-state" role="status">{dirty?'Unsaved changes':entry.updated_at?<><Check size={15}/> Saved</>:'A fresh page'}</span><button className="pt-btn pt-btn-dark" disabled={busy} onClick={save}><Save size={16}/>{busy?'Saving…':'Save entry'}</button><button className="pj-delete-entry" onClick={()=>setDeleting(true)} disabled={busy||(!entry.updated_at&&!dirty)} aria-label="Delete journal entry"><Trash2 size={17}/></button></div></div>
           <JournalPrep day={day} key={day}/>
           {(error||notice)&&<div className="pj-day-feedback">{error&&<div className="pt-journal-error" role="alert">{error}</div>}{notice&&<div className="pt-journal-success" role="status">{notice}{undoId&&<button className="pj-undo" onClick={()=>restoreDay(undoId)} disabled={busy}><Undo2 size={15}/> Undo</button>}</div>}</div>}
           <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">{sections.map((item,index)=><button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section===item.id} onClick={()=>setSection(item.id)}><span>0{index+1}</span>{item.label}{entry[item.id]?.trim()&&<Check size={14}/>}</button>)}</div>

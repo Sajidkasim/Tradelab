@@ -67,7 +67,17 @@ test('daily Journal saves trade cards and charts, marks the calendar, browses hi
   await expect(card.getByRole('textbox',{name:'Trade notes',exact:true})).toHaveValue('Took the long after confirmation.');
   await page.getByRole('button',{name:'13 August 2026',exact:true}).click();
   await expect(page.getByRole('article',{name:'Journal trade 1',exact:true})).toHaveCount(0);
-  await page.getByRole('button',{name:'Open entry 12 August 2026',exact:true}).click();
+  await page.getByRole('button',{name:'Edit entry 12 August 2026',exact:true}).click();
+  await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'12 August 2026',exact:true})).toBeFocused();
+  await expect(page).toHaveURL(/day=2026-08-12/);
+  await page.getByRole('tab',{name:/Before the session/}).click();
+  const plan = page.getByRole('textbox',{name:'Before the session',exact:true});
+  await plan.fill('Updated the plan after reviewing this past session.');
+  await page.locator('#journal-entry').getByRole('button',{name:'Save entry',exact:true}).click();
+  await expect(page.getByText(/Entry saved/)).toBeVisible();
+  await page.reload();
+  await expect(plan).toHaveValue('Updated the plan after reviewing this past session.');
   await expect(page.getByRole('article',{name:'Journal trade 2',exact:true})).toBeVisible();
 });
 
