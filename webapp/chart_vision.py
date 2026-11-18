@@ -153,7 +153,42 @@ def clean_findings(extraction, vocabulary):
     return results
 
 
+ALIASES_KEY = 'primuslab_chart_confirmation_aliases'
+
+
+class AliasInput(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    label: str = Field(min_length=1, max_length=80)
+    confirmation: str | None = Field(default=None, max_length=120)
+
+
 def mount(app, workspace):
+    @app.get('/api/vision/aliases')
+    def read_aliases(request: Request, member=Depends(workspace)):
+        database = request.app.state.workspaces.database(member['key'])
+        return database.get_setting(ALIASES_KEY, {})
+
+    @app.put('/api/vision/aliases')
+    def save_alias(request: Request, payload: AliasInput, member=Depends(workspace)):
+        label = re.sub(r'[^A-Z0-9]', '', payload.label.upper())
+        if not label or not re.search(r'[A-Z]', label):
+            raise HTTPException(422, 'Enter a chart label containing letters.')
+        store = request.app.state.workspaces
+        key = member['key']
+        with store.workspace_lock(key):
+            database = store.database(key)
+            aliases = database.get_setting(ALIASES_KEY, {}).copy()
+            if payload.confirmation is None:
+                aliases.pop(label, None)
+            else:
+                if payload.confirmation not in store.metadata(key)['confirmations']:
+                    raise HTTPException(422, 'Choose a confirmation from your Lab Settings.')
+                if label not in aliases and len(aliases) >= 100:
+                    raise HTTPException(422, 'Remove an existing mapping before adding another.')
+                aliases[label] = payload.confirmation
+            database.set_setting(ALIASES_KEY, aliases)
+        return aliases
+
     @app.post('/api/vision/extract')
     def extract(request: Request, image: UploadFile = File(...), user_tags: str = Form('[]'),
                 member=Depends(workspace)):

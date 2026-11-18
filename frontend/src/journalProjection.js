@@ -19,3 +19,8 @@ export function priceInput(value) {
   const price = Number(value);
   return Number.isFinite(price) ? price : NaN;
 }
+
+export function realisedR(netPnl, originalRisk) {
+  return Number.isFinite(netPnl) && Number.isFinite(originalRisk) && originalRisk > 0
+    ? netPnl / originalRisk : null;
+}

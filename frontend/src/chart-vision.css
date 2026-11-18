@@ -22,3 +22,14 @@ button.pj-vision-box { cursor: pointer; }
 .pj-vision-projection-content > button { justify-self: start; }
 .pj-vision-projection-line { position:absolute; inset-inline:0; z-index:2; border-top:1px dashed #0e9075; pointer-events:none; }
 .pj-vision-projection-line > span { position:absolute; right:.5rem; top:-.65rem; line-height:1.25; background:#173f34; color:#fff; padding:.1rem .35rem; border-radius:3px; font-size:.72rem; text-transform:capitalize; }
+.pj-vision-review { display:grid; gap:.85rem; min-width:0; align-items:start; }
+.pj-vision-review-panel { display:grid; gap:.65rem; min-width:0; padding:.85rem; border:1px solid var(--pt-line,#8885); border-radius:10px; background:var(--pt-paper); }
+.pj-vision-review-panel summary { cursor:pointer; font-weight:600; }
+.pj-vision-review-panel .pj-trade-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.pj-vision-review-panel .pj-field { min-width:0; }
+.pj-vision-vocabulary label { display:grid; gap:.25rem; margin:.6rem 0; font-size:.8rem; }
+.pj-vision-alias { display:flex; gap:.5rem; align-items:center; justify-content:space-between; margin-top:.5rem; font-size:.8rem; }
+@container (min-width: 840px) {
+  .pj-vision-review { grid-template-columns:minmax(0,1fr) minmax(280px,31%); }
+}
+.pj-vision { container-type:inline-size; }

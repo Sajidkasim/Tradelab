@@ -382,4 +382,4 @@
   background:var(--desk-action); color:var(--desk-action-ink); cursor:pointer;
 }
 .pj-aura-send:disabled { opacity:.45; cursor:default; }
-@media(min-width:1000px){.pj-trade-metrics.has-projection{grid-template-columns:repeat(6,minmax(0,1fr))}}
+@media(min-width:1000px){.pj-trade-metrics.has-projection{grid-template-columns:repeat(auto-fit,minmax(105px,1fr))}}

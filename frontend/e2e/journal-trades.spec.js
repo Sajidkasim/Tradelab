@@ -159,6 +159,19 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
   await card.getByRole('button', {name:'Improve with Cloudflare'}).click();
   await expect(card.getByRole('checkbox', {name:/^SMT/})).toBeChecked();
   expect(cloudScans).toBe(1);
+  await card.getByRole('button',{name:'Rescan a label',exact:true}).click();
+  const labelArea=card.getByRole('button',{name:'Pick label area on chart',exact:true});
+  const bounds=await labelArea.boundingBox();
+  await labelArea.click({position:{x:bounds.width*.327,y:bounds.height*.435}});
+  await expect(card.getByRole('button',{name:'Add MSS',exact:true})).toBeVisible({timeout:10000});
+  expect(cloudScans).toBe(1);
+
+  await card.getByText('Remember a chart label',{exact:true}).click();
+  await card.getByLabel('Chart text',{exact:true}).fill('CHOCH');
+  await card.getByLabel('Journal confirmation',{exact:true}).selectOption('MSS');
+  await card.getByRole('button',{name:'Save mapping',exact:true}).click();
+  await expect(card.getByText('CHOCH → MSS',{exact:true})).toBeVisible();
+
   await card.getByText('Projection & trade result',{exact:true}).click();
   await expect(card.getByText(/Planned R:R 1:/)).toBeVisible();
   await card.getByLabel('Entry price',{exact:true}).fill('26923.25');
@@ -168,6 +181,10 @@ test('local chart scan reads the header and Cloudflare receives a crop only on r
   await card.getByRole('button',{name:'Use R:R and outcome',exact:true}).click();
   await expect(card.getByRole('button',{name:'Win',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(card.getByText('1:2.50',{exact:true})).toBeVisible();
+  await card.getByText('Setup & result',{exact:false}).first().click();
+  await card.getByRole('spinbutton',{name:'Amount risked ($)',exact:true}).fill('100');
+  await card.getByRole('spinbutton',{name:'Profit / loss ($)',exact:true}).fill('140');
+  await expect(card.locator('.pj-trade-metrics').getByText('+1.40R',{exact:true})).toBeVisible();
   await page.locator('#journal-entry').getByRole('button',{name:'Save entry',exact:true}).click();
   await expect(page.getByText(/Entry saved/)).toBeVisible();
   await page.reload();

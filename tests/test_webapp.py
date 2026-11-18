@@ -935,3 +935,13 @@ def test_chart_vision_maps_nearby_workspace_tags_and_keeps_distant_labels(local,
     assert invalid.status_code == 422
     client.headers.pop('X-Primus-CSRF')
     assert client.post('/api/vision/extract', data=data, files={'image': ('chart.jpg', image.getvalue(), 'image/jpeg')}).status_code == 403
+
+
+def test_chart_label_mapping_round_trips_and_requires_a_known_confirmation(local):
+    client, _ = local
+    tag = client.get('/api/metadata').json()['confirmations'][0]
+    response = client.put('/api/vision/aliases', json={'label': 'ChOch', 'confirmation': tag})
+    assert response.status_code == 200
+    assert client.get('/api/vision/aliases').json() == {'CHOCH': tag}
+    assert client.put('/api/vision/aliases', json={'label': 'Other', 'confirmation': 'Unknown tag'}).status_code == 422
+    assert client.put('/api/vision/aliases', json={'label': 'CHOCH', 'confirmation': None}).json() == {}

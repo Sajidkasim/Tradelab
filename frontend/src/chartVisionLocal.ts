@@ -6,7 +6,7 @@ type Region = Box;
 type OCRLine = {text: string; box: Box; confidence: number; words: {text: string; box: Box}[]};
 export type Vocabulary = {
   markets: string[]; confirmations: string[]; levels: string[];
-  entryTimeframes: string[]; levelTimeframes: string[];
+  entryTimeframes: string[]; levelTimeframes: string[]; aliases?: Record<string,string>;
 };
 export type ChartRead = {header: OCRLine[]; lines: OCRLine[]; position?: {entry: Point; box: Box; direction: 'long' | 'short'}};
 
@@ -146,6 +146,25 @@ function findLabel(line: OCRLine, choices: string[]) {
   }
 }
 
+function confirmationLabel(line: OCRLine, vocabulary: Vocabulary) {
+  const aliases = vocabulary.aliases || {};
+  const label = findLabel(line,Object.keys(aliases).filter(key=>vocabulary.confirmations.includes(aliases[key])));
+  return label ? {...label,value:aliases[label.value]} : findLabel(line,vocabulary.confirmations);
+}
+
+export async function scanLabel(file: File, point: Point, vocabulary: Vocabulary, signal: AbortSignal): Promise<Finding[]> {
+  const {readings} = await readRegions(file,[{area:entryRegion(point,.16,.095),size:1250}],signal);
+  return readings[0].filter(line=>line.confidence>=25).sort((a,b)=>{
+    const distance = ({box}: OCRLine)=>Math.hypot(point.x-box.x-box.width/2,point.y-box.y-box.height/2);
+    return distance(a)-distance(b);
+  }).flatMap((line): Finding[]=>{
+    const term = confirmationLabel(line,vocabulary);
+    const label = term || {text:line.text,value:line.text,box:line.box};
+    if (!/^[A-Za-z][A-Za-z0-9 ().+/-]{0,55}$/.test(label.text) || label.box.width>.15 || label.box.height>.06) return [];
+    return [{kind:'annotation',...label}];
+  }).slice(0,6);
+}
+
 export function chartFindings(chart: ChartRead, vocabulary: Vocabulary, anchor?: Point): Finding[] {
   const findings: Finding[] = [];
   const position = chart.position;
@@ -175,7 +194,7 @@ export function chartFindings(chart: ChartRead, vocabulary: Vocabulary, anchor?:
   }
   const rankedLevels: {score:number; item:Finding; timeframe?: string}[] = [];
   for (const line of chart.lines.filter(line=>line.confidence>=24 && line.box.y>.085 && line.box.x<.94)) {
-    const tag = findLabel(line,vocabulary.confirmations);
+    const tag = confirmationLabel(line,vocabulary);
     const explicit = line.text.match(/(?:^|[-—_.]{3,}\s*)([A-Za-z][A-Za-z0-9 /-]{2,55})\s*\((?:W|D|M|[0-9]+[HM])\)\s*$/i);
     const recognizedLevel = findLabel(line,vocabulary.levels);
     const labelledZone = explicit && explicit[1].trim().replace(/([a-z])([A-Z])/g,'$1 $2');

@@ -47,6 +47,8 @@ type Props = {
   cloudEnabled: boolean;
   tradeDirection?: 'long' | 'short' | '';
   disabled: boolean;
+  savedRR?: number | null;
+  realised?: number | null;
   focusedConfirmation?: string;
   onFindings: (findings: Finding[]) => void;
   onDraft: (findings: Finding[]) => void;
@@ -54,7 +56,7 @@ type Props = {
   onAttach?: (file: File) => Promise<boolean | undefined>;
 };
 
-export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirection, disabled, focusedConfirmation, onFindings, onDraft, onProjection, onAttach}: Props) {
+export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirection, disabled, savedRR, realised, focusedConfirmation, onFindings, onDraft, onProjection, onAttach}: Props) {
   const picker = useRef<HTMLInputElement>(null);
   const active = useRef<AbortController | null>(null);
   const draft = useRef(onDraft);
@@ -66,6 +68,14 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   const [highlight, setHighlight] = useState<Finding | null>(null);
   const [error, setError] = useState('');
   const [picked, setPicked] = useState('');
+  const [readingLabel,setReadingLabel] = useState(false);
+  const [cropFindings,setCropFindings] = useState<Finding[]>([]);
+  const [aliases,setAliases] = useState<Record<string,string>>({});
+  const [aliasLabel,setAliasLabel] = useState('');
+  const [aliasConfirmation,setAliasConfirmation] = useState('');
+  const [aliasBusy,setAliasBusy] = useState(false);
+  const dictionary={...vocabulary,aliases};
+
   const [original, setOriginal] = useState<File | null>(null);
   const [local, setLocal] = useState<ChartRead | null>(null);
   const [anchor, setAnchor] = useState<Point | null>(null);
@@ -122,6 +132,8 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
   async function scan(file?: File) {
     if (!file || disabled || active.current) return;
     setPicked('');
+    setReadingLabel(false);
+    setCropFindings([]);
     setFindings(null);
     onFindings([]);
     setHighlight(null);
@@ -142,10 +154,14 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       setOriginal(file);
       setUrl(URL.createObjectURL(jpeg));
       const {scanChart, chartFindings} = await import('./chartVisionLocal');
-      const read = await scanChart(file,signal);
+      const [read, savedAliases] = await Promise.all([
+        scanChart(file,signal),
+        api('/vision/aliases',{signal}).catch(()=>aliases),
+      ]);
       signal.throwIfAborted();
+      setAliases(savedAliases);
       setLocal(read);
-      publish(chartFindings(read,vocabulary));
+      publish(chartFindings(read,{...vocabulary,aliases:savedAliases}));
     });
   }
 
@@ -157,14 +173,40 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     await run(async signal => {
       const {scanEntry,chartFindings} = await import('./chartVisionLocal');
       const previous = local || {header:[],lines:[]};
-      const existing = chartFindings(previous,vocabulary,selected);
+      const existing = chartFindings(previous,dictionary,selected);
       publish(existing);
       const lines = await scanEntry(original,selected,signal);
       signal.throwIfAborted();
       const expanded = {...previous,lines:[...lines,...previous.lines]};
       setLocal(expanded);
-      publish(chartFindings(expanded,vocabulary,selected));
+      publish(chartFindings(expanded,dictionary,selected));
     });
+  }
+
+  async function readLabel(selected: Point) {
+    if (!original || disabled || active.current) return;
+    setReadingLabel(false);
+    setCropFindings([]);
+    await run(async signal=>{
+      const {scanLabel} = await import('./chartVisionLocal');
+      const matches = await scanLabel(original,selected,dictionary,signal);
+      signal.throwIfAborted();
+      setCropFindings(matches);
+      setPicked(matches.length?'Choose a label from the crop.':'No readable label in that crop. Try tapping closer to the text.');
+    });
+  }
+
+  async function saveAlias(remove=false, label=aliasLabel) {
+    if (!label.trim() || (!remove&&!aliasConfirmation) || aliasBusy) return;
+    setAliasBusy(true);
+    setError('');
+    try {
+      setAliases(await api('/vision/aliases',{method:'PUT',body:{label,confirmation:remove?null:aliasConfirmation}}));
+      setAliasLabel('');
+      setPicked(remove?'Label mapping removed.':'Label mapping saved for future scans.');
+    } catch (err) {
+      setError(err instanceof Error?err.message:'Could not save the label mapping.');
+    } finally { setAliasBusy(false); }
   }
 
   async function improve() {
@@ -206,9 +248,10 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
 
   function addConfirmation(finding: Finding) {
     if (disabled) return;
-    const text = finding.kind === 'confirmation' ? finding.value : finding.text;
+    const text = finding.value;
     onDraft([{...finding, kind: 'confirmation', value: text}]);
     setHighlight(finding);
+    setAliasLabel(finding.text===finding.value?'':finding.text);
     setPicked(`Selected ${text} for confirmations.`);
   }
 
@@ -228,16 +271,33 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
     </div>
     {scanning&&<div className="pj-vision-loading" role="status">Scanning chart…<span/><span/></div>}
     {error&&<p role="alert">{error}</p>}
-    {url&&<InteractiveChartPreview url={url} findings={findings || []} highlight={highlight || findings?.find(finding =>
+    {url&&<div className="pj-vision-review">
+    <InteractiveChartPreview url={url} findings={findings || []} highlight={highlight || findings?.find(finding =>
       ['confirmation','annotation'].includes(finding.kind) && finding.value === focusedConfirmation) || null}
       disabled={disabled || scanning} onPick={addConfirmation} anchor={point} projectionLevels={markProjection||Object.keys(levels).length?levels:undefined}
-      marking={marking||Boolean(markProjection)} markingLabel={markProjection?`Mark ${markProjection} on projection`:undefined}
-      onMark={markProjection?markLevel:markEntry}/>}
+      marking={marking||readingLabel||Boolean(markProjection)} markingLabel={readingLabel?'Pick label area on chart':markProjection?`Mark ${markProjection} on projection`:undefined}
+      onMark={readingLabel?readLabel:markProjection?markLevel:markEntry}/>
+    <div className="pj-vision-review-panel" aria-label="Chart review">
+    <p className="pj-vision-label"><Sparkles size={14}/> Chart review</p>
+    {(savedRR!=null||realised!=null)&&<p className="pj-vision-help">
+      {savedRR!=null&&<strong>Planned 1:{savedRR.toFixed(2)}</strong>}
+      {savedRR!=null&&realised!=null?' · ':''}
+      {realised!=null&&<strong>Realised {realised>0?'+':''}{realised.toFixed(2)}R</strong>}
+    </p>}
     {url&&!scanning&&<div className="pj-vision-tags">
-      <button type="button" aria-pressed={marking} disabled={disabled} onClick={()=>{setMarkProjection(undefined);setMarking(value=>!value)}}>
+      <button type="button" aria-pressed={marking} disabled={disabled} onClick={()=>{setReadingLabel(false);setMarkProjection(undefined);setMarking(value=>!value)}}>
         {marking?'Cancel marking':point?'Move entry marker':'Mark entry on chart'}
       </button>
+      <button type="button" disabled={disabled} aria-pressed={readingLabel} onClick={()=>{
+        setMarking(false);setMarkProjection(undefined);setReadingLabel(value=>!value);
+      }}>{readingLabel?'Cancel label scan':'Rescan a label'}</button>
       {cloudEnabled&&<button type="button" disabled={disabled||!point} onClick={()=>void improve()}>Improve with Cloudflare</button>}
+    </div>}
+    {readingLabel&&<p className="pj-vision-help" role="status">Tap the label to read just that area.</p>}
+    {!!cropFindings.length&&<div className="pj-vision-tags" aria-label="Labels from crop">
+      {cropFindings.map((finding,index)=><button key={index} type="button" disabled={disabled||scanning}
+        onFocus={()=>setHighlight(finding)} onMouseEnter={()=>setHighlight(finding)}
+        onClick={()=>{addConfirmation(finding);setAliasLabel(finding.text)}}>Add {finding.value}</button>)}
     </div>}
     {marking&&<p className="pj-vision-help" role="status">Tap where the trade entered to read nearby labels again.</p>}
     {url&&cloudEnabled&&!scanning&&<p className="pj-vision-help">Cloudflare assistance sends an entry crop. {point?'Optional, within the configured free allowance.':'Mark the entry to use it.'}</p>}
@@ -246,14 +306,18 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
         onBlur={()=>setHighlight(null)} onMouseEnter={()=>setHighlight(finding)} onMouseLeave={()=>setHighlight(null)}
         onClick={()=>setHighlight(finding)}>Check {caption[finding.kind]} · {finding.value}</button>)}</div>}
     {!!findings?.length&&<>
-      <p className="pj-vision-label"><Sparkles size={14}/> Chart auto-fill</p>
       <p className="pj-vision-help">Review the suggestions in your trade fields. Filled fields are kept. Tap highlighted chart text to select it as a confirmation.</p>
-      <div className="pj-vision-tags">{findings.filter(finding=>finding.kind!=='annotation').map(finding=>
+      <div className="pj-vision-tags">{findings.filter(finding=>!['annotation','visible_level'].includes(finding.kind)).map(finding=>
         <button type="button" key={`${finding.kind}:${finding.value}`}
           onMouseEnter={()=>setHighlight(finding)} onMouseLeave={()=>setHighlight(null)}
           onFocus={()=>setHighlight(finding)} onBlur={()=>setHighlight(null)} onClick={()=>setHighlight(finding)}
-          title={finding.text}><small>{caption[finding.kind]}</small> {finding.value}</button>)}</div>
+          title={finding.text}><small>{caption[finding.kind]}</small> {finding.kind==='direction'?(finding.value==='long'?'Buy':'Sell'):finding.value}</button>)}</div>
     </>}
+    {!!findings?.some(finding=>finding.kind==='visible_level')&&<details>
+      <summary>Other chart levels</summary>
+      <div className="pj-vision-tags">{findings.filter(finding=>finding.kind==='visible_level').map(finding=>
+        <button type="button" key={finding.value} onClick={()=>setHighlight(finding)}>{finding.value}</button>)}</div>
+    </details>}
     {findings?.length===0&&<p>No readable trade labels found. Try a tighter crop of the setup.</p>}
     {picked&&<p role="status">{picked}</p>}
     {url&&!scanning&&<JournalChartProjection levels={chartLevels} prices={prices}
@@ -261,6 +325,7 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
       marking={Boolean(markProjection)} nextLevel={markProjection} tradeDirection={tradeDirection} disabled={disabled}
       onMark={()=>{
         setMarking(false);
+        setReadingLabel(false);
         if(markProjection){setMarkProjection(undefined);setLevels({})}
         else{setLevels({});setMarkProjection('entry')}
       }}
@@ -268,6 +333,22 @@ export default function AuraVisionUploader({vocabulary, cloudEnabled, tradeDirec
         onProjection(projection);
         setPicked('Projection added to available Journal fields.');
       }}/>}
+    {!scanning&&!!vocabulary.confirmations.length&&<details className="pj-vision-vocabulary">
+      <summary>Remember a chart label</summary>
+      <label>Chart text<input value={aliasLabel} maxLength={80} placeholder="e.g. CHOCH"
+        onChange={event=>setAliasLabel(event.target.value)}/></label>
+      <label>Journal confirmation<select aria-label="Journal confirmation" value={aliasConfirmation} onChange={event=>setAliasConfirmation(event.target.value)}>
+        <option value="">Choose a confirmation</option>
+        {vocabulary.confirmations.map(tag=><option key={tag}>{tag}</option>)}
+      </select></label>
+      <button className="pt-btn" type="button" disabled={disabled||aliasBusy||!aliasLabel.trim()||!aliasConfirmation}
+        onClick={()=>void saveAlias()}>Save mapping</button>
+      {Object.entries(aliases).map(([label,tag])=><div className="pj-vision-alias" key={label}>
+        <span>{label} → {tag}</span><button type="button" disabled={disabled||aliasBusy}
+          aria-label={`Remove mapping for ${label}`} onClick={()=>void saveAlias(true,label)}>Remove</button>
+      </div>)}
+    </details>}
+    </div></div>}
     {chart&&onAttach&&!scanning&&<button type="button" className="pt-btn" disabled={disabled}
       onClick={async()=>{if(await onAttach(chart))setChart(null)}}>Save entry &amp; attach chart</button>}
   </section>;

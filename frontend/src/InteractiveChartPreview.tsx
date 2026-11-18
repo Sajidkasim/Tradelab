@@ -33,7 +33,7 @@ export default function InteractiveChartPreview({url, findings, highlight, disab
         onMark(event.detail?{x:(event.clientX-bounds.left)/bounds.width,y:(event.clientY-bounds.top)/bounds.height}:{x:.5,y:.5});
       }}/>}
     {findings.filter(finding => ['confirmation', 'annotation', 'key_level', 'visible_level'].includes(finding.kind) &&
-      (finding === highlight || finding.kind === 'confirmation' || finding.kind === 'annotation')).map((finding, index) => {
+      (finding === highlight || finding.kind === 'confirmation')).map((finding, index) => {
       const {x, y, width, height} = finding.box;
       const canPick = finding.kind === 'annotation' || finding.kind === 'confirmation';
       const style = {left: `${x*100}%`, top: `${y*100}%`, width: `${width*100}%`, height: `${height*100}%`};

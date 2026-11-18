@@ -1,3 +1,4 @@
+import {realisedR} from './journalProjection';
 import AuraVisionUploader from './AuraVisionUploader';
 import {AccountSelector,tradeAccountIds} from './JournalReview';
 import CustomTradeFields from "./CustomTradeFields";
@@ -57,6 +58,7 @@ export function JournalScreenshots({images,allImages,day,busy,onUpload,onRemove,
 
 function TradeMetrics({trade}){
   const setupValue=value=>value&&value!=='Not recorded'?value:'—';
+  const realised=realisedR(trade.net_pnl,trade.risk_amount);
   const metrics=[
     ['Key level',setupValue(trade.level)],
     ['Level timeframe',setupValue(trade.timeframe)],
@@ -64,8 +66,9 @@ function TradeMetrics({trade}){
     ...(trade.planned_rr==null?[]:[['Planned R:R',`1:${Number(trade.planned_rr).toFixed(2)}`]]),
     ['Original risk',money(trade.risk_amount).replace(/^\+/, '')],
     ['Net P&L',money(trade.net_pnl)],
+    ...(realised==null?[]:[['Realised R',`${realised>0?'+':''}${realised.toFixed(2)}R`]]),
   ];
-  return <dl className={`pj-trade-metrics${trade.planned_rr==null?'':' has-projection'}`}>{metrics.map(([label,value])=><div key={label}>
+  return <dl className={`pj-trade-metrics${metrics.length===5?'':' has-projection'}`}>{metrics.map(([label,value])=><div key={label}>
     <dt>{label}</dt><dd>{value}</dd>
   </div>)}</dl>;
 }
@@ -89,7 +92,7 @@ export default function JournalTradeCards({entry,meta,palette,accounts,accountFi
         {!trade.lab_trade_id&&<AuraVisionUploader key={`${entry.day}:${trade.id}`}
           vocabulary={{markets, confirmations:meta?.confirmations||[],levels:meta?.playbook?.levels||[],
             entryTimeframes:meta?.entry_timeframes||[],levelTimeframes:meta?.level_timeframes||[]}}
-          cloudEnabled={Boolean(visionCloudEnabled)} tradeDirection={trade.direction} disabled={busy}
+          cloudEnabled={Boolean(visionCloudEnabled)} tradeDirection={trade.direction} savedRR={trade.planned_rr} realised={realisedR(trade.net_pnl,trade.risk_amount)} disabled={busy}
           focusedConfirmation={visionFocus?.key===evidenceKey?visionFocus.value:undefined}
           onFindings={findings=>setVisionEvidence({key:evidenceKey,values:findings.filter(item=>item.kind==='confirmation').map(item=>item.value)})}
           onDraft={findings=>onVision(trade.id,findings)} onProjection={value=>onProjection(trade.id,value)}
