@@ -76,5 +76,7 @@
 .bullpen-browse a{color:var(--tl-ink);text-decoration:underline;text-underline-offset:3px}
 .bullpen-room.is-minimised .bullpen-browse{font-size:10px;gap:9px;padding:2px 3px}
 .bullpen-room.is-minimised .bullpen-browse>span{display:none}
-.bullpen-android{flex-basis:100%;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bullpen-android{flex-basis:100%}
+.bullpen-android summary{cursor:pointer}
+.bullpen-android-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
 .bullpen-android p{flex-basis:100%}

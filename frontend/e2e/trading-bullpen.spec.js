@@ -1,6 +1,7 @@
 import {expect,test} from '@playwright/test';
 
-test('private Bullpen joins, shares presence and chat, and disposes the video on leave',async({page},info)=>{
+for (const desktopMode of [false,true]) {
+test(`private Bullpen works with ${desktopMode?'desktop-site tablet':'Android'} browser settings`,async({page},info)=>{
   const token='e30.eyJleHAiOjQxMDI0NDQ4MDB9.fake';
   await page.route('**/api/session',route=>route.fulfill({json:{
     authenticated:true,auth_mode:'google',csrf:'test-csrf',
@@ -62,16 +63,20 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
       if(event==='broadcast')reply('broadcast',payload);
     });
   });
-  await page.addInitScript(()=>Object.defineProperty(navigator,'userAgent',{get:()=> 'Android test browser'}));
+  await page.addInitScript(desktop=>{
+    Object.defineProperty(navigator,'userAgent',{get:()=>desktop?'Mozilla/5.0 (X11; Linux x86_64) Chrome/130':'Android test browser'});
+    Object.defineProperty(navigator,'userAgentData',{get:()=>undefined});
+  },desktopMode);
   await page.goto('http://127.0.0.1:8119/learn');
-  await expect(page.getByRole('link',{name:'Install plugin',exact:true})).toBeVisible();
+  if(desktopMode) await page.getByText('Android screen sharing',{exact:true}).click();
+  await expect(page.getByRole('link',{name:'Install Jitsi Meet',exact:true})).toHaveAttribute('href','https://play.google.com/store/apps/details?id=org.jitsi.meet');
   await page.getByRole('button',{name:'Prepare screen sharing'}).click();
-  await expect(page.getByRole('link',{name:'Open plugin for screen share'})).toHaveAttribute('href',/^intent:\/\/8x8\.vc\/vpaas-magic-cookie-test\/PrimusLab-Bullpen-Live-synthetic#jwt=test-meeting-token#Intent;scheme=org\.jitsi\.meet;package=org\.jitsi\.meet;/);
+  await expect(page.getByRole('link',{name:'Open Jitsi Meet'})).toHaveAttribute('href',/^intent:\/\/8x8\.vc\/vpaas-magic-cookie-test\/PrimusLab-Bullpen-Live-synthetic#jwt=test-meeting-token#Intent;scheme=org\.jitsi\.meet;package=org\.jitsi\.meet;/);
   await expect(page.getByTitle('Test video room')).toHaveCount(0);
   await page.getByRole('button',{name:'Join Live Trading Floor'}).click();
   await expect(page.getByTitle('Test video room')).toBeVisible();
   expect(await page.evaluate(()=>window.testAudioConfig)).toMatchObject({enableOpusRed:true,enableNoAudioDetection:true,startWithAudioMuted:true});
-  await expect(page.getByText('Your phone may pause the microphone',{exact:false})).toBeVisible();
+  if(!desktopMode) await expect(page.getByText('Your phone may pause the microphone',{exact:false})).toBeVisible();
   expect(await page.evaluate(()=>window.testRoom)).toBe('vpaas-magic-cookie-test/PrimusLab-Bullpen-Live-synthetic');
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toBeVisible();
   const divider=page.getByRole('separator',{name:'Resize video and sidebar'});
@@ -108,3 +113,4 @@ test('private Bullpen joins, shares presence and chat, and disposes the video on
   expect(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented})).toBe(false);
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toHaveCount(0);
 });
+}
