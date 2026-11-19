@@ -63,3 +63,25 @@ def test_lab_reviews_require_five_distinct_trades_in_one_session(draft):
     for trade_id in [1, 2, 3, 4]:
         compound_edge.lab_review(db, trade_id, False, True, later)
     assert compound_edge.summary(db, later)['pillars'] == [0, 0, 15]
+
+
+def test_daily_habits_persist_reset_and_appear_in_private_aura(draft, monkeypatch):
+    client, _, state = draft
+    login(client, state)
+    day = date(2026, 11, 10)
+    monkeypatch.setattr(compound_edge, 'today', lambda *args: day)
+    habit = {'id': 'a' * 32, 'label': 'Review tomorrow’s plan'}
+    body = {'day': day.isoformat(), 'items': [habit], 'checklist': [habit['id']]}
+    response = client.put('/api/mindset/habits', json=body)
+    assert response.status_code == 200, response.text
+    assert client.get('/api/mindset/habits').json() == body
+    assert client.get('/api/compound-edge').json()['habits'] == {'completed': 1, 'total': 1}
+
+    day += timedelta(days=1)
+    assert client.put('/api/mindset/habits', json=body).status_code == 409
+    assert client.get('/api/mindset/habits').json() == {**body, 'day': day.isoformat(), 'checklist': []}
+    assert client.get('/api/compound-edge').json()['habits'] == {'completed': 0, 'total': 1}
+
+    client.cookies.clear()
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert client.get('/api/mindset/habits').json()['items'] == []

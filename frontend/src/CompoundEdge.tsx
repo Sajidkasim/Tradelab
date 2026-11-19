@@ -16,6 +16,7 @@ type HabitSummary = {
   longest_streak: number;
   days_kept: number;
   rest_days?: number[];
+  habits?: { completed: number; total: number };
 };
 const actions: readonly (readonly [TaskKey, string, string, string][])[] = [
   [["checklist", "Pre-session checklist", "Open checklist", "#prep-checklist"],
@@ -48,11 +49,13 @@ export function useHabitSummary() {
     refresh();
     const timer = setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
+    window.addEventListener("primus:habits-saved", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       controller.abort();
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("primus:habits-saved", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
@@ -227,6 +230,13 @@ function EdgeDrawer({ data, onSaved, onClose, onJump }: {
           <div><dt>Days kept this year</dt><dd>{data.days_kept}</dd></div>
         </dl>
         <PillarCards data={data} onJump={onJump} />
+        <section className="ce-panel ce-action" aria-label="Daily habits">
+          <div>
+            <h3>Daily habits</h3>
+            <p>{data.habits?.total ? `${data.habits.completed} of ${data.habits.total} complete today` : 'Add habits to start tracking.'}</p>
+            <button className="pt-btn" type="button" onClick={()=>onJump('#daily-habits')}>Open habit tracker</button>
+          </div>
+        </section>
         <YearlyCompoundGrid days={data.days} />
         <ConsistencyCurve days={data.days} />
         {data.rest_days && <RestDaySettings key={data.rest_days.join(",")} days={data.rest_days} onSaved={onSaved} />}

@@ -3,14 +3,16 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import journal_preferences
+from .schemas import StrictModel
 
 START = 'primus_compound_edge_start'
 PREFIX = 'primus_compound_edge_day:'
 REST_DAYS = 'primus_compound_edge_rest_days'
+HABITS = 'primus_daily_habits_v1'
 # NYSE full closures: https://www.nyse.com/trade/hours-calendars
 HOLIDAYS = frozenset({
     '2026-01-01', '2026-01-19', '2026-02-16', '2026-04-03', '2026-05-25',
@@ -94,6 +96,14 @@ def score(state):
     return tasks, pillars, sum(pillars)
 
 
+def daily_habits(db, day):
+    stored = db.get_setting(HABITS, {})
+    items = stored.get('items', [])
+    checked = set(stored.get('days', {}).get(day, []))
+    return {'day': day, 'items': items,
+            'checklist': [item['id'] for item in items if item['id'] in checked]}
+
+
 def summary(db, now=None, joined_at=None):
     day = today(db, now)
     recorded_start = date.fromisoformat(db.get_setting(START) or day.isoformat())
@@ -121,7 +131,9 @@ def summary(db, now=None, joined_at=None):
                     current = 0
         if offset >= (day - start).days - 364:
             rows.append({'date': key, 'pillars': pillars, 'score': total, 'off': off})
-    return {'today': day.isoformat(), 'days': rows, 'tasks': tasks, 'rest_days': rest_days,
+    habits = daily_habits(db, day.isoformat())
+    return {'today': day.isoformat(), 'days': rows,
+            'habits': {'completed': len(habits['checklist']), 'total': len(habits['items'])}, 'tasks': tasks, 'rest_days': rest_days,
             'pillars': pillars, 'score': total, 'current_streak': current,
             'longest_streak': longest, 'days_kept': kept}
 
@@ -131,12 +143,53 @@ class RestDays(BaseModel):
     days: list[Annotated[int, Field(strict=True, ge=1, le=7)]] = Field(max_length=7)
 
 
+HabitId = Annotated[str, Field(pattern=r'^[a-f0-9]{32}$')]
+
+
+class HabitItem(StrictModel):
+    id: HabitId
+    label: str = Field(min_length=1, max_length=120)
+
+
+class HabitUpdate(StrictModel):
+    day: date
+    items: list[HabitItem] = Field(max_length=40)
+    checklist: list[HabitId] = Field(max_length=40)
+
+
 def mount(app, workspace):
     @app.get('/api/compound-edge')
     def read(member=Depends(workspace)):
         workspaces = app.state.workspaces
         with workspaces.workspace_lock(member['key']):
             return summary(workspaces.database(member['key']), joined_at=member.get('joined_at'))
+
+    @app.get('/api/mindset/habits')
+    def read_habits(member=Depends(workspace)):
+        db = app.state.workspaces.database(member['key'])
+        return daily_habits(db, today(db).isoformat())
+
+    @app.put('/api/mindset/habits')
+    def save_habits(payload: HabitUpdate, member=Depends(workspace)):
+        workspaces = app.state.workspaces
+        with workspaces.workspace_lock(member['key']):
+            db = workspaces.database(member['key'])
+            current = today(db)
+            if payload.day != current:
+                raise HTTPException(409, 'A new day has started. Reload your habits before saving.')
+            items = [{'id': item.id, 'label': item.label.strip()} for item in payload.items]
+            ids = {item['id'] for item in items}
+            if len(ids) != len(items) or any(not item['label'] for item in items):
+                raise HTTPException(422, 'Give every habit a name and a unique ID.')
+            if not set(payload.checklist) <= ids:
+                raise HTTPException(422, 'Check only habits on your list.')
+            cutoff = (current - timedelta(days=364)).isoformat()
+            stored = db.get_setting(HABITS, {})
+            days = {day: checked for day, checked in stored.get('days', {}).items() if day >= cutoff}
+            days[current.isoformat()] = list(dict.fromkeys(payload.checklist))
+            db.set_setting(HABITS, {'items': items, 'days': days})
+            workspaces.bump(member['key'])
+            return daily_habits(db, current.isoformat())
 
     @app.put('/api/compound-edge/rest-days')
     def save_rest_days(payload: RestDays, member=Depends(workspace)):

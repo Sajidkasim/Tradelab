@@ -28,6 +28,8 @@ async function warmup(page) {
 
 test('private morning prep persists and the warm-up leads to a saved affirmation',async({page},info)=>{
   await page.clock.install();
+  // The browser clock advances in this test while the server clock stays real.
+  await page.route('**/api/mindset/breathwork/finish', route => route.fulfill({json:{completed:true}}));
   await page.route('**/api/mindset/check-in/reflect', route => {
     const {step, reflection, history} = route.request().postDataJSON();
     expect(step).toBe('question');
@@ -66,7 +68,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
     await expect(progress).toHaveAttribute('aria-valuenow',String(index + 1));
   }
   await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
-  await expect(page.locator('.mw-check-finish')).toHaveClass(/is-celebrating/);
+  await expect(page.getByRole('region', {name:'Pre-Session Checklist'}).locator('.mw-check-finish')).toHaveClass(/is-celebrating/);
   const lossLimit = page.getByRole('checkbox',{name:'Give to charity',exact:true});
   await lossLimit.uncheck();
   await expect(progress).toHaveAttribute('aria-valuetext','2 of 3 complete');
@@ -77,7 +79,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(page.getByText('Recent check-ins',{exact:true})).toHaveCount(0);
   await expect(page.getByText('Session Ready',{exact:true})).toBeVisible();
   await expect(progress).toHaveAttribute('aria-valuetext','3 of 3 complete');
-  await expect(page.locator('.mw-check-finish')).not.toHaveClass(/is-celebrating/);
+  await expect(page.getByRole('region', {name:'Pre-Session Checklist'}).locator('.mw-check-finish')).not.toHaveClass(/is-celebrating/);
   await expect(page.getByText('Take a steady breath',{exact:true})).toHaveCount(0);
   await page.screenshot({path:info.outputPath('mindset-warmup-desktop.png')});
   await expect(page.getByRole('heading',{name:'Pre-Market Affirmation',exact:true})).toHaveCount(0);
@@ -113,6 +115,8 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
   await page.setViewportSize({width:390,height:844});
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.clock.install();
+  // The browser clock advances in this test while the server clock stays real.
+  await page.route('**/api/mindset/breathwork/finish', route => route.fulfill({json:{completed:true}}));
   await stubDrill(page, [{round:0,cells:memoryRound.cells}]);
   await page.goto(`${origin}/mindset`);
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();

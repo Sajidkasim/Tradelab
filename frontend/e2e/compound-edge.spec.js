@@ -36,3 +36,21 @@ test("Aura shows private routine progress in the Mindset", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Pre-Session Checklist" })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test("daily habits save and appear in Aura", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8119/mindset");
+  const tracker = page.getByRole("region", { name: "Daily Habit Tracker" });
+  await tracker.getByRole("button", { name: "Edit habits" }).click();
+  await tracker.getByRole("button", { name: "Add habit" }).click();
+  await tracker.getByRole("textbox", { name: "Habit 1", exact: true }).fill("Review tomorrow’s plan");
+  await tracker.getByRole("button", { name: "Done editing" }).click();
+  await tracker.getByRole("checkbox", { name: "Review tomorrow’s plan" }).check();
+  await expect(tracker.getByText("Habits saved")).toBeVisible();
+  await page.getByRole("button", { name: /Open Aura/ }).click();
+  const aura = page.getByRole("dialog", { name: "Aura" });
+  await expect(aura.getByText("1 of 1 complete today")).toBeVisible();
+  await aura.getByRole("button", { name: "Open habit tracker" }).click();
+  await expect(tracker.getByRole("heading")).toBeFocused();
+  await page.reload();
+  await expect(tracker.getByRole("checkbox", { name: "Review tomorrow’s plan" })).toBeChecked();
+});

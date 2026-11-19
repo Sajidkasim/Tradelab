@@ -46,7 +46,9 @@ function WarmUpHero({state, highScore, onStart}) {
   </section>;
 }
 
-function MorningCards({state, onEdit, onSave, status}) {
+function RoutineChecklist({state, onEdit, onSave, status, habits=false, disabled=false}) {
+  const heading = habits ? 'daily-habits' : 'prep-checklist';
+  const name = habits ? 'habit' : 'checklist item';
   const [editing, setEditing] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const items = state.items;
@@ -62,44 +64,88 @@ function MorningCards({state, onEdit, onSave, status}) {
     setCelebrate(false);
     onEdit({items:items.filter(item => item.id !== id), checklist:state.checklist.filter(value => value !== id)});
   }
-  return <div className="mw-prep-grid">
-      <CompoundEdge/>
-      <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby="prep-checklist">
-        <h2 id="prep-checklist">Pre-Session Checklist</h2>
-        <PrepProgress checked={checked} total={items.length}/>
+  return <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby={heading}>
+        <h2 id={heading}>{habits ? 'Daily Habit Tracker' : 'Pre-Session Checklist'}</h2>
+        <PrepProgress checked={checked} total={items.length} label={habits ? "Habit progress" : undefined}
+          accessibleLabel={habits ? "Daily habit progress" : undefined}/>
         <div className="mw-checklist">
           {items.map(({id, label}, index) => editing ? <div className="mw-check-edit" key={id}>
-            <input aria-label={`Checklist item ${index + 1}`} maxLength={120} required value={label}
+            <input aria-label={`${habits ? "Habit" : "Checklist item"} ${index + 1}`} maxLength={120} required value={label}
               onChange={e => onEdit({items:items.map(item => item.id === id ? {...item, label:e.target.value} : item)})}/>
-            <Button type="button" aria-label={`Remove checklist item ${index + 1}`} onClick={() => remove(id)}>Remove</Button>
+            <Button type="button" aria-label={`Remove ${name} ${index + 1}`} onClick={() => remove(id)}>Remove</Button>
           </div> : <label key={id}>
-            <input type="checkbox" checked={state.checklist.includes(id)} onChange={e => toggleCheck(id, e.target.checked)}/>
+            <input type="checkbox" disabled={disabled} checked={state.checklist.includes(id)} onChange={e => toggleCheck(id, e.target.checked)}/>
             <strong>{label}</strong>
           </label>)}
         </div>
         <div className="mw-checklist-tools">
-          {editing&&<Button type="button" disabled={items.length>=200} onClick={() => onEdit({items:[...items, {id:crypto.randomUUID().replaceAll('-',''), label:''}]})}>Add checklist item</Button>}
-          <Button type="button" aria-expanded={editing} disabled={editing && !valid} onClick={() => {
+          {editing&&<Button type="button" disabled={items.length>=(habits ? 40 : 200)} onClick={() => onEdit({items:[...items, {id:crypto.randomUUID().replaceAll('-',''), label:''}]})}>{habits ? "Add habit" : "Add checklist item"}</Button>}
+          <Button type="button" aria-expanded={editing} disabled={disabled || (editing && !valid)} onClick={() => {
             setCelebrate(false);
             if (editing) onSave(state);
             setEditing(!editing);
-          }}>{editing ? 'Done editing' : 'Edit checklist'}</Button>
+          }}>{editing ? 'Done editing' : habits ? 'Edit habits' : 'Edit checklist'}</Button>
         </div>
-        {!editing&&!items.length&&<p>Add the checks you want to repeat before each session.</p>}
+        {!editing&&!items.length&&<p>{habits ? 'Add the habits you want to repeat each day.' : 'Add the checks you want to repeat before each session.'}</p>}
         {editing&&!valid&&<p>Give each new item a name before saving.</p>}
         <div role="status">
           {ready&&!editing&&<div className={`mw-check-finish${celebrate ? ' is-celebrating' : ''}`}>
             <span className="mw-check-finish-icon" aria-hidden="true"><Check size={17} strokeWidth={2.5}/></span>
-            <strong>Session Ready</strong>
+            <strong>{habits ? 'All habits complete' : 'Session Ready'}</strong>
           </div>}
         </div>
         <div className="mw-check-save" role="status">
-          {status === 'saving' && 'Saving checklist…'}
-          {status === 'saved' && 'Checklist saved'}
-          {status === 'failed' && !editing && <>Checklist could not be saved. <Button onClick={() => onSave(state)}>Retry</Button></>}
+          {status === 'saving' && (habits ? 'Saving habits…' : 'Saving checklist…')}
+          {status === 'saved' && (habits ? 'Habits saved' : 'Checklist saved')}
+          {status === 'failed' && !editing && !habits && <>Checklist could not be saved. <Button onClick={() => onSave(state)}>Retry</Button></>}
         </div>
-      </section>
-    </div>;
+      </section>;
+}
+
+function HabitTracker() {
+  const [state,setState] = useState(null);
+  const [status,setStatus] = useState('');
+  const [error,setError] = useState('');
+  const [newDay,setNewDay] = useState(false);
+
+  async function load(signal) {
+    setError('');
+    try {
+      setState(await api('/mindset/habits',{signal}));
+      setNewDay(false);
+      setStatus('');
+    } catch (failure) {
+      if (failure.name !== 'AbortError') setError(failure.message);
+    }
+  }
+
+  useEffect(()=>{
+    const controller = new AbortController();
+    load(controller.signal);
+    return ()=>controller.abort();
+  },[]);
+
+  async function save(next) {
+    setState(next);
+    setError('');
+    setStatus('saving');
+    try {
+      setState(await api('/mindset/habits',{method:'PUT',body:next}));
+      setStatus('saved');
+      window.dispatchEvent(new Event('primus:habits-saved'));
+    } catch (failure) {
+      setStatus('failed');
+      setNewDay(failure.status===409);
+      setError(failure.message);
+    }
+  }
+
+  return <div>
+    {state && <RoutineChecklist key={state.day} habits state={state} status={status} disabled={status==='saving'||newDay}
+      onSave={save} onEdit={changes=>setState(current=>({...current,...changes}))}/>}
+    {!state && !error && <p role="status">Loading daily habits…</p>}
+    {error && <Notice error>{error} <Button onClick={()=>!state||newDay?load():save(state)}>{newDay?'Load today’s habits':'Retry'}</Button></Notice>}
+  </div>;
 }
 
 function PrivateWarmUp({pinnedGoal}) {
@@ -183,8 +229,12 @@ function PrivateWarmUp({pinnedGoal}) {
 
   return <>
     <WarmUpHero state={state} highScore={highScore} onStart={setOpenStep}/>
-    {state&&<MorningCards key={state.day} state={state} status={saveStatus} onSave={save}
-      onEdit={changes => setState(current => ({...current, ...changes}))}/>}
+    {state&&<div className="mw-prep-grid">
+      <CompoundEdge/>
+      <RoutineChecklist key={state.day} state={state} status={saveStatus} onSave={save}
+        onEdit={changes => setState(current => ({...current, ...changes}))}/>
+    </div>}
+    <HabitTracker/>
     {!state&&!error&&<p role="status">Loading morning prep…</p>}
     {error&&<Notice error>{error}{!state&&<Button onClick={load}>Retry morning prep</Button>}</Notice>}
     {openStep!==null&&state&&<Suspense fallback={<p role="status">Opening warm-up…</p>}>
