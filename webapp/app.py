@@ -282,7 +282,7 @@ def create_app(config: Settings | None = None):
                 'chart_vision_cloud_enabled': chart_vision.enabled()}
 
     def google_return_paths():
-        paths = ('/lab', '/journal', '/learn', '/market-lab', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
+        paths = ('/lab', '/journal', '/learn', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
         if config.local or config.replay_enabled:paths=(*paths,'/backtesting')
         return paths
 
@@ -1100,7 +1100,7 @@ def create_app(config: Settings | None = None):
                 return RedirectResponse(config.lab_path + ('#trades' if path in ('trades', 'journal') else '' if path == 'overview' else '/' + path), status_code=307)
             if path == 'lab/':
                 return RedirectResponse('/lab', status_code=307)
-            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'signin', 'journal', 'journal/', 'learn', 'market-lab', 'mindset', 'matrix') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
+            if path not in ('lab', 'lab/trades', 'lab/journal', 'lab/overview', 'lab/import', 'lab/tools') and not (website and (path in ('', 'signin', 'journal', 'journal/', 'learn', 'mindset', 'matrix') or ((config.local or config.replay_enabled) and path == 'backtesting'))):
                 raise HTTPException(404)
         index = config.assets / "index.html"
         if not index.is_file():

@@ -1,4 +1,4 @@
-# Learn, Market Lab and Mindset
+# Learn and Mindset
 
 Local implementation, 3 November 2026. Uses React/Vite, the existing FastAPI
 service, the existing settings table and existing private image storage. No new
@@ -7,8 +7,8 @@ subscription, database, service or backtesting engine.
 ## Navigation and content
 
 Website mode (`PRIMUS_SITE_ENABLED=1`, already used by Home/Journal, or the local
-site preview) exposes `/learn`, `/market-lab` and `/mindset`. The shared header
-links all three; routes are lazy-loaded and use the existing light/dark palette.
+site preview) exposes `/learn` and `/mindset`. The shared header
+links both; routes are lazy-loaded and use the existing light/dark palette.
 Google sign-in return paths include the new pages.
 
 Learn and Mindset resources are public to read. The owner starts with publishing
@@ -28,34 +28,6 @@ is 200 entries, not a fixed category schema.
 
 Storage: shared `primus_resources_v1` and `primus_publishers_v1` settings in the
 owner's existing database. Client data never selects an authorization identity.
-
-## Market Lab
-
-This phase exposes the repository's existing `strategies.example_orb` through
-`core.backtest.run_backtest`; it is labelled as a built-in rule, not a user's
-strategy. No arbitrary Python, ranking or AI execution is accepted. The replay
-engine and order behavior are not modified.
-
-Choose NQ/ES, available UTC history dates, an interval (1/5/15/30/60 minutes),
-opening range, New York session-start time, target R, capital, contracts and costs.
-The source timestamps stay UTC; copies are converted DST-aware for this rule.
-Opening range must be a multiple of the candle interval. Windows are limited to
-10 calendar days and 16,000 raw candles. One research request runs at a time;
-concurrent requests receive a retry message. Missing days, duplicate timestamps
-and contract-roll crossings fail without storing results. Closed dates are skipped.
-
-Reads use bounded indexed local day queries, or the existing private R2 execution
-chunks. They do not decode downloaded archives or read all history per request.
-The owner's recorded written permission for users to view the purchased history
-is in REPLAY_DEPLOYMENT.md. No new candle-download endpoint is exposed.
-
-Metrics come directly from the existing core, with trade count, tested dates,
-actual candle coverage, contract, costs and rule settings shown. Only the last
-30 summaries are retained per user in `primus_market_runs_v1`. Nothing is inserted
-into Journal or Strategy Lab trade records. Sparse/no-trade results are explicit.
-No user results are shared or ranked. The initial rule uses intraday source bars,
-next-open fills, conservative stop-first ambiguity, and end-of-data liquidation,
-as documented in the existing engine. It is not tick-accurate execution.
 
 ## Mindset privacy and storage
 
@@ -87,12 +59,11 @@ or adapters to the separate modules rather than modifying financial core formula
 ## Changed files
 
 - `frontend/src/main.jsx`, `SiteExperience.jsx`: routes/navigation/theme context.
-- `LearnPage.jsx`, `MindsetPage.jsx`, `MarketLabPage.jsx`: page entry points.
+- `LearnPage.jsx`, `MindsetPage.jsx`: page entry points.
 - `WorkspacePages.jsx`, `ResourceLibrary.jsx`, `VisionBoard.jsx`,
   `BreathingExercise.jsx`, `workspace-pages.css`: shared presentation and workflows.
 - `webapp/app.py`, `learning.py`: routes, schemas, role checks and private board.
-- `webapp/replay_sessions.py`, `market_lab.py`: bounded source adapter and core run.
-- Tests: `tests/test_learning_pages.py`, `tests/test_market_lab.py`,
+- Tests: `tests/test_learning_pages.py`,
   `frontend/src/breathingExercise.test.js`, `frontend/e2e/workspace-pages.spec.js`.
 
 ## Verification
@@ -126,7 +97,6 @@ Rendering is browser-only, coalesced to one requested animation frame, with a
 capped pixel ratio and bounded mesh. It has no idle animation loop, external model
 asset, new dependency, AI call or storage service. Effects and resize observers
 are cleaned up on unmount. Existing theme and reduced-motion support remain.
-The shared navigation labels Market Lab (Beta), matching Backtesting (Beta).
 
 Checks: 71 frontend unit tests passed, seven workspace browser flows passed, and
 production build / git diff checks passed. Browser coverage includes pointer and
@@ -142,7 +112,7 @@ GET/PUT routes validate guide IDs and remain workspace/CSRF scoped. Anonymous
 visits can read guides but do not persist progress. Guide links carry a public
 lesson ID to practice and Journal; a small trail links Read / Practise / Reflect.
 It does not create trades or Journal entries automatically. Quick glossary is
-available through the shared header, and research metric labels open definitions.
+available through the shared header.
 
 Mindset has three situation cards (missed move, consecutive losses, breaking a
 plan), original reflection steps, and links to comfortable breathing/Journal.

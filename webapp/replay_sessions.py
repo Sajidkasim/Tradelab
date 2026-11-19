@@ -269,7 +269,7 @@ def mount(app,config,workspace):
         digest=manifest['days'].get(day)
         if not digest:raise HTTPException(422,'This date is not available on the server.')
         return hosted_bundle(digest),digest
-    def research_days():
+    def drill_days():
         if not config.local:return sorted(available_manifest()['days'])
         index=ROOT/'replay-index.db'
         if index.is_file():
@@ -280,7 +280,7 @@ def mount(app,config,workspace):
         if sample.is_file():available.append(json.loads(sample.read_text())['day'])
         available.extend(p.stem for p in (ROOT/'replay-days').glob('*.json'))
         return sorted(set(available))
-    def research_day(day,root):
+    def drill_day(day,root):
         index=ROOT/'replay-index.db'
         if config.local and index.is_file():
             from .replay_index import index_connection
@@ -288,25 +288,23 @@ def mount(app,config,workspace):
                 contract=con.execute('SELECT symbol FROM active_contracts WHERE day=? AND root=?',(day,root)).fetchone()
                 if not contract:return None
                 rows=con.execute('SELECT time,open,high,low,close,volume FROM bars WHERE day=? AND symbol=? ORDER BY time LIMIT 2001',(day,contract[0])).fetchall()
-                if len(rows)>2000:raise ValueError('Daily history exceeds the research limit.')
+                if len(rows)>2000:raise ValueError('Daily history exceeds the drill limit.')
                 return {'contract':contract[0],'bars':[dict(zip(('time','open','high','low','close','volume'),r)) for r in rows]}
         data=(archive().execution_history(day)[0] if archive() else history(day)[0])
         return data['markets'].get(root)
     @app.get("/api/learn/replay-drill")
     def replay_drill(member=Depends(workspace)):
         local_only()
-        days = research_days()
+        days = drill_days()
         if not days:
             raise HTTPException(404, "No replay data is available.")
         # Choose a completed date so the drill has candles to step through.
         day = days[-2] if len(days) > 1 else days[-1]
-        market = research_day(day, "NQ")
+        market = drill_day(day, "NQ")
         if not market or len(market["bars"]) < 24:
             raise HTTPException(404, "No NQ drill is available for this date.")
         return {"day": day, "contract": market["contract"], "bars": market["bars"][:120]}
 
-    from . import market_lab
-    market_lab.mount(app,config,workspace,research_days,research_day)
     def get_record(db,sid):
         value=db.get_setting(_key(sid))
         if not value or value.get('deleted'):raise HTTPException(404,'Session not found.')

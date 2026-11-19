@@ -16,12 +16,11 @@ test('Learn starter path and glossary work alongside the existing resource libra
  await page.getByRole('button',{name:/02 Define the risk/}).click();await expect(page.getByRole('heading',{name:'Know the size before the result.',exact:true})).toBeVisible();
  await page.getByRole('searchbox',{name:'Search glossary',exact:true}).fill('reward');await page.locator('.glossary-grid summary').filter({hasText:'Reward-to-risk / target RR'}).click();await expect(page.locator('.glossary-grid details[open]')).toContainText('not a recorded +3R result');
  await page.getByRole('searchbox',{name:'Search glossary',exact:true}).fill('qwerty-none');await expect(page.getByText('No terms match. Try a shorter word or clear your search.',{exact:true})).toBeVisible();await page.getByRole('searchbox',{name:'Search glossary',exact:true}).fill('');
- await expect(page.getByRole('navigation').getByRole('link',{name:'Market Lab (Beta)',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'Learning resources',exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Learning resources',exact:true})).toBeVisible();
  await page.screenshot({path:info.outputPath('learn-desktop.png'),fullPage:true});
 });
 test('new stories fit phone layouts, dark mode and reduced motion',async({page},info)=>{
  await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});await page.goto(origin+'/mindset');await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
  await page.getByRole('button',{name:'Amygdala',exact:true}).click();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('mindset-phone-dark.png'),fullPage:true});
- await page.goto(origin+'/market-lab');await expect(page.getByRole('heading',{name:'Market Lab',exact:true})).toBeVisible();
  await page.goto(origin+'/learn');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('learn-phone-dark.png'),fullPage:true});
 });

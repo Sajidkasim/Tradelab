@@ -1,9 +1,7 @@
 # Continuing PrimusLab with ChatGPT / Codex
 
-You'll want to change things. This file makes that safe: the architecture in one page, the rules
-a change must respect, and prompts you can paste. Use **Codex with GPT-6 Astra** pointed at the
-repo folder for anything that touches more than one file; plain chat with **GPT-5.6 Sol** is fine
-for a single page.
+This file describes the architecture, project constraints, and workflows for making changes.
+The current session uses **GPT-6.2 Sol** in Codex with the repository open.
 
 ## React rebuild alongside Streamlit
 
@@ -28,6 +26,19 @@ The owner retains the original tables; each other verified identity has separate
 storage. Every API read/write, import token, cache and backup is workspace-scoped.
 There are no team selectors or sharing routes. Password mode remains an explicit
 single-owner rollback, disabled while Google mode is active. Never print secrets.
+
+## Journal updates — 18 November 2026
+
+- Saved journal entries can be edited from **Entries this month**. Selecting a
+  date updates the URL so refreshing reopens the same entry. Strategy Lab owns
+  the trade results for linked trades, and journal notes are editable in the Journal.
+- **Journal → Accounts** has Active and Blown filters. Blown accounts retain their
+  journal history and are hidden when assigning an account to a new journal trade.
+- Chart analysis can fill editable planned R:R, a chart-based outcome when the
+  first stop or target touch is clear, and multiple nearby confirmations. Key-level
+  matching uses saved vocabulary and recognised label formats, including inline
+  timeframes such as `4hr`. Automatic classification of arbitrary new labels
+  attached to horizontal chart lines is still a proposed improvement.
 
 ## Owner-approved Strategy Lab draft (27 October 2026)
 
@@ -1102,15 +1113,11 @@ response-only derived values, never additional stored financial records.
 Validation: 360 pytest passed (5 existing warnings), 64 frontend unit checks,
 4 Journal browser flows and production build passed. Local preview: port 8132.
 
-## Learn / Market Lab / Mindset foundation — 3 November 2026
+## Learn and Mindset foundation — 3 November 2026
 
-Local only, no commit or deployment. See docs/NEW_WORKSPACES.md for page use,
-publishing roles, privacy, bounded ORB tests, licence source and changed files.
-Resources are public-read, owner/approved-publisher write. Vision boards and
-research summaries use existing per-user settings, with no cross-user reads.
-Market Lab calls core.backtest and the existing example_orb strategy; no formulas,
-replay fills or broker behavior change. Scans cap at ten calendar days / 16,000
-raw bars, reject rolls and serialize execution. Candle downloads are not exposed.
+See docs/NEW_WORKSPACES.md for page use, publishing roles and privacy.
+Resources are public-read, owner/approved-publisher write. Vision boards use
+existing per-user settings.
 
 ## Bounded replay and refresh-synced playback — 8 November 2026
 

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from urllib.parse import urlsplit, parse_qs
 import re
-from typing import Literal
+from typing import Literal, get_args
 from pydantic import Field, field_validator, model_validator
 from fastapi import Depends, HTTPException, UploadFile, File
 from fastapi.responses import Response
@@ -49,7 +49,7 @@ class Resource(StrictModel):
     content:str=Field(default='',max_length=20000)
     tags:list[str]=Field(default_factory=list,max_length=12)
     exercise:str=Field(default='',max_length=1000)
-    feature:Literal['','/backtesting','/lab','/journal','/market-lab','/mindset']=''
+    feature:Literal['','/backtesting','/lab','/journal','/mindset']=''
     @field_validator('title','category')
     @classmethod
     def required(cls,v):
@@ -92,7 +92,10 @@ def mount(app,config,workspace):
     def editor(member):
         if not can_publish(member):raise HTTPException(403,'Only approved Primus publishers can change resources.')
     def personal(member):return app.state.workspaces.database(member['key'])
-    def resources():return root().get_setting(CONTENT,[])
+    def resources():
+        rows = root().get_setting(CONTENT, [])
+        supported = get_args(Resource.model_fields['feature'].annotation)
+        return [row if row.get('feature', '') in supported else {**row, 'feature': ''} for row in rows]
     def find(rows,item_id):
         item=next((r for r in rows if r['id']==item_id),None)
         if not item:raise HTTPException(404,'This item is no longer available.')

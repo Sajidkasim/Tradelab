@@ -33,7 +33,7 @@ class ErrorBoundary extends React.Component {
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
     <BullpenProvider><Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
-      {sitePreview() && ['/', '/signin', '/journal', '/journal/', '/backtesting', '/learn', '/market-lab', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
+      {sitePreview() && ['/', '/signin', '/journal', '/journal/', '/backtesting', '/learn', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
     </Suspense></BullpenProvider>
   </ErrorBoundary>,
 );

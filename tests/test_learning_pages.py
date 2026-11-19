@@ -77,13 +77,13 @@ def test_private_vision_board_notes_images_and_deletion(draft):
 
 def test_new_site_routes_and_signin_returns(draft):
     client,app,state=draft
-    for page in ('/learn','/market-lab','/mindset','/matrix'):
+    for page in ('/learn','/mindset','/matrix'):
         result=client.get(page)
         assert result.status_code==200
         assert 'primus-site-preview' in result.text
     from tests.test_google_access import csrf
     csrf(client)
-    for page in ('/learn','/market-lab','/mindset','/matrix'):
+    for page in ('/learn','/mindset','/matrix'):
         assert client.post('/api/login/google?return_to='+page).status_code==200
 
 

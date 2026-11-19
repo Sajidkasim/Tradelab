@@ -36,8 +36,8 @@ export const STARTER_GUIDES = [
     body: "Specify the setup, entry trigger, session, exits and position size before testing. Use only information available at each decision time. Include costs, keep market-closed gaps and record the tested period. Minute candles cannot tell which level was reached first when both a stop and target lie inside one candle. Keep a separate period for checking rules after development.",
     exercise:
       "Describe one entry rule so another person could apply it without asking what you meant. Keep that wording with the test.",
-    link: "/market-lab",
-    action: "Open Market Lab (Beta)",
+    link: "/backtesting",
+    action: "Open Backtesting",
   },
   {
     id: "review",

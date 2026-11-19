@@ -49,7 +49,6 @@ with TestClient(app, base_url=config.public_url, client=('127.0.0.1', 12345)) as
     assert client.get('/health').status_code == 200
     assert client.get('/ready').json() == {'status': 'ready'}
     assert client.get('/api/resources?section=learn').status_code == 200
-    assert client.get('/api/market-lab').status_code == 200
     assert client.get('/api/vision-board').status_code == 200
 print('Packaged backend startup and new API routes passed')
 """

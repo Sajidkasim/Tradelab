@@ -28,15 +28,9 @@ test('Mindset private goals persist with uploaded images',async({page})=>{
  page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Remove',exact:true}).click();
  await expect(page.getByRole('button',{name:'Add your first goal'})).toBeVisible();
 });
-test('Market Lab uses prepared history, validates bounded runs and saves results',async({page})=>{
- await page.goto(origin+'/market-lab');await expect(page.getByRole('heading',{name:'Market Lab',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Run research test',exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Run research test',exact:true}).click();await expect(page.getByRole('region',{name:'Research results',exact:true})).toBeVisible({timeout:15000});await expect(page.getByRole('region',{name:'Research results',exact:true})).toContainText('prepared trading dates');await page.reload();await expect(page.locator('.wp-run-list button')).toHaveCount(1);
- await page.getByRole('spinbutton',{name:'Opening range (minutes)',exact:true}).fill('16');await page.getByRole('button',{name:'Run research test',exact:true}).click();await expect(page.getByRole('alert')).toBeVisible();
-});
 test('new navigation and pages remain readable on a phone and in dark mode',async({page},info)=>{
  await page.setViewportSize({width:390,height:844});await page.goto(origin+'/learn');await page.getByRole('button',{name:'Open navigation',exact:true}).click();const nav=page.getByRole('navigation',{name:'Primus navigation'});await expect(nav.getByRole('link',{name:/^Learn(?: Beta)?$/})).toHaveAttribute('aria-current','page');await nav.getByRole('link',{name:'Mindset',exact:true}).click();await expect(page.getByRole('heading',{name:'Pre-Market Warm-Up',exact:true})).toBeVisible();await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('mindset-phone-dark.png'),fullPage:true});
- await page.goto(origin+'/market-lab');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('market-lab-phone-dark.png'),fullPage:true});
 });
 
 test('Journal, Mindset and Backtesting share light and dark workspace colours', async ({page}) => {
