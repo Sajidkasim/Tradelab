@@ -19,6 +19,7 @@ import ReleaseNotes from "./ReleaseNotes";
 import Results from "./Results";
 import Trades from "./Trades";
 import Import from "./Import";
+import Tools from "./Tools";
 import {WorkspaceEntrance} from "./PrimusSignIn";
 import Backup from "./Backup";
 import LabSettings from "./LabSettings";
@@ -122,9 +123,13 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [message]);
   useEffect(() => {
-    const pop = () => setPage(pageFromLocation());
-    window.addEventListener("popstate", pop);
-    return () => window.removeEventListener("popstate", pop);
+    const sync = () => setPage(pageFromLocation());
+    window.addEventListener("popstate", sync);
+    window.addEventListener("primus:navigate", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("primus:navigate", sync);
+    };
   }, []);
   const journalReady = Boolean(meta);
   useEffect(() => {
@@ -330,7 +335,10 @@ export default function App() {
                   toast={toast}
                 />
               )}
-              {![...journalPages, "import"].includes(page) && (
+              {page === "tools" && (
+                <Tools meta={meta} onResults={() => navigate("results")} />
+              )}
+              {![...journalPages, "import", "tools"].includes(page) && (
                 <div className="card empty">
                   <h1>Page not found</h1>
                   <Button onClick={() => navigate("results")}>

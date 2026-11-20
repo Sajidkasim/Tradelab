@@ -1,61 +1,29 @@
-import React, {lazy, Suspense, useEffect, useState} from 'react';
+import React, {useState} from 'react';
 import {Radio} from 'lucide-react';
 import {WorkspacePage,useIdentity} from './WorkspacePages';
-import {PrimusHeader} from './SiteExperience';
 import LearnFoundations from './LearnFoundations';
 import ResourceLibrary from './ResourceLibrary';
 import {Button, Notice} from './components';
-import {api} from './api';
 import {useBullpen} from './hooks/usePresence';
-import './trading-room.css';
-
-const TradingRoom = lazy(()=>import('./components/TradingRoom'));
 
 export default function LearnPage() {
   const {identity}=useIdentity();
   const bullpen=useBullpen();
-  const [meeting,setMeeting]=useState(null);
   const [androidMeeting,setAndroidMeeting]=useState(null);
   const isAndroid=navigator.userAgentData?.platform==='Android'||/Android/i.test(navigator.userAgent);
 
-  const [minimised,setMinimised]=useState(false);
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState('');
   const access=bullpen?.access;
-  const isRoomActive=Boolean(meeting&&access?.configured);
-
-  useEffect(()=>{
-    if(!isRoomActive)return;
-    const warn=event=>{event.preventDefault();event.returnValue=''};
-    window.addEventListener('beforeunload',warn);
-    return()=>window.removeEventListener('beforeunload',warn);
-  },[isRoomActive]);
+  const isRoomActive=Boolean(bullpen?.isRoomActive);
+  const busy=Boolean(bullpen?.joining);
+  const error=bullpen?.roomError||'';
 
   async function join(native=false){
-    if(isRoomActive){setMinimised(false);return}
-    setMinimised(false);
-    setBusy(true);
-    setError('');
-    try{
-      const reply=await api('/bullpen?join=true');
-      if(!reply?.meeting)throw new Error('The team room is unavailable.');
-      if(native) setAndroidMeeting(reply.meeting);
-      else {setAndroidMeeting(null);setMeeting(reply.meeting)}
-    }catch(failure){setError(failure.message)}
-    finally{setBusy(false)}
+    const next=await bullpen?.joinRoom({native});
+    if(native&&next) setAndroidMeeting(next);
+    else if(!native) setAndroidMeeting(null);
   }
 
-  function leave(){setMeeting(null);setMinimised(false)}
-
-  return <>
-   <div className={`pt-site bullpen-workspace${minimised?' is-minimised':''}`} hidden={!isRoomActive}>
-    <div className="bullpen-room-site-header"><PrimusHeader active="learn"/></div>
-    {isRoomActive&&<Suspense fallback={<p role="status">Opening the Bullpen…</p>}>
-      <TradingRoom meeting={meeting} onLeave={leave} minimised={minimised} onMinimise={()=>setMinimised(true)} onRestore={()=>setMinimised(false)}/>
-    </Suspense>}
-   </div>
-   <div hidden={isRoomActive&&!minimised}>
-   <WorkspacePage active="learn" kicker="THE PRIMUS LIBRARY" title="Learn"
+  return <WorkspacePage active="learn" kicker="THE PRIMUS LIBRARY" title="Learn"
     intro="Take an idea from understanding to practice. Start with the basics, find the words, then explore videos and guides from the Primus team.">
     {access&&<section className="wp-panel bullpen-entry">
       <div><span className="pt-overline">TEAM WORKSPACE</span><h2>Live Trading Bullpen</h2>
@@ -83,6 +51,5 @@ export default function LearnPage() {
       <a href="/backtesting">Practise in Backtesting ↗</a><a href="/lab">Explore your results ↗</a>
       <a href="/journal">Reflect in your Journal ↗</a>
     </section>
-  </WorkspacePage>
-  </div></>;
+  </WorkspacePage>;
 }

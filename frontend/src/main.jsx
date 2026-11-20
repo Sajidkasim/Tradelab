@@ -1,8 +1,9 @@
-import React, {lazy,Suspense} from "react";
+import React, {lazy, Suspense, useEffect, useState} from "react";
 import { createRoot } from "react-dom/client";
 const App=lazy(()=>import("./App"));
 import BullpenProvider from "./components/BullpenProvider";
 import SiteExperience, { sitePreview } from './SiteExperience';
+import { isSitePath, isSpaPath, navigateTo } from "./paths";
 import "./theme.css";
 import "./styles.css";
 import "./responsive.css";
@@ -30,10 +31,53 @@ class ErrorBoundary extends React.Component {
     );
   }
 }
+
+function RootRouter() {
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    const sync = () => setPathname(window.location.pathname);
+    const onClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target?.closest?.("a[href]");
+      if (!anchor || anchor.hasAttribute("download")) return;
+      const target = anchor.getAttribute("target");
+      if (target && target !== "_self") return;
+      const rawHref = anchor.getAttribute("href") || "";
+      if (!rawHref || rawHref.startsWith("#")) return;
+      let url;
+      try {
+        url = new URL(anchor.href, window.location.origin);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return;
+      if (!isSpaPath(url.pathname)) return;
+      event.preventDefault();
+      navigateTo(url.pathname + url.search + url.hash);
+    };
+    window.addEventListener("popstate", sync);
+    window.addEventListener("primus:navigate", sync);
+    document.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("primus:navigate", sync);
+      document.removeEventListener("click", onClick);
+    };
+  }, []);
+
+  return (
+    <Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
+      {sitePreview() && isSitePath(pathname) ? <SiteExperience pathname={pathname} /> : <App />}
+    </Suspense>
+  );
+}
+
 createRoot(document.getElementById("root")).render(
   <ErrorBoundary>
-    <BullpenProvider><Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
-      {sitePreview() && ['/', '/signin', '/journal', '/journal/', '/backtesting', '/learn', '/mindset', '/matrix'].includes(location.pathname) ? <SiteExperience/> : <App />}
-    </Suspense></BullpenProvider>
+    <BullpenProvider>
+      <RootRouter />
+    </BullpenProvider>
   </ErrorBoundary>,
 );

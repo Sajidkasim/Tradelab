@@ -23,20 +23,20 @@ Architecture overview, deployment setup, non-negotiable invariants, and coding r
 ## 2. Tech Stack & Directory Layout
 
 - **Backend (`webapp/`):** FastAPI (`webapp/app.py`, `create_app` factory) running on `uvicorn --workers 1` with OpenAPI/Swagger disabled. Serves `/api/*`, `/auth/callback`, and the built React SPA from `frontend/dist`.
-- **Frontend (`frontend/`):** React 19 + Vite 8 + Tailwind CSS v4 (scoped with `tw:` prefix alongside custom CSS). Manual `location.pathname` routing (`frontend/src/main.jsx` splits between `<SiteExperience/>` and `<App/>` for `/lab*`). Key packages: `@luxalgo/vela@0.9.3`, `@supabase/supabase-js`, `@jitsi/react-sdk`, `plotly.js-basic-dist-min`, `tesseract.js`, `three`.
+- **Frontend (`frontend/`):** React 19 + Vite 8 + Tailwind CSS v4 (scoped with `tw:` prefix alongside custom CSS). Client-side SPA routing (`frontend/src/main.jsx` + `frontend/src/paths.js` via `history.pushState` and `primus:navigate`) keeps `<BullpenProvider>` and active Jitsi/Supabase Bullpen calls alive across tab switches between `<SiteExperience/>` and `<App/>` (`/lab*`, including `/lab/tools`). Key packages: `@luxalgo/vela@0.9.3`, `@supabase/supabase-js`, `@jitsi/react-sdk`, `plotly.js-basic-dist-min`, `tesseract.js`, `three` (with bundled `MeshoptDecoder` for the compressed ~2.1 MB `assets/hra-brain-female-v1.3.glb`).
 - **Shared Core & Services (`core/`, `services/`, `extensions/`):**
   - `core/db.py` — SQLAlchemy Core schema (`accounts`, `instruments`, `setups`, `trades`, `settings`, `import_mappings`, `backtest_runs`, `bars_cache`, `rule_breaches`), CRUD, `migrate()`, JSON backup/restore.
   - `core/metrics.py`, `core/risk.py`, `core/edge.py`, `core/importers.py`, `core/fills_to_trades.py`, `core/backtest.py`, `core/projectx_api.py` (strictly read-only).
   - `services/replay_engine.py`, `services/replay_frames.py`, `services/replay_candles.py`, `services/team.py` (`MemberDatabase`), `services/import_flow.py`, `services/trade_labels.py`.
   - `extensions/ai_coach.py` — Primax AI assistant (Cloudflare Workers AI or Gemini REST API).
 - **Offline Tools (`tools/`):** `refresh_matrix.py`, `workspace_backup.py`, replay archive indexers/packagers, password hashing, benchmarks.
-- **Tests (`tests/` + `frontend/src/*.test.js`):** Pytest (470+ tests), Vitest unit tests, and Playwright browser tests.
+- **Tests (`tests/` + `frontend/src/*.test.js`):** Pytest (475+ tests), Vitest unit tests, and Playwright browser tests.
 
 ---
 
 ## 3. Database, Storage & Deployment
 
-- **Hosting:** Docker (`Dockerfile.web`, 2-stage Node 22 + Python 3.13-slim, non-root UID 10001) on **Render** (`deploy/render.yaml`, Frankfurt, `0.5c-512mb`, **`numInstances: 1`**, **`--workers 1`**) behind `https://primustrader.co.uk`.
+- **Hosting:** Docker (`Dockerfile.web`, 2-stage Node 22 + Python 3.13-slim, non-root UID 10001) on **Render** (`deploy/render.yaml`, Frankfurt, **`standard` — 1 CPU / 2 GB RAM**, **`numInstances: 1`**, **`--workers 1`**) behind `https://primustrader.co.uk`.
 - **Database:** Supabase PostgreSQL (`TRADELAB_DB_URL`, `psycopg` v3, `prepare_threshold=None` for PgBouncer) in production; local SQLite (`data/tradelab.db` / `data/primus-web-preview.db`) for dev.
   - **Multi-tenant isolation:** Owner uses `public` schema; each Google user gets `primus_<32hex>` via SQLAlchemy `schema_translate_map={None: schema}` (never Postgres `search_path`). `harden_tables()` enables RLS with zero policies and revokes `PUBLIC`/`anon`/`authenticated` privileges.
   - **Timestamps:** Stored as naive UTC in DB; converted for display only.
@@ -51,8 +51,8 @@ Architecture overview, deployment setup, non-negotiable invariants, and coding r
 
 1. **Pin `@luxalgo/vela` at exact `0.9.3` (`frontend/package.json`):**
    - `replayDrawingPerformance.js`, `replayDrawingInteractions.js`, `replayDrawingGeometry.js`, `replayViewport.js`, and `BacktestingChart.jsx` monkey-patch private Vela internals (see `DRAWING_PERFORMANCE.md`). Never bump `@luxalgo/vela` without rewriting and profiling all drawing adapters.
-2. **Single-worker / single-instance assumption (`--workers 1`, `numInstances: 1`, 512 MB RAM):**
-   - In-memory Google PKCE verifiers, `Workspaces.frames` cache invalidation, `replay_gate`, `ByteCache` budgets, and Bullpen alert cooldowns all assume one worker process. Do not increase workers/instances without moving shared state to Postgres/Redis.
+2. **Single-worker / single-instance assumption (`--workers 1`, `numInstances: 1`, 1 CPU / 2 GB RAM):**
+   - In-memory Google PKCE verifiers, `Workspaces.frames` cache invalidation, `replay_gate` (`Semaphore(4)`), `ByteCache` budgets, and Bullpen alert cooldowns all assume one worker process. Do not increase workers/instances without moving shared state to Postgres/Redis.
 3. **Fail-closed auth, CSRF, Origin & tenant isolation:**
    - Every private endpoint must use `Depends(workspace)` (or `Depends(replay_slot)` for heavy replay routes) and derive the workspace key strictly from the verified server-side session token.
    - Never weaken `Settings.validate()`, `Origin == config.public_url`, `X-Primus-CSRF`, `RequestLimits`, `harden_tables()`, or `MemberDatabase`'s `schema_translate_map`.

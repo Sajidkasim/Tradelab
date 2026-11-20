@@ -21,7 +21,7 @@ def forming(db,root,tf,opened,cutoff):
     rows.extend(_minutes(db,root,start,cutoff));result=aggregate(rows,tf)
     return result[-1] if result else None
 
-@byte_cache(4*1024*1024,entries=8)
+@byte_cache(24*1024*1024,entries=32)
 @timed("indexed chart query + forming candle")
 def window(path,stamp,root,tf,before,cutoff,limit=750,after=None):
     with index_connection(path) as db:

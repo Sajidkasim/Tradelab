@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import modelUrl from "../../assets/hra-brain-female-v1.3.glb?url";
 export function anatomicalRegion(name) {
   if (/frontal_pole/.test(name)) return "pfc";
@@ -83,7 +84,9 @@ export default function AnatomyViewer({
       const observer = new ResizeObserver(size);
       observer.observe(node);
       sceneRef.current = { request, controls, camera, meshes: [], home: null };
-      new GLTFLoader().load(
+      const loader = new GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      loader.load(
         modelUrl,
         (gltf) => {
           if (cancelled) {

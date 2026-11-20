@@ -38,7 +38,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
   return <><header className={`pt-header ${actions ? "has-tools" : ""}`}>
     <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={29} strokeWidth={1.2}/><span>PRIMUS<span>TRADER</span></span></a>
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
-    <nav onKeyDown={event=>{if(event.key==='Escape'){setOpen(false);event.currentTarget.previousElementSibling?.focus()}}} className={open?'is-open':''} aria-label="Primus navigation">
+    <nav onClick={event=>{if(event.target.closest('a'))setOpen(false)}} onKeyDown={event=>{if(event.key==='Escape'){setOpen(false);event.currentTarget.previousElementSibling?.focus()}}} className={open?'is-open':''} aria-label="Primus navigation">
       <a className="pt-nav-primary" href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
       <a className="pt-nav-primary" href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
       <hr className="pt-mobile-nav-divider" />
@@ -154,8 +154,8 @@ function SitePrimax() {
   return identity?.authenticated ? <AuraCheckIn/> : null;
 }
 
-export default function SiteExperience(){
+export default function SiteExperience({ pathname = location.pathname } = {}){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{!['/signin','/journal','/journal/'].includes(location.pathname)&&<SitePrimax/>}{location.pathname==='/signin'?<PrimusSignIn/>:['/learn','/mindset','/matrix'].includes(location.pathname)?<Suspense fallback={location.pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{location.pathname==='/learn'?<LearnPage/>:location.pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:location.pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:location.pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{!['/signin','/journal','/journal/'].includes(pathname)&&<SitePrimax/>}{pathname==='/signin'?<PrimusSignIn/>:['/learn','/mindset','/matrix'].includes(pathname)?<Suspense fallback={pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{pathname==='/learn'?<LearnPage/>:pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:pathname.startsWith('/journal')?<JournalPage theme={theme}/>:<HomePage/>}</SiteThemeContext.Provider>;
 }

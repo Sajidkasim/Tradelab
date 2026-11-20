@@ -8,7 +8,7 @@ services:
     dockerfilePath: ./Dockerfile.web
     dockerContext: .
     region: frankfurt
-    plan: 0.5c-512mb
+    plan: standard
     numInstances: 1
     healthCheckPath: /health
     autoDeployTrigger: "off"

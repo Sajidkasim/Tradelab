@@ -94,7 +94,7 @@ def _key(sid):
     try:return PREFIX+str(UUID(sid))
     except (ValueError,TypeError):raise HTTPException(404,'Session not found.') from None
 
-@byte_cache(8*1024*1024,entries=2)
+@byte_cache(32*1024*1024,entries=8)
 def _read(path,stamp):
     content=Path(path).read_bytes()
     return json.loads(content),sha256(content).hexdigest()
@@ -208,7 +208,7 @@ def mount(app,config,workspace):
                                          if event['scheduled_at'][:10] == day.isoformat()]}
         return result
 
-    replay_gate=asyncio.Semaphore(1)
+    replay_gate=asyncio.Semaphore(4)
 
     async def replay_slot(member=Depends(workspace)):
         try:
@@ -228,7 +228,7 @@ def mount(app,config,workspace):
     def database(member): return app.state.workspaces.database(member["key"])
     def local_only():
         if not config.local and not getattr(config,'replay_enabled',False):raise HTTPException(404)
-    @byte_cache(8*1024*1024,entries=1)
+    @byte_cache(64*1024*1024,entries=8)
     def hosted_bundle(digest):
         # Immutable prices can be shared; private session/position data is never cached here.
         from .replay_history_storage import HistoryStorage
@@ -379,7 +379,7 @@ def mount(app,config,workspace):
         record['updated']=datetime.now(timezone.utc).isoformat()
         record['summary']=summary(record,plan)
         db.set_setting(PREFIX+record['id'],record)
-    @byte_cache(4*1024*1024,entries=1)
+    @byte_cache(16*1024*1024,entries=4)
     def chart_context(day,stamp):
         from .replay_index import four_hour_history
         return four_hour_history(ROOT/'replay-index.db',day)

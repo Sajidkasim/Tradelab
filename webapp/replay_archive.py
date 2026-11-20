@@ -26,7 +26,7 @@ def records(rows):return [dict(zip(FIELDS,row)) for row in rows]
 
 class Archive:
     def __init__(self,manifest,client,bucket):self.manifest=manifest;self.client=client;self.bucket=bucket
-    @byte_cache(8*1024*1024,entries=16)
+    @byte_cache(32*1024*1024,entries=48)
     def chunk(self,digest):
         stream=self.client.get_object(Bucket=self.bucket,Key=key(digest))['Body']
         try:body=stream.read(MAX_BYTES+1)
@@ -42,7 +42,7 @@ class Archive:
               'markets':{root:{'contract':market['contract'],'bars':records(market['bars'])} for root,market in selected['markets'].items()}}
         return data,signature
 
-    @byte_cache(8*1024*1024,entries=1)
+    @byte_cache(64*1024*1024,entries=8)
     def history(self,day):
         if day not in self.manifest['days']:raise ValueError('No candles on this date. Choose an available trading day.')
         selected=self.chunk(self.manifest['days'][day]);charts=self.chunk(self.manifest['charts'])
@@ -65,7 +65,7 @@ class Archive:
         signature=hashlib.sha256(encode({'day':self.manifest['days'][day],'context':[self.manifest['days'][p['day']] for p in earlier],'charts':self.manifest['charts']})).hexdigest()
         return data,signature
 
-    @byte_cache(8*1024*1024,entries=16)
+    @byte_cache(32*1024*1024,entries=48)
     @timed("archive chart page total")
     def chart_window(self,root,tf,before,cutoff,limit=750,after=None):
         from services.replay_chart_history import aggregate,SESSION_HOUR,CALENDAR_LABEL

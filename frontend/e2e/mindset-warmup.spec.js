@@ -204,7 +204,7 @@ for (const failure of ['timeout', 'server error']) {
   test(`Primax keeps the message available to retry after a ${failure}`, async ({page}) => {
     await page.clock.install();
     await page.route('**/api/mindset/check-in/reflect', (route) => failure === 'timeout'
-      ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 6500))
+      ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 26500))
       : route.fulfill({status:500, json:{detail:'unavailable'}}));
     await page.goto(`${origin}/mindset`);
     await page.getByRole('button',{name:'Ask Primax'}).click();
@@ -212,7 +212,7 @@ for (const failure of ['timeout', 'server error']) {
     const composer = aura.getByRole('textbox',{name:'Message Primax'});
     await composer.fill('I’m tempted to rush');
     await aura.getByRole('button',{name:'Send message'}).click();
-    if (failure === 'timeout') await page.clock.fastForward(5001);
+    if (failure === 'timeout') await page.clock.fastForward(25001);
     await expect(aura.getByRole('log')).toContainText('Primax is resting');
     await expect(aura.getByRole('log')).toContainText('I’m tempted to rush');
     await page.route('**/api/mindset/check-in/reflect', (route) =>
