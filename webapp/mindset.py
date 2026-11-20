@@ -120,9 +120,17 @@ def aura_context(database, frame, day):
         live = live.loc[live['exit_time'].ge(start) & live['exit_time'].lt(end)]
     outcomes = {date.date().isoformat(): daily_journal.outcome(total)
                 for date, total in metrics.daily_pnl(live).items()}
-    for row in database.settings_with_prefix(daily_journal.PREFIX).values():
-        if isinstance(row, dict) and start.date().isoformat() <= row.get('day', '') < day and not row.get('deleted_at'):
-            result = daily_journal.with_day_result(database, row)['day_result']['outcome']
+    journal_rows = [
+        row for row in database.settings_with_prefix(daily_journal.PREFIX).values()
+        if isinstance(row, dict) and start.date().isoformat() <= row.get('day', '') < day and not row.get('deleted_at')
+    ]
+    if journal_rows:
+        has_replays = any(card.get('replay_id') for row in journal_rows for card in row.get('trades', []))
+        replay_ids = database.get_setting(daily_journal.REPLAY_IMPORTS_KEY, {}) if has_replays else {}
+        linked_ids = {card.get('lab_trade_id') for row in journal_rows for card in row.get('trades', []) if card.get('lab_trade_id')}
+        trades_by_id = database.get_trades_by_ids(linked_ids) if linked_ids else {}
+        for row in journal_rows:
+            result = daily_journal.with_day_result(database, row, replay_ids=replay_ids, trades_by_id=trades_by_id)['day_result']['outcome']
             if result != 'not_recorded':
                 outcomes[row['day']] = result
     green_days = 0

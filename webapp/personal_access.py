@@ -94,8 +94,10 @@ def now_utc():
 
 class PersonalSessions:
     def __init__(self, database, version):
+        from .google_access import harden_tables
         self.database, self.version = database, version
         metadata.create_all(database.engine)
+        harden_tables(database, (sessions,))
 
     @staticmethod
     def digest(token):

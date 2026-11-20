@@ -262,7 +262,10 @@ def run_backtest(bars: pd.DataFrame, strategy: StrategyFn, params: dict | None,
     if not tdf.empty:
         tdf = compute_df_fields(tdf)
     stats = summary_stats(tdf, cfg.starting_balance) if not tdf.empty else summary_stats(pd.DataFrame(), cfg.starting_balance)
-    stats["exposure_pct"] = float(np.mean([1.0 if r > 0 else 0.0 for r in tdf["bars_held"]])) * 100 if not tdf.empty else 0.0
+    stats["exposure_pct"] = (
+        float(tdf["bars_held"].sum()) / len(b) * 100.0
+        if (not tdf.empty and len(b) > 0) else 0.0
+    )
     stats["bars"] = int(len(b))
     stats["exit_reasons"] = (tdf["tags"].apply(lambda x: x[0]).value_counts().to_dict()
                              if not tdf.empty else {})

@@ -24,3 +24,15 @@ def test_valid_stream_is_replayed_without_changes():
         await RequestLimits(app)({'type':'http','method':'POST','path':'/api/import/preview','headers':[]},receive,None)
         assert b''.join(seen)==b'abcdef'
     asyncio.run(run())
+
+
+def test_tv_webhook_enforces_streaming_cap():
+    async def run():
+        reached=[];sent=[]
+        async def app(*args):reached.append(True)
+        messages=iter([{'type':'http.request','body':b'x'*20000,'more_body':False}])
+        async def receive():return next(messages)
+        async def send(m):sent.append(m)
+        await RequestLimits(app)({'type':'http','method':'POST','path':'/api/tv-webhook','headers':[]},receive,send)
+        assert not reached and sent[0]['status']==413
+    asyncio.run(run())

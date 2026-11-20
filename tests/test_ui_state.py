@@ -48,3 +48,22 @@ def test_first_visit_lands_on_a_scope_with_data():
         s, e = state._preset_range(p, date(2026, 9, 16))
         assert (s is None) == (p == "All time")
     assert state._preset_range("This week", date(2026, 9, 16)) == (date(2026, 9, 14), date(2026, 9, 16))
+
+
+def test_settings_prefix_escapes_underscores_and_targeted_trade_lookups():
+    db = Database(":memory:"); db.init()
+    db.set_setting("primus_daily:1", {"ok": True})
+    db.set_setting("primusXdaily:1", {"ok": False})
+    assert list(db.settings_with_prefix("primus_daily:")) == ["primus_daily:1"]
+    assert dict(db.iter_settings_for_keys(["primus_daily:1", "missing"])) == {"primus_daily:1": {"ok": True}}
+    trades = seed_demo_trades(3, seed=5, start=datetime(2026, 6, 1))
+    trades[0].external_id = "ext-lookup-1"
+    trades[1].tags = ["lab:journal:2026-06-02:abc"]
+    assert db.insert_trades(trades) == {"inserted": 3, "skipped": 0}
+    assert db.insert_trades([trades[0]]) == {"inserted": 0, "skipped": 1}
+    found = db.get_trade_by_external_id("ext-lookup-1")
+    assert found is not None and found.external_id == "ext-lookup-1"
+    by_id = db.get_trades_by_ids([found.id, 999999])
+    assert list(by_id) == [found.id]
+    tagged_id = db.find_trade_id_by_tag("lab:journal:2026-06-02:abc")
+    assert tagged_id is not None and tagged_id != found.id

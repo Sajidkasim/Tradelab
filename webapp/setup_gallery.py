@@ -34,7 +34,10 @@ def mount(app, config, workspace):
         identity=Depends(team),
     ):
         member, name = identity
-        content = await file.read(MAX_UPLOAD + 1)
+        try:
+            content = await file.read(MAX_UPLOAD + 1)
+        finally:
+            await file.close()
         if len(content) > MAX_UPLOAD:
             raise HTTPException(413, "Choose an image under 8 MB.")
         labels = list(dict.fromkeys(tag.strip().casefold() for tag in tags.split(",") if tag.strip()))

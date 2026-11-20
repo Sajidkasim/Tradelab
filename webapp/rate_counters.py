@@ -37,6 +37,18 @@ class RateCounters:
             connection.execute(counters.update().where(counters.c.key == key).values(attempts=[*attempts, now]))
         return None
 
+    def peek(self, key, *, limit, window=60):
+        """Return Retry-After if already at or above quota without consuming a token."""
+        with self.engine.connect() as connection:
+            raw = connection.scalar(sa.select(counters.c.attempts).where(counters.c.key == key))
+        if not raw:
+            return None
+        now = self.clock()
+        attempts = [stamp for stamp in raw if stamp > now - window]
+        if len(attempts) >= limit:
+            return max(1, ceil(window - (now - attempts[0])))
+        return None
+
     def clear(self, key):
         with self.engine.begin() as connection:
             connection.execute(counters.delete().where(counters.c.key == key))

@@ -35,8 +35,18 @@ def save(database, day, values):
 
 
 def entries(database):
-    return sorted((with_day_result(database, row) for row in database.settings_with_prefix(PREFIX).values()
-                   if isinstance(row, dict) and row.get('day') and not row.get('deleted_at')), key=lambda row: row['day'], reverse=True)
+    raw_rows = [
+        row for row in database.settings_with_prefix(PREFIX).values()
+        if isinstance(row, dict) and row.get('day') and not row.get('deleted_at')
+    ]
+    raw_rows.sort(key=lambda row: row['day'], reverse=True)
+    if not raw_rows:
+        return []
+    has_replays = any(card.get('replay_id') for row in raw_rows for card in row.get('trades', []))
+    replay_ids = database.get_setting(REPLAY_IMPORTS_KEY, {}) if has_replays else {}
+    linked_ids = {card.get('lab_trade_id') for row in raw_rows for card in row.get('trades', []) if card.get('lab_trade_id')}
+    trades_by_id = database.get_trades_by_ids(linked_ids) if linked_ids else {}
+    return [with_day_result(database, row, replay_ids=replay_ids, trades_by_id=trades_by_id) for row in raw_rows]
 
 
 def card_accounts(card):
@@ -44,7 +54,7 @@ def card_accounts(card):
     return card.get('account_ids', []) or ([card['account_id']] if card.get('account_id') is not None else [])
 
 
-def with_day_result(database, row):
+def with_day_result(database, row, *, replay_ids=None, trades_by_id=None):
     """Journal-only totals use the tested core; missing results never imply zero."""
     import pandas as pd
     from core.metrics import daily_pnl
@@ -52,12 +62,17 @@ def with_day_result(database, row):
     amounts = []
     trade_results = []
     seen = set()
-    replay_ids = database.get_setting(REPLAY_IMPORTS_KEY, {}) if any(card.get('replay_id') for card in row.get('trades', [])) else {}
-    for card in row.get('trades', []):
+    row_trades = row.get('trades', [])
+    if replay_ids is None:
+        replay_ids = database.get_setting(REPLAY_IMPORTS_KEY, {}) if any(card.get('replay_id') for card in row_trades) else {}
+    if trades_by_id is None:
+        linked_ids = {card.get('lab_trade_id') for card in row_trades if card.get('lab_trade_id')}
+        trades_by_id = database.get_trades_by_ids(linked_ids) if linked_ids else {}
+    for card in row_trades:
         if card.get('replay_id') and card['replay_id'] not in replay_ids:
             card = {**card, 'replay_id': None}
         linked = card.get('lab_trade_id')
-        trade = database.get_trade(linked) if linked else None
+        trade = trades_by_id.get(int(linked)) if linked else None
         if trade is not None:
             card = {**card, 'custom_fields': custom_trade_fields.values(trade.tags, trade.custom_metadata)}
         trades.append(card)
@@ -236,12 +251,7 @@ def journal_tag(day, record_id):
 
 def linked_record(database, day, record_id):
     # Recover the link if an earlier insert succeeded but the response/link save failed.
-    marker = journal_tag(day, record_id)
-    frame = database.trades_df()
-    if frame.empty:
-        return None
-    match = frame[frame['tags'].map(lambda tags: marker in (tags or []))]
-    return int(match.iloc[0]['id']) if not match.empty else None
+    return database.find_trade_id_by_tag(journal_tag(day, record_id))
 
 
 TRASH_PREFIX = 'primus_deleted_entry:'

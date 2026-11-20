@@ -71,10 +71,10 @@ class Workspaces:
         self.lock = RLock()  # Shared team data only.
         self._registry_lock = RLock()
         self._workspace_locks = {}
+        from .google_access import GoogleAccess, harden_tables
+        from core.db import metadata as trading_metadata
+        harden_tables(self.root, trading_metadata.sorted_tables)
         if config.google_required:
-            from .google_access import GoogleAccess, harden_tables
-            from core.db import metadata as trading_metadata
-            harden_tables(self.root, trading_metadata.sorted_tables)
             self.google = GoogleAccess(self.root, config)
 
     def workspace_lock(self, key):

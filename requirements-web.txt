@@ -6,6 +6,5 @@ python-multipart>=0.0.20,<1
 argon2-cffi>=25.1,<26
 Pillow>=13.0.0,<14
 boto3>=1.40,<2
-google-generativeai>=0.8,<0.9
 cryptography>=44
 httpx>=0.28,<1

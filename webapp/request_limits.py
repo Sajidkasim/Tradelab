@@ -10,7 +10,7 @@ class RequestLimits:
     async def __call__(self,scope,receive,send):
         if scope['type']!='http' or scope['method'] not in ('POST','PUT','PATCH','DELETE'):
             return await self.app(scope,receive,send)
-        limit={'/api/unlock':8192, '/api/vision/extract':540_000}.get(scope['path'],9*1024*1024)
+        limit={'/api/unlock':8192, '/api/tv-webhook':16384, '/api/vision/extract':540_000}.get(scope['path'],9*1024*1024)
         headers=dict(scope.get('headers',[]))
         try:
             declared=int(headers.get(b'content-length',b'0'))

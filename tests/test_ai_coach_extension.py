@@ -124,7 +124,7 @@ def test_aura_logs_gemini_status_without_private_error_body(monkeypatch, capsys)
     monkeypatch.delenv("COACH_GEMINI_MODEL", raising=False)
 
     def post(url, **kwargs):
-        assert url.endswith("/gemini-3.8-flash:generateContent")
+        assert url.endswith("/gemini-2.5-flash:generateContent")
         response = ai_coach.requests.Response()
         response.status_code = 503
         response._content = b'{"error":{"status":"UNAVAILABLE","message":"private note and test-secret"}}'

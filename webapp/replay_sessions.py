@@ -209,17 +209,22 @@ def mount(app,config,workspace):
         return result
 
     replay_gate=asyncio.Semaphore(1)
+
+    async def replay_slot(member=Depends(workspace)):
+        try:
+            await asyncio.wait_for(replay_gate.acquire(), timeout=15)
+        except asyncio.TimeoutError:
+            raise HTTPException(503, 'Replay is busy. Please retry shortly.', headers={'Retry-After': '1'}) from None
+        try:
+            yield member
+        finally:
+            replay_gate.release()
+
     @app.middleware('http')
     async def replay_wire(request,call_next):
-        heavy='/api/backtesting/sessions' in request.url.path and not any(part in request.url.path for part in ('/chart-history','/layout','/journal'))
-        if heavy:
-            try:await asyncio.wait_for(replay_gate.acquire(),timeout=15)
-            except asyncio.TimeoutError:return JSONResponse({'detail':'Replay is busy. Please retry shortly.'},status_code=503,headers={'Retry-After':'1'})
         token=COMPACT_WIRE.set(request.headers.get('X-Primus-Replay-Wire')=='columns-v1')
         try:return await call_next(request)
-        finally:
-            COMPACT_WIRE.reset(token)
-            if heavy:replay_gate.release()
+        finally:COMPACT_WIRE.reset(token)
     def database(member): return app.state.workspaces.database(member["key"])
     def local_only():
         if not config.local and not getattr(config,'replay_enabled',False):raise HTTPException(404)
@@ -408,16 +413,23 @@ def mount(app,config,workspace):
     def valid_cursor(record,cursor):
         if cursor<record['cursor'] or cursor>record['last_cursor']:raise HTTPException(409,'Replay only moves forward. Create a new session to restart a date.')
     @app.get('/api/backtesting/sessions')
-    def sessions(member=Depends(workspace)):
+    def sessions(member=Depends(replay_slot)):
         local_only()
         with app.state.workspaces.workspace_lock(member['key']):
             db=database(member)
-            # Discard each command log after reading its small summary. Retaining all
-            # full records at once needlessly multiplies memory for long sessions.
+            # Extract only the compact summary from each row in a single query so we avoid
+            # both N+1 DB round-trips and holding all full command logs in RAM at once.
+            ordered_ids = list(reversed(db.get_setting(INDEX, [])))
+            summaries = {}
+            for key, row in db.iter_settings_for_keys(_key(sid) for sid in ordered_ids):
+                if isinstance(row, dict) and 'summary' in row:
+                    summaries[key] = (bool(row.get('deleted')), row['summary'])
             active=[];deleted=[]
-            for sid in reversed(db.get_setting(INDEX,[])):
-                row=db.get_setting(_key(sid))
-                if row:(deleted if row.get('deleted') else active).append(row['summary'])
+            for sid in ordered_ids:
+                item = summaries.get(_key(sid))
+                if item is not None:
+                    is_deleted, summary = item
+                    (deleted if is_deleted else active).append(summary)
             available=catalog()
             if spot_path() is not None:
                 for symbol in spot_replay.SYMBOLS:
@@ -436,7 +448,7 @@ def mount(app,config,workspace):
                 available['qqq_days'] = qqq_days
             return {'sessions':active, 'deleted':deleted, 'history':available}
     @app.post('/api/backtesting/sessions')
-    def create(payload:SessionInput,member=Depends(workspace)):
+    def create(payload:SessionInput,member=Depends(replay_slot)):
         local_only()
         try:
             root=_root(payload.instrument)
@@ -476,17 +488,17 @@ def mount(app,config,workspace):
             connection.execute(settings_t.delete().where(settings_t.c.key.in_(names)))
             connection.execute(settings_t.update().where(settings_t.c.key==INDEX).values(value=json.dumps([sid for sid in saved_ids if sid not in ids])))
     @app.post('/api/backtesting/sessions/delete')
-    def bulk_delete(payload:BulkDeleteInput,member=Depends(workspace)):
+    def bulk_delete(payload:BulkDeleteInput,member=Depends(replay_slot)):
         local_only();ids=[str(sid) for sid in payload.ids]
         if len(set(ids))!=len(ids) or payload.confirmation!=f'DELETE {len(ids)}':raise HTTPException(422,'Type DELETE followed by the exact number of sessions.')
         with app.state.workspaces.workspace_lock(member['key']):
             remove_records(database(member),ids);app.state.workspaces.bump(member['key'])
         return {'permanently_deleted':len(ids)}
     @app.delete('/api/backtesting/sessions/{sid}')
-    def delete_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+    def delete_session(sid:str,payload:PurgeInput,member=Depends(replay_slot)):
         return purge_session(sid,payload,member)
     @app.delete('/api/backtesting/sessions/{sid}/permanent')
-    def purge_session(sid:str,payload:PurgeInput,member=Depends(workspace)):
+    def purge_session(sid:str,payload:PurgeInput,member=Depends(replay_slot)):
         local_only()
         with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=db.get_setting(_key(sid))
@@ -548,11 +560,11 @@ def mount(app,config,workspace):
         return write_template(member, template_id=str(template_id))
 
     @app.get('/api/backtesting/sessions/{sid}/layouts')
-    def session_layouts(sid:str,member=Depends(workspace)):
+    def session_layouts(sid:str,member=Depends(replay_slot)):
         local_only();db=database(member);record=get_record(db,sid)
         return pane_layouts(db, record)
     @app.get('/api/backtesting/sessions/{sid}')
-    def open_session(sid:str,member=Depends(workspace)):
+    def open_session(sid:str,member=Depends(replay_slot)):
         local_only()
         try:
             with app.state.workspaces.workspace_lock(member['key']):
@@ -560,7 +572,7 @@ def mount(app,config,workspace):
                 return {**result(record,projection(record,data),data),**pane_layouts(database(member), record),'journal':database(member).get_setting(_key(sid)+':journal',{})}
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.put('/api/backtesting/sessions/{sid}/progress')
-    def progress(sid:str,payload:ProgressInput,member=Depends(workspace)):
+    def progress(sid:str,payload:ProgressInput,member=Depends(replay_slot)):
         local_only()
         with app.state.workspaces.workspace_lock(member['key']):
             db=database(member);record=get_record(db,sid)
@@ -571,7 +583,7 @@ def mount(app,config,workspace):
                 compound_edge.replay_interaction(db, sid)
             return {'session':result(record,plan,include_projection=False)['session']}
     @app.post('/api/backtesting/sessions/{sid}/continue')
-    def continue_session(sid:str,payload:ContinueInput,member=Depends(workspace)):
+    def continue_session(sid:str,payload:ContinueInput,member=Depends(replay_slot)):
         local_only()
         try:
             with app.state.workspaces.workspace_lock(member['key']):
@@ -603,7 +615,7 @@ def mount(app,config,workspace):
                 return result(record,plan,combined)
         except ValueError as e:raise HTTPException(422,str(e)) from None
     @app.post('/api/backtesting/sessions/{sid}/action')
-    def action(sid:str,payload:ActionInput,member=Depends(workspace)):
+    def action(sid:str,payload:ActionInput,member=Depends(replay_slot)):
         local_only()
         try:
             with app.state.workspaces.workspace_lock(member['key']):
@@ -636,7 +648,7 @@ def mount(app,config,workspace):
             app.state.workspaces.bump(member['key'])
         return {'saved':True}
     @app.post('/api/backtesting/sessions/{sid}/export')
-    def export(sid:str,payload:ExportInput,member=Depends(workspace)):
+    def export(sid:str,payload:ExportInput,member=Depends(replay_slot)):
         local_only()
         from .replay_transfer import transfer
         with app.state.workspaces.workspace_lock(member['key']):
@@ -678,7 +690,7 @@ def mount(app,config,workspace):
         except (ValueError,OSError) as exc:raise HTTPException(422,str(exc)) from None
 
     @app.post('/api/backtesting/sessions/{sid}/ticket-preview')
-    def ticket_preview(sid:str,payload:TicketPreviewInput,member=Depends(workspace)):
+    def ticket_preview(sid:str,payload:TicketPreviewInput,member=Depends(replay_slot)):
         local_only()
         from services.replay_engine import ticket_result
         with app.state.workspaces.workspace_lock(member['key']):

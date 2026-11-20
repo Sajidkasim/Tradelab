@@ -523,9 +523,13 @@ def create_app(config: Settings | None = None):
             if len(images) == len(stored['images']):
                 raise HTTPException(404)
             result = daily_journal.save(database, day.isoformat(), {'images': images})
+            referenced_in_trash = any(
+                isinstance(row, dict) and any(img.get('id') == image_id for img in row.get('images', []))
+                for row in database.settings_with_prefix(daily_journal.TRASH_PREFIX).values()
+            )
             app.state.workspaces.bump(member['key'])
-        # Detached preview files are no longer accessible and disappear with the
-        # disposable preview directory. No real cloud objects are deleted.
+        if not referenced_in_trash:
+            app.state.image_storage.discard_unreferenced(member['key'], day.isoformat(), image_id)
         return result
 
     @app.put('/api/journal/{day}/trades/{record_id}/link')
@@ -1105,8 +1109,10 @@ def create_app(config: Settings | None = None):
         index = config.assets / "index.html"
         if not index.is_file():
             raise HTTPException(503, "Build the frontend before starting PrimusLab.")
-        if config.lab_path:
-            content = index.read_text().replace('name="primus-lab-path" content=""', 'name="primus-lab-path" content="/lab"')
+        if config.lab_path or config.site_enabled or config.replay_enabled or config.site_preview:
+            content = index.read_text()
+            if config.lab_path:
+                content = content.replace('name="primus-lab-path" content=""', f'name="primus-lab-path" content="{config.lab_path}"')
             if config.site_enabled:
                 content = content.replace('</head>', '<meta name="primus-site-enabled" content="true" /></head>')
             if config.replay_enabled:

@@ -380,10 +380,18 @@ class Database:
             if row["external_id"]:
                 existing.add(row["external_id"])
             rows.append(row)
+        inserted = 0
         if rows:
+            if self.is_sqlite:
+                from sqlalchemy.dialects.sqlite import insert as dialect_insert
+            else:
+                from sqlalchemy.dialects.postgresql import insert as dialect_insert
+            stmt = dialect_insert(trades_t).on_conflict_do_nothing(index_elements=["external_id"])
             with self.engine.begin() as conn:
-                conn.execute(trades_t.insert(), rows)
-        return {"inserted": len(rows), "skipped": skipped}
+                res = conn.execute(stmt, rows)
+                inserted = int(res.rowcount) if (res.rowcount is not None and res.rowcount >= 0) else len(rows)
+            skipped += max(0, len(rows) - inserted)
+        return {"inserted": inserted, "skipped": skipped}
 
     def update_trade(self, trade_id: int, **fields: Any) -> None:
         if not fields:
@@ -417,6 +425,49 @@ class Database:
         d = dict(r)
         d["external_id"] = d.get("external_id") or ""
         return Trade.from_row(d)
+
+    def get_trade_by_external_id(self, external_id: str) -> Optional[Trade]:
+        if not external_id:
+            return None
+        with self.engine.connect() as conn:
+            r = conn.execute(select(trades_t).where(trades_t.c.external_id == external_id)).mappings().first()
+        if r is None:
+            return None
+        d = dict(r)
+        d["external_id"] = d.get("external_id") or ""
+        return Trade.from_row(d)
+
+    def get_trades_by_ids(self, trade_ids: Iterable[int]) -> dict[int, Trade]:
+        ids = sorted({int(tid) for tid in trade_ids if tid is not None})
+        if not ids:
+            return {}
+        out: dict[int, Trade] = {}
+        with self.engine.connect() as conn:
+            for i in range(0, len(ids), 500):
+                chunk = ids[i:i + 500]
+                for r in conn.execute(select(trades_t).where(trades_t.c.id.in_(chunk))).mappings():
+                    d = dict(r)
+                    d["external_id"] = d.get("external_id") or ""
+                    trade = Trade.from_row(d)
+                    if trade.id is not None:
+                        out[int(trade.id)] = trade
+        return out
+
+    def find_trade_id_by_tag(self, tag: str) -> Optional[int]:
+        if not tag:
+            return None
+        escaped = tag.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(trades_t.c.id, trades_t.c.tags)
+                .where(trades_t.c.tags.like(f"%{escaped}%", escape="\\"))
+                .order_by(trades_t.c.entry_time)
+            ).all()
+        for tid, raw_tags in rows:
+            parsed = json.loads(raw_tags) if isinstance(raw_tags, str) and raw_tags else []
+            if tag in parsed:
+                return int(tid)
+        return None
 
     def delete_trade(self, trade_id: int) -> None:
         with self.engine.begin() as conn:
@@ -462,9 +513,25 @@ class Database:
             r = conn.execute(select(settings_t.c.value).where(settings_t.c.key == key)).scalar()
         return json.loads(r) if r else default
 
-    def settings_with_prefix(self, prefix: str) -> dict[str, Any]:
+    def iter_settings_for_keys(self, keys: Iterable[str]):
+        unique_keys = list(dict.fromkeys(keys))
+        if not unique_keys:
+            return
         with self.engine.connect() as conn:
-            rows = conn.execute(select(settings_t.c.key, settings_t.c.value).where(settings_t.c.key.like(prefix + "%"))).all()
+            for i in range(0, len(unique_keys), 200):
+                chunk = unique_keys[i:i + 200]
+                for k, v in conn.execute(
+                    select(settings_t.c.key, settings_t.c.value).where(settings_t.c.key.in_(chunk))
+                ):
+                    yield k, (json.loads(v) if v else None)
+
+    def settings_with_prefix(self, prefix: str) -> dict[str, Any]:
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(settings_t.c.key, settings_t.c.value)
+                .where(settings_t.c.key.like(escaped + "%", escape="\\"))
+            ).all()
         return {k: json.loads(v) for k, v in rows}
 
     # ---- import mappings -------------------------------------------------

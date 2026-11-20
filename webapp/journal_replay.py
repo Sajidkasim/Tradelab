@@ -35,7 +35,11 @@ def mount(app, config, workspace):
 
     @app.post('/api/journal-replay/import')
     def import_executions(file: UploadFile=File(...), source_timezone: str=Form(''), member=Depends(workspace)):
-        try:rows=replay.parse_executions(file.file.read(1024*1024+1),source_timezone)
+        try:
+            raw = file.file.read(1024*1024+1)
+        finally:
+            file.file.close()
+        try:rows=replay.parse_executions(raw,source_timezone)
         except Exception as exc:
             raise HTTPException(422,str(exc) if isinstance(exc,ValueError) else 'Invalid file or timezone. Choose an explicit IANA export timezone.') from None
         with app.state.workspaces.workspace_lock(member['key']):

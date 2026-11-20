@@ -94,7 +94,7 @@ function AuraChat({onClose}) {
       ...current.slice(0, index), next, ...current.slice(index + 1),
     ]);
     updateTurn({question});
-    const timer = setTimeout(() => controller.abort(), 5000);
+    const timer = setTimeout(() => controller.abort(), 25000);
     try {
       const result = await api('/mindset/check-in/reflect', {
         method: 'POST', body: {step: 'question', reflection: question, history}, signal: controller.signal,

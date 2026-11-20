@@ -204,7 +204,10 @@ def mount(app, workspace):
         if not isinstance(requested, list) or len(requested) > 200 or any(
                 not isinstance(tag, str) or len(tag) > 120 for tag in requested):
             raise HTTPException(422, 'Choose valid confirmation tags.')
-        jpeg = image.file.read(MAX_BYTES + 1)
+        try:
+            jpeg = image.file.read(MAX_BYTES + 1)
+        finally:
+            image.file.close()
         if len(jpeg) > MAX_BYTES:
             raise HTTPException(413, 'Compress the chart to under 500 KB.')
         try:
@@ -214,6 +217,10 @@ def mount(app, workspace):
                 decoded.verify()
         except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError, SyntaxError):
             raise HTTPException(422, 'Choose a valid JPEG chart image.') from None
+        shared_retry = request.app.state.rate_counters.peek('chart-vision:shared', limit=80, window=86400)
+        if shared_retry:
+            raise HTTPException(429, 'Shared Cloudflare scan allowance reached. On-device scanning is still available.',
+                                headers={'Retry-After': str(shared_retry)})
         retry = request.app.state.rate_counters.consume(f'chart-vision:{member["key"]}', limit=8, window=3600)
         if retry:
             raise HTTPException(429, 'Chart scan limit reached. Try again later.', headers={'Retry-After': str(retry)})

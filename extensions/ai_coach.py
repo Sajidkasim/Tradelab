@@ -20,7 +20,7 @@ from core.registry import register_coach_provider
 
 NAME = "Primax - Trading Assistant"
 REVIEW_ERROR = "Primax could not generate a review. Check the configured Gemini model and try again."
-RISK_QUOTE = "[INSERT YOUR EXACT QUOTE ABOUT LOSING DAYS VS BLOWN ACCOUNTS HERE]"
+RISK_QUOTE = "A red day is tuition; a blown account is a choice. Protect your capital first so you can trade tomorrow."
 TRADERS = ("Sajid", "Safwaan", "Mubeen", "Mustafa", "Amir")
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_TOOL_ROUNDS = 3
@@ -305,7 +305,7 @@ def aura_check_in(data, context):
         if os.getenv('COACH_PROVIDER', 'cloudflare').strip().lower() != 'gemini':
             return _cloudflare_chat([{'role':'system','content':system}, {'role':'user','content':prompt}], max_tokens=300, retry_empty=True)
         key = os.getenv('COACH_API_KEY')
-        model = os.getenv('COACH_GEMINI_MODEL', 'gemini-3.8-flash').removeprefix('models/')
+        model = os.getenv('COACH_GEMINI_MODEL', 'gemini-2.5-flash').removeprefix('models/')
         if not key or not re.fullmatch(r'[a-zA-Z0-9_.-]+', model):
             raise HTTPException(503, 'Primax’s AI connection is unavailable.')
         response = requests.post(
@@ -331,7 +331,7 @@ def aura_coach(briefing_data, model=None, system=None, user=None):
     key = os.getenv("COACH_API_KEY")
     if not cloudflare and not key:
         return "Primax is unavailable until COACH_API_KEY is configured."
-    model_name = os.getenv("COACH_GEMINI_MODEL", "gemini-3.8-flash")
+    model_name = os.getenv("COACH_GEMINI_MODEL", "gemini-2.5-flash")
     try:
         if not isinstance(brief, dict) or "database" not in brief:
             from ui import access, state

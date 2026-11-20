@@ -21,3 +21,4 @@ data/web-test*.db
 
 # Screenshots the Claude desktop app saves alongside the project
 Claude outputs/
+.DS_Store

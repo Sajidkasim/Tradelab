@@ -53,6 +53,9 @@ def test_private_r2_proxy_delete_restore_and_member_isolation(draft):
     error=client.post(f'/api/journal/{day}/images',files={'file':('chart.png',picture(),'image/png')})
     assert error.status_code==503 and 'private-provider-message' not in error.text
     assert len(client.get('/api/journal').json()[0]['images'])==1
+    bucket.fail=False
+    assert client.delete(url).status_code==200
+    assert len(bucket.objects)==0
     client.headers['X-Primus-CSRF']='bad'
     assert client.delete(f'/api/journal/{day}').status_code==403
 

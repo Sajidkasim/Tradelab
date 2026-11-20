@@ -42,6 +42,7 @@ def test_signal_fills_next_bar_open_and_target_exits_at_level():
     assert t["net_pnl"] == pytest.approx(10.0) and t["r_multiple"] == pytest.approx(2.0)
     assert t["tags"] == ["target"]
     assert r.stats["exit_reasons"] == {"target": 1}
+    assert r.stats["exposure_pct"] == pytest.approx(50.0)
 
 
 def test_stop_hit_first_when_both_touched_same_bar():

@@ -18,7 +18,7 @@ def test_spot_import_and_session(local, tmp_path, monkeypatch):
         import_files(database, symbol, [file])
     import_files(database, 'EURUSD', [file])
     history = client.get('/api/backtesting/sessions').json()['history']
-    assert {i['symbol'] for i in history['instruments']} == {'NQ', 'ES', *spot_replay.SYMBOLS}
+    assert {i['symbol'] for i in history['instruments']} == {'NQ', 'MNQ', 'ES', *spot_replay.SYMBOLS}
     response = client.post('/api/backtesting/sessions', json={
         'instrument': 'EURUSD', 'name': 'FX fixture', 'day': '2010-01-04', 'start_time': '13:35',
     })

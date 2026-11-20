@@ -168,7 +168,10 @@ def mount(app,config,workspace):
         return {'removed':True}
     @app.post('/api/vision-board/{item_id}/image')
     async def upload_goal_image(item_id:str,file:UploadFile=File(...),member=Depends(workspace)):
-        content=await file.read(MAX_UPLOAD+1)
+        try:
+            content=await file.read(MAX_UPLOAD+1)
+        finally:
+            await file.close()
         if len(content)>MAX_UPLOAD:raise HTTPException(413,'Choose an image under 8 MB.')
         from starlette.concurrency import run_in_threadpool
         def operation():
