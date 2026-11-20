@@ -165,8 +165,9 @@ def sidebar(df_all: pd.DataFrame) -> None:
 
     n = len(apply_filters(df_all))
     kind = "sqlite" if db.is_sqlite else "postgres"
+    import html as _html
     st.markdown(f'<div class="tl-foot">{n} trades in view · {db.count_trades()} stored · {kind}<br>'
-                f'Times shown in {tz()}</div>', unsafe_allow_html=True)
+                f'Times shown in {_html.escape(str(tz()))}</div>', unsafe_allow_html=True)
 
 
 def apply_filters(df_all: pd.DataFrame) -> pd.DataFrame:

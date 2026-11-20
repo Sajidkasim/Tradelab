@@ -106,26 +106,42 @@ with tabs[3]:
                          column_config={"label": st.column_config.TextColumn("Label", required=True),
                                         "start": st.column_config.TextColumn("Start (HH:MM)", required=True),
                                         "end": st.column_config.TextColumn("End (HH:MM)", required=True)})
+    def _clean_sessions(frame: pd.DataFrame) -> tuple[list[dict], dict[str, tuple[time, time]]]:
+        rows, parsed = [], {}
+        for r in frame.to_dict("records"):
+            label = str(r.get("label", "") or "").strip()
+            if not label:
+                continue
+            start_s = str(r.get("start", "") or "").strip()
+            end_s = str(r.get("end", "") or "").strip()
+            parsed[label] = (time.fromisoformat(start_s), time.fromisoformat(end_s))
+            rows.append({"label": label, "start": start_s, "end": end_s})
+        return rows, parsed
+
     s1, s2 = st.columns([1, 2])
     if s1.button("Save sessions", type="primary"):
-        rows = [r for r in sed.to_dict("records") if str(r.get("label", "")).strip()]
         try:
-            for r in rows:
-                time.fromisoformat(str(r["start"])); time.fromisoformat(str(r["end"]))
+            rows, _ = _clean_sessions(sed)
         except ValueError:
             st.error("Times must be HH:MM.")
         else:
             db.set_setting("sessions", rows); state.bump(); st.success("Saved.")
     if s2.button("Re-label every trade's session with these"):
         from core import metrics
-        parsed = {r["label"]: (time.fromisoformat(r["start"]), time.fromisoformat(r["end"])) for r in sessions}
-        all_df = db.trades_df()
-        n = 0
-        for r in all_df.itertuples():
-            lbl = metrics.session_of(r.entry_time, new_tz, parsed)
-            if lbl != r.session:
-                db.update_trade(int(r.id), session=lbl); n += 1
-        state.bump(); st.success(f"Updated {n} trades.")
+        try:
+            rows, parsed = _clean_sessions(sed)
+        except ValueError:
+            st.error("Times must be HH:MM.")
+        else:
+            db.set_setting("sessions", rows)
+            all_df = db.trades_df()
+            updates = {}
+            for r in all_df.itertuples():
+                lbl = metrics.session_of(r.entry_time, new_tz, parsed)
+                if lbl != r.session:
+                    updates[int(r.id)] = lbl
+            n = db.bulk_update_trade_sessions(updates)
+            state.bump(); st.success(f"Updated {n} trades.")
 
 # ---------------------------------------------------------------- connections
 with tabs[4]:

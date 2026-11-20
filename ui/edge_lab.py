@@ -194,8 +194,18 @@ def quick_log():
                 c.kpi_row([{"label": "Net result", "value": c.fmt_money(trade.net_pnl), "tone": c.tone_for(trade.net_pnl)},
                            {"label": "Realised R", "value": c.fmt_r(trade.r_multiple), "tone": c.tone_for(trade.r_multiple)},
                            {"label": "Original risk", "value": c.fmt_money(trade.initial_risk, sign=False)}])
-                if trade.initial_risk > 250:
-                    st.warning("This trade exceeds your $250 risk benchmark. Record it honestly so it stays visible in your review.")
+                selected_acct = next((a for a in accts if a.id == account_id), None)
+                risk_benchmark = (
+                    selected_acct.starting_balance * selected_acct.risk_per_trade_pct / 100.0
+                    if selected_acct and selected_acct.starting_balance > 0 and selected_acct.risk_per_trade_pct > 0
+                    else None
+                )
+                if risk_benchmark is not None and trade.initial_risk is not None and trade.initial_risk > risk_benchmark:
+                    st.warning(
+                        f"This trade exceeds your {c.fmt_money(risk_benchmark, sign=False)} risk benchmark "
+                        f"({selected_acct.risk_per_trade_pct:g}% of {selected_acct.name}). "
+                        "Record it honestly so it stays visible in your review."
+                    )
             except (ValueError, TypeError) as exc:
                 st.warning(str(exc))
         if st.button("Save & log next", type="primary", disabled=trade is None, use_container_width=True, key=f"{key}_save"):

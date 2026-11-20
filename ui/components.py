@@ -16,6 +16,9 @@ def _esc(s) -> str:
     return html.escape("" if s is None else str(s))
 
 
+esc = _esc
+
+
 def page_header(title: str, subtitle: str = "", meta: str = "") -> None:
     st.markdown(
         f'<div class="tl-page"><div><div class="title">{_esc(title)}</div>'

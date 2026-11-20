@@ -48,3 +48,20 @@ def test_first_visit_lands_on_a_scope_with_data():
         s, e = state._preset_range(p, date(2026, 9, 16))
         assert (s is None) == (p == "All time")
     assert state._preset_range("This week", date(2026, 9, 16)) == (date(2026, 9, 14), date(2026, 9, 16))
+
+
+def test_bulk_update_trade_sessions_updates_only_target_rows():
+    db = Database(":memory:"); db.init()
+    trades = seed_demo_trades(5, seed=9, start=datetime(2026, 6, 1))
+    db.insert_trades(trades)
+    before = db.trades_df().sort_values("id").reset_index(drop=True)
+    target_id = int(before.loc[0, "id"])
+    untouched_id = int(before.loc[1, "id"])
+    updated = db.bulk_update_trade_sessions({target_id: "London"})
+    assert updated == 1
+    assert db.bulk_update_trade_sessions({}) == 0
+    after = db.trades_df().sort_values("id").reset_index(drop=True)
+    assert after.loc[after["id"] == target_id, "session"].iloc[0] == "London"
+    assert after.loc[after["id"] == untouched_id, "session"].iloc[0] == before.loc[1, "session"]
+    assert after["net_pnl"].tolist() == before["net_pnl"].tolist()
+    assert after["r_multiple"].tolist() == before["r_multiple"].tolist()
