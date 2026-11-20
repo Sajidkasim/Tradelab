@@ -30,7 +30,7 @@ def _coach_fragment(df, acct, tz: str, key: str, compact: bool) -> None:
                     f'<div class="tl-note" style="margin-top:6px">Add <b>ANTHROPIC_API_KEY</b> (or OPENAI_API_KEY) to your '
                     f'.env or Streamlit secrets and this card writes a plain-English review of the trades in view — '
                     f'what\'s working, what\'s leaking, one change for the week, and a risk check. Default model: '
-                    f'<b>{c.esc(cfg["model"])}</b>; a review costs well under a cent.</div></div>', unsafe_allow_html=True)
+                    f'<b>{cfg["model"]}</b>; a review costs well under a cent.</div></div>', unsafe_allow_html=True)
         with st.expander("What the coach would read"):
             st.code(coach.build_brief(df, acct, tz, scope=scope), language="markdown")
         return
@@ -46,7 +46,7 @@ def _coach_fragment(df, acct, tz: str, key: str, compact: bool) -> None:
     if have:
         st.markdown(f'<div class="tl-card tl-coach">{_md(cached["review"])}'
                     f'<div class="tl-note" style="margin-top:12px;font-size:12px;color:var(--tl-muted)">'
-                    f'{c.esc(cached["model"])}{" · cached" if cached.get("cached") else ""} · {len(df)} trades in view</div></div>',
+                    f'{cached["model"]}{" · cached" if cached.get("cached") else ""} · {len(df)} trades in view</div></div>',
                     unsafe_allow_html=True)
     elif not compact:
         st.markdown('<div class="tl-note">Click <b>Ask the coach</b> to get a review of exactly the trades in view. '

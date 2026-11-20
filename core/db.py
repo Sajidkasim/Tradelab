@@ -390,21 +390,6 @@ class Database:
                 conn.execute(trades_t.update().where(trades_t.c.id == trade_id).values(
                     gross_pnl=t.gross_pnl, net_pnl=t.net_pnl, initial_risk=t.initial_risk, r_multiple=t.r_multiple))
 
-    def bulk_update_trade_sessions(self, updates: dict[int, str]) -> int:
-        """Update only the session label for many trades in a single transaction."""
-        if not updates:
-            return 0
-        now = _now()
-        stmt = (
-            trades_t.update()
-            .where(trades_t.c.id == sa.bindparam("b_id"))
-            .values(session=sa.bindparam("b_session"), updated_at=now)
-        )
-        params = [{"b_id": int(tid), "b_session": str(lbl)} for tid, lbl in updates.items()]
-        with self.engine.begin() as conn:
-            conn.execute(stmt, params)
-        return len(params)
-
     def get_trade(self, trade_id: int) -> Optional[Trade]:
         with self.engine.connect() as conn:
             r = conn.execute(select(trades_t).where(trades_t.c.id == trade_id)).mappings().first()

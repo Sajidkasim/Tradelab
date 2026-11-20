@@ -157,14 +157,8 @@ one_per_day = x6.checkbox("One trade/day", value=False)
 ss, se = None, None
 if sess_on:
     t1, t2 = st.columns(2)
-    ss_raw = t1.text_input("Session start (bar clock, HH:MM)", value="09:30").strip()
-    se_raw = t2.text_input("Session end", value="16:00").strip()
-    try:
-        ss = time.fromisoformat(ss_raw)
-        se = time.fromisoformat(se_raw)
-    except ValueError:
-        st.error("Session times must be in HH:MM format (for example, 09:30 and 16:00).")
-        st.stop()
+    ss = time.fromisoformat(t1.text_input("Session start (bar clock, HH:MM)", value="09:30"))
+    se = time.fromisoformat(t2.text_input("Session end", value="16:00"))
 cfg = BacktestConfig(symbol=sym, multiplier=ins.multiplier, tick_size=ins.tick_size, commission_per_contract=comm,
                      slippage_ticks=slip, starting_balance=acct.starting_balance, contracts=contracts, risk_dollars=risk_d,
                      max_contracts=acct.max_contracts, stop_points=stop_pts or None, target_points=tgt_pts or None,

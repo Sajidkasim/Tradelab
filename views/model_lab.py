@@ -39,7 +39,7 @@ with tab_score:
         head = st.columns([3, 1])
         with head[0]:
             st.markdown(f'{c.pill("info" if status == "live" else ("neutral" if status == "testing" else "amber"), status.upper())} '
-                        f'<span class="tl-note" style="margin-left:8px">{c.esc(sdef.description if sdef and sdef.description else "")}</span>',
+                        f'<span class="tl-note" style="margin-left:8px">{(sdef.description if sdef and sdef.description else "")}</span>',
                         unsafe_allow_html=True)
         ready = s["trades"] >= 30 and (s["expectancy_r"] or 0) > 0 and lo > 0.35
         c.kpi_row([
@@ -151,11 +151,9 @@ with tab_manage:
                               rules=[r.strip() for r in rules.splitlines() if r.strip()], target_r=target_r,
                               expected_win_rate=exp_wr, status=SetupStatus(status), id=cur.id if cur else None)
                 db.upsert_setup(setup)
-                state.bump()
                 st.success(f"Saved '{setup.name}'.")
                 st.rerun()
     if cur:
         if st.button(f"Delete '{cur.name}'", type="secondary"):
             db.delete_setup(cur.id)
-            state.bump()
             st.rerun()

@@ -5,7 +5,7 @@ sessions, mistakes and confidence ratings. Deterministic for a given seed.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -28,7 +28,7 @@ def seed_demo_trades(n: int = 200, seed: int = 7, start: datetime | None = None,
     symbols = ["MES", "MNQ", "ES", "MES", "MNQ"]
     # ~1.5 trades per weekday, so n trades span roughly n * 7/5 / 1.5 days; end a few days ago
     span_days = int(n * 7 / 5 / 1.5) + 5
-    start = start or (datetime.now(timezone.utc).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+    start = start or (datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
                       - timedelta(days=span_days))
     names = list(SETUPS)
     shares = np.array([SETUPS[k][3] for k in names]); shares /= shares.sum()

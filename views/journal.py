@@ -83,17 +83,17 @@ with st.expander("Reviews, advanced editing & export"):
                     obs = []
                     for r in metrics.breakdown(w, "setup_name").itertuples():
                         if r.trades >= 3:
-                            obs.append(f"<b>{c.esc(r.setup_name or 'untagged')}</b>: {r.trades} trades, {c.fmt_pct(r.win_rate)} win rate, {c.fmt_money(r.net_pnl)}.")
+                            obs.append(f"<b>{r.setup_name or 'untagged'}</b>: {r.trades} trades, {c.fmt_pct(r.win_rate)} win rate, {c.fmt_money(r.net_pnl)}.")
                     ra = metrics.rule_adherence(w).set_index("rules")
                     if ra.loc["broke", "trades"] > 0:
                         obs.append(f"Rules broken on <b>{int(ra.loc['broke', 'trades'])}</b> trade(s): {c.fmt_money(ra.loc['broke', 'net_pnl'])}.")
                     tags_ = metrics.pnl_by_tag(w)
                     if not tags_.empty:
                         worst = tags_.iloc[0]
-                        obs.append(f"Most costly mistake: <b>{c.esc(worst['tag'])}</b> ({int(worst['trades'])}×, {c.fmt_money(worst['net_pnl'])}).")
+                        obs.append(f"Most costly mistake: <b>{worst['tag']}</b> ({int(worst['trades'])}×, {c.fmt_money(worst['net_pnl'])}).")
                     for r in metrics.breakdown(metrics.add_time_features(w, tz), "weekday").itertuples():
                         if r.trades >= 3 and (r.expectancy or 0) < 0:
-                            obs.append(f"<b>{c.esc(r.weekday)}</b> was negative across {r.trades} trades ({c.fmt_money(r.net_pnl)}).")
+                            obs.append(f"<b>{r.weekday}</b> was negative across {r.trades} trades ({c.fmt_money(r.net_pnl)}).")
                     if obs:
                         c.section("Observations", "Only where there are enough trades to mean something")
                         for o in obs[:6]:

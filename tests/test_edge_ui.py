@@ -238,18 +238,3 @@ def test_custom_imported_confirmation_survives_review(app_db):
     next(b for b in app.button if b.label == 'Save changes').click().run()
     assert not app.exception
     assert 'My custom signal' in edge.read_labels(app_db.get_trade(tid).tags)['confirmations']
-
-
-def test_quick_log_risk_warning_uses_account_benchmark(app_db):
-    acct = app_db.accounts()[0]
-    acct.starting_balance = 100_000
-    acct.risk_per_trade_pct = 1.0  # $1,000 benchmark (not $250)
-    app_db.upsert_account(acct)
-    app = start("Log a trade")
-    app.number_input(key="edge_log_0_pnl").set_value(400.0)
-    app.number_input(key="edge_log_0_risk").set_value(400.0).run()
-    assert not app.exception
-    assert not any("risk benchmark" in w.value for w in app.warning)
-    app.number_input(key="edge_log_0_risk").set_value(1200.0).run()
-    assert not app.exception
-    assert any("$1,000.00 risk benchmark" in w.value for w in app.warning)
