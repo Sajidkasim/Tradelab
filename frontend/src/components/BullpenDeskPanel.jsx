@@ -11,39 +11,71 @@ const BIAS_OPTIONS = [
 
 const SYMBOLS = ['NQ', 'ES', 'GC', 'EURUSD', 'QQQ'];
 
-function formatCountdown(isoOrEpoch) {
-  if (!isoOrEpoch) return '';
-  const target = typeof isoOrEpoch === 'number' ? isoOrEpoch : Date.parse(isoOrEpoch);
-  if (!Number.isFinite(target)) return '';
-  const diffMin = Math.round((target - Date.now()) / 60000);
+const MARKET_MOVER = /\b(?:CPI|PPI|FOMC|NFP|Payroll|Jobs|JOLTS|GDP|PCE|Retail Sales|Unemployment|Initial Claims|Jobless|Fed|Powell|ISM|PMI|Consumer Confidence|Consumer Sentiment|Durable Goods|Personal Income|Rate Decision|Minutes)\b/i;
+
+const MACRO_FIELDS = [
+  { key: 'dgs10', label: '10Y Yield', source: 'tickers' },
+  { key: 'cot', label: 'NQ COT Net', source: 'swing' },
+  { key: 'cpi', label: 'Core CPI YoY', source: 'swing' },
+  { key: 'curve', label: '10Y-2Y Curve', source: 'intraday' },
+  { key: 'breakeven', label: '10Y Breakeven', source: 'addons' },
+  { key: 'fed', label: 'Fed Liquidity', source: 'swing' },
+];
+
+function parseEventMs(ev) {
+  const raw = ev?.scheduled_at || ev?.date || ev?.time;
+  if (!raw) return NaN;
+  const normalized = typeof raw === 'string' && raw.length === 16 && raw.includes(' ')
+    ? raw.replace(' ', 'T') + ':00Z'
+    : raw;
+  return Date.parse(normalized);
+}
+
+function formatEventTime(ms, fallback) {
+  if (!Number.isFinite(ms)) return fallback ? String(fallback).slice(0, 16).replace('T', ' ') : '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(ms)) + ' ET';
+}
+
+function formatCountdown(ms) {
+  if (!Number.isFinite(ms)) return '';
+  const diffMin = Math.round((ms - Date.now()) / 60000);
   if (diffMin < -30) return 'Released';
   if (diffMin <= 0) return 'LIVE';
   if (diffMin < 60) return `in ${diffMin}m`;
-  const hrs = Math.floor(diffMin / 60);
-  const mins = diffMin % 60;
-  return `in ${hrs}h ${mins}m`;
+  if (diffMin < 1440) {
+    const hrs = Math.floor(diffMin / 60);
+    const mins = diffMin % 60;
+    return mins ? `in ${hrs}h ${mins}m` : `in ${hrs}h`;
+  }
+  const days = Math.ceil(diffMin / 1440);
+  return `in ${days}d`;
 }
 
 export function BullpenNewsPanel() {
-  const [matrix, setMatrix] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
   const [calendar, setCalendar] = useState([]);
+  const [showPast, setShowPast] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const snap = await api('/matrix/snapshot');
+        const res = await api('/matrix/snapshot');
         if (!active) return;
-        setMatrix(snap);
+        const snap = res?.snapshot || (res?.tickers || res?.swing ? res : null);
+        setSnapshot(snap);
         const fmp = Array.isArray(snap?.calendar) ? snap.calendar : [];
         if (fmp.length) {
-          setCalendar(fmp.slice(0, 12));
+          setCalendar(fmp);
         } else {
           const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
           const econ = await api(`/backtesting/economic-calendar?day=${today}&scope=month`).catch(() => null);
           if (active && Array.isArray(econ?.events)) {
-            setCalendar(econ.events.slice(0, 12));
+            setCalendar(econ.events);
           }
         }
       } catch {
@@ -57,52 +89,97 @@ export function BullpenNewsPanel() {
     return () => { active = false; clearInterval(timer); };
   }, []);
 
-  const swing = matrix?.desks?.swing || matrix?.swing;
-  const intraday = matrix?.desks?.intraday || matrix?.intraday;
+  const readings = [];
+  if (snapshot) {
+    const pools = {
+      tickers: Array.isArray(snapshot.tickers) ? snapshot.tickers : [],
+      swing: Array.isArray(snapshot.swing?.metrics) ? snapshot.swing.metrics : [],
+      intraday: Array.isArray(snapshot.intraday?.metrics) ? snapshot.intraday.metrics : [],
+      addons: Array.isArray(snapshot.addons) ? snapshot.addons : [],
+    };
+    for (const field of MACRO_FIELDS) {
+      const hit = pools[field.source]?.find((item) => item?.id === field.key);
+      if (hit?.value) readings.push({ ...field, value: hit.value, change: hit.change, direction: hit.direction });
+    }
+  }
+
+  const nowMs = Date.now();
+  const normalizedEvents = calendar
+    .map((ev, idx) => {
+      const title = ev.title || ev.event || ev.name || 'US Release';
+      const ms = parseEventMs(ev);
+      return { id: ev.id || `${title}-${idx}`, title, ms, raw: ev.scheduled_at || ev.date || ev.time, actual: ev.actual, estimate: ev.estimate };
+    })
+    .filter((ev) => MARKET_MOVER.test(ev.title))
+    .sort((a, b) => (a.ms || 0) - (b.ms || 0));
+
+  const upcoming = normalizedEvents.filter((ev) => !Number.isFinite(ev.ms) || ev.ms >= nowMs - 30 * 60000);
+  const past = normalizedEvents.filter((ev) => Number.isFinite(ev.ms) && ev.ms < nowMs - 30 * 60000).reverse();
+  const visibleEvents = showPast ? [...upcoming, ...past].slice(0, 12) : upcoming.slice(0, 8);
+  const nextEvent = upcoming[0] || null;
 
   return (
     <section className="bullpen-desk-panel" aria-label="Desk macro and calendar">
       <div className="bullpen-desk-block">
-        <div className="bullpen-desk-heading"><Compass size={14} /> Matrix Macro Bias</div>
+        <div className="bullpen-desk-row">
+          <div className="bullpen-desk-heading"><Compass size={14} /> Matrix Macro Pulse</div>
+          <a className="bullpen-desk-link" href="/matrix">Full Matrix ↗</a>
+        </div>
         {loading ? (
-          <p className="bullpen-desk-muted">Loading Matrix snapshot…</p>
-        ) : (swing || intraday) ? (
+          <p className="bullpen-desk-muted">Loading Matrix readings…</p>
+        ) : readings.length ? (
           <div className="bullpen-macro-grid">
-            {swing && (
-              <div className="bullpen-macro-card">
-                <span>Swing Desk</span>
-                <strong>{swing.bias || swing.verdict || swing.regime || '—'}</strong>
-                {swing.score !== undefined && <small>Score {swing.score}</small>}
+            {readings.map((r) => (
+              <div key={r.key} className="bullpen-macro-card">
+                <span>{r.label}</span>
+                <div className="bullpen-macro-val">
+                  <strong>{r.value}</strong>
+                  {r.change && <small className={r.direction === 'up' ? 'is-up' : r.direction === 'down' ? 'is-down' : ''}>{r.change}</small>}
+                </div>
               </div>
-            )}
-            {intraday && (
-              <div className="bullpen-macro-card">
-                <span>Intraday Desk</span>
-                <strong>{intraday.bias || intraday.verdict || intraday.regime || '—'}</strong>
-                {intraday.score !== undefined && <small>Score {intraday.score}</small>}
-              </div>
-            )}
+            ))}
           </div>
         ) : (
-          <p className="bullpen-desk-muted">Open The Matrix to view full macro readings.</p>
+          <p className="bullpen-desk-muted">No cached Matrix readings yet. Open The Matrix to refresh.</p>
         )}
       </div>
 
       <div className="bullpen-desk-block">
-        <div className="bullpen-desk-heading"><CalendarClock size={14} /> High-Impact US Calendar</div>
+        <div className="bullpen-desk-row">
+          <div className="bullpen-desk-heading"><CalendarClock size={14} /> Upcoming US Catalysts</div>
+          {past.length > 0 && (
+            <button type="button" className="bullpen-desk-toggle" onClick={() => setShowPast((v) => !v)}>
+              {showPast ? 'Hide past' : `Past (${past.length})`}
+            </button>
+          )}
+        </div>
+        {nextEvent && (
+          <div className="bullpen-next-event">
+            <div>
+              <span className="bullpen-next-label">NEXT RED-FOLDER</span>
+              <strong>{nextEvent.title}</strong>
+              <small>{formatEventTime(nextEvent.ms, nextEvent.raw)}</small>
+            </div>
+            <span className={`bullpen-countdown${formatCountdown(nextEvent.ms) === 'LIVE' ? ' is-live' : ' is-next'}`}>
+              {formatCountdown(nextEvent.ms)}
+            </span>
+          </div>
+        )}
         {loading ? (
           <p className="bullpen-desk-muted">Loading schedule…</p>
-        ) : calendar.length ? (
+        ) : visibleEvents.length ? (
           <ul className="bullpen-cal-list">
-            {calendar.map((ev, i) => {
-              const when = ev.scheduled_at || ev.date || ev.time;
-              const title = ev.title || ev.event || ev.name || 'US Release';
-              const countdown = formatCountdown(when);
+            {visibleEvents.map((ev) => {
+              const countdown = formatCountdown(ev.ms);
               return (
-                <li key={ev.id || `${title}-${i}`}>
+                <li key={ev.id}>
                   <div>
-                    <strong>{title}</strong>
-                    <small>{ev.impact ? `${ev.impact} · ` : ''}{when ? String(when).slice(0, 16).replace('T', ' ') : ''}</small>
+                    <strong>{ev.title}</strong>
+                    <small>
+                      {formatEventTime(ev.ms, ev.raw)}
+                      {ev.estimate != null ? ` · Est ${ev.estimate}` : ''}
+                      {ev.actual != null ? ` · Act ${ev.actual}` : ''}
+                    </small>
                   </div>
                   {countdown && <span className={`bullpen-countdown${countdown === 'LIVE' ? ' is-live' : ''}`}>{countdown}</span>}
                 </li>
@@ -110,7 +187,7 @@ export function BullpenNewsPanel() {
             })}
           </ul>
         ) : (
-          <p className="bullpen-desk-muted">No scheduled US high-impact events right now.</p>
+          <p className="bullpen-desk-muted">No remaining major US catalysts this month.</p>
         )}
       </div>
     </section>

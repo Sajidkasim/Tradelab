@@ -144,10 +144,10 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
     }finally{setSending(false)}
   }
 
-  return <section className={minimised?"bullpen-room is-minimised":"bullpen-room"} aria-label="Live Trading Bullpen">
+  return <section className={minimised?"bullpen-room is-minimised":"bullpen-room"} aria-label="Live Trading Floor">
     <header className="bullpen-room-head">
       <div className="bullpen-head-title">
-        <h1>Bullpen</h1>
+        <h1>Trading Floor</h1>
         {joined&&<span className="bullpen-live">LIVE</span>}
         <span className="bullpen-clock">{clockLabel}</span>
       </div>
@@ -170,7 +170,7 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
               onError={setVideoError}
             />
           ) : (
-            <Suspense fallback={<p role="status">Opening Bullpen…</p>}>
+            <Suspense fallback={<p role="status">Opening Trading Floor…</p>}>
               <JaaSMeeting roomName={meeting.roomName} appId={meeting.appId} jwt={meeting.jwt}
                 userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
                 interfaceConfigOverwrite={{
@@ -199,11 +199,11 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
           event.preventDefault();
           setSplit(value=>event.key==='Home'?45:event.key==='End'?82:constrain(value+(event.key==='ArrowLeft'?-2:2)*(sidebarLeft?-1:1)));
         }}/>
-      <aside className="bullpen-side" aria-label="Bullpen desk sidebar">
+      <aside className="bullpen-side" aria-label="Trading Floor desk sidebar">
         <div className="bullpen-tabs" role="group" aria-label="Sidebar view">
-          <button type="button" aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}><MessageSquare size={15}/> Chat</button>
-          <button type="button" aria-pressed={tab==='levels'} onClick={()=>setTab('levels')}><Layers size={15}/> Levels</button>
-          <button type="button" aria-pressed={tab==='news'} onClick={()=>setTab('news')}><CalendarClock size={15}/> Desk &amp; News</button>
+          <button type="button" aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}><MessageSquare size={14}/> Chat</button>
+          <button type="button" aria-pressed={tab==='levels'} onClick={()=>setTab('levels')}><Layers size={14}/> Levels</button>
+          <button type="button" aria-pressed={tab==='news'} onClick={()=>setTab('news')}><CalendarClock size={14}/> News</button>
         </div>
         {tab==='chat'?<>
           <div className="bullpen-messages" role="log" aria-label="Team chat">
