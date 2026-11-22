@@ -300,3 +300,352 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-pane-role { margin-inline-start: .5rem; color: var(--bt-muted); font-size: 11px; }
 .bt-price-ticket .bt-ticket-be { border-left: 1px solid color-mix(in srgb, var(--ticket) 35%, transparent); font-size: .72rem; font-weight: 650; }
 .bt-price-ticket .bt-ticket-be:not(:disabled):hover { background: var(--bt-border); }
+
+/* ============================================================
+   Backtesting v2 — Clean TradingView / FX Replay Visual Polish
+   ============================================================ */
+:root[data-theme="dark"] .backtesting-workspace {
+  --bt-bg: #0d1117;
+  --bt-surface: #11161d;
+  --bt-border: #1e2630;
+  --bt-selected: rgba(38, 166, 154, .14);
+  --bt-accent: #26a69a;
+  --bt-ink: #e2e8f0;
+  --bt-muted: #7f8c9a;
+}
+
+/* 42px single-row TradingView top toolbar */
+.bt-toolbar {
+  min-height: 42px;
+  padding: 0 10px;
+  gap: 8px;
+}
+.bt-shared-toolbar .bt-toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.bt-shared-toolbar .bt-toolbar::-webkit-scrollbar { display: none; }
+.bt-tb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+  border-right: 1px solid var(--bt-border);
+  flex-shrink: 0;
+}
+.bt-toolbar .bt-brand {
+  border-right: 0;
+  padding: 0 4px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+.bt-toolbar button,
+.bt-toolbar a {
+  min-height: 29px;
+  padding: 0 7px;
+  font-size: 12px;
+  border-radius: 6px;
+  gap: 5px;
+}
+.bt-toolbar .bt-icon { width: 29px; min-width: 29px; padding: 0; }
+.bt-toolbar .bt-icon[aria-pressed="true"] {
+  background: var(--bt-selected);
+  color: var(--bt-accent);
+}
+.bt-market { width: 76px; }
+.bt-market .picker-trigger {
+  min-height: 29px!important;
+  height: 29px;
+  padding: 0 8px!important;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+.bt-timeframes { gap: 2px; }
+.bt-timeframes button {
+  min-width: 28px;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bt-timeframes .bt-tf-add { min-width: 26px; padding: 0 5px; }
+.bt-tools {
+  border-left: 0;
+  padding-left: 0;
+  gap: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.bt-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--bt-border);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+.bt-seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bt-bg);
+  border: 1px solid var(--bt-border);
+  gap: 1px;
+}
+.bt-seg button {
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  color: var(--bt-muted);
+}
+.bt-seg button[aria-pressed="true"] {
+  background: var(--bt-selected);
+  color: var(--bt-accent);
+}
+.bt-snap-btn.is-done {
+  background: rgba(38, 166, 154, .18);
+  color: #5eead4;
+}
+.bt-toolbar .button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  border: 1px solid var(--bt-border);
+  background: transparent;
+  color: var(--bt-muted);
+}
+.bt-toolbar .button:hover { color: var(--bt-ink); background: var(--bt-selected); }
+
+/* Seamless TradingView multi-chart splits (2px hairline seams) */
+.bt-panes-split {
+  gap: 2px;
+  padding: 0;
+  background: var(--bt-border);
+  grid-template-columns: minmax(0, calc((100% - 2px) * var(--bt-split-ratio, .5))) minmax(0, 1fr);
+}
+.bt-panes .bt-chart-pane { border: 0; }
+.bt-panes-split .bt-chart-pane.is-selected {
+  outline: none;
+  box-shadow: inset 0 2px 0 var(--bt-accent, #26a69a);
+}
+.bt-split-handle {
+  inset-block: 0;
+  left: calc(1px + (100% - 2px) * var(--bt-split-ratio, .5));
+  width: 8px;
+}
+.bt-split-handle::after { width: 2px; height: 28px; opacity: .45; }
+.bt-panes-three {
+  grid-template-rows: minmax(0, calc((100% - 2px) * var(--bt-row-ratio, .5))) minmax(0, 1fr);
+}
+.bt-panes-three > .bt-split-handle-horizontal {
+  inset: auto 0 auto calc(2px + (100% - 2px) * var(--bt-split-ratio, .64));
+  top: calc(1px + (100% - 2px) * var(--bt-row-ratio, .5));
+  height: 8px;
+}
+
+/* TradingView-style top-left OHLC legend & pane switcher */
+.bt-ohlc-bar {
+  position: absolute;
+  top: 8px;
+  left: 54px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bt-bg) 78%, transparent);
+  backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in srgb, var(--bt-border) 75%, transparent);
+  pointer-events: none;
+  max-width: calc(100% - 130px);
+  overflow: hidden;
+}
+.bt-ohlc-sym {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--bt-ink);
+  white-space: nowrap;
+}
+.bt-ohlc-bar .bt-pane-tag {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bt-border) 85%, transparent);
+  color: var(--bt-ink);
+}
+.bt-ohlc-bar .bt-pane-tag.is-active {
+  background: #26a69a;
+  color: #061311;
+}
+.bt-ohlc-bar .bt-pane-tag small {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  opacity: .8;
+}
+.bt-ohlc-vals {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bt-ohlc-vals i {
+  font-style: normal;
+  color: var(--bt-muted);
+  margin-right: 2px;
+  font-size: 10px;
+}
+.bt-ohlc-vals.is-up { color: #26a69a; }
+.bt-ohlc-vals.is-down { color: #ef5350; }
+.bt-ohlc-chg { font-weight: 700; }
+
+/* Sleeker on-chart Entry / SL / TP pill tickets */
+.bt-price-ticket {
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px rgba(0,0,0,.32);
+  backdrop-filter: blur(8px);
+}
+.bt-price-ticket .bt-ticket-drag {
+  min-height: 26px;
+  padding: 3px 9px;
+  gap: 7px;
+}
+.bt-price-ticket button {
+  min-height: 26px;
+  padding: 2px 7px;
+}
+.bt-price-ticket > button:last-child { font-size: 14px; }
+.bt-ticket-line.stop { --ticket: #ef5350; }
+.bt-ticket-line.target { --ticket: #26a69a; }
+.bt-risk-zone { background: rgba(239, 83, 80, .09); }
+.bt-risk-zone.target { background: rgba(38, 166, 154, .1); }
+
+/* Tighter bottom playback, active position strip & live mini-stats */
+.bt-clock-footer {
+  padding: 2px 10px;
+  min-height: 25px;
+  font-size: 10.5px;
+  background: var(--bt-surface);
+}
+.bt-clock-footer button,
+.bt-clock-footer .picker-trigger {
+  min-height: 21px;
+  padding: 1px 7px;
+  font-size: 10.5px;
+}
+.bt-position-strip {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--bt-surface) 92%, var(--bt-accent));
+}
+.bt-pos-long { color: #26a69a!important; font-weight: 750; }
+.bt-pos-short { color: #ef5350!important; font-weight: 750; }
+.bt-position-strip .bt-pos-be {
+  border-color: rgba(38, 166, 154, .5);
+  color: #5eead4;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+.bt-position-strip .bt-pos-half {
+  border-color: rgba(245, 158, 11, .5);
+  color: #fcd34d;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+.bt-replaybar {
+  padding: 5px 10px;
+  gap: 10px;
+  min-height: 40px;
+}
+.bt-replaybar button { min-height: 30px; font-size: 12px; }
+.bt-replaybar .bt-buy { background: #1e8e7a; padding: 0 15px; }
+.bt-replaybar .bt-buy:hover:not(:disabled) { background: #26a69a; }
+.bt-replaybar .bt-sell { background: #c94648; padding: 0 15px; }
+.bt-replaybar .bt-sell:hover:not(:disabled) { background: #ef5350; }
+.bt-replaybar .picker-trigger { height: 30px!important; min-height: 30px!important; font-size: 11.5px; }
+.bt-qty input { min-height: 28px; }
+
+.bt-mini-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bt-bg);
+  border: 1px solid var(--bt-border);
+  font-size: 11.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bt-mini-stats small { font-weight: 500; opacity: .85; }
+.bt-mini-wl {
+  color: var(--bt-muted);
+  border-left: 1px solid var(--bt-border);
+  padding-left: 8px;
+  font-size: 11px;
+}
+.bt-profit { color: #26a69a; }
+.bt-loss { color: #ef5350; }
+
+/* Zen Focus Mode (F): hide secondary strips for edge-to-edge candles */
+.bt-zen .bt-clock-footer { display: none; }
+.bt-zen .bt-clear-drawings { opacity: .35; }
+.bt-zen .bt-clear-drawings:hover { opacity: 1; }
+
+/* Upgraded Sessions Landing Page P&L Pills */
+.bt-session-perf {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 118px;
+}
+.bt-session-perf strong {
+  font-size: 17px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.bt-session-pnl {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.bt-session-pnl.is-up {
+  background: rgba(38, 166, 154, .15);
+  color: #34d399;
+  border: 1px solid rgba(38, 166, 154, .35);
+}
+.bt-session-pnl.is-down {
+  background: rgba(239, 83, 80, .14);
+  color: #fb7185;
+  border: 1px solid rgba(239, 83, 80, .35);
+}
+.bt-session-pnl.is-flat {
+  background: color-mix(in srgb, var(--desk-border) 50%, transparent);
+  color: var(--desk-muted);
+}
+
+@media (max-width: 900px) {
+  .bt-ohlc-vals { display: none; }
+  .bt-mini-stats { display: none; }
+}
+

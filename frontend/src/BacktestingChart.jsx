@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2, Newspaper} from 'lucide-react';
+import {ArrowLeft, Compass, Sun, Moon, ChartNoAxesCombined, Search, Plus, X, Settings2, Scan, Trash2, Newspaper, Camera, Tv2, MousePointer2, Star, Link2, Crosshair} from 'lucide-react';
 import {api} from './api';
 import {createPortal} from 'react-dom';
 import ReplayTrading from './ReplayTrading';
@@ -24,17 +24,17 @@ import DrawingContextMenu from './DrawingContextMenu';
 import {installReplayDrawingInteractions} from './replayDrawingInteractions';
 
 const chartTheme = mode => ({
-  background: mode === 'dark' ? '#16191c' : '#fcfcfb',
-  textColor: mode === 'dark' ? '#cbd1d5' : '#525953',
-  gridColor: mode === 'dark' ? '#262b30' : '#eceeea',
-  borderColor: mode === 'dark' ? '#30363b' : '#e1e4de',
-  upColor: '#389483', downColor: '#d36871',
+  background: mode === 'dark' ? '#0d1117' : '#fcfcfb',
+  textColor: mode === 'dark' ? '#9aa6b2' : '#525953',
+  gridColor: mode === 'dark' ? 'rgba(255,255,255,0.035)' : '#f0f2ef',
+  borderColor: mode === 'dark' ? '#1e2630' : '#e1e4de',
+  upColor: '#26a69a', downColor: '#ef5350',
   fontFamily: 'Inter, system-ui, sans-serif',
 });
 const drawingTools = ['trendline', 'hline', 'hray', 'box', 'fibretracement', 'text', 'position'];
 const popular = ['sma', 'ema', 'vwap', 'rsi', 'macd', 'bb', 'atr'];
 
-export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,newsOpen,newsToggle,onToggleNews,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
+export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,newsOpen,newsToggle,onToggleNews,zenMode=false,onToggleZen,reportReady,drawingTool,selectDrawingTool,magnetMode,selectMagnetMode,theme, onThemeToggle, sample, session, projection, cursor, onCursor, onContinue, onAction, onSessionBack, onSave, saving, saveError, sessionBusy,layout={},secondary=false,twoCharts=false,paneCount=1,onLayoutCount,journal={},registerLayoutSave,paneId,paneState,onPaneChange,selected,onSelect,toolbarHost,controlsHost,chartGroup,onToggleCrosshair,onToggleIntervals,owner=false,registerChart,onCrosshair,saveOtherLayout=()=>Promise.resolve()}) {
   const drawingGeometry=useRef(null);
   const [drawingEditor,setDrawingEditor]=useState(null);
   const [drawingMenu,setDrawingMenu]=useState(null);
@@ -321,30 +321,148 @@ export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,ne
     setPicker(false);
     requestAnimationFrame(() => chartRef.current?.renderer.openIndicatorSettings(id));
   }
+  const [snapState,setSnapState]=useState('');
+  const snapTimerRef=useRef(null);
+  useEffect(()=>()=>clearTimeout(snapTimerRef.current),[]);
+
+  const nextRef=useRef(null);
+  nextRef.current=next;
+  // Replay keyboard hotkeys on primary pane: Space Play/Pause, ArrowRight Step 1 candle, F Zen Mode
+  useEffect(()=>{
+    if(secondary)return;
+    const onKeyDown=event=>{
+      if(event.metaKey||event.ctrlKey||event.altKey)return;
+      const el=event.target;
+      if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT'||el.isContentEditable))return;
+      if(closeTicket||picker||timeframeEditor||toolsEditor||sessionRangeEditor||clearDrawings||drawingEditor)return;
+      if(document.querySelector('.modal-backdrop,.modal'))return;
+      const key=event.key.toLowerCase();
+      if(event.code==='Space'&&!event.repeat&&ready&&!busy&&!sessionBusy&&!(finished&&!session.next_day)){
+        event.preventDefault();
+        setPlaying(p=>!p);
+      }else if(event.key==='ArrowRight'&&!playing&&ready&&!busy&&!sessionBusy&&!(finished&&!session.next_day)){
+        event.preventDefault();
+        void nextRef.current?.();
+      }else if(key==='f'&&!event.repeat&&onToggleZen){
+        event.preventDefault();
+        onToggleZen();
+      }
+    };
+    window.addEventListener('keydown',onKeyDown);
+    return()=>window.removeEventListener('keydown',onKeyDown);
+  },[secondary,ready,busy,sessionBusy,finished,session.next_day,playing,closeTicket,picker,timeframeEditor,toolsEditor,sessionRangeEditor,clearDrawings,drawingEditor,onToggleZen]);
+
+  async function snapChartToJournal(){
+    const rootEl=host.current;
+    if(!rootEl||snapState==='saving')return;
+    const canvases=[...rootEl.querySelectorAll('canvas')].filter(c=>c.width>0&&c.height>0);
+    if(!canvases.length)return;
+    setSnapState('saving');
+    try{
+      const baseRect=rootEl.getBoundingClientRect();
+      const dpr=Math.min(window.devicePixelRatio||1,2);
+      const out=document.createElement('canvas');
+      out.width=Math.max(1,Math.round(baseRect.width*dpr));
+      out.height=Math.max(1,Math.round(baseRect.height*dpr));
+      const ctx=out.getContext('2d');
+      ctx.fillStyle=chartTheme(theme).background;
+      ctx.fillRect(0,0,out.width,out.height);
+      for(const c of canvases){
+        const r=c.getBoundingClientRect();
+        ctx.drawImage(c,(r.left-baseRect.left)*dpr,(r.top-baseRect.top)*dpr,r.width*dpr,r.height*dpr);
+      }
+      const blob=await new Promise(resolve=>out.toBlob(resolve,'image/webp',0.92));
+      if(!blob)throw new Error('Could not capture chart.');
+      const nyDay=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+      const form=new FormData();
+      form.append('file',blob,`backtest-${symbol}-${timeframeName}-${Date.now()}.webp`);
+      try{
+        await api(`/journal/${nyDay}/images`,{method:'POST',body:form});
+        setSnapState('saved');
+      }catch{
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        a.href=url;a.download=`backtest-${symbol}-${timeframeName}.webp`;a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        setSnapState('downloaded');
+      }
+      clearTimeout(snapTimerRef.current);
+      snapTimerRef.current=setTimeout(()=>setSnapState(''),3000);
+    }catch{
+      setSnapState('');
+    }
+  }
+
   const matches = catalog.filter(item => (item.type !== "volume" || search.trim()) && `${item.title} ${item.type}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a,b) => (popular.includes(a.type) ? 0 : 1) - (popular.includes(b.type) ? 0 : 1) || a.title.localeCompare(b.title));
 
+  const latestBar = bars.length ? bars[bars.length - 1] : null;
+  const priceDecimals = symbol === 'XAUUSD' ? 3 : ['EURUSD','GBPUSD'].includes(symbol) ? 5 : 2;
+  const barUp = latestBar ? latestBar.close >= latestBar.open : true;
+  const barDelta = latestBar ? latestBar.close - latestBar.open : 0;
+
   return <div className={`backtesting-workspace bt-chart-pane ${selected?'is-selected':''}`} data-pane-id={paneId} onPointerDownCapture={e=>{if(e.currentTarget.contains(e.target))onSelect()}}>
     {selected&&toolbarHost&&createPortal(<header className="bt-toolbar" aria-label="Chart controls">
-      <a href="/backtesting" className="bt-back" aria-label="Back to sessions" title="Save & back to sessions" onClick={e=>{e.preventDefault();setPlaying(false);saveLayout().then(saveOtherLayout).then(onSessionBack).catch(()=>{})}}><ArrowLeft size={19}/><span>Back</span></a>
-      <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={21}/><span>PRIMUS · BETA</span></a>
-      {Object.keys(sample.markets).length>1 && <div className="bt-market"><Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>}
-      <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
-        {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
-      <button aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={16}/></button></div>
-      <div className="bt-tools"><button onClick={()=>selectDrawingTool(null)} title="Stop drawing and select objects">Select drawings</button><button aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button><button aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button><button aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>{twoCharts&&<button aria-label="Sync intervals" aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}>Sync intervals {chartGroup.syncIntervals?'On':'Off'}</button>}{twoCharts&&<button aria-label="Sync crosshair" aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}>Sync crosshair</button>}
-        <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={16}/><span className="bt-follow-label">{follow?'Following':'View locked'}</span></button>
-        <button type="button" ref={newsToggle} aria-label="Economic news" aria-expanded={newsOpen}
-          aria-controls={newsOpen?'bt-replay-news':undefined} onClick={onToggleNews}><Newspaper size={16}/><span>News</span></button>
-        <Feedback owner={owner}/>{!secondary&&<button aria-label="Drawing favorites" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}>★ Favorites</button>}<button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={18}/><span>Indicators</span></button>
-        <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={18}/></button>
-        <button disabled={!ready || busy} className="bt-icon" aria-label="Chart settings" title="Chart settings" onClick={() => chartRef.current?.renderer.openSettings()}><Settings2 size={18}/></button>
-        <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}</button>
+      <div className="bt-tb-group">
+        <a href="/backtesting" className="bt-back" aria-label="Back to sessions" title="Save & back to sessions" onClick={e=>{e.preventDefault();setPlaying(false);saveLayout().then(saveOtherLayout).then(onSessionBack).catch(()=>{})}}><ArrowLeft size={16}/><span>Back</span></a>
+        <a className="bt-brand" href="/" aria-label="PrimusTrader home"><Compass size={17}/><span>PRIMUS</span></a>
+      </div>
+
+      <div className="bt-tb-group">
+        {Object.keys(sample.markets).length>1 && <div className="bt-market"><Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>}
+        <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
+          {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
+          <button className="bt-tf-add" aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={14}/></button>
+        </div>
+      </div>
+
+      <div className="bt-tb-group">
+        <button aria-label="Indicators" className="bt-indicators-button" disabled={!ready || busy} onClick={openIndicators}><ChartNoAxesCombined size={15}/><span>Indicators</span></button>
+        {!secondary&&<button className="bt-icon" aria-label="Drawing favorites" title="Favorite drawing tools" disabled={!ready||busy} onClick={()=>setToolsEditor(true)}><Star size={15}/></button>}
+        <button className="bt-icon" aria-label="Select drawings" onClick={()=>selectDrawingTool(null)} title="Cursor / Select drawings (Esc)"><MousePointer2 size={15}/></button>
+      </div>
+
+      <div className="bt-tools">
+        <div className="bt-seg" role="group" aria-label="Chart layout">
+          <button aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button>
+          <button aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button>
+          <button aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>
+        </div>
+        {twoCharts&&<button className="bt-icon" aria-label="Sync intervals" title={`Sync intervals (${chartGroup.syncIntervals?'On':'Off'})`} aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}><Link2 size={15}/></button>}
+        {twoCharts&&<button className="bt-icon" aria-label="Sync crosshair" title={`Sync crosshair (${chartGroup.syncCrosshair?'On':'Off'})`} aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}><Crosshair size={15}/></button>}
+        <span className="bt-toolbar-sep" aria-hidden="true"/>
+        <button aria-pressed={follow} aria-label="Follow price" title="Follow new candles while keeping your zoom" onClick={()=>setFollow(v=>!v)}><Scan size={14}/><span className="bt-follow-label">{follow?'Follow':'Locked'}</span></button>
+        <button type="button" ref={newsToggle} aria-label="Economic news" aria-expanded={newsOpen} aria-controls={newsOpen?'bt-replay-news':undefined} onClick={onToggleNews}><Newspaper size={14}/><span>News</span></button>
+        <button type="button" className={`bt-snap-btn${snapState==='saved'||snapState==='downloaded'?' is-done':''}`} aria-label="Snap chart to journal" title="Snap chart to today’s Daily Journal" disabled={!ready||busy||snapState==='saving'} onClick={snapChartToJournal}><Camera size={14}/><span>{snapState==='saving'?'…':snapState==='saved'?'Saved':snapState==='downloaded'?'Saved':'Snap'}</span></button>
+        {onToggleZen&&<button type="button" className="bt-icon" aria-label="Zen focus mode" aria-pressed={zenMode} title="Zen Focus Mode (F)" onClick={onToggleZen}><Tv2 size={15}/></button>}
+        <button disabled={!ready || busy} className="bt-icon" aria-label="Fit chart to session" title="Fit session" onClick={() => chartRef.current?.setVisibleRangePreset('ALL')}><Scan size={15}/></button>
+        <button disabled={!ready || busy} className="bt-icon" aria-label="Chart settings" title="Chart settings" onClick={() => chartRef.current?.renderer.openSettings()}><Settings2 size={15}/></button>
+        <button className="bt-icon" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title="Change theme" onClick={onThemeToggle}>{theme === 'dark' ? <Sun size={15}/> : <Moon size={15}/>}</button>
+        <Feedback owner={owner}/>
       </div>
     </header>,toolbarHost)}
-    {twoCharts&&<div className="bt-pane-heading"><button className="bt-pane-tag" aria-pressed={selected} onClick={onSelect}>{symbol} · {timeframeName}</button><small className="bt-pane-role">{paneId===tradingPane?'Trading '+session.instrument:'Comparison'}</small></div>}
     <main className="bt-canvas-area" aria-label="Backtesting chart workspace">
-      <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={17}/></button>
+      {/* TradingView-style compact top-left OHLC legend & pane pill */}
+      <div className="bt-ohlc-bar">
+        {twoCharts ? (
+          <button type="button" className={`bt-pane-tag${selected?' is-active':''}`} aria-pressed={selected} onClick={onSelect}>
+            {symbol} · {timeframeName}
+            <small>{paneId===tradingPane?'Trade':'Comp'}</small>
+          </button>
+        ) : (
+          <span className="bt-ohlc-sym">{symbol} · {timeframeName}</span>
+        )}
+        {latestBar && (
+          <div className={`bt-ohlc-vals ${barUp?'is-up':'is-down'}`} aria-hidden="true">
+            <span><i>O</i>{latestBar.open.toFixed(priceDecimals)}</span>
+            <span><i>H</i>{latestBar.high.toFixed(priceDecimals)}</span>
+            <span><i>L</i>{latestBar.low.toFixed(priceDecimals)}</span>
+            <span><i>C</i>{latestBar.close.toFixed(priceDecimals)}</span>
+            <span className="bt-ohlc-chg">{barDelta>=0?'+':''}{barDelta.toFixed(priceDecimals)}</span>
+          </div>
+        )}
+      </div>
+      <button className="bt-clear-drawings" aria-label="Delete all drawings" title="Delete all drawings" disabled={!ready||busy} onClick={()=>{setPlaying(false);setClearDrawings(true)}}><Trash2 size={15}/></button>
       {busy&&ready&&<div className="bt-loading-note" role="status">Loading {timeframeName}…</div>}
       <div className="replay-chart" ref={host} aria-label={`${symbol} historical candle chart`}/>
       {!sample.history_version&&!market.four_hour_history&&['1D','1W','1M'].includes(timeframe)&&<div className="bt-history-note">This older session has one-day history. Start a new session for earlier daily, weekly and monthly candles.</div>}
