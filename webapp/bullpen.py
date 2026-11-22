@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import logging
 import smtplib
 import ssl
@@ -146,6 +147,172 @@ def mount(app, config, workspace, check_write):
             raise HTTPException(502, "Could not publish the TradingView alert.") from None
         return {"published": True}
 
+    def _require_team(request: Request, *, write: bool = False):
+        if not config.google_required or os.getenv("BULLPEN_ENABLED") != "1":
+            raise HTTPException(403, "The Bullpen is unavailable.")
+        member = workspace(request)
+        name = _team_name(member.get("email"))
+        if not name:
+            raise HTTPException(403, "The Bullpen is reserved for the Primus team.")
+        if write:
+            check_write(request)
+        return member, name
+
+    def _cf_credentials():
+        app_id = (os.getenv("BULLPEN_CF_APP_ID") or os.getenv("CLOUDFLARE_CALLS_APP_ID") or "").strip()
+        token = (os.getenv("BULLPEN_CF_APP_TOKEN") or os.getenv("CLOUDFLARE_CALLS_APP_TOKEN") or "").strip()
+        if not app_id or not token or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", app_id):
+            return None
+        return app_id, token
+
+    async def _cf_proxy(method: str, suffix: str, payload: dict | None = None):
+        creds = _cf_credentials()
+        if not creds:
+            raise HTTPException(503, "Cloudflare Realtime SFU is not configured.")
+        app_id, token = creds
+        url = f"https://rtc.live.cloudflare.com/v1/apps/{app_id}{suffix}"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.request(
+                    method,
+                    url,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json=payload if payload is not None else {},
+                )
+        except httpx.HTTPError:
+            raise HTTPException(502, "Could not reach Cloudflare Realtime.") from None
+        if response.status_code >= 400:
+            raise HTTPException(502, "Cloudflare Realtime rejected the session request.")
+        try:
+            return response.json()
+        except ValueError:
+            raise HTTPException(502, "Invalid response from Cloudflare Realtime.") from None
+
+    @app.post("/api/bullpen/sfu/sessions")
+    async def sfu_new_session(request: Request):
+        await run_in_threadpool(_require_team, request, write=True)
+        body = await request.body()
+        if len(body) > 65536:
+            raise HTTPException(413, "SDP payload is too large.")
+        payload = json.loads(body) if body else {}
+        if not isinstance(payload, dict):
+            raise HTTPException(422, "Expected JSON object.")
+        return await _cf_proxy("POST", "/sessions/new", payload)
+
+    @app.post("/api/bullpen/sfu/sessions/{session_id}/tracks")
+    async def sfu_new_tracks(session_id: str, request: Request):
+        await run_in_threadpool(_require_team, request, write=True)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", session_id):
+            raise HTTPException(422, "Invalid SFU session ID.")
+        body = await request.body()
+        if len(body) > 65536:
+            raise HTTPException(413, "Track payload is too large.")
+        try:
+            payload = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "Expected JSON body.") from None
+        if not isinstance(payload, dict) or not isinstance(payload.get("tracks"), list) or len(payload["tracks"]) > 16:
+            raise HTTPException(422, "Invalid tracks payload.")
+        return await _cf_proxy("POST", f"/sessions/{session_id}/tracks/new", payload)
+
+    @app.put("/api/bullpen/sfu/sessions/{session_id}/renegotiate")
+    async def sfu_renegotiate(session_id: str, request: Request):
+        await run_in_threadpool(_require_team, request, write=True)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", session_id):
+            raise HTTPException(422, "Invalid SFU session ID.")
+        body = await request.body()
+        if len(body) > 65536:
+            raise HTTPException(413, "Renegotiation payload is too large.")
+        try:
+            payload = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "Expected JSON body.") from None
+        if not isinstance(payload, dict):
+            raise HTTPException(422, "Invalid renegotiation payload.")
+        return await _cf_proxy("PUT", f"/sessions/{session_id}/renegotiate", payload)
+
+    @app.put("/api/bullpen/sfu/sessions/{session_id}/tracks/close")
+    async def sfu_close_tracks(session_id: str, request: Request):
+        await run_in_threadpool(_require_team, request, write=True)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", session_id):
+            raise HTTPException(422, "Invalid SFU session ID.")
+        body = await request.body()
+        if len(body) > 65536:
+            raise HTTPException(413, "Close payload is too large.")
+        try:
+            payload = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "Expected JSON body.") from None
+        if not isinstance(payload, dict):
+            raise HTTPException(422, "Invalid close payload.")
+        return await _cf_proxy("PUT", f"/sessions/{session_id}/tracks/close", payload)
+
+    DESK_KEY = "primus_bullpen_desk_v1"
+
+    def _ny_today():
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+
+    def _read_desk():
+        today = _ny_today()
+        stored = app.state.workspaces.root.get_setting(DESK_KEY, {})
+        if not isinstance(stored, dict) or stored.get("day") != today:
+            return {"day": today, "biases": {}, "levels": []}
+        return {
+            "day": today,
+            "biases": stored.get("biases") if isinstance(stored.get("biases"), dict) else {},
+            "levels": stored.get("levels") if isinstance(stored.get("levels"), list) else [],
+        }
+
+    @app.get("/api/bullpen/desk")
+    def get_desk(request: Request):
+        _require_team(request)
+        with app.state.workspaces.lock:
+            return _read_desk()
+
+    @app.put("/api/bullpen/desk")
+    async def update_desk(request: Request):
+        _, name = await run_in_threadpool(_require_team, request, write=True)
+        try:
+            payload = await request.json()
+        except ValueError:
+            raise HTTPException(400, "Expected JSON body.") from None
+        if not isinstance(payload, dict):
+            raise HTTPException(422, "Expected JSON object.")
+
+        def mutate():
+            with app.state.workspaces.lock:
+                desk = _read_desk()
+                biases = dict(desk["biases"])
+                levels = list(desk["levels"])
+                if "bias" in payload:
+                    bias = payload["bias"]
+                    if bias in (None, ""):
+                        biases.pop(name, None)
+                    elif bias in ("bullish", "bearish", "neutral"):
+                        biases[name] = bias
+                    else:
+                        raise HTTPException(422, "Invalid bias value.")
+                if "add_level" in payload and isinstance(payload["add_level"], dict):
+                    item = payload["add_level"]
+                    symbol = str(item.get("symbol", "")).strip().upper()[:12]
+                    price = str(item.get("price", "")).strip()[:24]
+                    label = str(item.get("label", "")).strip()[:80]
+                    if not symbol or not price or not label:
+                        raise HTTPException(422, "Provide symbol, price, and label.")
+                    if len(levels) >= 25:
+                        raise HTTPException(422, "Up to 25 shared levels per session.")
+                    levels.insert(0, {"id": uuid4().hex[:12], "symbol": symbol, "price": price, "label": label, "author": name})
+                if "remove_level_id" in payload:
+                    target = str(payload["remove_level_id"])
+                    levels = [lvl for lvl in levels if lvl.get("id") != target]
+                updated = {"day": desk["day"], "biases": biases, "levels": levels}
+                app.state.workspaces.root.set_setting(DESK_KEY, updated)
+                return updated
+
+        return await run_in_threadpool(mutate)
+
     @app.get("/api/bullpen")
     def bullpen(request: Request, join: bool = False):
         if not config.google_required:
@@ -164,11 +331,32 @@ def mount(app, config, workspace, check_write):
         check_write(request, allow_missing_origin=True)
 
         realtime_secret = os.getenv("BULLPEN_SUPABASE_JWT_SECRET", "")
+        if os.getenv("BULLPEN_ENABLED") != "1" or len(realtime_secret) < 32:
+            return {"name": name, "configured": False}
+
+        cf_creds = _cf_credentials()
+        now = int(time.time())
+        subject = str(uuid5(NAMESPACE_URL, f"{config.supabase_url}/primus-bullpen/{member['key']}"))
+        expires = {"iat": now, "nbf": now - 5, "exp": now + LIFETIME}
+        base_result = {
+            "name": name, "configured": True, "topic": TOPIC, "alertTopic": ALERT_TOPIC,
+            "url": config.supabase_url, "publishableKey": config.supabase_key,
+            "token": _sign(realtime_secret, {**expires, "sub": subject, "aud": "authenticated",
+                       "role": "primus_bullpen", "primus_bullpen": True}),
+        }
+        if cf_creds is not None:
+            result = {**base_result, "provider": "cloudflare"}
+            if join:
+                result["meeting"] = {
+                    "provider": "cloudflare",
+                    "iceServers": [{"urls": "stun:stun.cloudflare.com:3478"}],
+                }
+            return result
+
         app_id = os.getenv("BULLPEN_JAAS_APP_ID", "").strip()
         kid = os.getenv("BULLPEN_JAAS_KEY_ID", "").strip()
         private_pem = os.getenv("BULLPEN_JAAS_PRIVATE_KEY", "").strip().replace("\\n", "\n")
-        if (os.getenv("BULLPEN_ENABLED") != "1" or len(realtime_secret) < 32
-                or not app_id or not kid.startswith(app_id + "/") or not private_pem):
+        if not app_id or not kid.startswith(app_id + "/") or not private_pem:
             return {"name": name, "configured": False}
         try:
             key = serialization.load_pem_private_key(private_pem.encode(), password=None)
@@ -176,15 +364,7 @@ def mount(app, config, workspace, check_write):
             return {"name": name, "configured": False}
         if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
             return {"name": name, "configured": False}
-        now = int(time.time())
-        subject = str(uuid5(NAMESPACE_URL, f"{config.supabase_url}/primus-bullpen/{member['key']}"))
-        expires = {"iat": now, "nbf": now - 5, "exp": now + LIFETIME}
-        result = {
-            "name": name, "configured": True, "topic": TOPIC, "alertTopic": ALERT_TOPIC,
-            "url": config.supabase_url, "publishableKey": config.supabase_key,
-            "token": _sign(realtime_secret, {**expires, "sub": subject, "aud": "authenticated",
-                       "role": "primus_bullpen", "primus_bullpen": True}),
-        }
+        result = dict(base_result)
         if join:
             version = os.getenv("BULLPEN_ROOM_VERSION", "1")
             suffix = hmac.digest(config.secret.encode(), f"primus-bullpen-room:{version}".encode(),

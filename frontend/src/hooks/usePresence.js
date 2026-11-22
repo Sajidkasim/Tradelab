@@ -13,19 +13,54 @@ export function usePresence() {
   const [connected,setConnected] = useState(false);
   const [inCall,setInCall] = useState(false);
   const [people,setPeople] = useState([]);
+  const [peers,setPeers] = useState([]);
   const [messages,setMessages] = useState([]);
   const [reaction,setReaction] = useState(null);
+  const [deskVersion,setDeskVersion] = useState(0);
   const [error,setError] = useState('');
   const channelRef = useRef(null);
   const sdkRef = useRef(null);
   const lastSent = useRef(0);
-  const tracked = useRef(false);
+  const trackedPayloadRef = useRef(null);
+  const metaRef = useRef({});
   const inCallRef = useRef(false);
+
+  const syncTrack = useCallback(() => {
+    const channel = channelRef.current;
+    if (!channel || !connected || !access?.configured) return;
+    if (!inCallRef.current) {
+      if (trackedPayloadRef.current !== null) {
+        trackedPayloadRef.current = null;
+        void channel.untrack();
+      }
+      return;
+    }
+    const payload = {name: access.name, ...metaRef.current};
+    const serialized = JSON.stringify(payload);
+    if (trackedPayloadRef.current === serialized) return;
+    trackedPayloadRef.current = serialized;
+    void channel.track(payload).then(result => {
+      if (result !== 'ok' && channelRef.current === channel) {
+        trackedPayloadRef.current = null;
+        setError('Could not update who is in the room.');
+      }
+    });
+  }, [connected, access]);
+
   const updateInCall = useCallback(value=>{
     inCallRef.current=value;
     setInCall(value);
-    if(!value){setMessages([]);setReaction(null);}
+    if(!value){
+      metaRef.current={};
+      setMessages([]);
+      setReaction(null);
+    }
   },[]);
+
+  const updatePresenceMeta = useCallback((nextMeta) => {
+    metaRef.current = nextMeta || {};
+    syncTrack();
+  }, [syncTrack]);
 
   useEffect(()=>{
     const controller=new AbortController();
@@ -38,6 +73,7 @@ export function usePresence() {
       setConnected(false);
       setAccess(null);
       setPeople([]);
+      setPeers([]);
       setMessages([]);
       updateInCall(false);
     };
@@ -78,17 +114,25 @@ export function usePresence() {
       }
       channel.on('presence',{event:'sync'},()=>{
         if(signal.aborted)return;
-        const active=Object.values(channel.presenceState()).flat().map(item=>item.name);
-        setPeople(TEAM.filter(name=>active.includes(name)));
+        const flat=Object.values(channel.presenceState()).flat();
+        const byName=new Map();
+        for(const item of flat){
+          if(TEAM.includes(item?.name)) byName.set(item.name, item);
+        }
+        const orderedNames=TEAM.filter(name=>byName.has(name));
+        setPeople(orderedNames);
+        setPeers(orderedNames.map(name=>byName.get(name)));
       }).on('broadcast',{event:'chat'},({payload})=>{
         if(TEAM.includes(payload?.name))receiveMessage(payload);
       }).on('broadcast',{event:'reaction'},({payload})=>{
         if(!signal.aborted&&inCallRef.current&&REACTIONS.includes(payload?.emoji))setReaction({emoji:payload.emoji,id:crypto.randomUUID()});
+      }).on('broadcast',{event:'desk'},()=>{
+        if(!signal.aborted)setDeskVersion(v=>v+1);
       }).subscribe(status=>{
         if(signal.aborted)return;
-        tracked.current=false;
+        trackedPayloadRef.current=null;
         setConnected(status==='SUBSCRIBED');
-        if(status!=='SUBSCRIBED')setPeople([]);
+        if(status!=='SUBSCRIBED'){setPeople([]);setPeers([]);}
         setError(status==='SUBSCRIBED'?'':'Live chat is reconnecting.');
       });
       refresh=setInterval(async()=>{
@@ -125,21 +169,13 @@ export function usePresence() {
   },[]);
 
   useEffect(()=>{
-    const channel=channelRef.current;
-    if(!channel||!connected||!access?.configured||tracked.current===inCall)return;
-    tracked.current=inCall;
-    void (inCall?channel.track({name:access.name}):channel.untrack()).then(result=>{
-      if(result!=='ok'&&channelRef.current===channel){
-        tracked.current=false;
-        setError('Could not update who is in the room.');
-      }
-    });
-  },[inCall,connected,access]);
+    syncTrack();
+  },[inCall,connected,access,syncTrack]);
 
   async function send(event,value){
     if(!connected||!inCall||!channelRef.current)return false;
-    if(Date.now()-lastSent.current<350)return false;
-    lastSent.current=Date.now();
+    if(event!=='desk'&&Date.now()-lastSent.current<350)return false;
+    if(event!=='desk')lastSent.current=Date.now();
     try{
       const result=await channelRef.current.send({
         type:'broadcast',event,payload:{...value,name:access.name,id:crypto.randomUUID()},
@@ -148,9 +184,9 @@ export function usePresence() {
     }catch{
       // The socket may close between the readiness check and send.
     }
-    setError('Message could not be sent. Try again.');
+    if(event!=='desk')setError('Message could not be sent. Try again.');
     return false;
   }
 
-  return {access,connected,people,messages,reaction,error,setInCall:updateInCall,send};
+  return {access,connected,people,peers,messages,reaction,deskVersion,error,setInCall:updateInCall,updatePresenceMeta,send};
 }

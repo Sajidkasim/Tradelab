@@ -118,3 +118,63 @@ def test_tradingview_webhook_publishes_only_valid_alerts(draft, monkeypatch):
     assert alert["payload"]["name"] == "System"
     assert alert["payload"]["text"] == "NQ 15m FVG touched"
     assert "secret" not in alert["payload"]
+
+
+def test_cloudflare_sfu_provider_proxy_and_shared_desk(draft, monkeypatch):
+    client, _, state = draft
+    realtime_secret = "r" * 32
+    for key, value in {
+        "BULLPEN_SAJID_EMAIL": "owner@example.com",
+        "BULLPEN_ENABLED": "1",
+        "BULLPEN_SUPABASE_JWT_SECRET": realtime_secret,
+        "BULLPEN_CF_APP_ID": "cf-app-12345678",
+        "BULLPEN_CF_APP_TOKEN": "super-secret-cf-token",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    proxied = []
+
+    async def fake_request(self, method, url, **kwargs):
+        proxied.append((method, url, kwargs["headers"]["Authorization"], kwargs["json"]))
+        return bullpen.httpx.Response(
+            200,
+            json={"sessionId": "sess-12345678", "sessionDescription": {"type": "answer", "sdp": "v=0"}},
+            request=bullpen.httpx.Request(method, url),
+        )
+
+    monkeypatch.setattr(bullpen.httpx.AsyncClient, "request", fake_request)
+
+    login(client, state, "friend@example.com", "friend-sub")
+    assert client.post("/api/bullpen/sfu/sessions", json={}).status_code == 403
+    assert client.get("/api/bullpen/desk").status_code == 403
+
+    login(client, state)
+    joined = client.get("/api/bullpen?join=true").json()
+    assert joined["provider"] == "cloudflare"
+    assert joined["meeting"]["provider"] == "cloudflare"
+    assert "super-secret-cf-token" not in json.dumps(joined)
+
+    res = client.post("/api/bullpen/sfu/sessions", json={"sessionDescription": {"type": "offer", "sdp": "v=0"}})
+    assert res.status_code == 200
+    assert res.json()["sessionId"] == "sess-12345678"
+    assert proxied[0][0] == "POST"
+    assert proxied[0][1] == "https://rtc.live.cloudflare.com/v1/apps/cf-app-12345678/sessions/new"
+    assert proxied[0][2] == "Bearer super-secret-cf-token"
+
+    assert client.post("/api/bullpen/sfu/sessions/bad!id/tracks", json={"tracks": []}).status_code == 422
+
+    # Shared desk: daily bias & key levels
+    assert client.get("/api/bullpen/desk").json()["levels"] == []
+    updated = client.put(
+        "/api/bullpen/desk",
+        json={"bias": "bullish", "add_level": {"symbol": "nq", "price": "21480", "label": "PDH"}},
+    ).json()
+    assert updated["biases"] == {"Sajid": "bullish"}
+    assert len(updated["levels"]) == 1
+    assert updated["levels"][0]["symbol"] == "NQ"
+    assert updated["levels"][0]["author"] == "Sajid"
+
+    level_id = updated["levels"][0]["id"]
+    after_remove = client.put("/api/bullpen/desk", json={"remove_level_id": level_id, "bias": None}).json()
+    assert after_remove["biases"] == {}
+    assert after_remove["levels"] == []

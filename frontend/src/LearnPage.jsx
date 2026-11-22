@@ -32,7 +32,7 @@ export default function LearnPage() {
       <Button variant="primary" busy={busy} disabled={!access.configured||!bullpen.connected} onClick={()=>join()}>
         <Radio size={17}/> {isRoomActive?'Restore Live Trading Floor':'Join Live Trading Floor'}
       </Button>
-      {access.configured&&!isRoomActive&&<details className="bullpen-android" open={isAndroid}>
+      {access.configured&&access.provider!=='cloudflare'&&!isRoomActive&&<details className="bullpen-android" open={isAndroid}>
         <summary>Android screen sharing</summary>
         <div className="bullpen-android-actions">
         <p>If you already have Jitsi Meet, prepare the link and open the app to join the Bullpen. Then choose Screen sharing in the call menu.</p>

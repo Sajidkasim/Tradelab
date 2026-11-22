@@ -1,77 +1,69 @@
-import React, {lazy, Suspense, useEffect, useRef, useState} from 'react';
-import {MessageSquare, Rows3} from 'lucide-react';
+import React, {lazy, Suspense, useCallback, useEffect, useRef, useState} from 'react';
+import {MessageSquare, CalendarClock, Layers, Crosshair, Send} from 'lucide-react';
 import {Button, Notice} from '../components';
 import {REACTIONS, useBullpen} from '../hooks/usePresence';
 import {api} from '../api';
-import BullpenMacroFeed from './BullpenMacroFeed';
+import CloudflareStage from './CloudflareStage';
+import {BullpenLevelsPanel, BullpenNewsPanel} from './BullpenDeskPanel';
 import '../trading-room.css';
 
 const JaaSMeeting = lazy(()=>import('@jitsi/react-sdk').then(module=>({default:module.JaaSMeeting})));
 const configOverwrite = {
-  // Opus redundancy helps recover speech on lossy connections.
   enableOpusRed:true, enableNoAudioDetection:true,
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
   desktopSharingFrameRate:{min:5,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
   disableInviteFunctions:true, disableThirdPartyRequests:true,
-  toolbarButtons:['microphone','camera','desktop','fullscreen','tileview','settings','hangup'],
+  toolbarButtons:['microphone','desktop','fullscreen','tileview','settings','hangup'],
 };
 const frameSize = node=>{node.style.width='100%';node.style.height='100%'};
-const constrain = value=>Math.max(40,Math.min(80,value));
+const constrain = value=>Math.max(45,Math.min(82,value));
 
-const marketWidgets = {
-  chart: {
-    title:'Market chart', script:'advanced-chart',
-    settings:{interval:'5',timezone:'America/New_York',theme:'dark',style:'1',autosize:true,allow_symbol_change:true},
-  },
-  heatmap: {
-    title:'Stock heatmap', script:'stock-heatmap', url:'https://www.tradingview.com/heatmap/stock/',
-    settings:{dataSource:'SPX500',grouping:'sector',blockSize:'market_cap_basic',blockColor:'change',colorTheme:'dark',hasTopBar:true,isDataSetEnabled:true,isZoomEnabled:true,hasSymbolTooltip:true},
-  },
-};
-
-function MarketWidget({kind}){
-  const [symbol,setSymbol]=useState('NASDAQ:QQQ');
-  const {title,script,url,settings}=marketWidgets[kind];
-  const chart=kind==='chart';
-  const externalUrl=chart?`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`:url;
-  const configuration=chart?{...settings,symbol}:settings;
-  const source=`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>html,body,.tradingview-widget-container{height:100%;margin:0}.tradingview-widget-container__widget{height:100%}</style>
-    <div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div>
-    <script async src="https://s3.tradingview.com/external-embedding/embed-widget-${script}.js">${JSON.stringify({width:'100%',height:'100%',locale:'en',...configuration})}</script></div></html>`;
-  return <section className={chart?'bullpen-market-widget bullpen-symbol-chart':'bullpen-market-widget'} aria-label={title}>
-    {chart&&<label>Chart symbol <select value={symbol} onChange={event=>setSymbol(event.target.value)}>
-      <option value="NASDAQ:QQQ">QQQ</option>
-      <option value="CME_MINI:NQ1!">NQ futures</option>
-      <option value="CME_MINI:ES1!">ES futures</option>
-      <option value="AMEX:SPY">SPY</option>
-    </select></label>}
-    <iframe title={title} srcDoc={source} sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"/>
-    <a href={externalUrl} target="_blank" rel="noopener noreferrer">{chart?'Open chart in TradingView':'Stock heatmap by TradingView'}</a>
-    {chart&&<small>Market data may be delayed.</small>}
-  </section>;
+function nySessionClock(now) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const hh = Number(parts.find(p => p.type === 'hour')?.value || 0);
+  const mm = Number(parts.find(p => p.type === 'minute')?.value || 0);
+  const mins = hh * 60 + mm;
+  const clock = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')} ET`;
+  const session =
+    mins >= 570 && mins < 660 ? 'NY Open' :
+    mins >= 660 && mins < 840 ? 'NY Midday' :
+    mins >= 840 && mins < 960 ? 'Power Hour' :
+    mins >= 180 && mins < 570 ? 'London / Pre-NY' : 'After Hours';
+  return `${clock} · ${session}`;
 }
 
 function readDeskLayout(name){
   try{
     const saved=JSON.parse(localStorage.getItem(`primus:bullpen:layout:${name}`));
-    return {split:Number.isFinite(saved?.split)?constrain(saved.split):70, sidebarLeft:saved?.sidebarLeft===true};
-  }catch{return {split:70,sidebarLeft:false}}
+    return {split:Number.isFinite(saved?.split)?constrain(saved.split):74, sidebarLeft:saved?.sidebarLeft===true};
+  }catch{return {split:74,sidebarLeft:false}}
 }
 
 export default function TradingRoom({meeting, onLeave, minimised=false, onMinimise, onRestore}) {
   const {access,connected,people,messages,reaction,error,setInCall,send}=useBullpen();
+  const isCloudflare = meeting?.provider === 'cloudflare';
   const [tab,setTab]=useState('chat');
-  const [view,setView]=useState('call');
   const [split,setSplit]=useState(()=>readDeskLayout(access.name).split);
   const [sidebarLeft,setSidebarLeft]=useState(()=>readDeskLayout(access.name).sidebarLeft);
+  const [clockLabel,setClockLabel]=useState(()=>nySessionClock(new Date()));
+  const [calloutOpen,setCalloutOpen]=useState(false);
+  const [callout,setCallout]=useState({symbol:'NQ',side:'LONG',entry:'',sl:'',tp:''});
+
+  useEffect(()=>{
+    const timer=setInterval(()=>setClockLabel(nySessionClock(new Date())),30_000);
+    return ()=>clearInterval(timer);
+  },[]);
+
   useEffect(()=>{
     const timer=setTimeout(()=>{
       try{localStorage.setItem(`primus:bullpen:layout:${access.name}`,JSON.stringify({split,sidebarLeft}))}catch{}
     },250);
     return ()=>clearTimeout(timer);
   },[access.name,split,sidebarLeft]);
+
   const [draft,setDraft]=useState('');
   const [sending,setSending]=useState(false);
   const [joined,setJoined]=useState(false);
@@ -86,27 +78,29 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
     handlers.current?.();
     setInCall(false);
   },[setInCall]);
+
   useEffect(()=>{
     if(tab==='chat'&&joined)messagesEnd.current?.scrollIntoView({block:'nearest'});
   },[messages,tab,joined]);
 
+  const handleJoined = useCallback(() => {
+    setJoined(true);
+    setInCall(true);
+    setVideoError('');
+    api('/alert-team', {method: 'POST'}).catch(() => {});
+  }, [setInCall]);
+
   function ready(instance){
     handlers.current?.();
-    const didJoin=()=>{
-      setJoined(true);
-      setInCall(true);
-      setVideoError('');
-      api('/alert-team',{method:'POST'}).catch(()=>{});
-    };
     const didLeave=()=>{setInCall(false);leave.current()};
     const didError=event=>{
       if(event?.isFatal) setVideoError('The video room could not connect. Leave and try joining again.');
     };
-    instance.addListener('videoConferenceJoined',didJoin);
+    instance.addListener('videoConferenceJoined',handleJoined);
     instance.addListener('videoConferenceLeft',didLeave);
     instance.addListener('errorOccurred',didError);
     handlers.current=()=>{
-      instance.removeListener('videoConferenceJoined',didJoin);
+      instance.removeListener('videoConferenceJoined',handleJoined);
       instance.removeListener('videoConferenceLeft',didLeave);
       instance.removeListener('errorOccurred',didError);
       instance.dispose();
@@ -123,46 +117,76 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
     }finally{setSending(false)}
   }
 
+  async function submitCallout(event){
+    event.preventDefault();
+    if(!callout.entry.trim()||sending)return;
+    setSending(true);
+    try{
+      const parts = [
+        `${callout.symbol} ${callout.side} @ ${callout.entry.trim()}`,
+        callout.sl.trim() ? `SL ${callout.sl.trim()}` : '',
+        callout.tp.trim() ? `TP ${callout.tp.trim()}` : '',
+      ].filter(Boolean);
+      const ok = await send('chat', {
+        text: parts.join(' · '),
+        callout: {
+          symbol: callout.symbol,
+          side: callout.side,
+          entry: callout.entry.trim(),
+          sl: callout.sl.trim(),
+          tp: callout.tp.trim(),
+        },
+      });
+      if (ok) {
+        setCallout({symbol: callout.symbol, side: callout.side, entry: '', sl: '', tp: ''});
+        setCalloutOpen(false);
+      }
+    }finally{setSending(false)}
+  }
+
   return <section className={minimised?"bullpen-room is-minimised":"bullpen-room"} aria-label="Live Trading Bullpen">
     <header className="bullpen-room-head">
-      <div><span className="pt-overline">PRIMUS TEAM ROOM</span><h1>Live Trading Floor</h1></div>
-      {joined&&<span className="bullpen-live">LIVE</span>}
+      <div className="bullpen-head-title">
+        <h1>Bullpen</h1>
+        {joined&&<span className="bullpen-live">LIVE</span>}
+        <span className="bullpen-clock">{clockLabel}</span>
+      </div>
       <span className="bullpen-people" aria-live="polite">{people.length ? people.join(' · ') : 'Waiting for the team'}</span>
-      {onMinimise&&<Button onClick={()=>{if(minimised)onRestore();else{setView('call');onMinimise()}}}>{minimised?'Restore call':'Minimise call'}</Button>}
-      <Button className="bullpen-move-sidebar" onClick={()=>setSidebarLeft(value=>!value)}>Move sidebar {sidebarLeft?'right':'left'}</Button>
-      <Button onClick={onLeave}>Leave Call</Button>
+      <div className="bullpen-head-actions">
+        {onMinimise&&<Button onClick={()=>{if(minimised)onRestore();else onMinimise()}}>{minimised?'Restore':'Minimise'}</Button>}
+        <Button className="bullpen-move-sidebar" onClick={()=>setSidebarLeft(value=>!value)}>Sidebar {sidebarLeft?'right':'left'}</Button>
+        <Button onClick={onLeave}>Leave</Button>
+      </div>
     </header>
-    <nav className="bullpen-browse" aria-label="Workspace links during call"><span>Keep the call open:</span>{[['/journal','Journal'],['/lab','Strategy Lab'],['/backtesting','Backtesting']].map(([path,label])=><a key={path} href={path} target="_blank" rel="noopener noreferrer">{label} ↗</a>)}</nav>
-    <p className="bullpen-leave-note">Leaving or refreshing this page ends the call. Your browser will ask you to confirm.</p>
-    {!minimised&&(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||
-      (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1))&&<p className="bullpen-leave-note">
-      Your phone may pause the microphone when you switch apps or lock the screen. Keep this call visible while speaking. If others can’t hear you after returning, check the microphone button.
-    </p>}
-    <div className="bullpen-tabs" role="group" aria-label="Main panel">
-      <button type="button" aria-pressed={view==='call'} onClick={()=>setView('call')}>Call</button>
-      <button type="button" aria-pressed={view==='chart'} onClick={()=>setView('chart')}>Chart</button>
-    </div>
     {videoError&&<Notice error>{videoError}</Notice>}
     <div className={sidebarLeft?'bullpen-split bullpen-sidebar-left':'bullpen-split'} ref={layout} style={{'--bullpen-ratio':split/100}}>
       <div className="bullpen-video">
-        <div className="bullpen-call-frame" aria-hidden={view!=='call'}>
-        <Suspense fallback={<p role="status">Opening video…</p>}>
-          <JaaSMeeting roomName={meeting.roomName} appId={meeting.appId} jwt={meeting.jwt}
-            userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
-            interfaceConfigOverwrite={{
-              DEFAULT_BACKGROUND:getComputedStyle(document.documentElement).getPropertyValue('--tl-surface').trim(), SHOW_JITSI_WATERMARK:false,
-              SHOW_BRAND_WATERMARK:false, SHOW_WATERMARK_FOR_GUESTS:false,
-              SHOW_POWERED_BY:false, MOBILE_APP_PROMO:false, VIDEO_LAYOUT_FIT:'nocrop',
-            }}
-            getIFrameRef={frameSize} onApiReady={ready} onReadyToClose={()=>leave.current()}/>
-        </Suspense>
+        <div className="bullpen-call-frame">
+          {isCloudflare ? (
+            <CloudflareStage
+              meeting={meeting}
+              minimised={minimised}
+              onJoined={handleJoined}
+              onError={setVideoError}
+            />
+          ) : (
+            <Suspense fallback={<p role="status">Opening Bullpen…</p>}>
+              <JaaSMeeting roomName={meeting.roomName} appId={meeting.appId} jwt={meeting.jwt}
+                userInfo={{displayName:access.name}} configOverwrite={configOverwrite}
+                interfaceConfigOverwrite={{
+                  DEFAULT_BACKGROUND:getComputedStyle(document.documentElement).getPropertyValue('--tl-surface').trim(), SHOW_JITSI_WATERMARK:false,
+                  SHOW_BRAND_WATERMARK:false, SHOW_WATERMARK_FOR_GUESTS:false,
+                  SHOW_POWERED_BY:false, MOBILE_APP_PROMO:false, VIDEO_LAYOUT_FIT:'nocrop',
+                }}
+                getIFrameRef={frameSize} onApiReady={ready} onReadyToClose={()=>leave.current()}/>
+            </Suspense>
+          )}
         </div>
-        {view==='chart'&&<MarketWidget kind="chart"/>}
-        {view==='call'&&reaction&&joined&&<span className="bullpen-flying-reaction" key={reaction.id} aria-hidden="true">{reaction.emoji}</span>}
+        {reaction&&joined&&<span className="bullpen-flying-reaction" key={reaction.id} aria-hidden="true">{reaction.emoji}</span>}
       </div>
-      <div className="bullpen-divider" role="separator" tabIndex={0} aria-label="Resize video and sidebar"
-        aria-orientation="vertical" aria-valuemin={40} aria-valuemax={80} aria-valuenow={Math.round(split)}
-        onDoubleClick={()=>setSplit(70)}
+      <div className="bullpen-divider" role="separator" tabIndex={0} aria-label="Resize stage and sidebar"
+        aria-orientation="vertical" aria-valuemin={45} aria-valuemax={82} aria-valuenow={Math.round(split)}
+        onDoubleClick={()=>setSplit(74)}
         onPointerDown={event=>{if(event.button===0)event.currentTarget.setPointerCapture(event.pointerId)}}
         onPointerMove={event=>{
           if(!event.currentTarget.hasPointerCapture(event.pointerId))return;
@@ -173,31 +197,66 @@ export default function TradingRoom({meeting, onLeave, minimised=false, onMinimi
         onKeyDown={event=>{
           if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
           event.preventDefault();
-          setSplit(value=>event.key==='Home'?40:event.key==='End'?80:constrain(value+(event.key==='ArrowLeft'?-2:2)*(sidebarLeft?-1:1)));
+          setSplit(value=>event.key==='Home'?45:event.key==='End'?82:constrain(value+(event.key==='ArrowLeft'?-2:2)*(sidebarLeft?-1:1)));
         }}/>
-      <aside className="bullpen-side" aria-label="Bullpen sidebar">
+      <aside className="bullpen-side" aria-label="Bullpen desk sidebar">
         <div className="bullpen-tabs" role="group" aria-label="Sidebar view">
-          <button type="button" aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}><MessageSquare size={16}/> Live Chat &amp; Reactions</button>
-          <button type="button" aria-pressed={tab==='trades'} onClick={()=>setTab('trades')}><Rows3 size={16}/> Trade Feed</button>
-          <button type="button" aria-pressed={tab==='heatmap'} onClick={()=>setTab('heatmap')}>Heatmap</button>
+          <button type="button" aria-pressed={tab==='chat'} onClick={()=>setTab('chat')}><MessageSquare size={15}/> Chat</button>
+          <button type="button" aria-pressed={tab==='levels'} onClick={()=>setTab('levels')}><Layers size={15}/> Levels</button>
+          <button type="button" aria-pressed={tab==='news'} onClick={()=>setTab('news')}><CalendarClock size={15}/> Desk &amp; News</button>
         </div>
         {tab==='chat'?<>
           <div className="bullpen-messages" role="log" aria-label="Team chat">
-            {!messages.length&&<p>{joined?'No messages yet. Say hello to the team.':'Join the call to send a message.'}</p>}
-            {messages.map(item=><article key={item.id}><strong>{item.name}</strong><p>{item.text}</p></article>)}
+            {!messages.length&&<p className="bullpen-desk-muted">{joined?'No messages yet. Drop a level or trade callout.':'Connecting to the desk…'}</p>}
+            {messages.map(item=><article key={item.id} className={item.callout?`bullpen-callout-msg is-${item.callout.side.toLowerCase()}`:''}>
+              <strong>{item.name}</strong>
+              {item.callout ? (
+                <div className="bullpen-callout-card">
+                  <span className="bullpen-callout-badge">{item.callout.symbol} · {item.callout.side}</span>
+                  <span>Entry <b>{item.callout.entry}</b></span>
+                  {item.callout.sl && <span>SL <b>{item.callout.sl}</b></span>}
+                  {item.callout.tp && <span>TP <b>{item.callout.tp}</b></span>}
+                </div>
+              ) : (
+                <p>{item.text}</p>
+              )}
+            </article>)}
             <div ref={messagesEnd}/>
           </div>
           {error&&<p role="status" className="bullpen-connection">{error}</p>}
+          {calloutOpen && (
+            <form className="bullpen-callout-form" onSubmit={submitCallout}>
+              <div className="bullpen-callout-row">
+                <select value={callout.symbol} onChange={e=>setCallout(c=>({...c,symbol:e.target.value}))} aria-label="Symbol">
+                  {['NQ','ES','GC','EURUSD','QQQ'].map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                <select value={callout.side} onChange={e=>setCallout(c=>({...c,side:e.target.value}))} aria-label="Direction">
+                  <option value="LONG">LONG</option>
+                  <option value="SHORT">SHORT</option>
+                </select>
+              </div>
+              <div className="bullpen-callout-row">
+                <input placeholder="Entry *" value={callout.entry} onChange={e=>setCallout(c=>({...c,entry:e.target.value}))} maxLength={20}/>
+                <input placeholder="SL" value={callout.sl} onChange={e=>setCallout(c=>({...c,sl:e.target.value}))} maxLength={20}/>
+                <input placeholder="TP" value={callout.tp} onChange={e=>setCallout(c=>({...c,tp:e.target.value}))} maxLength={20}/>
+              </div>
+              <Button type="submit" variant="primary" busy={sending} disabled={!connected||!joined||!callout.entry.trim()}>Post Callout</Button>
+            </form>
+          )}
           <form className="bullpen-composer" onSubmit={submit}>
-            <input aria-label="Team message" placeholder="Message the team" value={draft}
+            <button type="button" className={`bullpen-callout-toggle${calloutOpen?' is-open':''}`}
+              onClick={()=>setCalloutOpen(v=>!v)} title="Post a trade callout" aria-pressed={calloutOpen} disabled={!connected||!joined}>
+              <Crosshair size={16}/>
+            </button>
+            <input aria-label="Team message" placeholder="Message the desk…" value={draft}
               onChange={event=>setDraft(event.target.value)} maxLength={400} disabled={!connected||!joined}/>
-            <Button type="submit" busy={sending} disabled={!connected||!joined||!draft.trim()}>Send</Button>
+            <Button type="submit" busy={sending} disabled={!connected||!joined||!draft.trim()} aria-label="Send message"><Send size={15}/></Button>
           </form>
           <div className="bullpen-reactions" role="group" aria-label="Send a reaction">
             {REACTIONS.map((emoji,index)=><Button key={emoji} disabled={!connected||!joined}
               aria-label={['Fire','Applause','On target'][index]} onClick={()=>void send('reaction',{emoji})}>{emoji}</Button>)}
           </div>
-        </>:tab==='trades'?<BullpenMacroFeed/>:<MarketWidget kind="heatmap"/>}
+        </>:tab==='levels'?<BullpenLevelsPanel/>:<BullpenNewsPanel/>}
       </aside>
     </div>
   </section>;
