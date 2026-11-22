@@ -1,10 +1,14 @@
 name: PrimusLab checks
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -20,10 +24,37 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-      - run: python -m pytest -q
+      - run: python -m pytest -q --junitxml="$RUNNER_TEMP/pytest-results.xml"
+      - name: Require all Python tests to run
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from xml.etree import ElementTree
+
+          report = Path(os.environ["RUNNER_TEMP"]) / "pytest-results.xml"
+          cases = ElementTree.parse(report).findall(".//testcase")
+          if not cases or any(case.find("skipped") is not None for case in cases):
+              raise SystemExit("Release checks require Python tests to run without skips.")
+          PY
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run test:browser
         working-directory: frontend
         env:
           PRIMUSLAB_TEST_PYTHON: python
+  release-checks:
+    name: Release checks
+    needs: test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require successful application tests
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          if [ "$TEST_RESULT" != success ]; then
+            echo "Application tests must succeed. Result: $TEST_RESULT"
+            exit 1
+          fi

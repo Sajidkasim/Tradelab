@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
+from requests import RequestException
 
 from core import metrics, risk
 from core.charts import fmt_money, fmt_pct, fmt_r
@@ -35,7 +36,7 @@ def local_day_bounds(day, tz: str) -> tuple[datetime, datetime]:
     return start.tz_convert("UTC").to_pydatetime(), end.tz_convert("UTC").to_pydatetime()
 
 
-def build_review(db: Database, day, tz: str, pulled: dict, acct) -> str:
+def build_review(db: Database, day, tz: str, pulled: dict, acct, *, log_breaches: bool = True) -> str:
     df_all = db.trades_df(sources=LIVE_SOURCES)
     if df_all.empty:
         return f"# {day}\n\nNo live trades on record yet."
@@ -78,9 +79,9 @@ def build_review(db: Database, day, tz: str, pulled: dict, acct) -> str:
         if cons["best_day_pct"] is not None:
             lines.append(f"- Consistency: best day is {cons['best_day_pct']:.0f}% of total profit "
                          f"({'ok' if cons['compliant'] else 'needs ' + fmt_money(cons['needed_profit'], sign=False) + ' more on other days'})")
-        if ds["state"] == "breached":
+        if log_breaches and ds["state"] == "breached":
             db.log_breach(acct.id, str(day), "daily_loss_limit", realised, -acct.daily_loss_limit, "nightly")
-        if bool(last["breached"]):
+        if log_breaches and bool(last["breached"]):
             db.log_breach(acct.id, str(day), "trailing_drawdown", float(last["balance"]), float(last["threshold"]), "nightly")
     # longer view
     allstats = metrics.summary_stats(df_all, acct.starting_balance)
@@ -100,8 +101,19 @@ def main() -> int:
     ap.add_argument("--days-back", type=int, default=1, help="also re-pull this many previous days (catches late fills)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--account-name", help="PrimusLab account to attribute trades to (default: first)")
+    ap.add_argument("--safe-output", action="store_true", help="Log operational status only; fail if the broker import falls back")
     args = ap.parse_args()
 
+    if not args.safe_output:
+        return run_nightly(args)
+    try:
+        return run_nightly(args)
+    except Exception:
+        print("Nightly job failed. Check private configuration and storage before retrying.", file=sys.stderr)
+        return 1
+
+
+def run_nightly(args) -> int:
     db = Database.from_env(); db.init()
     tz = db.get_setting("tz", "Europe/London")
     accts = db.accounts()
@@ -111,6 +123,7 @@ def main() -> int:
     day = pd.Timestamp(args.date).date() if args.date else pd.Timestamp.now(tz=tz).date()
 
     pulled = {"fills": 0, "trades": 0, "inserted": 0, "skipped": 0, "diff": 0.0}
+    fallback = False
     try:
         client = ProjectXClient.from_env()
         broker_accts = client.accounts()
@@ -134,19 +147,35 @@ def main() -> int:
         if all_trades and not args.dry_run:
             res = db.insert_trades(all_trades)
             pulled["inserted"], pulled["skipped"] = res["inserted"], res["skipped"]
-        print(f"Pulled {pulled['fills']} fills -> {pulled['trades']} trades; inserted {pulled['inserted']}, skipped {pulled['skipped']}")
+        if not args.safe_output:
+            print(f"Pulled {pulled['fills']} fills -> {pulled['trades']} trades; inserted {pulled['inserted']}, skipped {pulled['skipped']}")
         if pulled["diff"] > 0.01:
-            print(f"WARNING: reconciliation difference {pulled['diff']:.2f} — check instrument multipliers in Settings.")
-    except ProjectXError as e:
-        print(f"API not available ({e}); writing the review from stored trades only.")
+            if args.safe_output:
+                print("Warning: a reconciliation difference was detected.")
+            else:
+                print(f"WARNING: reconciliation difference {pulled['diff']:.2f} — check instrument multipliers in Settings.")
+    except (ProjectXError, RequestException) as e:
+        if not args.safe_output and not isinstance(e, ProjectXError):
+            raise
+        fallback = True
+        if not args.safe_output:
+            print(f"API not available ({e}); writing the review from stored trades only.")
 
-    review = build_review(db, day, tz, pulled, acct)
-    print("\n" + review)
+    review = build_review(db, day, tz, pulled, acct, log_breaches=not args.dry_run)
+    if not args.safe_output:
+        print("\n" + review)
     if not args.dry_run:
         db.set_setting(f"daily_review_{day.isoformat()}", review)
         db.set_setting("last_nightly_run", datetime.now(timezone.utc).isoformat())
         out = Path("data/reviews"); out.mkdir(parents=True, exist_ok=True)
         (out / f"{day.isoformat()}.md").write_text(review)
+    if args.safe_output:
+        review_status = "review generated in dry run" if args.dry_run else "review saved"
+        if fallback:
+            print(f"Topstep unavailable; {review_status} from stored data.")
+            return 4
+        import_status = "Topstep pull succeeded" if pulled["fills"] else "Topstep pull succeeded with no fills"
+        print(f"{import_status}; {review_status}.")
     return 0
 
 
