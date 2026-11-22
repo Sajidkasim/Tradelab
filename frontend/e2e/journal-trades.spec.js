@@ -130,7 +130,7 @@ test('Journal-only grades persist and calendar dots follow whole-day P&L',async(
 });
 
 for (const [device,viewport,day] of [
-  ['desktop',{width:1440,height:1000},'2026-08-19'],
+  ['desktop',{width:1440,height:1000},'2026-08-21'],
   ['mobile',{width:390,height:844},'2026-08-20'],
 ]) {
 test(`local chart scan reuses its worker on ${device}`, async ({page}) => {
