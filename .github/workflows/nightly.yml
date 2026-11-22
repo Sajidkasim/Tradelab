@@ -6,16 +6,21 @@ on:
   schedule:
     - cron: "45 21 * * 1-5"      # 21:45 UTC Mon–Fri (after the US close). Adjust to taste.
   workflow_dispatch: {}
+permissions:
+  contents: read
 jobs:
   journal:
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - run: python nightly.py
+      - run: python nightly.py --safe-output
         env:
           PROJECTX_USERNAME: ${{ secrets.PROJECTX_USERNAME }}
           PROJECTX_API_KEY: ${{ secrets.PROJECTX_API_KEY }}
