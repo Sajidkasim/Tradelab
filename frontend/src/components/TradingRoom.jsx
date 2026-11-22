@@ -12,7 +12,7 @@ const configOverwrite = {
   enableOpusRed:true, enableNoAudioDetection:true,
   prejoinConfig:{enabled:true}, startWithAudioMuted:true, startWithVideoMuted:true,
   resolution:1080, constraints:{video:{height:{ideal:1080,max:1080,min:360}}},
-  desktopSharingFrameRate:{min:30,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
+  desktopSharingFrameRate:{min:5,max:30}, hideConferenceSubject:true, hideConferenceTimer:true,
   disableInviteFunctions:true, disableThirdPartyRequests:true,
   toolbarButtons:['microphone','camera','desktop','fullscreen','tileview','settings','hangup'],
 };
