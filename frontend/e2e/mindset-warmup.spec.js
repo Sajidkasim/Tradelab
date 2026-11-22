@@ -316,7 +316,7 @@ test('Primax opens with a contextual prompt and quick replies on a dark surface'
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   await page.getByRole('button',{name:'Ask Primax'}).click();
   const dialog = page.getByRole('dialog',{name:'Primax',exact:true});
-  await expect(dialog).toHaveCSS('background-color','rgb(40, 43, 46)');
+  await expect(dialog).toHaveCSS('background-color','rgb(26, 26, 25)');
   await expect(dialog.getByRole('heading',{name:'Prime your execution for the session.'})).toBeVisible();
   await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
   await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();

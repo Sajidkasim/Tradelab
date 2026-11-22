@@ -31,9 +31,9 @@ test("Menus share theme styling, keyboard selection and viewport-safe placement"
   await list.press("Home");
   await list.press("Enter");
   await expect(timeframe).toHaveText("Any");
-  const level = explorer.getByRole("button", { name: /Key level \/ PDA/ });
+  const level = explorer.getByRole("button", { name: /^Key level/ });
   await level.click();
-  await page.getByRole("combobox", { name: "Search key level / pda", exact: true }).fill("FVG");
+  await page.getByRole("combobox", { name: "Search key level", exact: true }).fill("FVG");
   await page.getByRole("option", { name: "FVG", exact: true }).click();
   await expect(level).toContainText("FVG");
   await page.getByRole("button", { name: "Add trade", exact: true }).click();
@@ -46,7 +46,9 @@ test("Menus share theme styling, keyboard selection and viewport-safe placement"
   await page.getByRole("listbox", { name: "Testing type", exact: true }).press("Escape");
   await expect(dialog).toBeVisible();
   await expect(source).toBeFocused();
+  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await explorer.getByRole("combobox", { name: "Day", exact: true }).click();
   const mobile = await page.locator(".styled-select-panel").boundingBox();

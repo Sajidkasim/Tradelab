@@ -88,7 +88,7 @@ test("only the owner can manage access; blocking revokes sessions and unblocking
   expect(await friend.evaluate(async () => (await fetch('/api/trades')).status)).toBe(401);
   await friend.reload();
   await friend.getByRole('button', { name: 'Continue with Google', exact: true }).click();
-  await expect(friend.getByRole('alert')).toContainText('has been blocked');
+  await expect(friend.getByRole('alert')).toContainText('Access is blocked');
   await page.screenshot({ path: 'test-results/primus-manage-access-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

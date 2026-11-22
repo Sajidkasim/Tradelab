@@ -39,6 +39,10 @@ test('a new user gets an optional five-step tour after welcome and can replay it
   await tour.getByRole('button',{name:'Start testing',exact:true}).click();
   await expect(tour).toHaveCount(0);
   await page.reload();await expect(tour).toHaveCount(0);
+  const notes=page.getByRole('dialog',{name:'What’s new in PrimusTrader',exact:true});
+  await expect(notes).toBeVisible();
+  await notes.getByRole('button',{name:'Got it',exact:true}).click();
+  await expect(notes).toHaveCount(0);
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Quick guide',exact:true}).click();
   await expect(tour).toBeVisible();

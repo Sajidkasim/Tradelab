@@ -5,24 +5,24 @@ test("one password unlocks the personal journal and Lock lab revokes access", as
 }) => {
   await page.goto("http://127.0.0.1:8112/");
   await expect(
-    page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    page.getByRole("heading", { name: /A clearer view\s*of your edge\./ }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: /Google|Team/ })).toHaveCount(0);
-  await page.getByLabel("Lab password", { exact: true }).fill("incorrect");
+  await page.getByLabel("Password", { exact: true }).fill("incorrect");
   await page.getByRole("button", { name: "Show password" }).click();
   await expect(
-    page.getByLabel("Lab password", { exact: true }),
+    page.getByLabel("Password", { exact: true }),
   ).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Hide password" }).click();
   await expect(
-    page.getByLabel("Lab password", { exact: true }),
+    page.getByLabel("Password", { exact: true }),
   ).toHaveAttribute("type", "password");
-  await page.getByRole("button", { name: "Open my lab" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("did not unlock");
   await page
-    .getByLabel("Lab password", { exact: true })
+    .getByLabel("Password", { exact: true })
     .fill("Synthetic password for browser tests only");
-  await page.getByLabel("Lab password", { exact: true }).press("Enter");
+  await page.getByLabel("Password", { exact: true }).press("Enter");
   await expect(
     page.getByRole("heading", { name: "Results", exact: true }),
   ).toBeVisible();
@@ -43,11 +43,11 @@ test("one password unlocks the personal journal and Lock lab revokes access", as
   await page.getByRole("button", { name: "My lab", exact: true }).click();
   await page.getByRole("button", { name: "Lock lab", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    page.getByRole("heading", { name: /A clearer view\s*of your edge\./ }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    page.getByRole("heading", { name: /A clearer view\s*of your edge\./ }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/primuslab-personal-password.png",
@@ -60,13 +60,13 @@ test("Primus entrance stays usable on mobile and with either journal theme", asy
 }) => {
   await page.goto("http://127.0.0.1:8112/");
   await expect(
-    page.getByRole("img", { name: "Primus", exact: true }),
+    page.getByRole("link", { name: "Primus Trader home", exact: true }),
   ).toBeVisible();
-  const openJournal = page.getByRole("button", { name: "Open my lab" });
+  const openJournal = page.getByRole("button", { name: "Continue", exact: true });
   await expect(openJournal).toBeEnabled();
-  await page.getByLabel("Lab password", {exact:true}).focus();
+  await page.getByLabel("Password", { exact: true }).focus();
   await expect(
-    page.getByLabel("Lab password", { exact: true }),
+    page.getByLabel("Password", { exact: true }),
   ).toBeFocused();
   await page.screenshot({
     path: "test-results/primuslab-entrance-desktop.png",

@@ -64,6 +64,7 @@ test('one Journal card can cover three copy-trading accounts', async ({page}) =>
   const origin = 'http://127.0.0.1:8119';
   const day = '2026-08-19';
   await page.goto(`${origin}/journal?day=${day}`);
+  await expect(page.getByRole('heading', {name:'Trades taken today'})).toBeVisible();
   const session = await (await page.request.get(`${origin}/api/session`)).json();
   const headers = {'X-Primus-CSRF': session.csrf, Origin: origin};
   const names = ['Copy account one', 'Copy account two', 'Copy account three'];

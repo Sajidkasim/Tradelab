@@ -14,10 +14,10 @@ test("Explore supports searchable levels, keyboard choices and removable filters
   expect(compact.height).toBeLessThanOrEqual(860);
   expect(compact.checkbox).toBeLessThanOrEqual(20);
 
-  const picker = explorer.getByRole("button", { name: /Key level \/ PDA/ });
+  const picker = explorer.getByRole("button", { name: /^Key level/ });
   await picker.click();
   const search = page.getByRole("combobox", {
-    name: "Search key level / pda",
+    name: "Search key level",
     exact: true,
   });
   await search.fill("zz-no-level");

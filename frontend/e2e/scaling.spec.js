@@ -76,7 +76,7 @@ for (const appearance of ["Modern"]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await expect(page.getByRole("button", { name: "Continue with Google" })).toBeVisible();
-      expect(await page.locator(".login-shell").evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1200);
+      expect(await page.locator(".ps-form-wrap").evaluate((el) => el.getBoundingClientRect().width)).toBeLessThanOrEqual(1200);
     }
   });
 }

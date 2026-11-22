@@ -26,6 +26,8 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Close',exact:true}).click();
+    await page.getByRole('dialog',{name:'Close Lab settings?',exact:true}).getByRole('button',{name:'Close settings',exact:true}).click();
+    await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toHaveCount(0);
     if(width<521)await page.getByRole('button',{name:'Close navigation',exact:true}).click();
   }
   await page.setViewportSize({width:1440,height:1000});
@@ -126,7 +128,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  expect(await page.locator('.pt-day-editor').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(42, 45, 48)');
+  expect(await page.locator('.pt-day-editor').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(40, 43, 46)');
   await page.getByRole('button',{name:'Patient',exact:true}).click();
   await page.getByRole('button',{name:'Save entry',exact:true}).first().click();
   await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
@@ -171,7 +173,7 @@ test('Lab uses the Primus loading logo and exposes its theme button on desktop a
 test('navigation order and Journal account management', async ({page}) => {
   await page.goto(origin + '/journal');
   const nav = page.getByRole('navigation', {name: 'Primus navigation'});
-  await expect(nav.getByRole('link')).toHaveText(['Mindset', 'Journal', 'Strategy Lab', 'Backtesting (Beta)', 'Learn']);
+  await expect(nav.getByRole('link')).toHaveText(['Journal', 'Strategy Lab', 'Mindset', 'Backtesting', 'Learn Beta', 'The Matrix Beta']);
   await expect(nav.getByRole('button', {name: /glossary/i})).toHaveCount(0);
   await page.locator('.pj-accounts > summary').click();
   await page.getByRole('button', {name: 'Add account', exact: true}).click();

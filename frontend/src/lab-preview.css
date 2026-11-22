@@ -124,7 +124,7 @@
 .pt-lab .pt-header{grid-template-columns:minmax(0,1fr) auto auto;gap:10px}
 .pt-lab .pt-header>.pt-mobile-toggle{grid-column:3;grid-row:1}
 .pt-lab .pt-header-tools{display:flex;position:static;grid-column:2;grid-row:1}
-.pt-lab .pt-header-tools>.workspace-menu{display:none;position:absolute;right:18px;top:124px}
+.pt-lab .pt-header-tools>.workspace-menu{display:none;position:absolute;right:18px;top:124px;z-index:30}
 .pt-lab .pt-header:has(nav.is-open) .pt-header-tools>.workspace-menu,.pt-lab .pt-header-tools>.workspace-menu[open]{display:block}
 .pt-lab .pt-header:has(nav.is-open)>.pt-header-tools,.pt-lab .pt-header:has(.workspace-menu[open])>.pt-header-tools{display:flex}
 }

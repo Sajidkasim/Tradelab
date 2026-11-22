@@ -10,6 +10,9 @@ export default defineConfig({
     viewport: { width: 1440, height: 1000 },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
+      ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } }
+      : {}),
   },
   webServer: [
     {command: `${process.env.PRIMUSLAB_TEST_PYTHON || "../.venv/bin/python"} ../tools/run_web_google_tests.py 8120 --site`, url:"http://127.0.0.1:8120/health", reuseExistingServer:false, timeout:30000},

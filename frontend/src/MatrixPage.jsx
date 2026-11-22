@@ -299,7 +299,7 @@ export default function MatrixPage() {
         setRefreshNote('Snapshot refreshed live.');
       }
     } catch (err) {
-      setRefreshNote(err?.message || 'Refresh failed.');
+      setRefreshNote(snapshot ? 'Refresh failed. Showing the last snapshot.' : (err?.message || 'Refresh failed.'));
     } finally {
       setRefreshingLive(false);
     }
@@ -419,9 +419,14 @@ export default function MatrixPage() {
               <p className={`tw:text-xs ${muted}`}>NQ · ES · Gold · DXY · EURUSD · GBPUSD — Multi-Asset Bias, COT &amp; Session Risk</p>
             </div>
             <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
-              <span className={`tw:rounded tw:border tw:px-2 tw:py-1 tw:text-xs ${demo ? 'tw:border-amber-800 tw:text-amber-200' : freshness.stale ? 'tw:border-amber-800 tw:text-amber-200' : 'tw:border-zinc-700 tw:text-zinc-300'}`}>
-                {demo ? 'Demo data' : unavailable ? 'Unavailable' : freshness.label}
-              </span>
+              <div aria-label="Data freshness" className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+                <span className={`tw:rounded tw:border tw:px-2 tw:py-1 tw:text-xs ${demo ? 'tw:border-amber-800 tw:text-amber-200' : freshness.stale ? 'tw:border-amber-800 tw:text-amber-200' : 'tw:border-zinc-700 tw:text-zinc-300'}`}>
+                  {demo ? 'Demo data' : unavailable ? 'Unavailable' : freshness.label}
+                </span>
+                {!demo && !unavailable && freshness.stale && (
+                  <span className="tw:text-xs tw:text-amber-200/90">Check freshness before using this snapshot.</span>
+                )}
+              </div>
               {!demo && asOf && Number.isFinite(asOf.getTime()) && (
                 <time dateTime={asOf.toISOString()} className={`tw:inline-flex tw:items-center tw:gap-1 tw:text-xs ${number} ${muted}`}>
                   <Clock3 size={13} aria-hidden="true" />{dateFormat.format(asOf)} ET
