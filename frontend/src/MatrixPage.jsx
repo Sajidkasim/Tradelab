@@ -1,218 +1,953 @@
-import React, {useEffect, useState} from 'react';
-import {Activity, ArrowDownRight, ArrowUpRight, Clock3, Gauge, Layers3, Minus, ShieldCheck} from 'lucide-react';
-import {PrimusHeader, localSitePreview} from './SiteExperience';
-import {api} from './api';
-import {matrixFreshness} from './matrixFreshness';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Activity, ArrowDownRight, ArrowUpRight, Clock3, Gauge, Layers3, Minus,
+  ShieldCheck, RefreshCw, Send, Copy, Check, CalendarClock, Flame,
+  BarChart3, AlertTriangle, Compass, Zap,
+} from 'lucide-react';
+import { PrimusHeader, localSitePreview } from './SiteExperience';
+import { api } from './api';
+import { matrixFreshness } from './matrixFreshness';
+import { useBullpen } from './hooks/usePresence';
 import MatrixLoading from './MatrixLoading';
 import './matrix.css';
 
-const tickers = [
-  {id:'nq', label:'NQ1!', name:'Nasdaq futures', value:'24,186.25', change:'+0.42%', direction:'up'},
-  {id:'vix', label:'VIX', name:'Implied volatility', value:'17.82', change:'−0.71 pts', direction:'down'},
-  {id:'dgs10', label:'10Y Yield', name:'DGS10', value:'4.31%', change:'+3 bp', direction:'up'},
-  {id:'dxy', label:'DXY', name:'US Dollar Index', value:'101.46', change:'−0.18%', direction:'down'},
-  {id:'mag7', label:'Mag 7 Basket', name:'Equal-weight index', value:'108.64', change:'+0.68%', direction:'up'},
+const TOP_TICKERS = [
+  { id: 'nq', label: 'NQ1!', name: 'Nasdaq-100 Futures' },
+  { id: 'es', label: 'ES1!', name: 'S&P 500 Futures' },
+  { id: 'xau', label: 'Gold', name: 'COMEX Gold Futures' },
+  { id: 'vix', label: 'VIX', name: 'Implied Volatility' },
+  { id: 'dgs10', label: '10Y Yield', name: 'US 10Y Treasury' },
+  { id: 'dxy', label: 'DXY', name: 'US Dollar Index' },
 ];
 
-const swingMetrics = [
-  {id:'cot', label:'COT Net Long', detail:'Weekly positioning', value:'18.4%'},
-  {id:'credit', label:'High-Yield Credit Spread', detail:'Daily observation', value:'318 bp'},
-  {id:'fed', label:'Fed Balance Sheet Liquidity', detail:'Weekly Fed assets', value:'$6.72T'},
-  {id:'cpi', label:'Core CPI YoY', detail:'Cooling vs prior release', value:'2.8%'},
-];
-
-const intradayMetrics = [
-  {id:'yield', label:'10Y Yield · 5-day momentum', detail:'Change across five daily observations', value:'+11 bp'},
-  {id:'impulse', label:'VIX short-term impulse', detail:'Three-session change', value:'+6.2%'},
-  {id:'curve', label:'Yield curve · daily shift', detail:'Change in 10Y minus 2Y spread', value:'−4 bp'},
-];
-
-const addons = [
-  {id:'sentiment', label:'CNN Fear & Greed', icon:Gauge, value:'41 / 100', detail:'Fear'},
-  {id:'breakeven', label:'10Y Breakeven Inflation', icon:Activity, value:'2.34%', detail:'Daily observation'},
-  {id:'volatility', label:'Volatility Structure · VIX / VXV', icon:Layers3, value:'0.91×', detail:'VIX below VXV'},
-];
-
-const demoSnapshot = {
-  tickers,
-  swing:{score:62, bias:'Constructive', metrics:swingMetrics},
-  intraday:{sizing:'micro', metrics:intradayMetrics},
-  addons,
+const DEMO_SNAPSHOT = {
+  asOf: new Date().toISOString(),
+  tickers: [
+    { id: 'nq', value: '24,186.25', change: '+0.62%', direction: 'up', spark: [23600, 23740, 23810, 23790, 23940, 24020, 24186] },
+    { id: 'es', value: '6,042.50', change: '+0.41%', direction: 'up', spark: [5950, 5975, 5982, 5995, 6012, 6024, 6042] },
+    { id: 'xau', value: '2,684.40', change: '+0.55%', direction: 'up', spark: [2610, 2630, 2642, 2638, 2655, 2670, 2684] },
+    { id: 'vix', value: '16.42', change: '-0.71 pts', direction: 'down', spark: [19.1, 18.6, 18.2, 17.8, 17.4, 17.1, 16.42] },
+    { id: 'dgs10', value: '4.24%', change: '-4 bp', direction: 'down', spark: [4.38, 4.35, 4.32, 4.30, 4.29, 4.28, 4.24] },
+    { id: 'dxy', value: '101.46', change: '-0.22%', direction: 'down', spark: [102.4, 102.2, 102.0, 101.9, 101.8, 101.7, 101.46] },
+  ],
+  swing: {
+    score: 71,
+    bias: 'Strong Bullish',
+    metrics: [
+      { id: 'cot', value: '+18.4%', detail: 'CFTC · Nasdaq-100 E-mini · 72nd pct (52w)', spark: [12, 14, 13.5, 15.2, 16.8, 18.4] },
+      { id: 'credit', value: '318 bp', change: '-6 bp', direction: 'down', detail: 'FRED · HY Credit Spread', spark: [342, 336, 331, 328, 324, 318] },
+      { id: 'fed', value: '$6.12T', change: '+48B 4w', direction: 'up', detail: 'Fed Net Liquidity (WALCL − TGA − RRP)', spark: [6.04, 6.06, 6.07, 6.09, 6.10, 6.12] },
+      { id: 'cpi', value: '2.74%', detail: 'Core CPI YoY · Cooling (-0.08% vs prior)' },
+    ],
+  },
+  intraday: {
+    sizing: 'standard',
+    reasons: ['Clean macro & volatility tape — standard NQ/MNQ execution rules apply'],
+    impliedMove: { vix: 16.42, dailyPct: 1.03, nqPoints: 250, label: '±1.03% (~250 pts on NQ)' },
+    metrics: [
+      { id: 'yield', value: '-11 bp', detail: '10Y Yield · 5-day momentum', spark: [4.35, 4.33, 4.31, 4.29, 4.28, 4.24] },
+      { id: 'impulse', value: '-6.2%', detail: 'VIX 3-session change', spark: [18.1, 17.5, 17.1, 16.42] },
+      { id: 'curve', value: '+3 bp', detail: '10Y − 2Y daily shift · Level +0.28%' },
+    ],
+  },
+  mag7: {
+    greenCount: 6,
+    total: 7,
+    avgChangePct: 0.78,
+    label: 'Strong Tech Tailwind',
+    items: [
+      { symbol: 'NVDA', name: 'Nvidia', price: '146.20', change: '+1.85%', changePct: 1.85, direction: 'up' },
+      { symbol: 'AAPL', name: 'Apple', price: '231.40', change: '+0.42%', changePct: 0.42, direction: 'up' },
+      { symbol: 'MSFT', name: 'Microsoft', price: '428.10', change: '+0.64%', changePct: 0.64, direction: 'up' },
+      { symbol: 'AMZN', name: 'Amazon', price: '211.80', change: '+0.95%', changePct: 0.95, direction: 'up' },
+      { symbol: 'META', name: 'Meta', price: '589.50', change: '+1.12%', changePct: 1.12, direction: 'up' },
+      { symbol: 'GOOGL', name: 'Alphabet', price: '179.30', change: '+0.58%', changePct: 0.58, direction: 'up' },
+      { symbol: 'TSLA', name: 'Tesla', price: '332.10', change: '-0.12%', changePct: -0.12, direction: 'down' },
+      { symbol: 'SMH', name: 'Semis ETF', price: '254.90', change: '+1.44%', changePct: 1.44, direction: 'up' },
+    ],
+  },
+  addons: [
+    { id: 'sentiment', value: '62 / 100', numValue: 62, detail: 'Greed · CNN Fear & Greed' },
+    { id: 'breakeven', value: '2.31%', numValue: 2.31, detail: 'FRED · T10YIE · 10Y Breakeven', spark: [2.36, 2.35, 2.34, 2.32, 2.31] },
+    { id: 'volatility', value: '0.89×', numValue: 0.89, detail: 'Contango (Calm) · VIX 16.4 / VIX3M 18.4' },
+  ],
+  cotBoard: [
+    { id: 'nq', symbol: 'NQ', name: 'Nasdaq-100 E-mini', reportDate: '2026-11-17', longPct: 68.2, shortPct: 31.8, netPct: 18.4, wowContracts: 4210, wowPct: 1.4, percentile52w: 72, spark: [12, 14, 15.1, 16.2, 17, 18.4], group: 'Asset Managers' },
+    { id: 'es', symbol: 'ES', name: 'S&P 500 E-mini', reportDate: '2026-11-17', longPct: 64.5, shortPct: 35.5, netPct: 14.1, wowContracts: 6150, wowPct: 0.9, percentile52w: 65, spark: [11, 12, 12.8, 13.4, 14.1], group: 'Asset Managers' },
+    { id: 'xau', symbol: 'XAU', name: 'Gold (COMEX)', reportDate: '2026-11-17', longPct: 79.0, shortPct: 21.0, netPct: 26.8, wowContracts: 3820, wowPct: 1.8, percentile52w: 84, spark: [20, 22, 24, 25.1, 26.8], group: 'Managed Money' },
+    { id: 'dxy', symbol: 'DXY', name: 'US Dollar Index', reportDate: '2026-11-17', longPct: 43.0, shortPct: 57.0, netPct: -8.2, wowContracts: -1940, wowPct: -1.1, percentile52w: 24, spark: [-4, -5.2, -6.5, -7.1, -8.2], group: 'Asset Managers' },
+    { id: 'eurusd', symbol: 'EURUSD', name: 'Euro FX', reportDate: '2026-11-17', longPct: 58.6, shortPct: 41.4, netPct: 9.4, wowContracts: 2810, wowPct: 0.8, percentile52w: 61, spark: [5, 6.2, 7.8, 8.6, 9.4], group: 'Asset Managers' },
+    { id: 'gbpusd', symbol: 'GBPUSD', name: 'British Pound', reportDate: '2026-11-17', longPct: 54.0, shortPct: 46.0, netPct: 4.8, wowContracts: 910, wowPct: 0.4, percentile52w: 52, spark: [2, 3.1, 3.8, 4.4, 4.8], group: 'Asset Managers' },
+  ],
+  seasonality: {
+    month: 'November',
+    monthIndex: 11,
+    assets: {
+      nq: { id: 'nq', symbol: 'NQ1!', month: 'November', winRate: 80, avgReturn: 4.12, samples: 10 },
+      es: { id: 'es', symbol: 'ES1!', month: 'November', winRate: 80, avgReturn: 3.18, samples: 10 },
+      xau: { id: 'xau', symbol: 'Gold', month: 'November', winRate: 50, avgReturn: 0.65, samples: 10 },
+      dxy: { id: 'dxy', symbol: 'DXY', month: 'November', winRate: 40, avgReturn: -0.52, samples: 10 },
+      eurusd: { id: 'eurusd', symbol: 'EURUSD', month: 'November', winRate: 60, avgReturn: 0.48, samples: 10 },
+      gbpusd: { id: 'gbpusd', symbol: 'GBPUSD', month: 'November', winRate: 60, avgReturn: 0.72, samples: 10 },
+    },
+  },
+  assets: [
+    {
+      id: 'nq', symbol: 'NQ', name: 'Nasdaq-100 Futures', category: 'Index', price: '24,186.25', change: '+0.62%', direction: 'up', trend: 'bullish',
+      cotNet: '+18.4%', seasonality: '80% (+4.1%)', rawScore: 8, score: 83, bias: 'Strong Bullish', spark: [23600, 23740, 23810, 23940, 24020, 24186],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: 2, max: 2, reading: '+18.4% (72nd pct)', summary: 'Asset Managers · 68%L / 32%S · WoW +4,210' },
+        { id: 'rates', label: 'Rates & Real Yields', score: 1, max: 2, reading: '10Y 5d -11bp · Real 10Y 1.93%', summary: 'Falling real yields tailwind' },
+        { id: 'inflation', label: 'Inflation & Fed', score: 1, max: 2, reading: 'Core CPI 2.74% · 10Y BE 2.31%', summary: 'Cooling inflation supports risk' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: 2, max: 2, reading: 'Net Liq $6.12T (+48B) · HY 318bp', summary: 'Expanding liquidity / tight credit' },
+        { id: 'volatility', label: 'Volatility & Risk', score: 2, max: 2, reading: 'VIX 16.4 · VIX/3M 0.89× · Mag7 6/7', summary: 'Low vol / contango tailwind' },
+        { id: 'trend', label: 'Trend & Seasonality', score: 2, max: 2, reading: 'Trend Bullish · Nov 80% green (+4.1%)', summary: 'Trend & seasonality aligned' },
+      ],
+    },
+    {
+      id: 'es', symbol: 'ES', name: 'S&P 500 Futures', category: 'Index', price: '6,042.50', change: '+0.41%', direction: 'up', trend: 'bullish',
+      cotNet: '+14.1%', seasonality: '80% (+3.2%)', rawScore: 7, score: 79, bias: 'Strong Bullish', spark: [5950, 5975, 5995, 6012, 6042],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: 1, max: 2, reading: '+14.1% (65th pct)', summary: 'Asset Managers · 65%L / 35%S' },
+        { id: 'rates', label: 'Rates & Real Yields', score: 1, max: 2, reading: '10Y 5d -11bp', summary: 'Falling real yields tailwind' },
+        { id: 'inflation', label: 'Inflation & Fed', score: 1, max: 2, reading: 'Core CPI 2.74%', summary: 'Cooling inflation supports risk' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: 2, max: 2, reading: 'Net Liq $6.12T · HY 318bp', summary: 'Expanding liquidity / tight credit' },
+        { id: 'volatility', label: 'Volatility & Risk', score: 1, max: 2, reading: 'VIX 16.4 · VIX/3M 0.89×', summary: 'Low vol / contango tailwind' },
+        { id: 'trend', label: 'Trend & Seasonality', score: 2, max: 2, reading: 'Trend Bullish · Nov 80% green', summary: 'Trend & seasonality aligned' },
+      ],
+    },
+    {
+      id: 'xau', symbol: 'XAU', name: 'Gold Futures (XAUUSD)', category: 'Metals', price: '2,684.40', change: '+0.55%', direction: 'up', trend: 'bullish',
+      cotNet: '+26.8%', seasonality: '50% (+0.7%)', rawScore: 5, score: 71, bias: 'Strong Bullish', spark: [2610, 2630, 2642, 2655, 2684],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: 2, max: 2, reading: '+26.8% (84th pct)', summary: 'Managed Money · 79%L / 21%S' },
+        { id: 'rates', label: 'Rates & Real Yields', score: 1, max: 2, reading: 'Real 10Y 1.93%', summary: 'Falling real yields tailwind' },
+        { id: 'inflation', label: 'Inflation & Fed', score: 1, max: 2, reading: '10Y BE 2.31%', summary: 'Inflation hedge / dovish tailwind' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: 1, max: 2, reading: 'Net Liq $6.12T', summary: 'Expanding liquidity' },
+        { id: 'volatility', label: 'Volatility & Risk', score: 0, max: 2, reading: 'VIX 16.4', summary: 'Calm risk environment' },
+        { id: 'trend', label: 'Trend & Seasonality', score: 1, max: 2, reading: 'Trend Bullish · Nov 50%', summary: 'Bullish price structure' },
+      ],
+    },
+    {
+      id: 'eurusd', symbol: 'EURUSD', name: 'Euro / US Dollar', category: 'FX', price: '1.0842', change: '+0.24%', direction: 'up', trend: 'bullish',
+      cotNet: '+9.4%', seasonality: '60% (+0.5%)', rawScore: 4, score: 67, bias: 'Bullish', spark: [1.074, 1.076, 1.079, 1.081, 1.0842],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: 1, max: 2, reading: '+9.4% (61st pct)', summary: 'Asset Managers · 59%L / 41%S' },
+        { id: 'rates', label: 'Rates & Real Yields', score: 1, max: 2, reading: '10Y 5d -11bp', summary: 'Softer US yields support EUR' },
+        { id: 'inflation', label: 'Inflation & Fed', score: 1, max: 2, reading: 'Core CPI 2.74%', summary: 'Cooling US inflation' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: 1, max: 2, reading: 'Net Liq $6.12T', summary: 'Risk-on backdrop' },
+        { id: 'volatility', label: 'Volatility & Risk', score: 0, max: 2, reading: 'VIX 16.4', summary: 'Balanced FX vol' },
+        { id: 'trend', label: 'Trend & Seasonality', score: 1, max: 2, reading: 'Trend Bullish · Nov 60%', summary: 'Constructive trend' },
+      ],
+    },
+    {
+      id: 'gbpusd', symbol: 'GBPUSD', name: 'British Pound / USD', category: 'FX', price: '1.2914', change: '+0.19%', direction: 'up', trend: 'mixed',
+      cotNet: '+4.8%', seasonality: '60% (+0.7%)', rawScore: 2, score: 58, bias: 'Bullish', spark: [1.284, 1.286, 1.289, 1.288, 1.2914],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: 0, max: 2, reading: '+4.8% (52nd pct)', summary: 'Balanced institutional positioning' },
+        { id: 'rates', label: 'Rates & Real Yields', score: 1, max: 2, reading: '10Y 5d -11bp', summary: 'Softer US yields' },
+        { id: 'inflation', label: 'Inflation & Fed', score: 1, max: 2, reading: 'Core CPI 2.74%', summary: 'Cooling US inflation' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: 1, max: 2, reading: 'Net Liq $6.12T', summary: 'Risk-on backdrop' },
+        { id: 'volatility', label: 'Volatility & Risk', score: 0, max: 2, reading: 'VIX 16.4', summary: 'Balanced FX vol' },
+        { id: 'trend', label: 'Trend & Seasonality', score: 0, max: 2, reading: 'Trend Mixed · Nov 60%', summary: 'Mixed technical/seasonal' },
+      ],
+    },
+    {
+      id: 'dxy', symbol: 'DXY', name: 'US Dollar Index', category: 'FX', price: '101.46', change: '-0.22%', direction: 'down', trend: 'bearish',
+      cotNet: '-8.2%', seasonality: '40% (-0.5%)', rawScore: -6, score: 25, bias: 'Strong Bearish', spark: [102.4, 102.2, 101.9, 101.7, 101.46],
+      pillars: [
+        { id: 'cot', label: 'COT Institutional', score: -2, max: 2, reading: '-8.2% (24th pct)', summary: 'Asset Managers net short USD' },
+        { id: 'rates', label: 'Rates & Real Yields', score: -1, max: 2, reading: '10Y 5d -11bp', summary: 'Falling US yields weigh on DXY' },
+        { id: 'inflation', label: 'Inflation & Fed', score: -1, max: 2, reading: 'Core CPI 2.74%', summary: 'Cooling inflation caps hawkish USD' },
+        { id: 'liquidity', label: 'Liquidity & Credit', score: -1, max: 2, reading: 'Net Liq $6.12T', summary: 'Risk-on liquidity headwind for USD' },
+        { id: 'volatility', label: 'Volatility & Risk', score: -1, max: 2, reading: 'VIX 16.4', summary: 'Low safe-haven USD demand' },
+        { id: 'trend', label: 'Trend & Seasonality', score: -1, max: 2, reading: 'Trend Bearish · Nov 40%', summary: 'Bearish structure' },
+      ],
+    },
+  ],
+  calendar: [
+    { date: new Date(Date.now() + 3 * 3600_000).toISOString(), event: 'US Initial Jobless Claims', actual: null, estimate: '218K', unit: '', tier1: false, surprise: null, nqImpact: 'watch', source: 'FMP' },
+    { date: new Date(Date.now() + 27 * 3600_000).toISOString(), event: 'US Core PCE Price Index YoY', actual: null, estimate: '2.7%', unit: '%', tier1: true, surprise: null, nqImpact: 'watch', source: 'BEA' },
+  ],
 };
 
-const statuses = {
-  demo:'Demo data', live:'Connected', cached:'Cached data', loading:'Refreshing', unavailable:'Unavailable',
+const SIZING_META = {
+  standard: { label: 'STANDARD SIZE', cls: 'tw:border-emerald-700/60 tw:bg-emerald-950/40 tw:text-emerald-300', dot: 'tw:bg-emerald-400' },
+  micro: { label: 'MICRO ONLY', cls: 'tw:border-amber-700/70 tw:bg-amber-950/40 tw:text-amber-200', dot: 'tw:bg-amber-400' },
+  paused: { label: 'STAND DOWN · NEWS WINDOW', cls: 'tw:border-rose-700/70 tw:bg-rose-950/45 tw:text-rose-200', dot: 'tw:bg-rose-400' },
 };
-const sizingLabels = {standard:'STANDARD SIZE', micro:'MICRO ONLY', paused:'PAUSED'};
-const panel = 'tw:min-w-0 tw:border tw:border-zinc-800 tw:bg-zinc-950';
+
 const number = 'tw:font-mono tw:tabular-nums';
 const muted = 'tw:text-zinc-400';
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
-  timeZone:'America/New_York', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23',
+  timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
 
-function Badge({children, demo=false}){
-  return <span className={`tw:border tw:px-2 tw:py-1 tw:text-xs ${demo?'tw:border-amber-800 tw:text-amber-200':'tw:border-zinc-700 tw:text-zinc-300'}`}>
-    {children}
-  </span>;
+function biasBadgeCls(bias = '') {
+  const b = bias.toLowerCase();
+  if (b.includes('strong bullish')) return 'tw:border-emerald-500/60 tw:bg-emerald-500/15 tw:text-emerald-300';
+  if (b.includes('bullish') || b.includes('constructive')) return 'tw:border-emerald-700/60 tw:bg-emerald-950/50 tw:text-emerald-300';
+  if (b.includes('strong bearish')) return 'tw:border-rose-500/60 tw:bg-rose-500/15 tw:text-rose-300';
+  if (b.includes('bearish')) return 'tw:border-rose-700/60 tw:bg-rose-950/50 tw:text-rose-300';
+  return 'tw:border-zinc-700 tw:bg-zinc-900 tw:text-zinc-300';
 }
 
-function Change({reading}){
-  if(!reading?.change)return <span className={muted}>—</span>;
-  const up=reading.direction==='up', down=reading.direction==='down';
-  const Icon=up?ArrowUpRight:down?ArrowDownRight:Minus;
-  return <span className={`tw:inline-flex tw:items-center tw:gap-1 tw:text-xs ${number} ${up?'tw:text-emerald-300':down?'tw:text-rose-300':muted}`}>
-    <Icon size={13} aria-hidden="true"/>{reading.change}
-  </span>;
+function scoreColor(score) {
+  if (score >= 65) return '#10b981';
+  if (score >= 55) return '#34d399';
+  if (score <= 35) return '#f43f5e';
+  if (score <= 45) return '#fb7185';
+  return '#a1a1aa';
 }
 
-function TickerBar({readings=[]}){
-  return <section aria-label="Macro ticker" className="tw:grid tw:grid-cols-2 tw:gap-2 tw:sm:grid-cols-3 tw:lg:grid-cols-5">
-    {tickers.map(({id,label,name})=>{
-      const reading=readings.find(item=>item.id===id);
-      return <article key={id} className={`${panel} tw:p-3`}>
-        <h2 className="tw:text-xs tw:font-semibold">{label}</h2>
-        <p className={`tw:mt-1 tw:text-xs ${muted}`}>{reading?.detail??name}</p>
-        <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-baseline tw:justify-between tw:gap-1">
-          <strong className={`tw:text-base ${number}`}>{reading?.value??'—'}</strong><Change reading={reading}/>
-        </div>
-      </article>;
-    })}
-  </section>;
+function Sparkline({ data, color, width = 76, height = 22 }) {
+  if (!Array.isArray(data) || data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const span = max - min || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * (width - 2) + 1;
+    const y = height - 2 - ((v - min) / span) * (height - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const stroke = color || (data[data.length - 1] >= data[0] ? '#34d399' : '#fb7185');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="tw:shrink-0" aria-hidden="true">
+      <polyline fill="none" stroke={stroke} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+    </svg>
+  );
 }
 
-function Desk({title, subtitle, icon:Icon, badge, metrics, readings, children}){
-  return <section className={panel}>
-    <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-3 tw:py-3">
-      <div className="tw:flex tw:items-start tw:gap-2">
-        <Icon size={16} className={muted} aria-hidden="true"/>
-        <div><h2 className="tw:text-sm tw:font-semibold">{title}</h2><p className={`tw:text-xs ${muted}`}>{subtitle}</p></div>
-      </div>
-      {badge}
-    </header>
-    <dl className="tw:divide-y tw:divide-zinc-800">
-      {metrics.map(metric=>{
-        const reading=readings?.find(item=>item.id===metric.id);
-        return <div key={metric.id} className="tw:grid tw:grid-cols-[minmax(0,1fr)_auto] tw:items-center tw:gap-3 tw:px-3 tw:py-2">
-          <dt className="tw:text-xs">{metric.label}<span className={`tw:block ${muted}`}>{reading?reading.detail||'Provider / observation date not supplied':'No reading available'}</span></dt>
-          <dd className={`tw:text-sm tw:font-semibold ${number}`}>{reading?.value??'—'}</dd>
-        </div>;
-      })}
-    </dl>
-    {children}
-  </section>;
+function Change({ reading }) {
+  if (!reading?.change) return <span className={muted}>—</span>;
+  const up = reading.direction === 'up';
+  const down = reading.direction === 'down';
+  const Icon = up ? ArrowUpRight : down ? ArrowDownRight : Minus;
+  return (
+    <span className={`tw:inline-flex tw:items-center tw:gap-0.5 tw:text-xs ${number} ${up ? 'tw:text-emerald-300' : down ? 'tw:text-rose-300' : muted}`}>
+      <Icon size={13} aria-hidden="true" />{reading.change}
+    </span>
+  );
 }
 
-function MacroAddons({readings=[]}){
-  return <section aria-labelledby="matrix-addons">
-    <h2 id="matrix-addons" className={`tw:mb-2 tw:text-xs tw:font-semibold tw:uppercase tw:tracking-widest ${muted}`}>Macro Addons</h2>
-    <div className="tw:grid tw:gap-2 tw:sm:grid-cols-3">
-      {addons.map(({id,label,icon:Icon})=>{
-        const reading=readings.find(item=>item.id===id);
-        return <article key={id} className={`${panel} tw:p-3`}>
-          <h3 className="tw:flex tw:items-center tw:gap-2 tw:text-xs"><Icon size={15} className={muted} aria-hidden="true"/>{label}</h3>
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-baseline tw:justify-between tw:gap-2">
-            <strong className={`tw:text-lg ${number}`}>{reading?.value??'—'}</strong>
-            <span className={`tw:text-xs ${muted}`}>{reading?.detail??'No reading'}</span>
-          </div>
-        </article>;
-      })}
-    </div>
-  </section>;
+function parseCalMs(raw) {
+  if (!raw) return NaN;
+  const s = String(raw);
+  const normalized = s.length === 16 && s.includes(' ') ? s.replace(' ', 'T') + ':00Z' : s;
+  return Date.parse(normalized);
 }
 
-export default function MatrixPage(){
-  const [snapshot,setSnapshot]=useState(null);
-  const [status,setStatus]=useState('loading');
-  const [attempt,setAttempt]=useState(0);
-  useEffect(()=>{
-    const controller=new AbortController();
-    api('/matrix/snapshot',{signal:controller.signal}).then(({snapshot:next})=>{
-      if(controller.signal.aborted)return;
+function formatCalCountdown(ms) {
+  if (!Number.isFinite(ms)) return '';
+  const diffMin = Math.round((ms - Date.now()) / 60000);
+  if (diffMin < -30) return 'Released';
+  if (diffMin <= 0) return 'LIVE';
+  if (diffMin < 60) return `in ${diffMin}m`;
+  if (diffMin < 1440) {
+    const h = Math.floor(diffMin / 60);
+    const m = diffMin % 60;
+    return m ? `in ${h}h ${m}m` : `in ${h}h`;
+  }
+  return `in ${Math.ceil(diffMin / 1440)}d`;
+}
+
+export default function MatrixPage() {
+  const bullpen = useBullpen();
+  const [snapshot, setSnapshot] = useState(null);
+  const [status, setStatus] = useState('loading');
+  const [attempt, setAttempt] = useState(0);
+  const [isOwner, setIsOwner] = useState(false);
+  const [refreshingLive, setRefreshingLive] = useState(false);
+  const [refreshNote, setRefreshNote] = useState('');
+  const [selectedAssetId, setSelectedAssetId] = useState('nq');
+  const [calFilter, setCalFilter] = useState('week'); // 'today' | 'week' | 'all'
+  const [briefState, setBriefState] = useState(''); // '' | 'sent' | 'copied'
+
+  useEffect(() => {
+    api('/session').then((s) => {
+      if (s?.owner) setIsOwner(true);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api('/matrix/snapshot', { signal: controller.signal }).then(({ snapshot: next }) => {
+      if (controller.signal.aborted) return;
       setSnapshot(next);
-      setStatus(next?'cached':localSitePreview()?'demo':'unavailable');
-    }).catch(()=>{
-      if(!controller.signal.aborted)setStatus('unavailable');
+      setStatus(next ? 'cached' : localSitePreview() ? 'demo' : 'unavailable');
+    }).catch(() => {
+      if (!controller.signal.aborted) setStatus('unavailable');
     });
-    return ()=>controller.abort();
-  },[attempt]);
-  const onRetry=()=>{setStatus('loading');setAttempt(value=>value+1)};
-  if(status==='loading'&&!snapshot)return <div className="pt-site matrix-page">
-    <PrimusHeader active="matrix"/><MatrixLoading/>
-  </div>;
-  const demo=status==='demo';
-  const data=demo?demoSnapshot:snapshot;
-  const unavailable=status==='unavailable'||(!data&&status!=='loading');
-  const asOf=data?.asOf?new Date(data.asOf):null;
-  const freshness=matrixFreshness(data);
-  const score=data?.swing?.score;
-  const validScore=Number.isFinite(score)&&score>=0&&score<=100;
-  const sizing=sizingLabels[data?.intraday?.sizing]??'UNAVAILABLE';
+    return () => controller.abort();
+  }, [attempt]);
 
-  return <div className="pt-site matrix-page">
-    <PrimusHeader active="matrix"/>
-    <main className="matrix-terminal tw:min-h-screen tw:bg-zinc-950 tw:text-zinc-100">
-      <div className="tw:mx-auto tw:grid tw:max-w-[1600px] tw:gap-3 tw:px-3 tw:py-4 tw:sm:px-5">
-        <header className="tw:flex tw:flex-wrap tw:items-end tw:justify-between tw:gap-3 tw:border-b tw:border-zinc-800 tw:pb-3">
-          <div>
-            <p className={`tw:text-xs tw:font-semibold tw:uppercase tw:tracking-widest ${muted}`}>PrimusTrader / Macro Desk</p>
-            <h1 className="tw:text-2xl tw:font-semibold tw:tracking-tight">The Matrix</h1>
-            <p className={`tw:text-xs ${muted}`}>NQ / MNQ · Macro context and session risk</p>
-          </div>
-          <div role="status" className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
-            <Badge demo={demo}>{demo?'Demo data':unavailable?'Unavailable':freshness.label}</Badge>
-            {!demo&&asOf&&Number.isFinite(asOf.getTime())&&<time dateTime={asOf.toISOString()} className={`tw:inline-flex tw:items-center tw:gap-1 tw:text-xs ${number} ${muted}`}>
-              <Clock3 size={13} aria-hidden="true"/>{dateFormat.format(asOf)} ET
-            </time>}
-          </div>
-        </header>
-        {demo&&<p className="tw:border tw:border-amber-900 tw:px-3 tw:py-2 tw:text-xs tw:text-amber-200">Sample figures for layout review. Bias and sizing labels are illustrative.</p>}
-        {status==='loading'&&<p role="status" className={`${panel} tw:p-3 tw:text-xs`}>Refreshing macro data… {data&&'Showing the last snapshot.'}</p>}
-        {unavailable&&<div role="status" className={`${panel} tw:flex tw:items-center tw:justify-between tw:gap-2 tw:p-3 tw:text-xs`}>
-          <span>{data?'Refresh failed. Showing the last snapshot.':'Macro data is unavailable.'}</span>
-          {onRetry&&<button type="button" className="tw:border tw:border-zinc-700 tw:px-2 tw:py-1 tw:hover:bg-zinc-800" onClick={onRetry}>Retry</button>}
-        </div>}
-        {!demo&&data&&<section aria-label="Data freshness" className={`${panel} tw:p-3 tw:text-xs`}>
-          <p>{freshness.stale?'Check freshness before using this snapshot.':'This is a stored snapshot, not a live market feed.'} Each reading lists its provider and observation date when supplied. Daily, weekly and monthly series update at different frequencies.</p>
-          <p>Snapshot updated: {freshness.stamp?new Date(freshness.stamp).toLocaleString('en-GB',{timeZone:'America/New_York'})+' ET':'Unknown'}. Missing readings are shown as —.</p>
-          <button type="button" className="button" disabled={status==='loading'} onClick={onRetry}>Refresh snapshot</button>
-        </section>}
-        <TickerBar readings={data?.tickers}/>
-        <div className="tw:grid tw:gap-2 tw:lg:grid-cols-2">
-          <Desk icon={Layers3} title="Swing Desk Scorecard" subtitle="Multi-day / weekly hold"
-            badge={<Badge>{data?.swing?.bias??'Pending'}</Badge>} metrics={swingMetrics} readings={data?.swing?.metrics}>
-            <div className="tw:flex tw:justify-between tw:border-t tw:border-zinc-800 tw:px-3 tw:py-2 tw:text-xs">
-              <span className={muted}>Composite score</span><strong className={number}>{validScore?score:'—'} / 100</strong>
+  const onReload = () => {
+    setStatus('loading');
+    setRefreshNote('');
+    setAttempt((v) => v + 1);
+  };
+
+  const onLiveRefresh = async () => {
+    if (refreshingLive) return;
+    setRefreshingLive(true);
+    setRefreshNote('');
+    try {
+      const res = await api('/matrix/refresh', { method: 'POST' });
+      if (res?.snapshot) {
+        setSnapshot(res.snapshot);
+        setStatus('cached');
+        setRefreshNote('Snapshot refreshed live.');
+      }
+    } catch (err) {
+      setRefreshNote(err?.message || 'Refresh failed.');
+    } finally {
+      setRefreshingLive(false);
+    }
+  };
+
+  const demo = status === 'demo';
+  const data = demo ? DEMO_SNAPSHOT : snapshot;
+  const unavailable = status === 'unavailable' || (!data && status !== 'loading');
+  const asOf = data?.asOf ? new Date(data.asOf) : null;
+  const freshness = matrixFreshness(data);
+
+  const assets = useMemo(() => (Array.isArray(data?.assets) ? data.assets : []), [data?.assets]);
+  const selectedAsset = useMemo(
+    () => assets.find((a) => a.id === selectedAssetId) || assets[0] || null,
+    [assets, selectedAssetId],
+  );
+  const cotBoard = useMemo(() => (Array.isArray(data?.cotBoard) ? data.cotBoard : []), [data?.cotBoard]);
+  const seasonality = data?.seasonality || null;
+  const mag7 = data?.mag7 || null;
+  const sizingKey = data?.intraday?.sizing;
+  const sizingStyle = SIZING_META[sizingKey] || { label: 'UNAVAILABLE', cls: 'tw:border-zinc-700 tw:text-zinc-300', dot: 'tw:bg-zinc-500' };
+
+  const calendarRows = useMemo(() => {
+    const raw = Array.isArray(data?.calendar) ? data.calendar : [];
+    const todayNy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const now = Date.now();
+    const mapped = raw.map((ev, idx) => {
+      const ms = parseCalMs(ev.date || ev.scheduled_at);
+      const dayNy = Number.isFinite(ms)
+        ? new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+        : String(ev.date || '').slice(0, 10);
+      return {
+        ...ev,
+        id: `${ev.date || idx}:${ev.event || ev.name}`,
+        title: ev.event || ev.name || 'US Release',
+        ms,
+        dayNy,
+        countdown: formatCalCountdown(ms),
+      };
+    }).sort((a, b) => (a.ms || 0) - (b.ms || 0));
+
+    if (calFilter === 'today') return mapped.filter((ev) => ev.dayNy === todayNy);
+    if (calFilter === 'week') return mapped.filter((ev) => !Number.isFinite(ev.ms) || (ev.ms >= now - 12 * 3600_000 && ev.ms <= now + 7 * 86400_000));
+    return mapped;
+  }, [data?.calendar, calFilter]);
+
+  const sendPreMarketBrief = async () => {
+    const nqAsset = assets.find((a) => a.id === 'nq');
+    const vixT = (data?.tickers || []).find((t) => t.id === 'vix');
+    const nextEv = calendarRows.find((e) => !Number.isFinite(e.ms) || e.ms >= Date.now() - 30 * 60000);
+    const parts = [
+      '📊 MATRIX BRIEF',
+      nqAsset ? `NQ ${nqAsset.bias} (${nqAsset.score}/100)` : '',
+      `Sizing: ${sizingStyle.label}`,
+      data?.intraday?.impliedMove?.label ? `Implied: ${data.intraday.impliedMove.label}` : vixT ? `VIX ${vixT.value}` : '',
+      mag7?.total ? `Mag7 ${mag7.greenCount}/${mag7.total} Green` : '',
+      nextEv ? `Next: ${nextEv.title} (${nextEv.countdown || nextEv.dayNy})` : 'No immediate red-folder',
+    ].filter(Boolean);
+    const brief = parts.join(' · ').slice(0, 395);
+
+    if (bullpen?.connected && bullpen?.inCall) {
+      const ok = await bullpen.send('chat', { text: brief });
+      if (ok) {
+        setBriefState('sent');
+        setTimeout(() => setBriefState(''), 3000);
+        return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(brief);
+      setBriefState('copied');
+      setTimeout(() => setBriefState(''), 3000);
+    } catch {}
+  };
+
+  if (status === 'loading' && !snapshot) {
+    return (
+      <div className="pt-site matrix-page">
+        <PrimusHeader active="matrix" />
+        <MatrixLoading />
+      </div>
+    );
+  }
+
+  const addonCards = [
+    ...(data?.swing?.metrics || []).filter((m) => ['fed', 'credit', 'cpi'].includes(m.id)).map((m) => ({
+      id: m.id,
+      label: m.id === 'fed' ? 'Fed Net Liquidity' : m.id === 'credit' ? 'HY Credit Spread' : 'Core CPI YoY',
+      value: m.value,
+      change: m.change,
+      direction: m.direction,
+      detail: m.detail,
+      spark: m.spark,
+      icon: m.id === 'fed' ? Zap : m.id === 'credit' ? Flame : Activity,
+    })),
+    ...(data?.addons || []).map((a) => ({
+      id: a.id,
+      label: a.id === 'sentiment' ? 'Fear & Greed / Risk' : a.id === 'breakeven' ? '10Y Breakeven' : 'VIX / VIX3M Structure',
+      value: a.value,
+      detail: a.detail,
+      spark: a.spark,
+      icon: a.id === 'sentiment' ? Gauge : a.id === 'breakeven' ? Activity : Layers3,
+    })),
+  ];
+
+  return (
+    <div className="pt-site matrix-page">
+      <PrimusHeader active="matrix" />
+      <main className="matrix-terminal tw:min-h-screen tw:bg-zinc-950 tw:text-zinc-100">
+        <div className="tw:mx-auto tw:grid tw:max-w-[1600px] tw:gap-3.5 tw:px-3 tw:py-4 tw:sm:px-5">
+
+          {/* Command Header */}
+          <header className="tw:flex tw:flex-wrap tw:items-end tw:justify-between tw:gap-3 tw:border-b tw:border-zinc-800 tw:pb-3">
+            <div>
+              <p className={`tw:text-xs tw:font-semibold tw:uppercase tw:tracking-widest ${muted}`}>PrimusTrader / Macro Desk</p>
+              <h1 className="tw:text-2xl tw:font-semibold tw:tracking-tight">The Matrix</h1>
+              <p className={`tw:text-xs ${muted}`}>NQ · ES · Gold · DXY · EURUSD · GBPUSD — Multi-Asset Bias, COT &amp; Session Risk</p>
             </div>
-          </Desk>
-          <Desk icon={Activity} title="Intraday Desk Scorecard" subtitle="NY session scalps · NQ / MNQ"
-            metrics={intradayMetrics} readings={data?.intraday?.metrics}>
-            <div className="tw:border-t tw:border-zinc-800 tw:p-3">
-              <div className={`tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border tw:px-3 tw:py-2 tw:text-xs ${data?.intraday?.sizing==='micro'?'tw:border-amber-900 tw:text-amber-200':'tw:border-zinc-700 tw:text-zinc-300'}`}>
-                <span className="tw:inline-flex tw:items-center tw:gap-2"><ShieldCheck size={15} aria-hidden="true"/>{demo?'Example sizing status':'Sizing status'}</span>
-                <strong className={number}>{sizing}</strong>
+            <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-2">
+              <span className={`tw:rounded tw:border tw:px-2 tw:py-1 tw:text-xs ${demo ? 'tw:border-amber-800 tw:text-amber-200' : freshness.stale ? 'tw:border-amber-800 tw:text-amber-200' : 'tw:border-zinc-700 tw:text-zinc-300'}`}>
+                {demo ? 'Demo data' : unavailable ? 'Unavailable' : freshness.label}
+              </span>
+              {!demo && asOf && Number.isFinite(asOf.getTime()) && (
+                <time dateTime={asOf.toISOString()} className={`tw:inline-flex tw:items-center tw:gap-1 tw:text-xs ${number} ${muted}`}>
+                  <Clock3 size={13} aria-hidden="true" />{dateFormat.format(asOf)} ET
+                </time>
+              )}
+              {data && (
+                <button type="button" className="mx-btn" onClick={sendPreMarketBrief}>
+                  {briefState === 'sent' ? <Check size={13} /> : briefState === 'copied' ? <Check size={13} /> : bullpen?.inCall ? <Send size={13} /> : <Copy size={13} />}
+                  {briefState === 'sent' ? 'Sent to Floor' : briefState === 'copied' ? 'Copied Brief' : bullpen?.inCall ? 'Send to Floor' : 'Copy Brief'}
+                </button>
+              )}
+              {isOwner ? (
+                <button type="button" className="mx-btn is-primary" onClick={onLiveRefresh} disabled={refreshingLive}>
+                  <RefreshCw size={13} className={refreshingLive ? 'mx-spin' : ''} />
+                  {refreshingLive ? 'Refreshing…' : 'Refresh Now'}
+                </button>
+              ) : (
+                <button type="button" className="mx-btn" onClick={onReload} disabled={status === 'loading'}>
+                  <RefreshCw size={13} className={status === 'loading' ? 'mx-spin' : ''} />
+                  Reload
+                </button>
+              )}
+            </div>
+          </header>
+
+          {demo && (
+            <p className="tw:rounded tw:border tw:border-amber-900 tw:bg-amber-950/30 tw:px-3 tw:py-2 tw:text-xs tw:text-amber-200">
+              Sample preview data. In production, click Refresh Now or wait for the scheduled pre-market sync to load live FRED, CFTC COT, and market quotes.
+            </p>
+          )}
+          {refreshNote && (
+            <p role="status" className="tw:rounded tw:border tw:border-zinc-800 tw:bg-zinc-900/70 tw:px-3 tw:py-2 tw:text-xs tw:text-zinc-300">
+              {refreshNote}
+            </p>
+          )}
+          {unavailable && (
+            <div role="status" className="mx-card tw:flex tw:items-center tw:justify-between tw:gap-2 tw:p-3 tw:text-xs">
+              <span>{data ? 'Refresh failed. Showing the last snapshot.' : 'Macro snapshot is not populated yet. Click Refresh Now to pull live data.'}</span>
+              <button type="button" className="mx-btn" onClick={isOwner ? onLiveRefresh : onReload}>Retry</button>
+            </div>
+          )}
+
+          {/* 1. Live Macro Ticker Strip (6 Cards with Inline Sparklines) */}
+          <section aria-label="Macro ticker" className="tw:grid tw:grid-cols-2 tw:gap-2 tw:sm:grid-cols-3 tw:lg:grid-cols-6">
+            {TOP_TICKERS.map(({ id, label, name }) => {
+              const reading = (data?.tickers || []).find((item) => item.id === id);
+              return (
+                <article key={id} className="mx-card tw:p-3">
+                  <div className="tw:flex tw:items-center tw:justify-between tw:gap-1">
+                    <h2 className="tw:text-xs tw:font-semibold tw:text-zinc-200">{label}</h2>
+                    <Change reading={reading} />
+                  </div>
+                  <div className="tw:mt-2 tw:flex tw:items-end tw:justify-between tw:gap-2">
+                    <strong className={`tw:text-base tw:text-zinc-50 ${number}`}>{reading?.value ?? '—'}</strong>
+                    <Sparkline data={reading?.spark} width={64} height={20} />
+                  </div>
+                  <p className={`tw:mt-1 tw:truncate tw:text-[11px] ${muted}`}>{reading?.detail || name}</p>
+                </article>
+              );
+            })}
+          </section>
+
+          {/* 2. Hero Split: NQ/MNQ Intraday Session Playbook + Mag 7 & Semis Breadth */}
+          <div className="tw:grid tw:gap-3 tw:lg:grid-cols-12">
+            {/* Intraday Session Playbook */}
+            <section className="mx-card tw:flex tw:flex-col tw:lg:col-span-7" aria-label="NQ intraday session playbook">
+              <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                <div className="tw:flex tw:items-center tw:gap-2">
+                  <ShieldCheck size={16} className="tw:text-emerald-400" aria-hidden="true" />
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">NQ / MNQ Intraday Session Playbook</h2>
+                    <p className={`tw:text-xs ${muted}`}>Automated pre-market sizing gate &amp; implied NY volatility range</p>
+                  </div>
+                </div>
+                <span className={`tw:inline-flex tw:items-center tw:gap-2 tw:rounded-md tw:border tw:px-2.5 tw:py-1 tw:text-xs tw:font-bold ${number} ${sizingStyle.cls}`}>
+                  <span className={`tw:h-2 tw:w-2 tw:rounded-full ${sizingStyle.dot}`} />
+                  {sizingStyle.label}
+                </span>
+              </header>
+
+              <div className="tw:grid tw:gap-3 tw:p-4">
+                {/* Implied Daily Range + Reasons */}
+                <div className="tw:grid tw:gap-2.5 tw:sm:grid-cols-2">
+                  <div className="tw:rounded-lg tw:border tw:border-zinc-800 tw:bg-zinc-900/60 tw:p-3">
+                    <span className={`tw:text-[11px] tw:uppercase tw:tracking-wider ${muted}`}>Implied NQ Daily Move (VIX)</span>
+                    <div className={`tw:mt-1 tw:text-base tw:font-bold tw:text-zinc-100 ${number}`}>
+                      {data?.intraday?.impliedMove?.label ?? '—'}
+                    </div>
+                    <p className={`tw:mt-1 tw:text-[11px] ${muted}`}>
+                      VIX / √252 expected 1σ NY session swing — calibrate stop width accordingly.
+                    </p>
+                  </div>
+                  <div className="tw:rounded-lg tw:border tw:border-zinc-800 tw:bg-zinc-900/60 tw:p-3">
+                    <span className={`tw:text-[11px] tw:uppercase tw:tracking-wider ${muted}`}>Active Sizing Rules</span>
+                    <ul className="tw:mt-1.5 tw:list-none tw:space-y-1 tw:p-0 tw:text-xs tw:text-zinc-200">
+                      {(data?.intraday?.reasons || ['No sizing reasons computed yet.']).map((reason, idx) => (
+                        <li key={idx} className="tw:flex tw:items-start tw:gap-1.5">
+                          <AlertTriangle size={12} className="tw:mt-0.5 tw:shrink-0 tw:text-amber-400" />
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Intraday Session Drivers */}
+                <div className="tw:grid tw:gap-2 tw:sm:grid-cols-3">
+                  {[
+                    { id: 'yield', label: '10Y Yield · 5d Momentum' },
+                    { id: 'impulse', label: 'VIX · 3-Session Impulse' },
+                    { id: 'curve', label: '10Y − 2Y Yield Curve' },
+                  ].map((m) => {
+                    const r = (data?.intraday?.metrics || []).find((x) => x.id === m.id);
+                    return (
+                      <div key={m.id} className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:rounded-lg tw:border tw:border-zinc-800/90 tw:bg-zinc-950 tw:px-3 tw:py-2.5">
+                        <div className="tw:min-w-0">
+                          <div className={`tw:text-[11px] ${muted}`}>{m.label}</div>
+                          <div className={`tw:mt-0.5 tw:text-sm tw:font-semibold ${number}`}>{r?.value ?? '—'}</div>
+                        </div>
+                        <Sparkline data={r?.spark} width={56} height={18} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+
+            {/* Mag 7 & Semiconductors Breadth Strip */}
+            <section className="mx-card tw:flex tw:flex-col tw:lg:col-span-5" aria-label="Mag 7 and Semiconductors breadth">
+              <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                <div className="tw:flex tw:items-center tw:gap-2">
+                  <BarChart3 size={16} className="tw:text-emerald-400" aria-hidden="true" />
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">Mag 7 + Semis Breadth</h2>
+                    <p className={`tw:text-xs ${muted}`}>~45% of Nasdaq-100 weight</p>
+                  </div>
+                </div>
+                {mag7 && (
+                  <span className={`tw:rounded-md tw:border tw:px-2 tw:py-0.5 tw:text-xs tw:font-semibold ${number} ${mag7.greenCount >= 4 ? 'tw:border-emerald-700/60 tw:bg-emerald-950/40 tw:text-emerald-300' : 'tw:border-rose-700/60 tw:bg-rose-950/40 tw:text-rose-300'}`}>
+                    {mag7.greenCount}/{mag7.total} Green · {mag7.avgChangePct >= 0 ? '+' : ''}{mag7.avgChangePct}%
+                  </span>
+                )}
+              </header>
+              <div className="tw:flex-1 tw:p-3">
+                {mag7?.items?.length ? (
+                  <>
+                    <div className="tw:mb-2.5 tw:flex tw:items-center tw:justify-between tw:text-xs">
+                      <span className={muted}>{mag7.label}</span>
+                      <div className="tw:flex tw:gap-1">
+                        {mag7.items.slice(0, 7).map((it) => (
+                          <span
+                            key={it.symbol}
+                            title={`${it.symbol}: ${it.change}`}
+                            className={`tw:h-2 tw:w-5 tw:rounded-sm ${it.changePct > 0 ? 'tw:bg-emerald-500' : it.changePct < 0 ? 'tw:bg-rose-500' : 'tw:bg-zinc-600'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="tw:grid tw:grid-cols-2 tw:gap-2 tw:sm:grid-cols-4">
+                      {mag7.items.map((item) => (
+                        <div key={item.symbol} className="tw:rounded-lg tw:border tw:border-zinc-800/90 tw:bg-zinc-950 tw:p-2.5">
+                          <div className="tw:flex tw:items-center tw:justify-between tw:gap-1">
+                            <strong className="tw:text-xs tw:text-zinc-100">{item.symbol}</strong>
+                            <span className={`tw:text-[11px] tw:font-semibold ${number} ${item.direction === 'up' ? 'tw:text-emerald-300' : item.direction === 'down' ? 'tw:text-rose-300' : muted}`}>
+                              {item.change}
+                            </span>
+                          </div>
+                          <div className={`tw:mt-1 tw:text-xs ${number} ${muted}`}>{item.price}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className={`tw:p-2 tw:text-xs ${muted}`}>Run Refresh Now to load live Mag 7 &amp; SMH breadth.</p>
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* 3. EdgeFinder-Style Multi-Asset Bias Scoreboard + Interactive Pillar Breakdown */}
+          <section className="tw:grid tw:gap-3 tw:lg:grid-cols-12" aria-label="Multi-asset bias scoreboard">
+            <div className="mx-card tw:overflow-hidden tw:lg:col-span-7">
+              <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                <div className="tw:flex tw:items-center tw:gap-2">
+                  <Compass size={16} className="tw:text-emerald-400" aria-hidden="true" />
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">Multi-Asset Bias Scoreboard</h2>
+                    <p className={`tw:text-xs ${muted}`}>Click any market to inspect its 6 weighted macro, COT &amp; seasonal pillars</p>
+                  </div>
+                </div>
+                <span className={`tw:text-[11px] ${muted}`}>Score 0–100 · Raw −12 to +12</span>
+              </header>
+              <div className="tw:overflow-x-auto">
+                {assets.length ? (
+                  <table className="tw:w-full tw:border-collapse tw:text-left tw:text-xs">
+                    <thead>
+                      <tr className={`tw:border-b tw:border-zinc-800 tw:text-[11px] tw:uppercase tw:tracking-wider ${muted}`}>
+                        <th className="tw:px-4 tw:py-2.5">Asset</th>
+                        <th className="tw:px-2 tw:py-2.5">Price</th>
+                        <th className="tw:px-2 tw:py-2.5">Bias</th>
+                        <th className="tw:px-2 tw:py-2.5">Score</th>
+                        <th className="tw:px-2 tw:py-2.5">COT Net</th>
+                        <th className="tw:px-3 tw:py-2.5">Seasonality</th>
+                      </tr>
+                    </thead>
+                    <tbody className="tw:divide-y tw:divide-zinc-800/80">
+                      {assets.map((asset) => {
+                        const active = selectedAsset?.id === asset.id;
+                        return (
+                          <tr
+                            key={asset.id}
+                            className={`mx-table-row ${active ? 'mx-row-active' : ''}`}
+                            onClick={() => setSelectedAssetId(asset.id)}
+                          >
+                            <td className="tw:px-4 tw:py-2.5">
+                              <div className="tw:flex tw:items-center tw:gap-2">
+                                <div>
+                                  <div className="tw:font-semibold tw:text-zinc-100">{asset.symbol}</div>
+                                  <div className={`tw:text-[11px] ${muted}`}>{asset.category}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="tw:px-2 tw:py-2.5">
+                              <div className={`tw:font-semibold ${number}`}>{asset.price}</div>
+                              <Change reading={asset} />
+                            </td>
+                            <td className="tw:px-2 tw:py-2.5">
+                              <span className={`tw:inline-block tw:rounded tw:border tw:px-2 tw:py-0.5 tw:text-[11px] tw:font-semibold ${biasBadgeCls(asset.bias)}`}>
+                                {asset.bias}
+                              </span>
+                            </td>
+                            <td className="tw:min-w-[120px] tw:px-2 tw:py-2.5">
+                              <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
+                                <strong className={number}>{asset.score}</strong>
+                                <span className={`tw:text-[11px] ${number} ${muted}`}>
+                                  {asset.rawScore > 0 ? `+${asset.rawScore}` : asset.rawScore} / 12
+                                </span>
+                              </div>
+                              <div className="mx-score-track tw:mt-1">
+                                <div className="mx-score-fill" style={{ width: `${asset.score}%`, background: scoreColor(asset.score) }} />
+                              </div>
+                            </td>
+                            <td className={`tw:px-2 tw:py-2.5 tw:font-semibold ${number}`}>{asset.cotNet}</td>
+                            <td className={`tw:px-3 tw:py-2.5 ${number} ${muted}`}>{asset.seasonality}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className={`tw:p-4 tw:text-xs ${muted}`}>No multi-asset scores yet. Click Refresh Now to compute all 6 markets.</p>
+                )}
               </div>
             </div>
-          </Desk>
-        </div>
-        <MacroAddons readings={data?.addons}/>
-        <section className={`${panel} tw:p-3 tw:text-xs`} aria-label="Economic calendar sources">
-          <h2 className="tw:text-sm">High-impact US releases</h2>
-          {data?.calendar?.length>0?<ul className="tw:mt-2 tw:list-none tw:divide-y tw:divide-zinc-800 tw:p-0">
-            {data.calendar.map(event=><li key={`${event.date}:${event.event}`} className="tw:grid tw:gap-1 tw:py-2 tw:sm:grid-cols-3">
-              <span>{event.event}</span>
-              <span className={number}>{event.date} · FMP</span>
-              <span className={number}>Actual {event.actual??'—'} · Consensus {event.estimate??'—'} {event.unit??''}</span>
-            </li>)}
-          </ul>:<p className={muted}>{data?.calendar?'No high-impact US releases in the current window.':'Calendar feed unavailable.'}</p>}
-          <div className="tw:mt-2 tw:flex tw:flex-wrap tw:gap-4">
-            <a href="https://www.bls.gov/schedule/" target="_blank" rel="noopener noreferrer">BLS · CPI &amp; jobs ↗</a>
-            <a href="https://www.bea.gov/news/schedule" target="_blank" rel="noopener noreferrer">BEA · GDP &amp; PCE ↗</a>
-            <a href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer">Federal Reserve · FOMC ↗</a>
+
+            {/* Transparent Pillar Breakdown Panel */}
+            <div className="mx-card tw:flex tw:flex-col tw:lg:col-span-5">
+              <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                <div>
+                  <h2 className="tw:text-sm tw:font-semibold">
+                    {selectedAsset ? `${selectedAsset.symbol} · Pillar Breakdown` : 'Pillar Breakdown'}
+                  </h2>
+                  <p className={`tw:text-xs ${muted}`}>
+                    {selectedAsset ? `${selectedAsset.name} — exact score drivers` : 'Select a market to inspect'}
+                  </p>
+                </div>
+                {selectedAsset && (
+                  <div className="tw:flex tw:items-center tw:gap-2">
+                    <Sparkline data={selectedAsset.spark} width={60} height={20} />
+                    <span className={`tw:rounded tw:border tw:px-2 py-0.5 tw:text-xs tw:font-bold ${number} ${biasBadgeCls(selectedAsset.bias)}`}>
+                      {selectedAsset.score} / 100
+                    </span>
+                  </div>
+                )}
+              </header>
+              <div className="tw:flex-1 tw:divide-y tw:divide-zinc-800/80 tw:px-4">
+                {selectedAsset?.pillars?.length ? selectedAsset.pillars.map((p) => {
+                  const pct = (Math.abs(p.score) / (p.max || 2)) * 50;
+                  const pos = p.score > 0;
+                  const neg = p.score < 0;
+                  return (
+                    <div key={p.id} className="tw:py-2.5">
+                      <div className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:text-xs">
+                        <span className="tw:font-semibold tw:text-zinc-200">{p.label}</span>
+                        <span className={`tw:rounded tw:px-1.5 tw:py-0.5 tw:text-[11px] tw:font-bold ${number} ${pos ? 'tw:bg-emerald-500/15 tw:text-emerald-300' : neg ? 'tw:bg-rose-500/15 tw:text-rose-300' : 'tw:bg-zinc-800 tw:text-zinc-400'}`}>
+                          {pos ? `+${p.score}` : p.score}
+                        </span>
+                      </div>
+                      <div className="mx-pillar-bar tw:mt-1.5">
+                        <span className="mx-pillar-mid" />
+                        {p.score !== 0 && (
+                          <span
+                            className="mx-pillar-seg"
+                            style={{
+                              left: pos ? '50%' : `${50 - pct}%`,
+                              width: `${pct}%`,
+                              background: pos ? '#10b981' : '#f43f5e',
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div className="tw:mt-1 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-1 tw:text-[11px]">
+                        <span className={`tw:text-zinc-300 ${number}`}>{p.reading}</span>
+                        <span className={muted}>{p.summary}</span>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className={`tw:py-4 tw:text-xs ${muted}`}>No pillar readings available yet.</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* 4. Deep COT Institutional Board + Historical Seasonality & Macro Addons */}
+          <div className="tw:grid tw:gap-3 tw:lg:grid-cols-12">
+            {/* Deep COT Positioning Board */}
+            <section className="mx-card tw:lg:col-span-6" aria-label="COT institutional positioning">
+              <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                <div className="tw:flex tw:items-center tw:gap-2">
+                  <Layers3 size={16} className="tw:text-emerald-400" aria-hidden="true" />
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">COT Institutional Positioning</h2>
+                    <p className={`tw:text-xs ${muted}`}>CFTC Long vs Short · WoW contract shift · 52-week crowdedness</p>
+                  </div>
+                </div>
+                {cotBoard[0]?.reportDate && (
+                  <span className={`tw:text-[11px] ${number} ${muted}`}>As of {cotBoard[0].reportDate}</span>
+                )}
+              </header>
+              <div className="tw:divide-y tw:divide-zinc-800/80 tw:px-4">
+                {cotBoard.length ? cotBoard.map((row) => {
+                  const extreme = row.percentile52w >= 80 || row.percentile52w <= 20;
+                  return (
+                    <div key={row.id} className="tw:py-3">
+                      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:text-xs">
+                        <div className="tw:flex tw:items-center tw:gap-2">
+                          <strong className="tw:text-zinc-100">{row.symbol}</strong>
+                          <span className={muted}>{row.name}</span>
+                          {extreme && (
+                            <span className="tw:rounded tw:border tw:border-amber-700/70 tw:bg-amber-950/40 tw:px-1.5 tw:py-0.5 tw:text-[10px] tw:font-bold tw:text-amber-200">
+                              {row.percentile52w >= 80 ? 'CROWDED LONG' : 'CROWDED SHORT'}
+                            </span>
+                          )}
+                        </div>
+                        <div className={`tw:flex tw:items-center tw:gap-3 ${number}`}>
+                          <span className={row.wowContracts >= 0 ? 'tw:text-emerald-300' : 'tw:text-rose-300'}>
+                            WoW {row.wowContracts >= 0 ? '+' : ''}{row.wowContracts.toLocaleString()}
+                          </span>
+                          <span className={muted}>{row.percentile52w}th pct</span>
+                          <Sparkline data={row.spark} width={52} height={16} />
+                        </div>
+                      </div>
+                      <div className="mx-cot-bar tw:mt-2">
+                        <div className="mx-cot-long" style={{ width: `${row.longPct}%` }} />
+                        <div className="mx-cot-short" style={{ width: `${row.shortPct}%` }} />
+                      </div>
+                      <div className={`tw:mt-1 tw:flex tw:justify-between tw:text-[11px] ${number}`}>
+                        <span className="tw:text-emerald-300">Long {row.longPct.toFixed(1)}%</span>
+                        <span className={muted}>Net {row.netPct >= 0 ? '+' : ''}{row.netPct.toFixed(1)}% OI</span>
+                        <span className="tw:text-rose-300">Short {row.shortPct.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <p className={`tw:py-4 tw:text-xs ${muted}`}>No COT board cached yet. Click Refresh Now to fetch CFTC data.</p>
+                )}
+              </div>
+            </section>
+
+            {/* Right column: 10-Yr Seasonality + Macro Addons with Sparklines */}
+            <div className="tw:flex tw:flex-col tw:gap-3 tw:lg:col-span-6">
+              {/* Historical Monthly Seasonality */}
+              <section className="mx-card" aria-label="Historical monthly seasonality">
+                <header className="tw:flex tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">
+                      10-Year Seasonality · {seasonality?.month || new Date().toLocaleString('en-US', { month: 'long' })}
+                    </h2>
+                    <p className={`tw:text-xs ${muted}`}>Historical monthly green-close win rate &amp; average return</p>
+                  </div>
+                </header>
+                <div className="tw:grid tw:grid-cols-2 tw:gap-2 tw:p-3 tw:sm:grid-cols-3">
+                  {seasonality?.assets ? Object.values(seasonality.assets).map((s) => {
+                    const bullish = s.winRate >= 60 && s.avgReturn >= 0;
+                    const bearish = s.winRate <= 40 && s.avgReturn < 0;
+                    return (
+                      <div key={s.id} className="tw:rounded-lg tw:border tw:border-zinc-800 tw:bg-zinc-950 tw:p-2.5">
+                        <div className="tw:flex tw:items-center tw:justify-between tw:text-xs">
+                          <strong>{s.symbol}</strong>
+                          <span className={`${number} ${bullish ? 'tw:text-emerald-300' : bearish ? 'tw:text-rose-300' : muted}`}>
+                            {s.avgReturn >= 0 ? '+' : ''}{s.avgReturn}%
+                          </span>
+                        </div>
+                        <div className="mx-score-track tw:mt-2">
+                          <div className="mx-score-fill" style={{ width: `${s.winRate}%`, background: bullish ? '#10b981' : bearish ? '#f43f5e' : '#71717a' }} />
+                        </div>
+                        <div className={`tw:mt-1 tw:flex tw:justify-between tw:text-[11px] ${muted} ${number}`}>
+                          <span>{s.winRate}% green</span>
+                          <span>{s.samples}y</span>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <p className={`tw:col-span-full tw:p-1 tw:text-xs ${muted}`}>Run Refresh Now to compute 10-year monthly seasonality.</p>
+                  )}
+                </div>
+              </section>
+
+              {/* Macro Addons & Liquidity with Sparklines */}
+              <section className="mx-card tw:flex-1" aria-label="Macro liquidity and volatility addons">
+                <header className="tw:border-b tw:border-zinc-800 tw:px-4 tw:py-3">
+                  <h2 className="tw:text-sm tw:font-semibold">Macro Liquidity, Credit &amp; Volatility</h2>
+                  <p className={`tw:text-xs ${muted}`}>True Fed Net Liquidity (WALCL − TGA − RRP), spreads &amp; risk sentiment</p>
+                </header>
+                <div className="tw:grid tw:grid-cols-2 tw:gap-2 tw:p-3 tw:sm:grid-cols-3">
+                  {addonCards.length ? addonCards.map((card) => {
+                    const Icon = card.icon;
+                    return (
+                      <article key={card.id} className="tw:rounded-lg tw:border tw:border-zinc-800 tw:bg-zinc-950 tw:p-2.5">
+                        <div className={`tw:flex tw:items-center tw:gap-1.5 tw:text-[11px] ${muted}`}>
+                          <Icon size={13} aria-hidden="true" />
+                          <span className="tw:truncate">{card.label}</span>
+                        </div>
+                        <div className="tw:mt-1.5 tw:flex tw:items-end tw:justify-between tw:gap-1">
+                          <strong className={`tw:text-sm tw:text-zinc-100 ${number}`}>{card.value ?? '—'}</strong>
+                          <Sparkline data={card.spark} width={48} height={16} />
+                        </div>
+                        {card.change && <div className="tw:mt-0.5"><Change reading={card} /></div>}
+                        <p className={`tw:mt-1 tw:line-clamp-2 tw:text-[10px] ${muted}`}>{card.detail || '—'}</p>
+                      </article>
+                    );
+                  }) : (
+                    <p className={`tw:col-span-full tw:p-1 tw:text-xs ${muted}`}>No macro addons cached yet.</p>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
-        </section>
-        {!demo&&data&&<p className={`tw:text-xs ${muted}`}>This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis.</p>}
-      </div>
-    </main>
-  </div>;
+
+          {/* 5. Smart US Economic Calendar (Surprise & NQ Impact) */}
+          <section className="mx-card tw:p-4 tw:text-xs" aria-label="Economic calendar">
+            <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b tw:border-zinc-800 tw:pb-3">
+              <div className="tw:flex tw:items-center tw:gap-2">
+                <CalendarClock size={16} className="tw:text-emerald-400" aria-hidden="true" />
+                <div>
+                  <h2 className="tw:text-sm tw:font-semibold">High-Impact US Economic Calendar</h2>
+                  <p className={`tw:text-xs ${muted}`}>Scheduled catalysts with Beat/Miss surprise &amp; NQ directional impact</p>
+                </div>
+              </div>
+              <div className="tw:flex tw:items-center tw:gap-1" role="group" aria-label="Calendar range">
+                {[
+                  { id: 'today', label: 'Today' },
+                  { id: 'week', label: 'This Week' },
+                  { id: 'all', label: 'All' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`mx-btn ${calFilter === tab.id ? 'is-primary' : ''}`}
+                    onClick={() => setCalFilter(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {calendarRows.length > 0 ? (
+              <ul className="tw:mt-2 tw:list-none tw:divide-y tw:divide-zinc-800/80 tw:p-0">
+                {calendarRows.map((event) => (
+                  <li key={event.id} className="tw:grid tw:items-center tw:gap-2 tw:py-2.5 tw:sm:grid-cols-12">
+                    <div className="tw:flex tw:items-center tw:gap-2 tw:sm:col-span-5">
+                      {event.tier1 && (
+                        <span className="tw:rounded tw:border tw:border-rose-700/70 tw:bg-rose-950/50 tw:px-1.5 tw:py-0.5 tw:text-[10px] tw:font-bold tw:text-rose-200">
+                          RED
+                        </span>
+                      )}
+                      <span className="tw:font-semibold tw:text-zinc-100">{event.title}</span>
+                    </div>
+                    <div className={`tw:sm:col-span-3 ${number} ${muted}`}>
+                      {Number.isFinite(event.ms) ? `${dateFormat.format(new Date(event.ms))} ET` : event.date}
+                      {event.countdown && (
+                        <span className={`tw:ml-2 tw:rounded-full tw:border tw:px-2 tw:py-0.5 tw:text-[10px] tw:font-bold ${event.countdown === 'LIVE' ? 'tw:border-rose-600 tw:bg-rose-950 tw:text-rose-200' : 'tw:border-zinc-700 tw:bg-zinc-900 tw:text-zinc-300'}`}>
+                          {event.countdown}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`tw:sm:col-span-2 ${number}`}>
+                      Act <b>{event.actual ?? '—'}</b> · Est {event.estimate ?? '—'} {event.unit ?? ''}
+                    </div>
+                    <div className="tw:flex tw:items-center tw:gap-1.5 tw:sm:col-span-2 tw:sm:justify-end">
+                      {event.surprise && (
+                        <span className={`tw:rounded tw:px-1.5 tw:py-0.5 tw:text-[10px] tw:font-bold tw:uppercase ${event.surprise === 'beat' ? 'tw:bg-amber-500/15 tw:text-amber-300' : event.surprise === 'miss' ? 'tw:bg-sky-500/15 tw:text-sky-300' : 'tw:bg-zinc-800 tw:text-zinc-300'}`}>
+                          {event.surprise}
+                        </span>
+                      )}
+                      {event.nqImpact && event.nqImpact !== 'watch' && (
+                        <span className={`tw:rounded tw:border tw:px-1.5 tw:py-0.5 tw:text-[10px] tw:font-bold ${event.nqImpact === 'bullish' ? 'tw:border-emerald-700 tw:bg-emerald-950/50 tw:text-emerald-300' : event.nqImpact === 'bearish' ? 'tw:border-rose-700 tw:bg-rose-950/50 tw:text-rose-300' : 'tw:border-zinc-700 tw:text-zinc-300'}`}>
+                          NQ {event.nqImpact === 'bullish' ? 'Tailwind' : event.nqImpact === 'bearish' ? 'Headwind' : 'Neutral'}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className={`tw:py-4 ${muted}`}>
+                {calFilter === 'today' ? 'No high-impact US releases scheduled for today.' : 'No high-impact US releases in this window.'}
+              </p>
+            )}
+
+            <div className="tw:mt-3 tw:flex tw:flex-wrap tw:gap-4 tw:border-t tw:border-zinc-800 tw:pt-2.5">
+              <a href="https://www.bls.gov/schedule/" target="_blank" rel="noopener noreferrer">BLS · CPI &amp; jobs ↗</a>
+              <a href="https://www.bea.gov/news/schedule" target="_blank" rel="noopener noreferrer">BEA · GDP &amp; PCE ↗</a>
+              <a href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer">Federal Reserve · FOMC ↗</a>
+            </div>
+          </section>
+
+          {!demo && data && (
+            <p className={`tw:text-[11px] ${muted}`}>
+              Uses FRED®, CFTC public COT filings, and public market feeds. Stored snapshot — verify timestamp before live execution.
+            </p>
+          )}
+        </div>
+      </main>
+    </div>
+  );
 }

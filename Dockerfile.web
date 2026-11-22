@@ -16,6 +16,7 @@ COPY extensions/ extensions/
 COPY services/ services/
 COPY strategies/ strategies/
 COPY webapp/ webapp/
+COPY tools/refresh_matrix.py tools/refresh_matrix.py
 COPY docs/licenses/ docs/licenses/
 COPY --from=frontend /build/frontend/dist frontend/dist/
 RUN useradd --create-home --uid 10001 primus

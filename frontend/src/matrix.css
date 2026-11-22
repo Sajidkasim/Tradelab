@@ -4,7 +4,7 @@
 @source "./MatrixPage.jsx";
 
 /* Keep the terminal independent of the site's editorial heading rules. */
-.pt-site .matrix-terminal :is(h1,h2,h3,p,dl,dd) { margin: 0; }
+.pt-site .matrix-terminal :is(h1,h2,h3,p,dl,dd,ul) { margin: 0; }
 .pt-site .matrix-terminal :is(h1,h2,h3) {
   letter-spacing: normal;
   line-height: 1.25;
@@ -12,3 +12,99 @@
 }
 .pt-site .matrix-terminal dd { margin: 0; }
 
+/* Matrix v2 visual enhancements */
+.mx-card {
+  border: 1px solid #27272a;
+  background: linear-gradient(180deg, rgba(24,24,27,.82), rgba(9,9,11,.96));
+  border-radius: 10px;
+}
+.mx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 7px;
+  border: 1px solid #3f3f46;
+  background: #18181b;
+  color: #e4e4e7;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.mx-btn:hover:not(:disabled) {
+  border-color: #74cfbd;
+  background: #222629;
+  color: #fff;
+}
+.mx-btn:disabled { opacity: .45; cursor: not-allowed; }
+.mx-btn.is-primary {
+  border-color: rgba(52,211,153,.45);
+  background: rgba(16,185,129,.14);
+  color: #6ee7b7;
+}
+.mx-btn.is-primary:hover:not(:disabled) {
+  background: rgba(16,185,129,.22);
+  color: #a7f3d0;
+}
+
+.mx-spin { animation: mx-spin 1s linear infinite; }
+@keyframes mx-spin { to { transform: rotate(360deg); } }
+
+.mx-score-track {
+  position: relative;
+  height: 7px;
+  border-radius: 999px;
+  background: #27272a;
+  overflow: hidden;
+}
+.mx-score-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .25s ease;
+}
+
+.mx-pillar-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: #27272a;
+  overflow: hidden;
+}
+.mx-pillar-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #52525b;
+}
+.mx-pillar-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.mx-cot-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #27272a;
+}
+.mx-cot-long { background: #10b981; }
+.mx-cot-short { background: #f43f5e; }
+
+.mx-row-active {
+  background: rgba(116,207,189,.08);
+  box-shadow: inset 3px 0 0 #34d399;
+}
+.mx-table-row {
+  cursor: pointer;
+  transition: background .12s;
+}
+.mx-table-row:hover {
+  background: rgba(255,255,255,.035);
+}

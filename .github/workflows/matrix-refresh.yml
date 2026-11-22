@@ -1,22 +1,22 @@
 name: Matrix snapshot
 on:
   schedule:
-    - cron: "17 13,22 * * 1-5"
+    # Mon-Fri: London Open (07:15 UTC), NY Pre-Market (12:30 UTC), Post-NY Open (15:05 UTC), NY Close (21:30 UTC)
+    - cron: "15 7,12,15,21 * * 1-5"
+    # Friday post-CFTC COT release (22:37 UTC)
     - cron: "37 22 * * 5"
-    - cron: "7,22,37,52 12-16 * * 1-5"
   workflow_dispatch:
     inputs:
       source:
         description: Snapshot section to refresh
         type: choice
-        options: [fred, cot, calendar]
-        default: fred
+        options: [all, fred, cot, markets, calendar]
+        default: all
 concurrency:
   group: matrix-snapshot
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.event.schedule != '7,22,37,52 12-16 * * 1-5' || vars.MATRIX_ENABLE_FMP_CALENDAR == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -27,10 +27,11 @@ jobs:
       - run: python -m pip install 'requests>=2.32,<3' 'psycopg[binary]>=3.1,<4'
       - run: python tools/refresh_matrix.py "$MATRIX_SOURCE"
         env:
-          MATRIX_SOURCE: ${{ inputs.source || (github.event.schedule == '37 22 * * 5' && 'cot' || github.event.schedule == '7,22,37,52 12-16 * * 1-5' && 'calendar' || 'fred') }}
+          PYTHONPATH: .
+          MATRIX_SOURCE: ${{ inputs.source || (github.event.schedule == '37 22 * * 5' && 'cot' || 'all') }}
           MATRIX_SUPABASE_URL: ${{ secrets.MATRIX_SUPABASE_URL }}
           MATRIX_DB_URL: ${{ secrets.MATRIX_DB_URL }}
           MATRIX_SUPABASE_SERVICE_KEY: ${{ secrets.MATRIX_SUPABASE_SERVICE_KEY }}
           MATRIX_FMP_API_KEY: ${{ secrets.MATRIX_FMP_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-          MATRIX_ENABLE_ICE_SPREAD: ${{ vars.MATRIX_ENABLE_ICE_SPREAD }}
+          MATRIX_DISABLE_ICE_SPREAD: ${{ vars.MATRIX_DISABLE_ICE_SPREAD }}
