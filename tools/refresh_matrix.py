@@ -1,6 +1,9 @@
 """Refresh the Matrix v2 multi-asset macro snapshot (FRED, CFTC COT, Markets, Seasonality, Calendar)."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+import csv
 from datetime import datetime, timedelta, timezone
+import io
 import math
 import os
 import re
@@ -200,19 +203,25 @@ def fetch_cot_market(spec):
 
 
 def refresh_cot_all(snapshot):
-    """Refresh institutional COT positioning across all 6 tracked markets."""
-    board = []
+    """Refresh institutional COT positioning across all 6 tracked markets concurrently."""
     existing = {item.get("id"): item for item in snapshot.get("cotBoard", []) if isinstance(item, dict)}
-    changed = False
-    for spec in COT_MARKETS:
+
+    def _load(spec):
         try:
-            entry = fetch_cot_market(spec)
-            board.append(entry)
-            changed = True
+            return spec["id"], fetch_cot_market(spec), True
         except (requests.RequestException, ValueError, KeyError, IndexError) as error:
             print(f"Skipped COT {spec['symbol']} ({type(error).__name__}: {error})")
-            if spec["id"] in existing:
-                board.append(existing[spec["id"]])
+            return spec["id"], existing.get(spec["id"]), False
+
+    board = []
+    changed = False
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        for _, entry, ok in pool.map(_load, COT_MARKETS):
+            if entry:
+                board.append(entry)
+            if ok:
+                changed = True
+
     if board:
         snapshot["cotBoard"] = board
         nq_cot = next((item for item in board if item["id"] == "nq"), None)
@@ -257,10 +266,24 @@ def refresh_fred(snapshot):
         sources["BAMLH0A0HYM2"] = ("swing", "credit", lambda v: f"{v * 100:.0f} bp")
 
     fetched_series = {}
-    for series, (group, identifier, format_value) in sources.items():
+
+    def _fetch_fred_one(series):
         try:
-            rows = observations(series)
-            fetched_series[series] = rows
+            return series, observations(series)
+        except (requests.RequestException, ValueError, KeyError, IndexError) as error:
+            print(f"Skipped {series} ({type(error).__name__})")
+            return series, None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for series, rows in pool.map(_fetch_fred_one, sources.keys()):
+            if rows:
+                fetched_series[series] = rows
+
+    for series, (group, identifier, format_value) in sources.items():
+        if series not in fetched_series:
+            continue
+        try:
+            rows = fetched_series[series]
             date, latest = rows[0]
             detail = f"FRED · {series} · {date}"
             spark = _spark([v for _, v in reversed(rows[:20])], limit=20)
@@ -417,38 +440,184 @@ def refresh_fred(snapshot):
     return changed
 
 
-def _yahoo_chart(symbol, range_="3mo", interval="1d"):
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-    response = requests.get(url, params={"range": range_, "interval": interval}, headers=HTTP_HEADERS, timeout=10)
-    if not response.ok:
-        raise ValueError(f"Yahoo HTTP {response.status_code} for {symbol}")
-    payload = response.json()
-    result = (payload.get("chart") or {}).get("result") or []
-    if not result:
-        raise ValueError(f"Empty Yahoo result for {symbol}")
-    node = result[0]
-    meta = node.get("meta") or {}
-    timestamps = node.get("timestamp") or []
-    closes = ((node.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
+STOOQ_MAP = {
+    "NQ=F": "nq.f",
+    "ES=F": "es.f",
+    "GC=F": "gc.f",
+    "DX-Y.NYB": "dx.f",
+    "EURUSD=X": "eurusd",
+    "GBPUSD=X": "gbpusd",
+    "^VIX": "^vix",
+    "NVDA": "nvda.us",
+    "AAPL": "aapl.us",
+    "MSFT": "msft.us",
+    "AMZN": "amzn.us",
+    "META": "meta.us",
+    "GOOGL": "googl.us",
+    "TSLA": "tsla.us",
+    "SMH": "smh.us",
+}
+
+
+def _stooq_chart(symbol, interval="1d"):
+    stooq_sym = STOOQ_MAP.get(symbol)
+    if not stooq_sym:
+        raise ValueError(f"No Stooq mapping for {symbol}")
+    stooq_int = "m" if interval == "1mo" else "d"
+    response = requests.get(
+        "https://stooq.com/q/d/l/",
+        params={"s": stooq_sym, "i": stooq_int},
+        headers=HTTP_HEADERS,
+        timeout=10,
+    )
+    if not response.ok or "Date,Open,High,Low,Close" not in response.text[:120]:
+        raise ValueError(f"Stooq unavailable for {symbol}")
     points = []
-    for ts, close in zip(timestamps, closes):
-        if close is not None and math.isfinite(float(close)):
-            points.append((int(ts), float(close)))
+    for row in csv.DictReader(io.StringIO(response.text)):
+        try:
+            dt = datetime.strptime(row["Date"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            close = float(row["Close"])
+            if math.isfinite(close):
+                points.append((int(dt.timestamp()), close))
+        except (KeyError, ValueError, TypeError):
+            continue
     if not points:
-        raise ValueError(f"No close series for {symbol}")
-    return meta, points
+        raise ValueError(f"No Stooq points for {symbol}")
+    limit = 125 if interval == "1mo" else 140
+    points = points[-limit:]
+    return {"regularMarketPrice": points[-1][1], "chartPreviousClose": points[-2][1] if len(points) >= 2 else points[-1][1]}, points
+
+
+def _yahoo_chart(symbol, range_="3mo", interval="1d"):
+    last_err = None
+    for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
+        try:
+            url = f"https://{host}/v8/finance/chart/{symbol}"
+            response = requests.get(url, params={"range": range_, "interval": interval}, headers=HTTP_HEADERS, timeout=8)
+            if not response.ok:
+                last_err = ValueError(f"Yahoo HTTP {response.status_code} for {symbol}")
+                continue
+            payload = response.json()
+            result = (payload.get("chart") or {}).get("result") or []
+            if not result:
+                last_err = ValueError(f"Empty Yahoo result for {symbol}")
+                continue
+            node = result[0]
+            meta = node.get("meta") or {}
+            timestamps = node.get("timestamp") or []
+            closes = ((node.get("indicators") or {}).get("quote") or [{}])[0].get("close") or []
+            points = []
+            for ts, close in zip(timestamps, closes):
+                if close is not None and math.isfinite(float(close)):
+                    points.append((int(ts), float(close)))
+            if points:
+                return meta, points
+        except (requests.RequestException, ValueError, KeyError, TypeError) as err:
+            last_err = err
+    try:
+        return _stooq_chart(symbol, interval=interval)
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        raise last_err or ValueError(f"No market data for {symbol}")
 
 
 def refresh_markets(snapshot):
-    """Fetch live quotes, moving-average trends, Mag 7 breadth, VIX structure, Fear & Greed, and 10Y seasonality."""
+    """Fetch live quotes, moving-average trends, Mag 7 breadth, VIX structure, Fear & Greed, and 10Y seasonality concurrently."""
     changed = False
     raw = snapshot.setdefault("_raw", {})
     market_quotes = snapshot.setdefault("markets", {})
     now_date = datetime.now(NY).strftime("%Y-%m-%d %H:%M ET")
 
-    for key, (yahoo_sym, label, name, decimals) in MARKET_SYMBOLS.items():
+    def _load_market(item):
+        key, (yahoo_sym, label, name, decimals) = item
         try:
             meta, points = _yahoo_chart(yahoo_sym, range_="6mo", interval="1d")
+            return key, label, name, decimals, meta, points
+        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
+            print(f"Skipped market {yahoo_sym} ({type(error).__name__})")
+            return key, label, name, decimals, None, None
+
+    def _load_mag7(item):
+        sym, company = item
+        try:
+            meta, points = _yahoo_chart(sym, range_="1mo", interval="1d")
+            closes = [p[1] for p in points]
+            latest = float(meta.get("regularMarketPrice") or closes[-1])
+            prev_close = closes[-2] if len(closes) >= 2 else float(meta.get("chartPreviousClose") or latest)
+            chg_pct = ((latest / prev_close) - 1) * 100 if prev_close else 0.0
+            return {
+                "symbol": sym,
+                "name": company,
+                "price": _fmt_price(latest, 2),
+                "changePct": round(chg_pct, 2),
+                "change": f"{chg_pct:+.2f}%",
+                "direction": "up" if chg_pct > 0.05 else "down" if chg_pct < -0.05 else "flat",
+            }
+        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
+            print(f"Skipped breadth {sym} ({type(error).__name__})")
+            return None
+
+    current_month = datetime.now(NY).month
+    month_label = datetime.now(NY).strftime("%B")
+
+    def _load_seasonality(key):
+        yahoo_sym, label, _, _ = MARKET_SYMBOLS[key]
+        try:
+            _, points = _yahoo_chart(yahoo_sym, range_="10y", interval="1mo")
+            by_month = {m: [] for m in range(1, 13)}
+            for i in range(1, len(points)):
+                ts, close = points[i]
+                prev = points[i - 1][1]
+                if prev <= 0:
+                    continue
+                ret = ((close / prev) - 1) * 100
+                m = datetime.fromtimestamp(ts, tz=timezone.utc).month
+                by_month[m].append(ret)
+            cur = by_month.get(current_month, [])
+            if not cur:
+                return key, None
+            wins = sum(1 for r in cur if r > 0)
+            return key, {
+                "id": key,
+                "symbol": label,
+                "month": month_label,
+                "winRate": round(100 * wins / len(cur)),
+                "avgReturn": round(sum(cur) / len(cur), 2),
+                "samples": len(cur),
+                "monthlyAvg": [
+                    round(sum(by_month[m]) / len(by_month[m]), 2) if by_month[m] else 0.0
+                    for m in range(1, 13)
+                ],
+            }
+        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
+            print(f"Skipped seasonality {yahoo_sym} ({type(error).__name__})")
+            return key, None
+
+    def _load_fear_greed():
+        try:
+            fg = requests.get(
+                "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
+                headers=HTTP_HEADERS,
+                timeout=6,
+            )
+            if fg.ok:
+                fg_data = fg.json().get("fear_and_greed") or {}
+                score = round(float(fg_data.get("score")))
+                rating = str(fg_data.get("rating") or "").title() or "Neutral"
+                return score, rating
+        except (requests.RequestException, ValueError, KeyError, TypeError):
+            pass
+        return None
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        mkt_futures = [pool.submit(_load_market, item) for item in MARKET_SYMBOLS.items()]
+        mag7_futures = [pool.submit(_load_mag7, item) for item in MAG7_SYMBOLS]
+        seas_futures = [pool.submit(_load_seasonality, key) for key in ("nq", "es", "xau", "dxy", "eurusd", "gbpusd")]
+        fg_future = pool.submit(_load_fear_greed)
+
+        for fut in mkt_futures:
+            key, label, name, decimals, meta, points = fut.result()
+            if not points:
+                continue
             closes = [p[1] for p in points]
             latest = float(meta.get("regularMarketPrice") or closes[-1])
             prev_close = closes[-2] if len(closes) >= 2 else float(meta.get("chartPreviousClose") or latest)
@@ -498,8 +667,15 @@ def refresh_markets(snapshot):
                     "detail": f"VIX 3-session change · {now_date}",
                 })
             changed = True
-        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
-            print(f"Skipped market {yahoo_sym} ({type(error).__name__})")
+
+        mag7_rows = [row for fut in mag7_futures if (row := fut.result()) is not None]
+        seasonality = {}
+        for fut in seas_futures:
+            key, val = fut.result()
+            if val:
+                seasonality[key] = val
+                changed = True
+        fg_res = fg_future.result()
 
     # VIX / VIX3M structure from live quotes
     if "vix" in market_quotes and "vxv" in market_quotes and market_quotes["vxv"]["price"] > 0:
@@ -514,27 +690,6 @@ def refresh_markets(snapshot):
             "numValue": ratio,
             "detail": f"{state} · VIX {v_now:.1f} / VIX3M {vxv_now:.1f}",
         })
-
-    # Mag 7 + Semiconductors Breadth Strip
-    mag7_rows = []
-    for sym, company in MAG7_SYMBOLS:
-        try:
-            meta, points = _yahoo_chart(sym, range_="1mo", interval="1d")
-            closes = [p[1] for p in points]
-            latest = float(meta.get("regularMarketPrice") or closes[-1])
-            prev_close = closes[-2] if len(closes) >= 2 else float(meta.get("chartPreviousClose") or latest)
-            chg_pct = ((latest / prev_close) - 1) * 100 if prev_close else 0.0
-            mag7_rows.append({
-                "symbol": sym,
-                "name": company,
-                "price": _fmt_price(latest, 2),
-                "changePct": round(chg_pct, 2),
-                "change": f"{chg_pct:+.2f}%",
-                "direction": "up" if chg_pct > 0.05 else "down" if chg_pct < -0.05 else "flat",
-            })
-            changed = True
-        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
-            print(f"Skipped breadth {sym} ({type(error).__name__})")
 
     if mag7_rows:
         core7 = [r for r in mag7_rows if r["symbol"] != "SMH"]
@@ -558,68 +713,21 @@ def refresh_markets(snapshot):
             "direction": "up" if avg_pct > 0.05 else "down" if avg_pct < -0.05 else "flat",
             "detail": "Mag 7 equal-weight breadth",
         })
+        changed = True
 
-    # Historical 10-Year Monthly Seasonality across all 6 assets
-    seasonality = {}
-    current_month = datetime.now(NY).month
-    month_label = datetime.now(NY).strftime("%B")
-    for key in ("nq", "es", "xau", "dxy", "eurusd", "gbpusd"):
-        yahoo_sym, label, _, _ = MARKET_SYMBOLS[key]
-        try:
-            _, points = _yahoo_chart(yahoo_sym, range_="10y", interval="1mo")
-            by_month = {m: [] for m in range(1, 13)}
-            for i in range(1, len(points)):
-                ts, close = points[i]
-                prev = points[i - 1][1]
-                if prev <= 0:
-                    continue
-                ret = ((close / prev) - 1) * 100
-                m = datetime.fromtimestamp(ts, tz=timezone.utc).month
-                by_month[m].append(ret)
-            cur = by_month.get(current_month, [])
-            if cur:
-                wins = sum(1 for r in cur if r > 0)
-                win_rate = round(100 * wins / len(cur))
-                avg_ret = round(sum(cur) / len(cur), 2)
-                seasonality[key] = {
-                    "id": key,
-                    "symbol": label,
-                    "month": month_label,
-                    "winRate": win_rate,
-                    "avgReturn": avg_ret,
-                    "samples": len(cur),
-                    "monthlyAvg": [
-                        round(sum(by_month[m]) / len(by_month[m]), 2) if by_month[m] else 0.0
-                        for m in range(1, 13)
-                    ],
-                }
-                changed = True
-        except (requests.RequestException, ValueError, KeyError, IndexError, TypeError) as error:
-            print(f"Skipped seasonality {yahoo_sym} ({type(error).__name__})")
     if seasonality:
         snapshot["seasonality"] = {"month": month_label, "monthIndex": current_month, "assets": seasonality}
 
-    # CNN Fear & Greed Index (with automatic computed Risk-On fallback in recompute_scores)
-    try:
-        fg = requests.get(
-            "https://production.dataviz.cnn.io/index/fearandgreed/graphdata",
-            headers=HTTP_HEADERS,
-            timeout=8,
-        )
-        if fg.ok:
-            fg_data = fg.json().get("fear_and_greed") or {}
-            score = round(float(fg_data.get("score")))
-            rating = str(fg_data.get("rating") or "").title() or "Neutral"
-            raw["fearGreed"] = {"score": score, "rating": rating, "source": "CNN Fear & Greed"}
-            snapshot["addons"] = update_row(snapshot.get("addons", []), {
-                "id": "sentiment",
-                "value": f"{score} / 100",
-                "numValue": score,
-                "detail": f"{rating} · CNN Fear & Greed",
-            })
-            changed = True
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        pass
+    if fg_res:
+        score, rating = fg_res
+        raw["fearGreed"] = {"score": score, "rating": rating, "source": "CNN Fear & Greed"}
+        snapshot["addons"] = update_row(snapshot.get("addons", []), {
+            "id": "sentiment",
+            "value": f"{score} / 100",
+            "numValue": score,
+            "detail": f"{rating} · CNN Fear & Greed",
+        })
+        changed = True
 
     return changed
 
@@ -725,9 +833,44 @@ def _bias_label(score):
     return "Neutral"
 
 
+def _hydrate_raw_from_existing(snapshot, raw):
+    """Populate missing _raw fields from already-stored ticker/desk/addon metrics (e.g. when FRED ran in CI)."""
+    def _find(rows, item_id):
+        return next((r for r in (rows or []) if isinstance(r, dict) and r.get("id") == item_id), None)
+
+    if "dgs10" not in raw:
+        t = _find(snapshot.get("tickers"), "dgs10")
+        y = _find((snapshot.get("intraday") or {}).get("metrics"), "yield")
+        val = _parse_num(t.get("value")) if t else None
+        d5 = _parse_num((y or {}).get("value", "").replace("bp", "")) if y else None
+        if val is not None or d5 is not None:
+            raw["dgs10"] = {"value": val, "delta5dBp": round(d5) if d5 is not None else 0}
+    if "cpi" not in raw:
+        c = _find((snapshot.get("swing") or {}).get("metrics"), "cpi")
+        val = _parse_num(c.get("value")) if c else None
+        if val is not None:
+            raw["cpi"] = {"value": val}
+    if "breakeven" not in raw:
+        b = _find(snapshot.get("addons"), "breakeven")
+        val = _parse_num(b.get("value")) if b else None
+        if val is not None:
+            raw["breakeven"] = {"value": val}
+    if "credit" not in raw:
+        cr = _find((snapshot.get("swing") or {}).get("metrics"), "credit")
+        val = _parse_num((cr or {}).get("value", "").replace("bp", "")) if cr else None
+        if val is not None:
+            raw["credit"] = {"bp": round(val)}
+    if "netLiquidity" not in raw:
+        f = _find((snapshot.get("swing") or {}).get("metrics"), "fed")
+        val = _parse_num((f or {}).get("value", "").replace("$", "").replace("T", "")) if f else None
+        if val is not None:
+            raw["netLiquidity"] = {"valueT": val, "delta4wB": 0}
+
+
 def recompute_scores(snapshot):
     """Compute transparent EdgeFinder multi-asset scores (6 markets) and dynamic NQ intraday sizing gate."""
-    raw = snapshot.get("_raw") or {}
+    raw = dict(snapshot.get("_raw") or {})
+    _hydrate_raw_from_existing(snapshot, raw)
     markets = snapshot.get("markets") or {}
     cot_by_id = {c["id"]: c for c in snapshot.get("cotBoard", []) if isinstance(c, dict) and c.get("id")}
     seasonality = (snapshot.get("seasonality") or {}).get("assets") or {}
