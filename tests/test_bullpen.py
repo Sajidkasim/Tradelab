@@ -178,3 +178,101 @@ def test_cloudflare_sfu_provider_proxy_and_shared_desk(draft, monkeypatch):
     after_remove = client.put("/api/bullpen/desk", json={"remove_level_id": level_id, "bias": None}).json()
     assert after_remove["biases"] == {}
     assert after_remove["levels"] == []
+
+
+def test_level_status_moderator_disable_and_warmup_sync(draft, monkeypatch):
+    client, _, state = draft
+    realtime_secret = "r" * 32
+    for key, value in {
+        "BULLPEN_SAJID_EMAIL": "owner@example.com",
+        "BULLPEN_AMIR_EMAIL": "amir@example.com",
+        "BULLPEN_ENABLED": "1",
+        "BULLPEN_SUPABASE_JWT_SECRET": realtime_secret,
+        "BULLPEN_CF_APP_ID": "cf-app-12345678",
+        "BULLPEN_CF_APP_TOKEN": "super-secret-cf-token",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+    async def fake_request(self, method, url, **kwargs):
+        return bullpen.httpx.Response(
+            200,
+            json={"tracks": [{"mid": "1"}]},
+            request=bullpen.httpx.Request(method, url),
+        )
+
+    monkeypatch.setattr(bullpen.httpx.AsyncClient, "request", fake_request)
+
+    # Owner is moderator
+    login(client, state)
+    owner_access = client.get("/api/bullpen").json()
+    assert owner_access["moderator"] is True
+
+    # Add level and cycle status
+    added = client.put(
+        "/api/bullpen/desk",
+        json={"add_level": {"symbol": "nq", "price": "21500", "label": "4H FVG"}},
+    ).json()
+    lvl = added["levels"][0]
+    assert lvl["status"] == "watching"
+
+    hit = client.put(
+        "/api/bullpen/desk",
+        json={"update_level_status": {"id": lvl["id"], "status": "hit"}},
+    ).json()
+    assert hit["levels"][0]["status"] == "hit"
+    assert client.put(
+        "/api/bullpen/desk",
+        json={"update_level_status": {"id": lvl["id"], "status": "bogus"}},
+    ).status_code == 422
+
+    # Moderator disables Amir
+    disabled_res = client.put(
+        "/api/bullpen/desk",
+        json={"set_disabled": {"name": "Amir", "disabled": True}},
+    ).json()
+    assert disabled_res["disabled"] == ["Amir"]
+
+    # Switch to Amir (non-moderator)
+    login(client, state, "amir@example.com", "amir-sub")
+    amir_access = client.get("/api/bullpen").json()
+    assert amir_access["moderator"] is False
+
+    # Disabled Amir cannot mutate desk or publish local SFU tracks, but CAN pull remote tracks
+    assert client.put(
+        "/api/bullpen/desk",
+        json={"add_level": {"symbol": "ES", "price": "6000", "label": "PDH"}},
+    ).status_code == 403
+    assert client.put(
+        "/api/bullpen/desk",
+        json={"set_disabled": {"name": "Sajid", "disabled": True}},
+    ).status_code == 403
+    assert client.post(
+        "/api/bullpen/sfu/sessions/sess-12345678/tracks",
+        json={"tracks": [{"location": "local", "mid": "0", "trackName": "audio-1"}]},
+    ).status_code == 403
+    assert client.post(
+        "/api/bullpen/sfu/sessions/sess-12345678/tracks",
+        json={"tracks": [{"location": "remote", "sessionId": "other-1234", "trackName": "audio-1"}]},
+    ).status_code == 200
+
+    # Complete Mindset Warm-up as Amir -> appears in desk.warmed_up
+    warmup = client.get("/api/mindset/warmup").json()
+    assert client.post(
+        "/api/mindset/complete",
+        json={"attempt_id": None, "day": warmup["day"]},
+    ).status_code == 200
+    assert "Amir" in client.get("/api/bullpen/desk").json()["warmed_up"]
+
+    # Owner re-enables Amir -> Amir can post levels again
+    login(client, state)
+    enabled_res = client.put(
+        "/api/bullpen/desk",
+        json={"set_disabled": {"name": "Amir", "disabled": False}},
+    ).json()
+    assert enabled_res["disabled"] == []
+    login(client, state, "amir@example.com", "amir-sub")
+    assert client.put(
+        "/api/bullpen/desk",
+        json={"add_level": {"symbol": "ES", "price": "6000", "label": "PDH"}},
+    ).status_code == 200
+

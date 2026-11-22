@@ -201,7 +201,7 @@ def mount(app, config, workspace, check_write):
 
     @app.post("/api/bullpen/sfu/sessions/{session_id}/tracks")
     async def sfu_new_tracks(session_id: str, request: Request):
-        await run_in_threadpool(_require_team, request, write=True)
+        member, name = await run_in_threadpool(_require_team, request, write=True)
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", session_id):
             raise HTTPException(422, "Invalid SFU session ID.")
         body = await request.body()
@@ -213,6 +213,12 @@ def mount(app, config, workspace, check_write):
             raise HTTPException(400, "Expected JSON body.") from None
         if not isinstance(payload, dict) or not isinstance(payload.get("tracks"), list) or len(payload["tracks"]) > 16:
             raise HTTPException(422, "Invalid tracks payload.")
+        if member["key"] != "owner" and any(isinstance(t, dict) and t.get("location") == "local" for t in payload["tracks"]):
+            def _is_disabled():
+                with app.state.workspaces.lock:
+                    return name in _read_desk()["disabled"]
+            if await run_in_threadpool(_is_disabled):
+                raise HTTPException(403, "Your mic and screen share are disabled by the moderator.")
         return await _cf_proxy("POST", f"/sessions/{session_id}/tracks/new", payload)
 
     @app.put("/api/bullpen/sfu/sessions/{session_id}/renegotiate")
@@ -248,21 +254,43 @@ def mount(app, config, workspace, check_write):
         return await _cf_proxy("PUT", f"/sessions/{session_id}/tracks/close", payload)
 
     DESK_KEY = "primus_bullpen_desk_v1"
+    LEVEL_STATUSES = ("watching", "taken", "hit", "invalidated")
 
     def _ny_today():
         from datetime import datetime
         from zoneinfo import ZoneInfo
         return datetime.now(ZoneInfo("America/New_York")).date().isoformat()
 
+    def _warmed_up_today(today):
+        root = app.state.workspaces.root
+        done = set()
+        warmup = root.get_setting("primus_mindset_team_warmup_v1", {})
+        if isinstance(warmup, dict) and warmup.get("day") == today:
+            done.update(n for n in warmup.get("completed", []) if n in TEAM)
+        scores = root.get_setting("primus_mindset_team_score_v1", {})
+        if isinstance(scores, dict) and scores.get("day") == today and isinstance(scores.get("scores"), dict):
+            done.update(n for n in scores["scores"] if n in TEAM)
+        return sorted(done)
+
     def _read_desk():
         today = _ny_today()
         stored = app.state.workspaces.root.get_setting(DESK_KEY, {})
+        warmed_up = _warmed_up_today(today)
         if not isinstance(stored, dict) or stored.get("day") != today:
-            return {"day": today, "biases": {}, "levels": []}
+            return {"day": today, "biases": {}, "levels": [], "disabled": [], "warmed_up": warmed_up}
+        raw_levels = stored.get("levels") if isinstance(stored.get("levels"), list) else []
+        levels = [
+            {**lvl, "status": lvl.get("status") if lvl.get("status") in LEVEL_STATUSES else "watching"}
+            for lvl in raw_levels if isinstance(lvl, dict)
+        ]
+        raw_disabled = stored.get("disabled") if isinstance(stored.get("disabled"), list) else []
+        disabled = sorted({n for n in raw_disabled if n in TEAM})
         return {
             "day": today,
             "biases": stored.get("biases") if isinstance(stored.get("biases"), dict) else {},
-            "levels": stored.get("levels") if isinstance(stored.get("levels"), list) else [],
+            "levels": levels,
+            "disabled": disabled,
+            "warmed_up": warmed_up,
         }
 
     @app.get("/api/bullpen/desk")
@@ -273,7 +301,8 @@ def mount(app, config, workspace, check_write):
 
     @app.put("/api/bullpen/desk")
     async def update_desk(request: Request):
-        _, name = await run_in_threadpool(_require_team, request, write=True)
+        member, name = await run_in_threadpool(_require_team, request, write=True)
+        is_moderator = member["key"] == "owner"
         try:
             payload = await request.json()
         except ValueError:
@@ -286,6 +315,23 @@ def mount(app, config, workspace, check_write):
                 desk = _read_desk()
                 biases = dict(desk["biases"])
                 levels = list(desk["levels"])
+                disabled = set(desk["disabled"])
+                if not is_moderator and name in disabled:
+                    raise HTTPException(403, "You have been disabled by the moderator.")
+                if "set_disabled" in payload:
+                    if not is_moderator:
+                        raise HTTPException(403, "Only the moderator can disable or enable members.")
+                    item = payload["set_disabled"]
+                    if not isinstance(item, dict):
+                        raise HTTPException(422, "Invalid moderation payload.")
+                    target = str(item.get("name", "")).strip()
+                    flag = bool(item.get("disabled"))
+                    if target not in TEAM or target == name:
+                        raise HTTPException(422, "Select a valid teammate to moderate.")
+                    if flag:
+                        disabled.add(target)
+                    else:
+                        disabled.discard(target)
                 if "bias" in payload:
                     bias = payload["bias"]
                     if bias in (None, ""):
@@ -303,13 +349,31 @@ def mount(app, config, workspace, check_write):
                         raise HTTPException(422, "Provide symbol, price, and label.")
                     if len(levels) >= 25:
                         raise HTTPException(422, "Up to 25 shared levels per session.")
-                    levels.insert(0, {"id": uuid4().hex[:12], "symbol": symbol, "price": price, "label": label, "author": name})
+                    levels.insert(0, {
+                        "id": uuid4().hex[:12], "symbol": symbol, "price": price,
+                        "label": label, "author": name, "status": "watching",
+                    })
+                if "update_level_status" in payload and isinstance(payload["update_level_status"], dict):
+                    item = payload["update_level_status"]
+                    target_id = str(item.get("id", "")).strip()
+                    next_status = str(item.get("status", "")).strip().lower()
+                    if next_status not in LEVEL_STATUSES:
+                        raise HTTPException(422, "Invalid level status.")
+                    levels = [
+                        {**lvl, "status": next_status} if lvl.get("id") == target_id else lvl
+                        for lvl in levels
+                    ]
                 if "remove_level_id" in payload:
                     target = str(payload["remove_level_id"])
                     levels = [lvl for lvl in levels if lvl.get("id") != target]
-                updated = {"day": desk["day"], "biases": biases, "levels": levels}
-                app.state.workspaces.root.set_setting(DESK_KEY, updated)
-                return updated
+                stored_doc = {
+                    "day": desk["day"],
+                    "biases": biases,
+                    "levels": levels,
+                    "disabled": sorted(disabled),
+                }
+                app.state.workspaces.root.set_setting(DESK_KEY, stored_doc)
+                return {**stored_doc, "warmed_up": desk["warmed_up"]}
 
         return await run_in_threadpool(mutate)
 
@@ -339,7 +403,8 @@ def mount(app, config, workspace, check_write):
         subject = str(uuid5(NAMESPACE_URL, f"{config.supabase_url}/primus-bullpen/{member['key']}"))
         expires = {"iat": now, "nbf": now - 5, "exp": now + LIFETIME}
         base_result = {
-            "name": name, "configured": True, "topic": TOPIC, "alertTopic": ALERT_TOPIC,
+            "name": name, "moderator": member["key"] == "owner",
+            "configured": True, "topic": TOPIC, "alertTopic": ALERT_TOPIC,
             "url": config.supabase_url, "publishableKey": config.supabase_key,
             "token": _sign(realtime_secret, {**expires, "sub": subject, "aud": "authenticated",
                        "role": "primus_bullpen", "primus_bullpen": True}),

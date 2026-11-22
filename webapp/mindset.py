@@ -22,6 +22,7 @@ from . import compound_edge
 PREP = 'primus_mindset_prep_v1:'
 ATTEMPT = 'primus_mindset_attempt_v1'
 TEAM_SCORES = 'primus_mindset_team_score_v1'
+TEAM_WARMUP = 'primus_mindset_team_warmup_v1'
 DRILL_SECONDS = 60
 CHECKLIST = 'primus_mindset_checklist_v1'
 DEFAULT_ITEMS = [
@@ -464,6 +465,14 @@ def mount(app, config, workspace):
                 value['affirmation'] = payload.affirmation.strip()
             db.set_setting(PREP + day, value)
             workspaces().bump(member['key'])
+            name = team_name(member)
+            if name:
+                with workspaces().lock:
+                    root = workspaces().root
+                    board = root.get_setting(TEAM_WARMUP, {})
+                    done = set(board.get('completed', [])) if isinstance(board, dict) and board.get('day') == day else set()
+                    done.add(name)
+                    root.set_setting(TEAM_WARMUP, {'day': day, 'completed': sorted(done)})
             return view(db, member, day, reset)
 
     @app.get('/api/mindset/high-score')

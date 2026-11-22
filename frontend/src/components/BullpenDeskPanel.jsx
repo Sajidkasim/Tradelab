@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarClock, TrendingUp, TrendingDown, Minus, Plus, Trash2, Compass } from 'lucide-react';
+import { CalendarClock, Plus, Trash2, Compass, Radio, Share2 } from 'lucide-react';
 import { api } from '../api';
 import { useBullpen } from '../hooks/usePresence';
 
-const BIAS_OPTIONS = [
-  { id: 'bullish', label: 'Bullish', icon: TrendingUp },
-  { id: 'neutral', label: 'Neutral', icon: Minus },
-  { id: 'bearish', label: 'Bearish', icon: TrendingDown },
-];
-
 const SYMBOLS = ['NQ', 'ES', 'GC', 'EURUSD', 'QQQ'];
 
-const MARKET_MOVER = /\b(?:CPI|PPI|FOMC|NFP|Payroll|Jobs|JOLTS|GDP|PCE|Retail Sales|Unemployment|Initial Claims|Jobless|Fed|Powell|ISM|PMI|Consumer Confidence|Consumer Sentiment|Durable Goods|Personal Income|Rate Decision|Minutes)\b/i;
+const LEVEL_STATUS_CYCLE = ['watching', 'taken', 'hit', 'invalidated'];
+const LEVEL_STATUS_LABEL = {
+  watching: 'Watching',
+  taken: 'Taken',
+  hit: 'Hit',
+  invalidated: 'Invalidated',
+};
+
+export const MARKET_MOVER = /\b(?:CPI|PPI|FOMC|NFP|Payroll|Jobs|JOLTS|GDP|PCE|Retail Sales|Unemployment|Initial Claims|Jobless|Fed|Powell|ISM|PMI|Consumer Confidence|Consumer Sentiment|Durable Goods|Personal Income|Rate Decision|Minutes)\b/i;
 
 const MACRO_FIELDS = [
   { key: 'dgs10', label: '10Y Yield', source: 'tickers' },
@@ -22,7 +24,7 @@ const MACRO_FIELDS = [
   { key: 'fed', label: 'Fed Liquidity', source: 'swing' },
 ];
 
-function parseEventMs(ev) {
+export function parseEventMs(ev) {
   const raw = ev?.scheduled_at || ev?.date || ev?.time;
   if (!raw) return NaN;
   const normalized = typeof raw === 'string' && raw.length === 16 && raw.includes(' ')
@@ -31,7 +33,7 @@ function parseEventMs(ev) {
   return Date.parse(normalized);
 }
 
-function formatEventTime(ms, fallback) {
+export function formatEventTime(ms, fallback) {
   if (!Number.isFinite(ms)) return fallback ? String(fallback).slice(0, 16).replace('T', ' ') : '';
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/New_York', weekday: 'short', day: 'numeric', month: 'short',
@@ -54,38 +56,38 @@ function formatCountdown(ms) {
   return `in ${days}d`;
 }
 
-export function BullpenNewsPanel() {
-  const [snapshot, setSnapshot] = useState(null);
-  const [calendar, setCalendar] = useState([]);
+function formatTimeAgo(unixSec) {
+  if (!Number.isFinite(unixSec)) return '';
+  const diffMin = Math.max(0, Math.round((Date.now() / 1000 - unixSec) / 60));
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const hrs = Math.floor(diffMin / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export function BullpenNewsPanel({ snapshot, calendar = [], loading = false, onDropHeadline, isDisabled = false }) {
   const [showPast, setShowPast] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [squawk, setSquawk] = useState([]);
+  const [squawkLoading, setSquawkLoading] = useState(true);
+  const [droppedUrl, setDroppedUrl] = useState('');
 
   useEffect(() => {
     let active = true;
-    async function load() {
+    async function loadSquawk() {
       try {
-        const res = await api('/matrix/snapshot');
-        if (!active) return;
-        const snap = res?.snapshot || (res?.tickers || res?.swing ? res : null);
-        setSnapshot(snap);
-        const fmp = Array.isArray(snap?.calendar) ? snap.calendar : [];
-        if (fmp.length) {
-          setCalendar(fmp);
-        } else {
-          const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-          const econ = await api(`/backtesting/economic-calendar?day=${today}&scope=month`).catch(() => null);
-          if (active && Array.isArray(econ?.events)) {
-            setCalendar(econ.events);
-          }
+        const res = await api('/bullpen/macro-feed');
+        if (active && Array.isArray(res?.items)) {
+          setSquawk(res.items.slice(0, 12));
         }
       } catch {
         // Leave empty gracefully
       } finally {
-        if (active) setLoading(false);
+        if (active) setSquawkLoading(false);
       }
     }
-    void load();
-    const timer = setInterval(load, 180_000);
+    void loadSquawk();
+    const timer = setInterval(loadSquawk, 90_000);
     return () => { active = false; clearInterval(timer); };
   }, []);
 
@@ -118,8 +120,17 @@ export function BullpenNewsPanel() {
   const visibleEvents = showPast ? [...upcoming, ...past].slice(0, 12) : upcoming.slice(0, 8);
   const nextEvent = upcoming[0] || null;
 
+  async function handleDrop(item) {
+    if (!onDropHeadline || isDisabled) return;
+    const ok = await onDropHeadline(item);
+    if (ok) {
+      setDroppedUrl(item.url);
+      setTimeout(() => setDroppedUrl((prev) => (prev === item.url ? '' : prev)), 2500);
+    }
+  }
+
   return (
-    <section className="bullpen-desk-panel" aria-label="Desk macro and calendar">
+    <section className="bullpen-desk-panel" aria-label="Desk macro, calendar, and live squawk">
       <div className="bullpen-desk-block">
         <div className="bullpen-desk-row">
           <div className="bullpen-desk-heading"><Compass size={14} /> Matrix Macro Pulse</div>
@@ -190,51 +201,61 @@ export function BullpenNewsPanel() {
           <p className="bullpen-desk-muted">No remaining major US catalysts this month.</p>
         )}
       </div>
+
+      <div className="bullpen-desk-block">
+        <div className="bullpen-desk-row">
+          <div className="bullpen-desk-heading"><Radio size={14} /> Live Market Squawk</div>
+        </div>
+        {squawkLoading ? (
+          <p className="bullpen-desk-muted">Loading squawk wire…</p>
+        ) : squawk.length ? (
+          <ul className="bullpen-squawk-list">
+            {squawk.map((item) => (
+              <li key={item.url}>
+                <div className="bullpen-squawk-body">
+                  <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title}</a>
+                  <small>{item.source}{item.published ? ` · ${formatTimeAgo(item.published)}` : ''}</small>
+                </div>
+                {onDropHeadline && (
+                  <button
+                    type="button"
+                    className="bullpen-squawk-drop"
+                    disabled={isDisabled}
+                    onClick={() => handleDrop(item)}
+                    title="Drop headline in Floor chat"
+                  >
+                    <Share2 size={12} />
+                    <span>{droppedUrl === item.url ? 'Sent' : 'Chat'}</span>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="bullpen-desk-muted">No fresh macro squawk headlines right now.</p>
+        )}
+      </div>
     </section>
   );
 }
 
-export function BullpenLevelsPanel() {
-  const { access, deskVersion, send } = useBullpen();
-  const [desk, setDesk] = useState({ day: '', biases: {}, levels: [] });
+export function BullpenLevelsPanel({ desk, onDeskUpdate, isDisabled = false }) {
+  const { send } = useBullpen();
   const [symbol, setSymbol] = useState('NQ');
   const [price, setPrice] = useState('');
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    api('/bullpen/desk').then((data) => {
-      if (active && data) setDesk(data);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, [deskVersion]);
-
-  async function setBias(next) {
-    setBusy(true);
-    try {
-      const current = desk.biases?.[access?.name];
-      const updated = await api('/bullpen/desk', {
-        method: 'PUT',
-        body: { bias: current === next ? null : next },
-      });
-      setDesk(updated);
-      void send('desk', { action: 'bias' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function addLevel(event) {
     event.preventDefault();
-    if (!price.trim() || !label.trim() || busy) return;
+    if (!price.trim() || !label.trim() || busy || isDisabled) return;
     setBusy(true);
     try {
       const updated = await api('/bullpen/desk', {
         method: 'PUT',
         body: { add_level: { symbol, price: price.trim(), label: label.trim() } },
       });
-      setDesk(updated);
+      onDeskUpdate?.(updated);
       setPrice('');
       setLabel('');
       void send('desk', { action: 'level' });
@@ -243,81 +264,89 @@ export function BullpenLevelsPanel() {
     }
   }
 
+  async function cycleLevelStatus(lvl) {
+    if (busy || isDisabled) return;
+    const current = LEVEL_STATUS_CYCLE.includes(lvl.status) ? lvl.status : 'watching';
+    const next = LEVEL_STATUS_CYCLE[(LEVEL_STATUS_CYCLE.indexOf(current) + 1) % LEVEL_STATUS_CYCLE.length];
+    setBusy(true);
+    try {
+      const updated = await api('/bullpen/desk', {
+        method: 'PUT',
+        body: { update_level_status: { id: lvl.id, status: next } },
+      });
+      onDeskUpdate?.(updated);
+      void send('desk', { action: 'level_status' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeLevel(id) {
+    if (busy || isDisabled) return;
     setBusy(true);
     try {
       const updated = await api('/bullpen/desk', {
         method: 'PUT',
         body: { remove_level_id: id },
       });
-      setDesk(updated);
+      onDeskUpdate?.(updated);
       void send('desk', { action: 'level' });
     } finally {
       setBusy(false);
     }
   }
 
-  const myBias = desk.biases?.[access?.name] || null;
-  const biasEntries = Object.entries(desk.biases || {});
+  const levels = desk?.levels || [];
 
   return (
-    <section className="bullpen-desk-panel" aria-label="Shared key levels and team bias">
+    <section className="bullpen-desk-panel" aria-label="Shared key levels">
       <div className="bullpen-desk-block">
-        <div className="bullpen-desk-heading">Your Daily Bias ({desk.day || 'Today'})</div>
-        <div className="bullpen-bias-picker" role="group" aria-label="Select daily bias">
-          {BIAS_OPTIONS.map(({ id, label: lbl, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              disabled={busy}
-              className={`bullpen-bias-btn is-${id}${myBias === id ? ' is-selected' : ''}`}
-              onClick={() => setBias(id)}
-            >
-              <Icon size={14} /> {lbl}
-            </button>
-          ))}
+        <div className="bullpen-desk-row">
+          <div className="bullpen-desk-heading">Shared Key Levels ({desk?.day || 'Today'})</div>
+          <span className="bullpen-desk-muted">{levels.length}/25</span>
         </div>
-        {biasEntries.length > 0 && (
-          <div className="bullpen-bias-roster">
-            {biasEntries.map(([trader, bias]) => (
-              <span key={trader} className={`bullpen-bias-chip is-${bias}`}>
-                {trader}: {bias}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="bullpen-desk-block">
-        <div className="bullpen-desk-heading">Shared Key Levels</div>
         <form className="bullpen-level-form" onSubmit={addLevel}>
-          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} aria-label="Symbol">
+          <select value={symbol} onChange={(e) => setSymbol(e.target.value)} aria-label="Symbol" disabled={isDisabled}>
             {SYMBOLS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price (e.g. 21480)" maxLength={24} />
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Level (e.g. PDH, 4H FVG)" maxLength={80} />
-          <button type="submit" disabled={busy || !price.trim() || !label.trim()} aria-label="Add key level">
+          <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price (e.g. 21480)" maxLength={24} disabled={isDisabled} />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Level (e.g. PDH, 4H FVG)" maxLength={80} disabled={isDisabled} />
+          <button type="submit" disabled={busy || isDisabled || !price.trim() || !label.trim()} aria-label="Add key level">
             <Plus size={15} />
           </button>
         </form>
-        {desk.levels.length ? (
+        {levels.length ? (
           <ul className="bullpen-level-list">
-            {desk.levels.map((lvl) => (
-              <li key={lvl.id}>
-                <div>
-                  <span className="bullpen-lvl-sym">{lvl.symbol}</span>
-                  <strong>{lvl.price}</strong>
-                  <span>{lvl.label}</span>
-                  <small>by {lvl.author}</small>
-                </div>
-                <button type="button" onClick={() => removeLevel(lvl.id)} aria-label={`Remove ${lvl.label}`}>
-                  <Trash2 size={13} />
-                </button>
-              </li>
-            ))}
+            {levels.map((lvl) => {
+              const statusKey = LEVEL_STATUS_CYCLE.includes(lvl.status) ? lvl.status : 'watching';
+              return (
+                <li key={lvl.id} className={`is-lvl-${statusKey}`}>
+                  <div className="bullpen-lvl-main">
+                    <span className="bullpen-lvl-sym">{lvl.symbol}</span>
+                    <strong>{lvl.price}</strong>
+                    <span>{lvl.label}</span>
+                    <small>by {lvl.author}</small>
+                  </div>
+                  <div className="bullpen-lvl-actions">
+                    <button
+                      type="button"
+                      className={`bullpen-lvl-status is-${statusKey}`}
+                      onClick={() => cycleLevelStatus(lvl)}
+                      disabled={busy || isDisabled}
+                      title="Click to cycle status: Watching → Taken → Hit → Invalidated"
+                    >
+                      {LEVEL_STATUS_LABEL[statusKey]}
+                    </button>
+                    <button type="button" onClick={() => removeLevel(lvl.id)} disabled={busy || isDisabled} aria-label={`Remove ${lvl.label}`}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className="bullpen-desk-muted">No levels pinned yet. Add PDH, PDL, or key FVGs for the team.</p>
+          <p className="bullpen-desk-muted">No levels pinned yet. Add PDH, PDL, or key FVGs — tap any status badge to mark Watching, Taken, Hit, or Invalidated.</p>
         )}
       </div>
     </section>

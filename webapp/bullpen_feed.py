@@ -11,12 +11,14 @@ import httpx
 SOURCES = (
     ("Federal Reserve", "https://www.federalreserve.gov/feeds/press_all.xml"),
     ("Bureau of Labor Statistics", "https://www.bls.gov/feed/bls_latest.rss"),
+    ("CNBC Markets", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258"),
+    ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
 )
 KEYWORDS = re.compile(
-    r"\b(?:CPI|PPI|FOMC|NFP|Powell|Rates|Nvidia|NVDA|Apple|AAPL|Microsoft|MSFT|Tesla|TSLA)\b",
+    r"\b(?:CPI|PPI|FOMC|NFP|Payroll|Payrolls|Powell|Fed|Rates|Treasury|Yield|Yields|Inflation|GDP|PCE|Tariff|Tariffs|Nasdaq|S&P|Gold|Oil|Jobs|Unemployment|Recession|Nvidia|NVDA|Apple|AAPL|Microsoft|MSFT|Tesla|TSLA|Meta|Amazon|AMD)\b",
     re.IGNORECASE,
 )
-REFRESH_SECONDS = 120
+REFRESH_SECONDS = 90
 MAX_BYTES = 512 * 1024
 
 

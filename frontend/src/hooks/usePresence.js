@@ -17,6 +17,9 @@ export function usePresence() {
   const [messages,setMessages] = useState([]);
   const [reaction,setReaction] = useState(null);
   const [deskVersion,setDeskVersion] = useState(0);
+  const [deskEvent,setDeskEvent] = useState(null);
+  const [laserEvent,setLaserEvent] = useState(null);
+  const [moderationEvent,setModerationEvent] = useState(null);
   const [error,setError] = useState('');
   const channelRef = useRef(null);
   const sdkRef = useRef(null);
@@ -54,11 +57,18 @@ export function usePresence() {
       metaRef.current={};
       setMessages([]);
       setReaction(null);
+      setLaserEvent(null);
+      setModerationEvent(null);
     }
   },[]);
 
   const updatePresenceMeta = useCallback((nextMeta) => {
     metaRef.current = nextMeta || {};
+    syncTrack();
+  }, [syncTrack]);
+
+  const patchPresenceMeta = useCallback((patch) => {
+    metaRef.current = { ...metaRef.current, ...(patch || {}) };
     syncTrack();
   }, [syncTrack]);
 
@@ -126,8 +136,35 @@ export function usePresence() {
         if(TEAM.includes(payload?.name))receiveMessage(payload);
       }).on('broadcast',{event:'reaction'},({payload})=>{
         if(!signal.aborted&&inCallRef.current&&REACTIONS.includes(payload?.emoji))setReaction({emoji:payload.emoji,id:crypto.randomUUID()});
-      }).on('broadcast',{event:'desk'},()=>{
-        if(!signal.aborted)setDeskVersion(v=>v+1);
+      }).on('broadcast',{event:'desk'},({payload})=>{
+        if(!signal.aborted){
+          setDeskVersion(v=>v+1);
+          if(payload&&TEAM.includes(payload.name))setDeskEvent({action:payload.action,name:payload.name,id:payload.id||crypto.randomUUID()});
+        }
+      }).on('broadcast',{event:'laser'},({payload})=>{
+        if(signal.aborted||!inCallRef.current||!TEAM.includes(payload?.name))return;
+        if(typeof payload.x==='number'&&typeof payload.y==='number'){
+          setLaserEvent({
+            id: payload.id || crypto.randomUUID(),
+            name: payload.name,
+            screenName: typeof payload.screenName === 'string' ? payload.screenName : '',
+            x: Math.max(0, Math.min(1, payload.x)),
+            y: Math.max(0, Math.min(1, payload.y)),
+            phase: payload.phase === 'end' ? 'end' : 'move',
+            ts: Date.now(),
+          });
+        }
+      }).on('broadcast',{event:'moderation'},({payload})=>{
+        if(signal.aborted||!inCallRef.current||!TEAM.includes(payload?.name))return;
+        if(TEAM.includes(payload?.target)&&['force_mute','stop_share','disable','enable'].includes(payload?.action)){
+          setModerationEvent({
+            id: payload.id || crypto.randomUUID(),
+            action: payload.action,
+            target: payload.target,
+            by: payload.name,
+          });
+          if(payload.action==='disable'||payload.action==='enable') setDeskVersion(v=>v+1);
+        }
       }).subscribe(status=>{
         if(signal.aborted)return;
         trackedPayloadRef.current=null;
@@ -158,7 +195,7 @@ export function usePresence() {
     const logout=()=>{disconnect();closeChannel()};
     window.addEventListener('primus:logout',logout);
     load().catch(()=>{
-      if(!signal.aborted){setAccess(null);setError('Could not check Bullpen access.')}
+      if(!signal.aborted){setAccess(null);setError('Could not check Trading Floor access.')}
     });
     return ()=>{
       window.removeEventListener('primus:logout',logout);
@@ -174,8 +211,9 @@ export function usePresence() {
 
   async function send(event,value){
     if(!connected||!inCall||!channelRef.current)return false;
-    if(event!=='desk'&&Date.now()-lastSent.current<350)return false;
-    if(event!=='desk')lastSent.current=Date.now();
+    const silent = event === 'desk' || event === 'laser' || event === 'moderation';
+    if(!silent&&Date.now()-lastSent.current<350)return false;
+    if(!silent)lastSent.current=Date.now();
     try{
       const result=await channelRef.current.send({
         type:'broadcast',event,payload:{...value,name:access.name,id:crypto.randomUUID()},
@@ -184,9 +222,13 @@ export function usePresence() {
     }catch{
       // The socket may close between the readiness check and send.
     }
-    if(event!=='desk')setError('Message could not be sent. Try again.');
+    if(!silent)setError('Message could not be sent. Try again.');
     return false;
   }
 
-  return {access,connected,people,peers,messages,reaction,deskVersion,error,setInCall:updateInCall,updatePresenceMeta,send};
+  return {
+    access,connected,people,peers,messages,reaction,deskVersion,deskEvent,
+    laserEvent,moderationEvent,error,setInCall:updateInCall,
+    updatePresenceMeta,patchPresenceMeta,send,
+  };
 }

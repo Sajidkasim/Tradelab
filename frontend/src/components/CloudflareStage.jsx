@@ -1,43 +1,277 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Maximize2, Minimize2, Mic, MicOff, MonitorUp, MonitorOff,
-  ZoomIn, ZoomOut, RotateCcw, Volume2, VolumeX, Radio,
+  ZoomIn, ZoomOut, RotateCcw, Volume2, VolumeX, HeadphoneOff,
+  Crop, Camera, Film, PictureInPicture2, Crosshair, Columns2,
+  Bell, BellOff, Tv2, AudioLines, Search, ShieldAlert,
 } from 'lucide-react';
 import { api } from '../api';
 import { useBullpen } from '../hooks/usePresence';
+import { playDeskChime } from '../utils/deskChimes';
 
-const ZOOM_PRESETS = [1, 1.5, 2, 3];
+const ZOOM_PRESETS = [1, 1.5, 2];
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-function RemoteAudio({ stream, deafened }) {
-  const ref = useRef(null);
+const TRADER_COLORS = {
+  Sajid: '#34d399',
+  Safwaan: '#60a5fa',
+  Mubeen: '#f59e0b',
+  Mustafa: '#c084fc',
+  Amir: '#fb7185',
+};
+
+function traderColor(name) {
+  return TRADER_COLORS[name] || '#74cfbd';
+}
+
+function nyTodayIso() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+function getContainedVideoRect(videoEl) {
+  if (!videoEl) return null;
+  const rect = videoEl.getBoundingClientRect();
+  const vw = videoEl.videoWidth || rect.width;
+  const vh = videoEl.videoHeight || rect.height;
+  if (!rect.width || !rect.height || !vw || !vh) return rect;
+  const videoRatio = vw / vh;
+  const boxRatio = rect.width / rect.height;
+  let width = rect.width;
+  let height = rect.height;
+  let left = rect.left;
+  let top = rect.top;
+  if (videoRatio > boxRatio) {
+    height = rect.width / videoRatio;
+    top = rect.top + (rect.height - height) / 2;
+  } else {
+    width = rect.height * videoRatio;
+    left = rect.left + (rect.width - width) / 2;
+  }
+  return { left, top, width, height };
+}
+
+function isTypingTarget(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+}
+
+function RemoteAudio({ name, stream, deafened, volume = 1, onSpeakingChange }) {
+  const audioRef = useRef(null);
+  const gainNodeRef = useRef(null);
+
   useEffect(() => {
-    const el = ref.current;
+    const el = audioRef.current;
     if (!el) return;
     el.srcObject = stream;
     el.muted = deafened;
+    el.volume = clamp(volume, 0, 1);
     el.play?.().catch(() => {});
-  }, [stream, deafened]);
-  return <audio ref={ref} autoPlay playsInline muted={deafened} />;
+  }, [stream, deafened, volume]);
+
+  // Speaking detector + >100% volume boost via Web Audio when needed
+  useEffect(() => {
+    if (!stream) return;
+    let ctx;
+    let raf = 0;
+    let lastSpeaking = false;
+    try {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return;
+      ctx = new Ctor();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let frames = 0;
+      const tick = () => {
+        frames += 1;
+        if (frames % 4 === 0) {
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 1) sum += data[i];
+          const avg = sum / data.length;
+          const nowSpeaking = !deafened && avg > 14;
+          if (nowSpeaking !== lastSpeaking) {
+            lastSpeaking = nowSpeaking;
+            onSpeakingChange?.(name, nowSpeaking);
+          }
+        }
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {}
+    return () => {
+      cancelAnimationFrame(raf);
+      if (lastSpeaking) onSpeakingChange?.(name, false);
+      ctx?.close?.().catch(() => {});
+    };
+  }, [stream, name, deafened, onSpeakingChange]);
+
+  // Extra boost for >100% slider (1.01 .. 1.50) using parallel gain if supported
+  useEffect(() => {
+    if (!stream || deafened || volume <= 1.02) {
+      gainNodeRef.current?.ctx?.close?.().catch(() => {});
+      gainNodeRef.current = null;
+      return;
+    }
+    try {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = new Ctor();
+      const source = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      gain.gain.value = clamp(volume - 1, 0, 0.5);
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      gainNodeRef.current = { ctx, gain };
+      return () => {
+        ctx.close?.().catch(() => {});
+        gainNodeRef.current = null;
+      };
+    } catch {}
+  }, [stream, deafened, volume]);
+
+  return <audio ref={audioRef} autoPlay playsInline muted={deafened} />;
 }
 
-export default function CloudflareStage({ meeting, onJoined, onError, minimised }) {
-  const { access, peers, updatePresenceMeta } = useBullpen();
+function DualVideoPane({ screen, onFocus, laserPoints, laserMode, isDisabled, onLaserPoint }) {
+  const paneRef = useRef(null);
+  const vidRef = useRef(null);
+  const pointingRef = useRef(false);
+
+  useEffect(() => {
+    const el = vidRef.current;
+    if (!el) return;
+    el.srcObject = screen.stream || null;
+    if (screen.stream) el.play?.().catch(() => {});
+  }, [screen.stream]);
+
+  const emitLaser = (event, phase) => {
+    const vRect = getContainedVideoRect(vidRef.current);
+    if (!vRect || !vRect.width || !vRect.height) return;
+    const x = clamp((event.clientX - vRect.left) / vRect.width, 0, 1);
+    const y = clamp((event.clientY - vRect.top) / vRect.height, 0, 1);
+    onLaserPoint(screen.rawName, x, y, phase);
+  };
+
+  const overlayDots = useMemo(() => {
+    const el = vidRef.current;
+    const pane = paneRef.current;
+    if (!el || !pane || !laserPoints.length) return [];
+    const pRect = pane.getBoundingClientRect();
+    const vRect = getContainedVideoRect(el);
+    if (!vRect || !pRect.width || !pRect.height) return [];
+    return laserPoints.map((entry) => ({
+      ...entry,
+      px: vRect.left - pRect.left + entry.x * vRect.width,
+      py: vRect.top - pRect.top + entry.y * vRect.height,
+      trailPx: entry.trail.map((pt) => ({
+        x: vRect.left - pRect.left + pt.x * vRect.width,
+        y: vRect.top - pRect.top + pt.y * vRect.height,
+      })),
+    }));
+  }, [laserPoints]);
+
+  return (
+    <div className="bullpen-dual-pane">
+      <div className="bullpen-dual-head">
+        <span>{screen.name}</span>
+        <button type="button" onClick={() => onFocus(screen.key)}>Focus</button>
+      </div>
+      <div
+        ref={paneRef}
+        className={`bullpen-dual-canvas${laserMode ? ' is-laser' : ''}`}
+        onPointerDown={(e) => {
+          if (isDisabled || (!laserMode && !e.altKey) || e.button !== 0) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          pointingRef.current = true;
+          emitLaser(e, 'move');
+        }}
+        onPointerMove={(e) => {
+          if (!pointingRef.current) return;
+          emitLaser(e, 'move');
+        }}
+        onPointerUp={(e) => {
+          if (!pointingRef.current) return;
+          pointingRef.current = false;
+          emitLaser(e, 'end');
+        }}
+      >
+        <video ref={vidRef} autoPlay playsInline muted className="bullpen-screen-video" />
+        {overlayDots.length > 0 && (
+          <svg className="bullpen-laser-svg" aria-hidden="true">
+            {overlayDots.map((dot) => (
+              <g key={dot.name}>
+                {dot.trailPx.length > 1 && (
+                  <polyline
+                    fill="none"
+                    stroke={dot.color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity="0.5"
+                    points={dot.trailPx.map((p) => `${p.x},${p.y}`).join(' ')}
+                  />
+                )}
+                <circle cx={dot.px} cy={dot.py} r="12" fill={dot.color} fillOpacity="0.22" />
+                <circle cx={dot.px} cy={dot.py} r="5.5" fill={dot.color} stroke="#0b1013" strokeWidth="1.5" />
+                <text x={dot.px + 10} y={dot.py - 8} fill="#fff" fontSize="11" fontWeight="700" className="bullpen-laser-tag">
+                  {dot.name}
+                </text>
+              </g>
+            ))}
+          </svg>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function CloudflareStage({
+  meeting,
+  onJoined,
+  onError,
+  minimised,
+  theater,
+  onToggleTheater,
+  peerVolumes = {},
+  onSpeakingChange,
+  isDisabled = false,
+  chimesOn = true,
+  onToggleChimes,
+}) {
+  const { access, peers, laserEvent, moderationEvent, patchPresenceMeta, send } = useBullpen();
   const [status, setStatus] = useState('connecting');
   const [micOn, setMicOn] = useState(false);
+  const [pttActive, setPttActive] = useState(false);
   const [deafened, setDeafened] = useState(false);
+  const [noiseFilter, setNoiseFilter] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [shareQuality, setShareQuality] = useState('crisp'); // 'crisp' (4K 15fps) | 'smooth' (1080p 30fps)
   const [speaking, setSpeaking] = useState(false);
   const [localScreen, setLocalScreen] = useState(null);
-  const [remoteScreens, setRemoteScreens] = useState([]); // [{key, name, stream}]
+  const [remoteScreens, setRemoteScreens] = useState([]); // [{key, name, rawName, stream}]
   const [remoteAudios, setRemoteAudios] = useState([]);   // [{key, name, stream}]
   const [activeKey, setActiveKey] = useState(null);
+  const [dualMode, setDualMode] = useState(false);
 
-  // Interactive Zoom & Pan state for 32" / large monitors
+  // 43" 4K Viewing: Zoom, Pan, Crop-to-Chart, Magnifier Loupe, Live Laser Pointer
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
+  const [cropMode, setCropMode] = useState(false);
+  const [cropBox, setCropBox] = useState(null); // {x, y, w, h} normalized 0..1
+  const [cropDraft, setCropDraft] = useState(null);
+  const [laserMode, setLaserMode] = useState(false);
+  const [loupeOn, setLoupeOn] = useState(false);
+  const [loupePos, setLoupePos] = useState(null); // {x, y} relative to viewport
+  const [lasers, setLasers] = useState({}); // { [traderName]: {name, screenName, x, y, color, updatedAt, trail: [{x,y,ts}]} }
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [toast, setToast] = useState(null); // {text, link?}
+  const [snapping, setSnapping] = useState(false);
+  const [clipReady, setClipReady] = useState(false);
 
   const pcRef = useRef(null);
   const sessionIdRef = useRef(null);
@@ -47,15 +281,39 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
   const micTransceiverRef = useRef(null);
   const screenStreamRef = useRef(null);
   const screenTransceiverRef = useRef(null);
-  const pulledRef = useRef(new Map()); // trackKey -> {mid, name, kind}
-  const midToInfoRef = useRef(new Map()); // mid -> {key, name, kind}
+  const pulledRef = useRef(new Map());
+  const midToInfoRef = useRef(new Map());
   const stageRef = useRef(null);
+  const viewportRef = useRef(null);
   const videoRef = useRef(null);
+  const loupeCanvasRef = useRef(null);
   const dragStartRef = useRef(null);
+  const cropStartRef = useRef(null);
+  const laserDownRef = useRef(false);
+  const lastLaserSentRef = useRef(0);
   const joinedFiredRef = useRef(false);
   const micOnRef = useRef(false);
+  const deafenedRef = useRef(false);
+  const pttWasMutedRef = useRef(false);
+  const prevRemoteScreenCountRef = useRef(0);
+  const toastTimerRef = useRef(null);
+
+  // Rolling 15-second clip ring buffer (in-memory only, zero server cost)
+  const clipRecorderRef = useRef(null);
+  const clipHeaderRef = useRef(null);
+  const clipChunksRef = useRef([]);
+  const clipMimeRef = useRef('video/webm');
 
   micOnRef.current = micOn;
+  deafenedRef.current = deafened;
+
+  const showToast = useCallback((text, link = null) => {
+    setToast({ text, link });
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const enqueue = useCallback((task) => {
     const next = queueRef.current.then(task, task);
@@ -63,13 +321,25 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     return next;
   }, []);
 
-  const syncPresence = useCallback(() => {
+  const syncPresence = useCallback((extra = {}) => {
     if (!sessionIdRef.current) return;
-    updatePresenceMeta({
+    patchPresenceMeta({
       sfuSessionId: sessionIdRef.current,
       tracks: localMetaRef.current.tracks,
+      micOn: micOnRef.current,
+      deafened: deafenedRef.current,
+      sharing: Boolean(screenStreamRef.current),
+      ...extra,
     });
-  }, [updatePresenceMeta]);
+  }, [patchPresenceMeta]);
+
+  // Play subtle chime when a teammate starts screen sharing
+  useEffect(() => {
+    if (remoteScreens.length > prevRemoteScreenCountRef.current && joinedFiredRef.current) {
+      playDeskChime('share', chimesOn);
+    }
+    prevRemoteScreenCountRef.current = remoteScreens.length;
+  }, [remoteScreens.length, chimesOn]);
 
   // Connect RTCPeerConnection to Cloudflare Realtime SFU
   useEffect(() => {
@@ -92,7 +362,7 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
       if (kind === 'screen' || event.track.kind === 'video') {
         setRemoteScreens((prev) => {
           const rest = prev.filter((item) => item.key !== key);
-          return [...rest, { key, name, stream }];
+          return [...rest, { key, name, rawName: name, stream }];
         });
         event.track.onended = () => {
           setRemoteScreens((prev) => prev.filter((item) => item.key !== key));
@@ -120,7 +390,6 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     enqueue(async () => {
       if (cancelled) return;
       try {
-        // Create initial SFU session with a recvonly audio transceiver so ICE/DTLS boots cleanly
         pc.addTransceiver('audio', { direction: 'recvonly' });
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -149,7 +418,7 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
 
     return () => {
       cancelled = true;
-      updatePresenceMeta({});
+      patchPresenceMeta({ sfuSessionId: null, tracks: [], micOn: false, sharing: false, deafened: false });
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc.close();
@@ -158,7 +427,7 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
       pulledRef.current.clear();
       midToInfoRef.current.clear();
     };
-  }, [enqueue, meeting, onError, onJoined, syncPresence, updatePresenceMeta]);
+  }, [enqueue, meeting, onError, onJoined, patchPresenceMeta, syncPresence]);
 
   // Pull remote tracks announced by teammates via Supabase Presence
   useEffect(() => {
@@ -247,23 +516,44 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     });
   }, [access?.name, enqueue, peers, status]);
 
+  const muteLocalMic = useCallback(() => {
+    micStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
+    micOnRef.current = false;
+    setMicOn(false);
+    setSpeaking(false);
+    onSpeakingChange?.(access?.name, false);
+    syncPresence({ micOn: false });
+  }, [access?.name, onSpeakingChange, syncPresence]);
+
   // Publish or toggle local microphone
-  const toggleMic = useCallback(async () => {
-    if (micOn) {
-      micStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
-      setMicOn(false);
-      setSpeaking(false);
+  const setMicEnabled = useCallback(async (desired) => {
+    if (isDisabled && desired) {
+      showToast('Mic disabled by moderator.');
       return;
+    }
+    if (!desired) {
+      muteLocalMic();
+      return;
+    }
+    if (deafenedRef.current) {
+      deafenedRef.current = false;
+      setDeafened(false);
     }
     try {
       const existing = micStreamRef.current?.getAudioTracks()[0];
       if (existing && existing.readyState === 'live' && micTransceiverRef.current) {
         existing.enabled = true;
+        micOnRef.current = true;
         setMicOn(true);
+        syncPresence({ micOn: true, deafened: false });
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: noiseFilter,
+          noiseSuppression: noiseFilter,
+          autoGainControl: true,
+        },
         video: false,
       });
       const track = stream.getAudioTracks()[0];
@@ -298,22 +588,58 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
             { trackName, kind: 'audio' },
           ],
         };
-        syncPresence();
       });
+      micOnRef.current = true;
       setMicOn(true);
+      syncPresence({ micOn: true, deafened: false });
     } catch (err) {
-      onError?.('Microphone access was blocked. Allow microphone permission in your browser.');
+      onError?.(err?.message || 'Microphone access was blocked. Allow microphone permission in your browser.');
     }
-  }, [enqueue, micOn, onError, syncPresence]);
+  }, [enqueue, isDisabled, muteLocalMic, noiseFilter, onError, showToast, syncPresence]);
+
+  const toggleMic = useCallback(() => {
+    void setMicEnabled(!micOnRef.current);
+  }, [setMicEnabled]);
+
+  const toggleDeafen = useCallback(() => {
+    const next = !deafenedRef.current;
+    deafenedRef.current = next;
+    setDeafened(next);
+    if (next && micOnRef.current) {
+      micStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
+      micOnRef.current = false;
+      setMicOn(false);
+      setSpeaking(false);
+      onSpeakingChange?.(access?.name, false);
+    }
+    syncPresence({ deafened: next, micOn: micOnRef.current });
+  }, [access?.name, onSpeakingChange, syncPresence]);
+
+  // Apply Noise Suppression toggle live to existing mic track
+  const toggleNoiseFilter = useCallback(() => {
+    setNoiseFilter((prev) => {
+      const next = !prev;
+      const track = micStreamRef.current?.getAudioTracks()[0];
+      if (track?.applyConstraints) {
+        track.applyConstraints({
+          noiseSuppression: next,
+          echoCancellation: next,
+          autoGainControl: true,
+        }).catch(() => {});
+      }
+      showToast(next ? 'Noise suppression ON' : 'Noise suppression OFF');
+      return next;
+    });
+  }, [showToast]);
 
   // Auto-recover mic if mobile OS muted/ended it while backgrounded
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState !== 'visible' || !micOnRef.current) return;
+      if (document.visibilityState !== 'visible' || !micOnRef.current || isDisabled) return;
       const track = micStreamRef.current?.getAudioTracks()[0];
       if (!track || track.readyState !== 'live' || track.muted) {
         navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          audio: { echoCancellation: noiseFilter, noiseSuppression: noiseFilter, autoGainControl: true },
           video: false,
         }).then((fresh) => {
           const nextTrack = fresh.getAudioTracks()[0];
@@ -325,16 +651,18 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  }, [isDisabled, noiseFilter]);
 
-  // Speaking level detector for local mic glow
+  // Speaking level detector for local mic glow + top bar ring
   useEffect(() => {
     if (!micOn || !micStreamRef.current) {
       setSpeaking(false);
+      onSpeakingChange?.(access?.name, false);
       return;
     }
     let ctx;
     let raf = 0;
+    let last = false;
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       const source = ctx.createMediaStreamSource(micStreamRef.current);
@@ -342,19 +670,30 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
       analyser.fftSize = 256;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
+      let frame = 0;
       const tick = () => {
-        analyser.getByteFrequencyData(data);
-        const avg = data.reduce((a, b) => a + b, 0) / data.length;
-        setSpeaking(avg > 14);
+        frame += 1;
+        if (frame % 4 === 0) {
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 1) sum += data[i];
+          const active = sum / data.length > 14;
+          if (active !== last) {
+            last = active;
+            setSpeaking(active);
+            onSpeakingChange?.(access?.name, active);
+          }
+        }
         raf = requestAnimationFrame(tick);
       };
       tick();
     } catch {}
     return () => {
       cancelAnimationFrame(raf);
+      if (last) onSpeakingChange?.(access?.name, false);
       ctx?.close?.().catch(() => {});
     };
-  }, [micOn]);
+  }, [access?.name, micOn, onSpeakingChange]);
 
   const stopScreenShare = useCallback(async () => {
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -364,7 +703,7 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     localMetaRef.current = {
       tracks: localMetaRef.current.tracks.filter((t) => t.kind !== 'screen'),
     };
-    syncPresence();
+    syncPresence({ sharing: false });
     const transceiver = screenTransceiverRef.current;
     screenTransceiverRef.current = null;
     if (transceiver?.mid && sessionIdRef.current) {
@@ -379,24 +718,77 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     }
   }, [enqueue, syncPresence]);
 
+  // Enforce moderator actions (disable, force_mute, stop_share)
+  useEffect(() => {
+    if (!isDisabled) return;
+    if (micOnRef.current) muteLocalMic();
+    if (screenStreamRef.current) void stopScreenShare();
+    setLaserMode(false);
+  }, [isDisabled, muteLocalMic, stopScreenShare]);
+
+  useEffect(() => {
+    if (!moderationEvent || moderationEvent.target !== access?.name) return;
+    if (moderationEvent.action === 'force_mute') {
+      if (micOnRef.current) muteLocalMic();
+      showToast(`Mic muted by ${moderationEvent.by}`);
+    } else if (moderationEvent.action === 'stop_share') {
+      if (screenStreamRef.current) void stopScreenShare();
+      showToast(`Screen share stopped by ${moderationEvent.by}`);
+    } else if (moderationEvent.action === 'disable') {
+      if (micOnRef.current) muteLocalMic();
+      if (screenStreamRef.current) void stopScreenShare();
+      setLaserMode(false);
+      showToast(`Disabled by moderator (${moderationEvent.by})`);
+    } else if (moderationEvent.action === 'enable') {
+      showToast(`Re-enabled by ${moderationEvent.by}`);
+    }
+  }, [access?.name, moderationEvent, muteLocalMic, showToast, stopScreenShare]);
+
+  const applyShareQualityLive = useCallback((mode) => {
+    setShareQuality(mode);
+    const track = screenStreamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const isCrisp = mode === 'crisp';
+    if ('contentHint' in track) track.contentHint = isCrisp ? 'detail' : 'motion';
+    track.applyConstraints?.({
+      frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 20 : 30 },
+    }).catch(() => {});
+    const sender = screenTransceiverRef.current?.sender;
+    if (sender?.getParameters && sender?.setParameters) {
+      try {
+        const params = sender.getParameters();
+        if (params.encodings?.[0]) {
+          params.encodings[0].maxBitrate = isCrisp ? 5_000_000 : 3_500_000;
+          params.encodings[0].maxFramerate = isCrisp ? 20 : 30;
+          sender.setParameters(params).catch(() => {});
+        }
+      } catch {}
+    }
+    showToast(isCrisp ? 'Share mode: 4K Crisp Charts (15fps)' : 'Share mode: Smooth Motion (30fps)');
+  }, [showToast]);
+
   const startScreenShare = useCallback(async () => {
     if (sharing) {
       await stopScreenShare();
       return;
     }
+    if (isDisabled) {
+      showToast('Screen sharing is disabled by moderator.');
+      return;
+    }
+    const isCrisp = shareQuality === 'crisp';
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          frameRate: { ideal: 24, max: 30 },
-          width: { ideal: 2560 },
-          height: { ideal: 1440 },
+          frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 20 : 30 },
+          width: { ideal: isCrisp ? 3840 : 1920 },
+          height: { ideal: isCrisp ? 2160 : 1080 },
         },
         audio: false,
       });
       const videoTrack = stream.getVideoTracks()[0];
-      // Prioritize razor-sharp TradingView text/candles over motion smoothing
       if ('contentHint' in videoTrack) {
-        videoTrack.contentHint = 'detail';
+        videoTrack.contentHint = isCrisp ? 'detail' : 'motion';
       }
       videoTrack.onended = () => { void stopScreenShare(); };
       screenStreamRef.current = stream;
@@ -409,7 +801,7 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
         if (!pc || !sid) return;
         const transceiver = pc.addTransceiver(videoTrack, {
           direction: 'sendonly',
-          sendEncodings: [{ maxBitrate: 3_500_000, maxFramerate: 30 }],
+          sendEncodings: [{ maxBitrate: isCrisp ? 5_000_000 : 3_500_000, maxFramerate: isCrisp ? 20 : 30 }],
         });
         screenTransceiverRef.current = transceiver;
         const offer = await pc.createOffer();
@@ -431,34 +823,133 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
             { trackName, kind: 'screen' },
           ],
         };
-        syncPresence();
+        syncPresence({ sharing: true });
       });
     } catch (err) {
       if (err?.name !== 'NotAllowedError') {
-        onError?.('Could not start screen sharing. Check browser permissions.');
+        onError?.(err?.message || 'Could not start screen sharing. Check browser permissions.');
       }
     }
-  }, [enqueue, onError, sharing, stopScreenShare, syncPresence]);
+  }, [enqueue, isDisabled, onError, shareQuality, sharing, showToast, stopScreenShare, syncPresence]);
 
   // Combine remote + local screen shares for the stage
-  const allScreens = [
+  const allScreens = useMemo(() => [
     ...remoteScreens,
-    ...(localScreen ? [{ key: 'local', name: `${access?.name || 'You'} (Your screen)`, stream: localScreen, isLocal: true }] : []),
-  ];
+    ...(localScreen ? [{
+      key: 'local',
+      name: `${access?.name || 'You'} (Your screen)`,
+      rawName: access?.name || 'You',
+      stream: localScreen,
+      isLocal: true,
+    }] : []),
+  ], [access?.name, localScreen, remoteScreens]);
+
   const currentScreen = allScreens.find((s) => s.key === activeKey) || allScreens[0] || null;
+  const isDual = dualMode && allScreens.length >= 2 && !minimised;
+
+  useEffect(() => {
+    if (allScreens.length < 2 && dualMode) setDualMode(false);
+  }, [allScreens.length, dualMode]);
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
     el.srcObject = currentScreen?.stream || null;
     if (currentScreen?.stream) el.play?.().catch(() => {});
-  }, [currentScreen?.stream]);
+  }, [currentScreen?.stream, isDual]);
 
-  // Reset zoom when switching shared screen
+  // Reset zoom & crop when switching shared screen
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
+    setCropBox(null);
+    setCropMode(false);
+    setCropDraft(null);
   }, [currentScreen?.key]);
+
+  // Rolling 15-second clip recorder (local browser memory only)
+  useEffect(() => {
+    clipHeaderRef.current = null;
+    clipChunksRef.current = [];
+    setClipReady(false);
+    if (!currentScreen?.stream || typeof MediaRecorder === 'undefined') return;
+    const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    const mimeType = candidates.find((m) => MediaRecorder.isTypeSupported?.(m)) || '';
+    let recorder;
+    try {
+      recorder = mimeType
+        ? new MediaRecorder(currentScreen.stream, { mimeType, videoBitsPerSecond: 2_500_000 })
+        : new MediaRecorder(currentScreen.stream);
+      clipMimeRef.current = mimeType || 'video/webm';
+      recorder.ondataavailable = (ev) => {
+        if (!ev.data || ev.data.size === 0) return;
+        if (!clipHeaderRef.current) {
+          clipHeaderRef.current = ev.data;
+        } else {
+          clipChunksRef.current.push(ev.data);
+          if (clipChunksRef.current.length > 15) clipChunksRef.current.shift();
+        }
+        setClipReady(true);
+      };
+      recorder.start(1000);
+      clipRecorderRef.current = recorder;
+    } catch {
+      clipRecorderRef.current = null;
+    }
+    return () => {
+      try {
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+      } catch {}
+      clipRecorderRef.current = null;
+    };
+  }, [currentScreen?.stream]);
+
+  // Receive live laser pointer events & auto-fade after 2.5s
+  useEffect(() => {
+    if (!laserEvent) return;
+    setLasers((prev) => {
+      const existing = prev[laserEvent.name];
+      const now = Date.now();
+      const prevTrail = existing && existing.screenName === laserEvent.screenName
+        ? existing.trail.filter((p) => now - p.ts < 1400)
+        : [];
+      const nextTrail = laserEvent.phase === 'end'
+        ? prevTrail
+        : [...prevTrail.slice(-24), { x: laserEvent.x, y: laserEvent.y, ts: now }];
+      return {
+        ...prev,
+        [laserEvent.name]: {
+          name: laserEvent.name,
+          screenName: laserEvent.screenName,
+          x: laserEvent.x,
+          y: laserEvent.y,
+          color: traderColor(laserEvent.name),
+          updatedAt: now,
+          trail: nextTrail,
+        },
+      };
+    });
+  }, [laserEvent]);
+
+  useEffect(() => {
+    if (!Object.keys(lasers).length) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setLasers((prev) => {
+        let changed = false;
+        const next = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (now - v.updatedAt < 2500) {
+            next[k] = v;
+          } else {
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 350);
+    return () => clearInterval(timer);
+  }, [lasers]);
 
   // Fullscreen listener
   useEffect(() => {
@@ -467,33 +958,228 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Smart Magnifier Loupe render loop (60fps crisp 4K slice directly from <video>)
+  useEffect(() => {
+    if (!loupeOn || !loupePos || !currentScreen || isDual) return;
+    let raf = 0;
+    const renderLoupe = () => {
+      const canvas = loupeCanvasRef.current;
+      const vid = videoRef.current;
+      const vp = viewportRef.current;
+      if (canvas && vid && vp && vid.videoWidth > 0) {
+        const ctx = canvas.getContext('2d');
+        const vRect = getContainedVideoRect(vid);
+        const vpRect = vp.getBoundingClientRect();
+        if (ctx && vRect && vRect.width > 0) {
+          const clientX = vpRect.left + loupePos.x;
+          const clientY = vpRect.top + loupePos.y;
+          const nx = clamp((clientX - vRect.left) / vRect.width, 0, 1);
+          const ny = clamp((clientY - vRect.top) / vRect.height, 0, 1);
+          const size = canvas.width;
+          const mag = 2.6;
+          const srcW = (size / mag) * (vid.videoWidth / vRect.width);
+          const srcH = (size / mag) * (vid.videoHeight / vRect.height);
+          const sx = clamp(nx * vid.videoWidth - srcW / 2, 0, Math.max(0, vid.videoWidth - srcW));
+          const sy = clamp(ny * vid.videoHeight - srcH / 2, 0, Math.max(0, vid.videoHeight - srcH));
+          ctx.clearRect(0, 0, size, size);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(vid, sx, sy, srcW, srcH, 0, 0, size, size);
+        }
+      }
+      raf = requestAnimationFrame(renderLoupe);
+    };
+    renderLoupe();
+    return () => cancelAnimationFrame(raf);
+  }, [loupeOn, loupePos, currentScreen, isDual]);
+
   const applyZoom = useCallback((next) => {
     const clamped = clamp(Number(next.toFixed(2)), 1, 3.5);
     setZoom(clamped);
     if (clamped <= 1) setPan({ x: 0, y: 0 });
   }, []);
 
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    setCropBox(null);
+    setCropMode(false);
+    setCropDraft(null);
+  }, []);
+
+  // Prop-Desk Hotkeys + Push-to-Talk (Space) + Magnifier Loupe (Hold Z)
+  useEffect(() => {
+    if (minimised) return;
+    const onKeyDown = (event) => {
+      if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey) return;
+      const key = event.key.toLowerCase();
+      if (event.code === 'Space' && !event.repeat && status === 'live' && !isDisabled) {
+        event.preventDefault();
+        if (!micOnRef.current) {
+          pttWasMutedRef.current = true;
+          setPttActive(true);
+          void setMicEnabled(true);
+        }
+        return;
+      }
+      if (key === 'z' && !event.repeat && currentScreen && !isDual) {
+        setLoupeOn(true);
+        return;
+      }
+      if (event.repeat) return;
+      if (key === 'm' && status === 'live') {
+        event.preventDefault();
+        toggleMic();
+      } else if (key === 'd') {
+        event.preventDefault();
+        toggleDeafen();
+      } else if (key === 'f') {
+        event.preventDefault();
+        onToggleTheater?.();
+      } else if (key === 'l' && currentScreen && !isDisabled) {
+        event.preventDefault();
+        setCropMode(false);
+        setLaserMode((v) => !v);
+      } else if (key === '1' && currentScreen) {
+        applyZoom(1);
+      } else if (key === '2' && currentScreen) {
+        applyZoom(1.5);
+      } else if (key === '3' && currentScreen) {
+        applyZoom(2);
+      } else if ((key === '0' || key === 'escape') && (zoom > 1 || cropBox || cropMode || laserMode || theater)) {
+        if (cropMode) {
+          setCropMode(false);
+          setCropDraft(null);
+        } else if (zoom > 1 || cropBox) {
+          resetView();
+        } else if (laserMode) {
+          setLaserMode(false);
+        } else if (key === 'escape' && theater) {
+          onToggleTheater?.();
+        }
+      }
+    };
+    const onKeyUp = (event) => {
+      if (event.code === 'Space' && pttWasMutedRef.current) {
+        pttWasMutedRef.current = false;
+        setPttActive(false);
+        muteLocalMic();
+      }
+      if (event.key.toLowerCase() === 'z') {
+        setLoupeOn(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [
+    applyZoom, cropBox, cropMode, currentScreen, isDisabled, isDual, laserMode,
+    minimised, muteLocalMic, onToggleTheater, resetView, setMicEnabled, status,
+    theater, toggleDeafen, toggleMic, zoom,
+  ]);
+
+  const sendLaserPoint = useCallback((screenName, x, y, phase = 'move') => {
+    if (isDisabled) return;
+    const now = performance.now();
+    if (phase !== 'end' && now - lastLaserSentRef.current < 36) return;
+    lastLaserSentRef.current = now;
+    void send('laser', { screenName, x: Number(x.toFixed(4)), y: Number(y.toFixed(4)), phase });
+  }, [isDisabled, send]);
+
+  // Cursor-targeted scroll-wheel zoom
   const onWheel = useCallback((event) => {
-    if (!currentScreen) return;
+    if (!currentScreen || !viewportRef.current) return;
     event.preventDefault();
-    const delta = event.deltaY < 0 ? 0.25 : -0.25;
-    setZoom((z) => {
-      const next = clamp(Number((z + delta).toFixed(2)), 1, 3.5);
-      if (next <= 1) setPan({ x: 0, y: 0 });
-      return next;
+    const rect = viewportRef.current.getBoundingClientRect();
+    const dx = event.clientX - (rect.left + rect.width / 2);
+    const dy = event.clientY - (rect.top + rect.height / 2);
+    const step = event.deltaY < 0 ? 0.25 : -0.25;
+    setZoom((prevZoom) => {
+      const nextZoom = clamp(Number((prevZoom + step).toFixed(2)), 1, 3.5);
+      if (nextZoom <= 1) {
+        setPan({ x: 0, y: 0 });
+      } else {
+        const ratio = nextZoom / prevZoom;
+        const maxX = ((nextZoom - 1) * rect.width) / 2;
+        const maxY = ((nextZoom - 1) * rect.height) / 2;
+        setPan((prevPan) => ({
+          x: clamp(dx - (dx - prevPan.x) * ratio, -maxX, maxX),
+          y: clamp(dy - (dy - prevPan.y) * ratio, -maxY, maxY),
+        }));
+      }
+      return nextZoom;
     });
   }, [currentScreen]);
 
+  const emitSingleLaser = (event, phase) => {
+    if (!currentScreen || !videoRef.current) return;
+    const vRect = getContainedVideoRect(videoRef.current);
+    if (!vRect || !vRect.width || !vRect.height) return;
+    const nx = clamp((event.clientX - vRect.left) / vRect.width, 0, 1);
+    const ny = clamp((event.clientY - vRect.top) / vRect.height, 0, 1);
+    sendLaserPoint(currentScreen.rawName, nx, ny, phase);
+  };
+
   const onPointerDown = (event) => {
-    if (zoom <= 1 || event.button !== 0) return;
+    if (event.button !== 0 || !viewportRef.current) return;
+    const rect = viewportRef.current.getBoundingClientRect();
+
+    // Crop-to-Chart drag
+    if (cropMode) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      const sx = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      const sy = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+      cropStartRef.current = { x: sx, y: sy };
+      setCropDraft({ x: sx, y: sy, w: 0, h: 0 });
+      return;
+    }
+
+    // Live Laser Pointer (active toggle OR Alt+drag)
+    if (!isDisabled && (laserMode || event.altKey)) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      laserDownRef.current = true;
+      emitSingleLaser(event, 'move');
+      return;
+    }
+
+    // Zoom Pan drag
+    if (zoom <= 1) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     setDragging(true);
     dragStartRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
   };
 
   const onPointerMove = (event) => {
-    if (!dragging || !dragStartRef.current || !stageRef.current) return;
-    const rect = stageRef.current.getBoundingClientRect();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (rect) {
+      setLoupePos({
+        x: clamp(event.clientX - rect.left, 0, rect.width),
+        y: clamp(event.clientY - rect.top, 0, rect.height),
+      });
+    }
+
+    if (cropStartRef.current && rect) {
+      const cx = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      const cy = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+      const s = cropStartRef.current;
+      setCropDraft({
+        x: Math.min(s.x, cx),
+        y: Math.min(s.y, cy),
+        w: Math.abs(cx - s.x),
+        h: Math.abs(cy - s.y),
+      });
+      return;
+    }
+
+    if (laserDownRef.current) {
+      emitSingleLaser(event, 'move');
+      return;
+    }
+
+    if (!dragging || !dragStartRef.current || !rect) return;
     const maxX = ((zoom - 1) * rect.width) / 2;
     const maxY = ((zoom - 1) * rect.height) / 2;
     setPan({
@@ -503,11 +1189,116 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
   };
 
   const onPointerUp = (event) => {
+    if (cropStartRef.current) {
+      cropStartRef.current = null;
+      if (cropDraft && cropDraft.w >= 0.08 && cropDraft.h >= 0.08) {
+        setCropBox(cropDraft);
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+        setCropMode(false);
+        showToast('Cropped to chart — press 0 or Reset to restore');
+      }
+      setCropDraft(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
+    if (laserDownRef.current) {
+      laserDownRef.current = false;
+      emitSingleLaser(event, 'end');
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
     if (!dragging) return;
     setDragging(false);
     dragStartRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  // 1-Click Snap to Daily Journal (WebP capture respecting crop)
+  const snapToJournal = async () => {
+    const vid = videoRef.current;
+    if (!vid || !vid.videoWidth || !vid.videoHeight || snapping) return;
+    setSnapping(true);
+    try {
+      let sx = 0;
+      let sy = 0;
+      let sw = vid.videoWidth;
+      let sh = vid.videoHeight;
+      if (cropBox) {
+        sx = Math.round(cropBox.x * vid.videoWidth);
+        sy = Math.round(cropBox.y * vid.videoHeight);
+        sw = Math.max(64, Math.round(cropBox.w * vid.videoWidth));
+        sh = Math.max(64, Math.round(cropBox.h * vid.videoHeight));
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(sw, 2560);
+      canvas.height = Math.round((canvas.width / sw) * sh);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
+      if (!blob) throw new Error('Could not encode snapshot.');
+      const form = new FormData();
+      form.append('file', blob, `trading-floor-${Date.now()}.webp`);
+      try {
+        await api(`/journal/${nyTodayIso()}/images`, { method: 'POST', body: form });
+        showToast('Saved frame to today’s Journal', '/journal');
+      } catch {
+        // Fallback if R2 image storage is disabled in local/dev preview
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `trading-floor-${nyTodayIso()}.webp`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Downloaded chart snapshot (.webp)');
+      }
+    } catch (err) {
+      showToast(err?.message || 'Could not capture frame.');
+    } finally {
+      setSnapping(false);
+    }
+  };
+
+  // Instant 15-Second Clip download from local rolling ring buffer
+  const downloadClip15s = () => {
+    const parts = [clipHeaderRef.current, ...clipChunksRef.current].filter(Boolean);
+    if (!parts.length) {
+      showToast('Buffering screen video — try again in 2 seconds');
+      return;
+    }
+    const blob = new Blob(parts, { type: clipMimeRef.current || 'video/webm' });
+    const stamp = new Date().toTimeString().slice(0, 8).replace(/:/g, '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trading-floor-clip-${stamp}.webm`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast('Saved last 15s clip (.webm)');
+  };
+
+  // Picture-in-Picture Pop-Out Window
+  const togglePiP = async () => {
+    const vid = videoRef.current;
+    if (!vid || !document.pictureInPictureEnabled) {
+      showToast('Picture-in-Picture is not supported in this browser.');
+      return;
+    }
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else {
+        await vid.requestPictureInPicture();
+      }
+    } catch {
+      showToast('Could not open pop-out window.');
     }
   };
 
@@ -517,37 +1308,130 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
     else stageRef.current.requestFullscreen?.().catch(() => {});
   };
 
+  // Compute CSS transform for single-screen video (Crop-to-Chart + Zoom + Pan)
+  const cropScale = cropBox ? Math.min(6, Math.min(1 / cropBox.w, 1 / cropBox.h)) : 1;
+  const cropOffsetX = cropBox ? (0.5 - (cropBox.x + cropBox.w / 2)) * 100 : 0;
+  const cropOffsetY = cropBox ? (0.5 - (cropBox.y + cropBox.h / 2)) * 100 : 0;
+  const totalScale = Number((zoom * cropScale).toFixed(3));
+  const videoTransform = cropBox
+    ? `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${totalScale}) translate(${cropOffsetX}%, ${cropOffsetY}%)`
+    : `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`;
+
+  // Map active laser pointers onto current single video screen
+  const activeLasersFor = (screenRawName) =>
+    Object.values(lasers).filter((l) => !l.screenName || l.screenName === screenRawName);
+
+  const singleLaserDots = useMemo(() => {
+    if (!currentScreen || isDual || !videoRef.current || !viewportRef.current) return [];
+    const list = Object.values(lasers).filter((l) => !l.screenName || l.screenName === currentScreen.rawName);
+    if (!list.length) return [];
+    const vpRect = viewportRef.current.getBoundingClientRect();
+    const vRect = getContainedVideoRect(videoRef.current);
+    if (!vRect || !vpRect.width || !vpRect.height) return [];
+    return list.map((entry) => ({
+      ...entry,
+      px: vRect.left - vpRect.left + entry.x * vRect.width,
+      py: vRect.top - vpRect.top + entry.y * vRect.height,
+      trailPx: entry.trail.map((pt) => ({
+        x: vRect.left - vpRect.left + pt.x * vRect.width,
+        y: vRect.top - vpRect.top + pt.y * vRect.height,
+      })),
+    }));
+  }, [currentScreen, isDual, lasers, zoom, pan, cropBox]);
+
+  const loupeStyle = useMemo(() => {
+    if (!loupeOn || !loupePos || !viewportRef.current) return null;
+    const rect = viewportRef.current.getBoundingClientRect();
+    const size = 240;
+    const left = loupePos.x + 24 + size > rect.width ? Math.max(8, loupePos.x - size - 24) : loupePos.x + 24;
+    const top = loupePos.y - size / 2 < 8 ? 8 : Math.min(rect.height - size - 8, loupePos.y - size / 2);
+    return { left: `${left}px`, top: `${top}px`, width: `${size}px`, height: `${size}px` };
+  }, [loupeOn, loupePos]);
+
   return (
     <div className="bullpen-cf-stage" ref={stageRef}>
       {remoteAudios.map((a) => (
-        <RemoteAudio key={a.key} stream={a.stream} deafened={deafened} />
+        <RemoteAudio
+          key={a.key}
+          name={a.name}
+          stream={a.stream}
+          deafened={deafened}
+          volume={peerVolumes[a.name] ?? 1}
+          onSpeakingChange={onSpeakingChange}
+        />
       ))}
 
-      {currentScreen ? (
-        <>
-          {!minimised && allScreens.length > 1 && (
-            <div className="bullpen-screen-tabs" role="tablist" aria-label="Shared screens">
-              {allScreens.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={s.key === currentScreen.key}
-                  onClick={() => setActiveKey(s.key)}
-                >
-                  <MonitorUp size={13} /> {s.name}
-                </button>
-              ))}
-            </div>
-          )}
+      {isDisabled && !minimised && (
+        <div className="bullpen-mod-banner" role="alert">
+          <ShieldAlert size={14} /> Moderator has disabled your mic, screen share, laser pointer, and chat.
+        </div>
+      )}
 
+      {/* Slim top screen-switcher strip (outside the chart — never overlaps candles!) */}
+      {!minimised && currentScreen && (
+        <div className="bullpen-stage-topbar">
+          <div className="bullpen-screen-strip" role="tablist" aria-label="Shared screens">
+            {allScreens.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={!isDual && s.key === currentScreen.key}
+                onClick={() => { setDualMode(false); setActiveKey(s.key); }}
+              >
+                <MonitorUp size={13} /> {s.name}
+              </button>
+            ))}
+            {allScreens.length >= 2 && (
+              <button
+                type="button"
+                className={isDual ? 'is-dual-active' : ''}
+                onClick={() => setDualMode((v) => !v)}
+                title="Show two screens side-by-side (50/50)"
+              >
+                <Columns2 size={13} /> 50/50 Dual
+              </button>
+            )}
+          </div>
+          <div className="bullpen-stage-hints">
+            {pttActive && <span className="bullpen-hint-pill is-live">PTT LIVE</span>}
+            {cropBox && <span className="bullpen-hint-pill">Cropped</span>}
+            {zoom > 1 && <span className="bullpen-hint-pill">{Math.round(zoom * 100)}%</span>}
+            {laserMode && <span className="bullpen-hint-pill is-accent">Laser ON</span>}
+            {loupeOn && <span className="bullpen-hint-pill is-accent">2.6× Loupe</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Main pure unobstructed stage */}
+      {currentScreen ? (
+        isDual ? (
+          <div className="bullpen-dual-grid">
+            {allScreens.slice(0, 2).map((scr) => (
+              <DualVideoPane
+                key={scr.key}
+                screen={scr}
+                laserMode={laserMode}
+                isDisabled={isDisabled}
+                laserPoints={activeLasersFor(scr.rawName)}
+                onLaserPoint={sendLaserPoint}
+                onFocus={(key) => { setActiveKey(key); setDualMode(false); }}
+              />
+            ))}
+          </div>
+        ) : (
           <div
-            className={`bullpen-zoom-viewport${zoom > 1 ? ' is-zoomed' : ''}${dragging ? ' is-dragging' : ''}`}
+            ref={viewportRef}
+            className={`bullpen-zoom-viewport${zoom > 1 && !cropMode && !laserMode ? ' is-zoomed' : ''}${dragging ? ' is-dragging' : ''}${cropMode ? ' is-cropping' : ''}${laserMode ? ' is-laser' : ''}`}
             onWheel={onWheel}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            onDoubleClick={() => applyZoom(zoom > 1 ? 1 : 2)}
+            onPointerLeave={() => setLoupePos(null)}
+            onDoubleClick={() => {
+              if (cropMode || laserMode) return;
+              applyZoom(zoom > 1 ? 1 : 2);
+            }}
           >
             <video
               ref={videoRef}
@@ -555,47 +1439,58 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
               playsInline
               muted
               className="bullpen-screen-video"
-              style={{
-                transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-              }}
+              style={{ transform: videoTransform }}
             />
-            {!minimised && (
-              <div className="bullpen-screen-badge">
-                <Radio size={12} /> {currentScreen.name}
-                {zoom > 1 && <span> · {Math.round(zoom * 100)}% (drag to pan)</span>}
+
+            {/* Crop selection box while dragging */}
+            {cropDraft && (
+              <div
+                className="bullpen-crop-rect"
+                style={{
+                  left: `${cropDraft.x * 100}%`,
+                  top: `${cropDraft.y * 100}%`,
+                  width: `${cropDraft.w * 100}%`,
+                  height: `${cropDraft.h * 100}%`,
+                }}
+              />
+            )}
+
+            {/* Live Laser Pointer SVG overlay */}
+            {singleLaserDots.length > 0 && (
+              <svg className="bullpen-laser-svg" aria-hidden="true">
+                {singleLaserDots.map((dot) => (
+                  <g key={dot.name}>
+                    {dot.trailPx.length > 1 && (
+                      <polyline
+                        fill="none"
+                        stroke={dot.color}
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeOpacity="0.55"
+                        points={dot.trailPx.map((p) => `${p.x},${p.y}`).join(' ')}
+                      />
+                    )}
+                    <circle cx={dot.px} cy={dot.py} r="14" fill={dot.color} fillOpacity="0.22" />
+                    <circle cx={dot.px} cy={dot.py} r="6" fill={dot.color} stroke="#0b1013" strokeWidth="1.5" />
+                    <text x={dot.px + 12} y={dot.py - 8} fill="#fff" fontSize="12" fontWeight="700" className="bullpen-laser-tag">
+                      {dot.name}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            )}
+
+            {/* Smart Magnifier Loupe (Hold Z) */}
+            {loupeStyle && (
+              <div className="bullpen-loupe" style={loupeStyle} aria-hidden="true">
+                <canvas ref={loupeCanvasRef} width={240} height={240} />
+                <div className="bullpen-loupe-crosshair" />
+                <span className="bullpen-loupe-badge">2.6×</span>
               </div>
             )}
           </div>
-
-          {!minimised && (
-            <div className="bullpen-zoom-bar" role="toolbar" aria-label="Screen zoom controls">
-              <button type="button" onClick={() => applyZoom(zoom - 0.25)} disabled={zoom <= 1} aria-label="Zoom out">
-                <ZoomOut size={15} />
-              </button>
-              {ZOOM_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  className={Math.abs(zoom - preset) < 0.05 ? 'is-active' : ''}
-                  onClick={() => applyZoom(preset)}
-                >
-                  {preset}×
-                </button>
-              ))}
-              <button type="button" onClick={() => applyZoom(zoom + 0.25)} disabled={zoom >= 3.5} aria-label="Zoom in">
-                <ZoomIn size={15} />
-              </button>
-              {zoom > 1 && (
-                <button type="button" onClick={() => applyZoom(1)} aria-label="Reset zoom">
-                  <RotateCcw size={14} /> Reset
-                </button>
-              )}
-              <button type="button" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-                {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-              </button>
-            </div>
-          )}
-        </>
+        )
       ) : (
         <div className="bullpen-voice-floor">
           <div className="bullpen-voice-avatars">
@@ -606,52 +1501,237 @@ export default function CloudflareStage({ meeting, onJoined, onError, minimised 
                 <div key={peer.name} className={`bullpen-avatar-card${activeSpeak ? ' is-speaking' : ''}`}>
                   <div className="bullpen-avatar-circle">{peer.name.slice(0, 2).toUpperCase()}</div>
                   <strong>{peer.name}</strong>
-                  <span>{isMe ? (micOn ? 'Mic live' : 'Muted') : 'In room'}</span>
+                  <span>{peer.deafened ? 'Deafened' : isMe ? (micOn ? 'Mic live' : 'Muted') : (peer.micOn ? 'Mic live' : 'In room')}</span>
                 </div>
               );
             })}
           </div>
           {!minimised && (
             <div className="bullpen-voice-prompt">
-              <p>{status === 'connecting' ? 'Connecting to Cloudflare Realtime…' : 'Voice channel is live. Share a TradingView screen to open the chart stage.'}</p>
-              <button type="button" className="button primary" onClick={startScreenShare} disabled={status !== 'live'}>
-                <MonitorUp size={16} /> Share Screen
+              <p>{status === 'connecting' ? 'Connecting to Cloudflare Realtime…' : 'Voice channel is live. Share a TradingView screen to open the 4K chart stage.'}</p>
+              <button type="button" className="button primary" onClick={startScreenShare} disabled={status !== 'live' || isDisabled}>
+                <MonitorUp size={16} /> Share Screen ({shareQuality === 'crisp' ? '4K Crisp' : '30fps'})
               </button>
+              <small className="bullpen-hotkey-hint">Hotkeys: M mute · Hold Space push-to-talk · D deafen · F theater · Hold Z loupe</small>
             </div>
           )}
         </div>
       )}
 
-      <div className="bullpen-dock" role="toolbar" aria-label="Call controls">
-        <button
-          type="button"
-          className={`bullpen-dock-btn${micOn ? ' is-live' : ''}`}
-          onClick={toggleMic}
-          disabled={status !== 'live'}
-          aria-pressed={micOn}
-        >
-          {micOn ? <Mic size={16} /> : <MicOff size={16} />}
-          <span>{micOn ? 'Mute' : 'Unmute'}</span>
-        </button>
-        <button
-          type="button"
-          className={`bullpen-dock-btn${sharing ? ' is-sharing' : ''}`}
-          onClick={startScreenShare}
-          disabled={status !== 'live'}
-          aria-pressed={sharing}
-        >
-          {sharing ? <MonitorOff size={16} /> : <MonitorUp size={16} />}
-          <span>{sharing ? 'Stop Share' : 'Share Screen'}</span>
-        </button>
-        <button
-          type="button"
-          className={`bullpen-dock-btn${deafened ? ' is-warn' : ''}`}
-          onClick={() => setDeafened((v) => !v)}
-          aria-pressed={deafened}
-        >
-          {deafened ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          <span>{deafened ? 'Deafened' : 'Audio On'}</span>
-        </button>
+      {/* Static slim bottom control bar — COMPLETELY OFF THE VIDEO CHART */}
+      <div className="bullpen-control-bar" role="toolbar" aria-label="Trading Floor stage controls">
+        {/* Left: Voice & Screen Share */}
+        <div className="bullpen-bar-group">
+          <button
+            type="button"
+            className={`bullpen-bar-btn${micOn ? ' is-live' : ''}`}
+            onClick={toggleMic}
+            disabled={status !== 'live' || isDisabled}
+            aria-pressed={micOn}
+            title="Toggle Microphone (M) · Hold Space for Push-to-Talk"
+          >
+            {micOn ? <Mic size={14} /> : <MicOff size={14} />}
+            <span>{pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}
+            onClick={toggleDeafen}
+            aria-pressed={deafened}
+            title="Deafen — mute mic and room audio (D)"
+          >
+            {deafened ? <HeadphoneOff size={14} /> : <Volume2 size={14} />}
+            <span>{deafened ? 'Deafened' : 'Audio'}</span>
+          </button>
+
+          {!minimised && (
+            <button
+              type="button"
+              className={`bullpen-bar-btn is-subtle${noiseFilter ? ' is-on' : ''}`}
+              onClick={toggleNoiseFilter}
+              aria-pressed={noiseFilter}
+              title={noiseFilter ? 'Noise suppression ON (click to disable)' : 'Noise suppression OFF'}
+            >
+              <AudioLines size={14} />
+              <span className="bullpen-hide-md">NR</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className={`bullpen-bar-btn${sharing ? ' is-sharing' : ''}`}
+            onClick={startScreenShare}
+            disabled={status !== 'live' || isDisabled}
+            aria-pressed={sharing}
+            title="Share Screen"
+          >
+            {sharing ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
+            <span>{sharing ? 'Stop' : 'Share'}</span>
+          </button>
+
+          {!minimised && (
+            <button
+              type="button"
+              className="bullpen-bar-btn is-subtle"
+              onClick={() => applyShareQualityLive(shareQuality === 'crisp' ? 'smooth' : 'crisp')}
+              title="Toggle share quality: 4K Crisp Charts (15fps) vs Smooth Motion (30fps)"
+            >
+              <span>{shareQuality === 'crisp' ? '4K·15' : 'HD·30'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Center: Viewing, Zoom, Crop, Laser & Loupe (when screen active) */}
+        {!minimised && currentScreen && (
+          <div className="bullpen-bar-group">
+            <button
+              type="button"
+              className={`bullpen-bar-btn${laserMode ? ' is-accent' : ''}`}
+              onClick={() => { setCropMode(false); setLaserMode((v) => !v); }}
+              disabled={isDisabled}
+              aria-pressed={laserMode}
+              title="Live Laser Pointer (L) — or hold Alt + drag anytime"
+            >
+              <Crosshair size={14} />
+              <span>Laser</span>
+            </button>
+
+            {!isDual && (
+              <>
+                <div className="bullpen-bar-zoom" aria-label="Zoom controls">
+                  <button type="button" onClick={() => applyZoom(zoom - 0.25)} disabled={zoom <= 1} aria-label="Zoom out" title="Zoom out">
+                    <ZoomOut size={13} />
+                  </button>
+                  {ZOOM_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className={Math.abs(zoom - preset) < 0.05 ? 'is-active' : ''}
+                      onClick={() => applyZoom(preset)}
+                    >
+                      {preset}×
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => applyZoom(zoom + 0.25)} disabled={zoom >= 3.5} aria-label="Zoom in" title="Zoom in">
+                    <ZoomIn size={13} />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className={`bullpen-bar-btn${cropMode || cropBox ? ' is-accent' : ''}`}
+                  onClick={() => {
+                    setLaserMode(false);
+                    if (cropBox && !cropMode) {
+                      setCropBox(null);
+                    } else {
+                      setCropMode((v) => !v);
+                    }
+                  }}
+                  aria-pressed={cropMode || Boolean(cropBox)}
+                  title={cropBox ? 'Clear chart crop' : 'Crop to Chart — drag a box around just the chart'}
+                >
+                  <Crop size={14} />
+                  <span>{cropBox ? 'Uncrop' : cropMode ? 'Drag box…' : 'Crop'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`bullpen-bar-btn is-subtle${loupeOn ? ' is-accent' : ''}`}
+                  onClick={() => setLoupeOn((v) => !v)}
+                  aria-pressed={loupeOn}
+                  title="Smart Magnifier Loupe (or hold Z while hovering chart)"
+                >
+                  <Search size={13} />
+                  <span className="bullpen-hide-md">Loupe</span>
+                </button>
+
+                {(zoom > 1 || cropBox) && (
+                  <button type="button" className="bullpen-bar-btn is-subtle" onClick={resetView} title="Reset zoom & crop (0)">
+                    <RotateCcw size={13} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Right: Capture, Pop-Out, Theater, Fullscreen, Chimes */}
+        {!minimised && (
+          <div className="bullpen-bar-group">
+            {toast && (
+              <span className="bullpen-bar-toast" role="status">
+                {toast.text}
+                {toast.link && <a href={toast.link}> Open ↗</a>}
+              </span>
+            )}
+
+            {currentScreen && !isDual && (
+              <>
+                <button
+                  type="button"
+                  className="bullpen-bar-btn is-subtle"
+                  onClick={snapToJournal}
+                  disabled={snapping}
+                  title="Snap frame straight into today’s Daily Journal"
+                >
+                  <Camera size={14} />
+                  <span className="bullpen-hide-md">{snapping ? 'Saving…' : 'Snap'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="bullpen-bar-btn is-subtle"
+                  onClick={downloadClip15s}
+                  disabled={!clipReady}
+                  title="Download rolling last 15 seconds of shared screen (.webm)"
+                >
+                  <Film size={14} />
+                  <span className="bullpen-hide-md">Clip 15s</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="bullpen-bar-btn is-subtle"
+                  onClick={togglePiP}
+                  title="Pop out stage into floating Picture-in-Picture window"
+                >
+                  <PictureInPicture2 size={14} />
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              className={`bullpen-bar-btn is-subtle${theater ? ' is-accent' : ''}`}
+              onClick={onToggleTheater}
+              aria-pressed={theater}
+              title="Theater / Full-Bleed Mode (F)"
+            >
+              <Tv2 size={14} />
+            </button>
+
+            <button
+              type="button"
+              className="bullpen-bar-btn is-subtle"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+
+            <button
+              type="button"
+              className={`bullpen-bar-btn is-subtle${chimesOn ? ' is-on' : ''}`}
+              onClick={onToggleChimes}
+              aria-pressed={chimesOn}
+              title={chimesOn ? 'Desk audio chimes ON' : 'Desk audio chimes OFF'}
+            >
+              {chimesOn ? <Bell size={13} /> : <BellOff size={13} />}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -96,7 +96,7 @@ export default function BullpenProvider({children}) {
           <div className="bullpen-room-site-header">
             <PrimusHeader active="learn" />
           </div>
-          <Suspense fallback={<p role="status">Opening the Bullpen…</p>}>
+          <Suspense fallback={<p role="status">Opening Trading Floor…</p>}>
             <TradingRoom
               meeting={meeting}
               onLeave={leaveRoom}
