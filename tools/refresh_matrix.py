@@ -28,7 +28,7 @@ COT_MARKETS = (
     {"id": "nq", "symbol": "NQ", "name": "Nasdaq-100 E-mini", "code": "209742", "feed": "fin", "match": "NASDAQ"},
     {"id": "es", "symbol": "ES", "name": "S&P 500 E-mini", "code": "13874A", "feed": "fin", "match": "S&P"},
     {"id": "xau", "symbol": "XAU", "name": "Gold (COMEX)", "code": "088691", "feed": "disagg", "match": "GOLD"},
-    {"id": "dxy", "symbol": "DXY", "name": "US Dollar Index", "code": "098662", "feed": "fin", "match": "U.S. DOLLAR"},
+    {"id": "dxy", "symbol": "DXY", "name": "US Dollar Index", "code": "098662", "feed": "fin", "match": "USD"},
     {"id": "eurusd", "symbol": "EURUSD", "name": "Euro FX", "code": "099741", "feed": "fin", "match": "EURO"},
     {"id": "gbpusd", "symbol": "GBPUSD", "name": "British Pound", "code": "096742", "feed": "fin", "match": "POUND"},
 )
@@ -290,18 +290,22 @@ def refresh_fred(snapshot):
             num_value = latest
 
             if identifier in ("cpi", "pce"):
-                prior_year = next(value for day, value in rows if day[:7] == f"{int(date[:4]) - 1}{date[4:7]}")
+                target_ym = f"{int(date[:4]) - 1}{date[4:7]}"
+                prior_year = next((value for day, value in rows if day[:7] == target_ym), None)
+                if prior_year is None and len(rows) >= 13:
+                    prior_year = rows[12][1]
+                if prior_year is None or prior_year <= 0:
+                    raise ValueError("Missing prior-year inflation observation")
                 yoy = (latest / prior_year - 1) * 100
                 num_value = round(yoy, 2)
                 value = f"{yoy:.2f}%"
                 prior_yoy = None
                 if len(rows) > 13:
                     p_date, p_val = rows[1]
-                    try:
-                        p_yr = next(v for d, v in rows if d[:7] == f"{int(p_date[:4]) - 1}{p_date[4:7]}")
+                    p_ym = f"{int(p_date[:4]) - 1}{p_date[4:7]}"
+                    p_yr = next((v for d, v in rows if d[:7] == p_ym), rows[13][1] if len(rows) > 13 else None)
+                    if p_yr and p_yr > 0:
                         prior_yoy = round((p_val / p_yr - 1) * 100, 2)
-                    except StopIteration:
-                        prior_yoy = None
                 raw[identifier] = {"value": num_value, "prev": prior_yoy, "date": date}
                 if prior_yoy is not None:
                     diff = round(num_value - prior_yoy, 2)
