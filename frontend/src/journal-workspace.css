@@ -216,6 +216,9 @@
 .pj-coach-review article{display:grid;gap:6px;margin-bottom:14px}
 .pj-coach-review .pj-aura-question{justify-self:end;background:var(--pt-paper);padding:7px 11px;border-radius:10px;margin:0}
 .pj-aura-answer{padding-inline:2px}
+.pj-aura-memories{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:2px;font-size:11px;color:var(--pt-muted)}
+.pj-aura-memories>a{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid var(--pt-line);background:var(--pt-paper);color:var(--pt-ink);text-decoration:none;font-weight:500;transition:border-color .15s}
+.pj-aura-memories>a:hover{border-color:var(--pt-focus)}
 
 .pt-calendar-grid button .pj-traded-marker{position:absolute;top:2px;left:3px;font-size:.6rem;line-height:1}
 

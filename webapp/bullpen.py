@@ -165,6 +165,65 @@ def mount(app, config, workspace, check_write):
             return None
         return app_id, token
 
+    def _cf_turn_credentials():
+        key_id = (os.getenv("BULLPEN_CF_TURN_KEY_ID") or os.getenv("CLOUDFLARE_TURN_KEY_ID") or "").strip()
+        token = (os.getenv("BULLPEN_CF_TURN_API_TOKEN") or os.getenv("CLOUDFLARE_TURN_API_TOKEN") or "").strip()
+        if not key_id or not token or not re.fullmatch(r"[A-Za-z0-9_-]{8,128}", key_id):
+            return None
+        return key_id, token
+
+    turn_cache: dict[str, object] = {"expires": 0.0, "servers": None}
+
+    def _cf_ice_servers() -> tuple[list[dict], bool]:
+        fallback = [{"urls": "stun:stun.cloudflare.com:3478"}]
+        creds = _cf_turn_credentials()
+        if not creds:
+            return fallback, False
+        now = time.time()
+        cached = turn_cache.get("servers")
+        if isinstance(cached, list) and now < float(turn_cache.get("expires") or 0):
+            return cached, True
+        key_id, token = creds
+        url = f"https://rtc.live.cloudflare.com/v1/turn/keys/{key_id}/credentials/generate-ice-servers"
+        try:
+            response = httpx.post(
+                url,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"ttl": 86400},
+                timeout=5,
+            )
+            if response.status_code >= 400:
+                return fallback, False
+            payload = response.json()
+        except (httpx.HTTPError, ValueError):
+            return fallback, False
+        raw_servers = payload.get("iceServers") if isinstance(payload, dict) else None
+        if not isinstance(raw_servers, list) or not raw_servers:
+            return fallback, False
+        cleaned = []
+        for entry in raw_servers:
+            if not isinstance(entry, dict):
+                continue
+            urls = entry.get("urls")
+            if isinstance(urls, str):
+                urls = [urls]
+            if not isinstance(urls, list):
+                continue
+            # Browsers block port 53 for WebRTC TURN and hang waiting for timeout.
+            safe_urls = [u for u in urls if isinstance(u, str) and ":53?" not in u and not u.endswith(":53")]
+            if not safe_urls:
+                continue
+            server = {"urls": safe_urls}
+            if isinstance(entry.get("username"), str) and isinstance(entry.get("credential"), str):
+                server["username"] = entry["username"]
+                server["credential"] = entry["credential"]
+            cleaned.append(server)
+        if not cleaned:
+            return fallback, False
+        turn_cache["servers"] = cleaned
+        turn_cache["expires"] = now + 6 * 3600
+        return cleaned, True
+
     async def _cf_proxy(method: str, suffix: str, payload: dict | None = None):
         creds = _cf_credentials()
         if not creds:
@@ -412,9 +471,11 @@ def mount(app, config, workspace, check_write):
         if cf_creds is not None:
             result = {**base_result, "provider": "cloudflare"}
             if join:
+                ice_servers, turn_enabled = _cf_ice_servers()
                 result["meeting"] = {
                     "provider": "cloudflare",
-                    "iceServers": [{"urls": "stun:stun.cloudflare.com:3478"}],
+                    "iceServers": ice_servers,
+                    "turnEnabled": turn_enabled,
                 }
             return result
 

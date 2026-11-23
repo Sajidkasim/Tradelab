@@ -42,7 +42,8 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
     try {
       const result = await api(`/journal/coach?${query}`, {method: 'POST', body: {question: submitted, history: turns.slice(-3).map(turn => ({question: turn.question.slice(0, 400), answer: turn.answer.slice(0, 650)}))}, cache: 'no-store', signal: controller.signal});
       if (!controller.signal.aborted) {
-        setTurns(previous => [...previous.slice(-19), {question: submitted, answer: result.markdown}]);
+        const memories = Array.isArray(result.memories) ? result.memories : [];
+        setTurns(previous => [...previous.slice(-19), {question: submitted, answer: result.markdown, memories}]);
         setQuestion(current => current.trim() === question.trim() ? '' : current);
       }
     } catch (failure) {
@@ -59,7 +60,7 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
         <div className="pj-aura-info" data-open={showPrivacy} onBlur={() => setShowPrivacy(false)}>
           <button type="button" aria-label="Journal privacy information" aria-describedby={titleId + '-privacy'}
             aria-expanded={showPrivacy} onClick={() => setShowPrivacy(value => !value)}><Info size={15} aria-hidden="true"/></button>
-          <p id={titleId + '-privacy'} className="pj-aura-tooltip" role="tooltip">Cloudflare receives this day’s saved notes, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
+          <p id={titleId + '-privacy'} className="pj-aura-tooltip" role="tooltip">Cloudflare receives this day’s saved notes, relevant past saved entries, trade details and recent messages. Screenshots stay private. Account stats use the selected account, or the first account in All accounts.</p>
         </div>
       </div>
       <button type="button" className="pj-aura-close" onClick={onClose} aria-label="Close Primax" autoFocus><X size={20} aria-hidden="true"/></button>
@@ -69,6 +70,20 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
       {turns.map((turn, index) => <article key={index}>
         <p className="pj-aura-question">{turn.question}</p>
         <div className="pj-aura-answer" aria-label="Primax"><CoachMarkdown text={turn.answer}/></div>
+        {turn.memories?.length > 0 && (
+          <div className="pj-aura-memories" aria-label="Recalled past Journal entries">
+            <span>Recalled:</span>
+            {turn.memories.map(item => (
+              <a
+                key={item.day}
+                href={`/journal?day=${encodeURIComponent(item.day)}`}
+                title={item.preview || item.day}
+              >
+                {item.day}{item.mindset ? ` · ${item.mindset}` : ''}
+              </a>
+            ))}
+          </div>
+        )}
       </article>)}
     </div>}
     {!turns.length && <div className="pj-aura-suggestions" role="group" aria-label="Suggested questions">

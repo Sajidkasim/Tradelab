@@ -35,7 +35,7 @@ from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink, FeedbackInput
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, custom_trade_fields, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, release_notes
+from . import imports, backups, custom_trade_fields, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, primax_memory, release_notes
 from .request_limits import RequestLimits
 from .rate_counters import RateCounters
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -110,7 +110,9 @@ def create_app(config: Settings | None = None):
         response = await call_next(request)
         if request.url.path.startswith('/assets/') and response.status_code == 200:
             response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
-        if not request.url.path.startswith("/assets/"):
+        elif request.url.path.startswith('/pwa/') and response.status_code == 200:
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+        else:
             response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer" if request.url.path.startswith('/auth/') else "same-origin"
@@ -118,6 +120,16 @@ def create_app(config: Settings | None = None):
         response.headers['Content-Security-Policy'] = "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         if not config.local:response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         return response
+
+    def client_ip(request: Request) -> str | None:
+        if not config.local:
+            cf_ip = (request.headers.get("cf-connecting-ip") or "").strip()
+            if cf_ip:
+                try:
+                    return str(ipaddress.ip_address(cf_ip))
+                except ValueError:
+                    pass
+        return request.client.host if request.client else None
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, exc):
@@ -153,7 +165,7 @@ def create_app(config: Settings | None = None):
         if config.google_required:
             try:
                 member = request.app.state.workspaces.google.member(request.session.get('google_token'),
-                    user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
+                    user_agent=request.headers.get('user-agent'), client_ip=client_ip(request))
             except LoginError:
                 raise HTTPException(401, 'Sign in to your lab to continue.') from None
             if request.method not in ('GET', 'HEAD', 'OPTIONS'):
@@ -379,7 +391,7 @@ def create_app(config: Settings | None = None):
             key = access.join(email, subject)
             # Finish private storage initialization before issuing access.
             app.state.workspaces.database(key)
-            token = access.issue(key, user_agent=request.headers.get('user-agent'), client_ip=request.client.host if request.client else None)
+            token = access.issue(key, user_agent=request.headers.get('user-agent'), client_ip=client_ip(request))
         except AccountBlocked:
             return RedirectResponse(destination + '?login=blocked', status_code=303)
         except LoginError:
@@ -485,12 +497,20 @@ def create_app(config: Settings | None = None):
         email = (member.get('email') or (config.owner_email if not config.google_required else '')).strip().casefold()
         matches = [name for name in ('Sajid', 'Safwaan', 'Mubeen', 'Mustafa', 'Amir')
                    if email and email == os.getenv(f'COACH_{name.upper()}_EMAIL', '').strip().casefold()]
+        asked = question.strip() if request.method == 'POST' else ''
+        recalled = primax_memory.recall(
+            database,
+            asked or notes,
+            exclude_day=journal_day,
+            limit=4,
+        )
         markdown = provider({
             'database': database, 'account': account,
             'trader_name': matches[0] if len(matches) == 1 else 'Trader',
             'notes': f'Journal date: {journal_day}\nDid you trade today? {entry.get("traded_today") or "Not recorded"}\n{notes}',
-            'question': question.strip() if request.method == 'POST' else '',
+            'question': asked,
             'history': [turn.model_dump() for turn in (history or [])],
+            'recalled_memories': recalled,
             'journal_trades': [
                 {field: str(trade.get(field) or "")[:220] if field != "net_pnl" else trade.get(field)
                  for field in ("symbol", "direction", "strategy", "outcome", "net_pnl", "notes")}
@@ -500,7 +520,13 @@ def create_app(config: Settings | None = None):
             'image_ids': [image['id'] for image in entry['images']],
             'read_image': lambda image_id: app.state.image_storage.read(member['key'], journal_day, image_id),
         })
-        return {'markdown': markdown}
+        reply = {'markdown': markdown}
+        if recalled:
+            reply['memories'] = [
+                {'day': item['day'], 'mindset': item['mindset'], 'preview': item['preview']}
+                for item in recalled
+            ]
+        return reply
 
     @app.get('/api/journal/export')
     def export_journal(request: Request, member=Depends(workspace)):
@@ -520,7 +546,9 @@ def create_app(config: Settings | None = None):
     def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.workspace_lock(member['key']):
-            archive_id = daily_journal.delete_entry(db(request, member), day.isoformat())
+            database = db(request, member)
+            archive_id = daily_journal.delete_entry(database, day.isoformat())
+            primax_memory.remove_day(database, day.isoformat())
             app.state.workspaces.bump(member['key'])
         return {'ok': True, 'archive_id': archive_id}
 
@@ -546,7 +574,17 @@ def create_app(config: Settings | None = None):
             except ValueError as exc:
                 raise HTTPException(422, str(exc)) from None
             app.state.workspaces.bump(member['key'])
-            return result
+            pending_embed = primax_memory.prepare_day(database, result)
+        if pending_embed:
+            try:
+                embed_day, embed_digest, embed_text = pending_embed
+                vector = primax_memory.embed_text(embed_text)
+                if vector is not None:
+                    with app.state.workspaces.workspace_lock(member['key']):
+                        primax_memory.store_vector(db(request, member), embed_day, embed_digest, vector)
+            except Exception:
+                pass
+        return result
 
     @app.post('/api/journal/{day}/images')
     async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), trade_id: str = "", member=Depends(workspace)):
