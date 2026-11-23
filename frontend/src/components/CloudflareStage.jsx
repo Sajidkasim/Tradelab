@@ -312,6 +312,7 @@ export default function CloudflareStage({
   const [loupePos, setLoupePos] = useState(null); // {x, y} relative to viewport
   const [lasers, setLasers] = useState({}); // { [traderName]: {name, screenName, x, y, color, updatedAt, trail: [{x,y,ts}]} }
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const [toast, setToast] = useState(null); // {text, link?}
   const [snapping, setSnapping] = useState(false);
   const [clipReady, setClipReady] = useState(false);
@@ -1637,9 +1638,35 @@ export default function CloudflareStage({
   };
 
   const toggleFullscreen = () => {
-    if (!stageRef.current) return;
-    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    else stageRef.current.requestFullscreen?.().catch(() => {});
+    const stage = stageRef.current;
+    if (!stage) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+      return;
+    }
+    if (pseudoFullscreen) {
+      setPseudoFullscreen(false);
+      return;
+    }
+    const vid = videoRef.current;
+    const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+    if (typeof req === 'function') {
+      Promise.resolve(req.call(stage)).catch(() => {
+        if (vid && typeof vid.webkitEnterFullscreen === 'function') {
+          try { vid.webkitEnterFullscreen(); return; } catch {}
+        }
+        setPseudoFullscreen(true);
+      });
+      return;
+    }
+    // iPhone Safari does not support div.requestFullscreen — use native iOS video fullscreen or full-viewport overlay.
+    if (vid && typeof vid.webkitEnterFullscreen === 'function') {
+      try {
+        vid.webkitEnterFullscreen();
+        return;
+      } catch {}
+    }
+    setPseudoFullscreen(true);
   };
 
   // Compute CSS transform for single-screen video (Crop-to-Chart + Zoom + Pan)
@@ -1683,7 +1710,7 @@ export default function CloudflareStage({
   }, [loupeOn, loupePos]);
 
   return (
-    <div className="bullpen-cf-stage" ref={stageRef}>
+    <div className={`bullpen-cf-stage${pseudoFullscreen ? ' is-pseudo-fs' : ''}`} ref={stageRef}>
       {remoteAudios.map((a) => (
         <RemoteAudio
           key={a.key}
@@ -2183,9 +2210,9 @@ export default function CloudflareStage({
               type="button"
               className="bullpen-bar-btn is-subtle"
               onClick={toggleFullscreen}
-              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              title={isFullscreen || pseudoFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
             >
-              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {isFullscreen || pseudoFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
             </button>
 
             <button
