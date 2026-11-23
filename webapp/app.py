@@ -35,7 +35,8 @@ from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
 from .schemas import Filters, NewTrade, Review, Playbook, BulkStrategy, Unlock, PositionSize, LabSettings, DeleteAllTrades, ImportPreferences, AccountAccess, Study, StudyAssignment, SavedSetup, LabelMerge, JournalPreferences, WelcomeSetup, TourProgress, DailyEntry, JournalTradeLink, FeedbackInput
 from .workspaces import Workspaces, serialise_trade, records, SCOPES
-from . import imports, backups, custom_trade_fields, lab_settings, trade_deletion, import_updates, journal_preferences, daily_journal, primax_memory, release_notes
+from . import observability
+from . import custom_trade_fields, daily_journal, lab_settings, trade_deletion, journal_preferences, release_notes
 from .request_limits import RequestLimits
 from .rate_counters import RateCounters
 from .personal_access import PasswordGate, PersonalSessions, Throttled, auth_version, SESSION_SECONDS
@@ -45,6 +46,7 @@ from .google_access import LoginError, AccountBlocked
 def create_app(config: Settings | None = None):
     config = config or from_env()
     config.validate()
+    observability.init_error_tracking(local=config.local)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -84,6 +86,7 @@ def create_app(config: Settings | None = None):
                        max_age=SESSION_SECONDS, same_site="lax", https_only=not config.local)
     app.add_middleware(RequestLimits)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    observability.mount_request_logging(app)
 
     @app.middleware("http")
     async def security_headers(request, call_next):
@@ -138,6 +141,7 @@ def create_app(config: Settings | None = None):
 
     @app.exception_handler(StorageUnavailable)
     async def storage_error(request, exc):
+        observability.capture_exception(exc, request_id=getattr(request.state, "request_id", ""), path=request.url.path)
         return JSONResponse({'detail':'Screenshot storage is temporarily unavailable. Your saved notes are safe; please retry.'},status_code=503)
 
     @app.exception_handler(ValueError)
@@ -151,6 +155,7 @@ def create_app(config: Settings | None = None):
     @app.exception_handler(SQLAlchemyError)
     async def database_error(request, exc):
         # SQLAlchemy exception text can include the database URL and submitted records.
+        observability.capture_exception(exc, request_id=getattr(request.state, "request_id", ""), path=request.url.path)
         return JSONResponse({"detail": "The database is unavailable. Your unsaved changes are still on this page. Please retry."}, status_code=503)
 
     def check_write(request, *, allow_missing_origin=False):
@@ -188,161 +193,15 @@ def create_app(config: Settings | None = None):
     def db(request, member):
         return request.app.state.workspaces.database(member["key"])
 
-    @app.get("/api/journal-accounts")
-    def journal_accounts(request: Request, member=Depends(workspace)):
-        return [asdict(account) for account in db(request, member).accounts()]
+    def journal_preview():
+        if not config.site_enabled and not (config.site_preview and config.local):
+            raise HTTPException(404)
 
-    def write_journal_account(database, payload, account_id=None):
-        values = payload.model_dump(exclude_unset=True)
-        values["name"] = values["name"].strip()
-        if not values["name"]:
-            raise HTTPException(422, "Enter an account name.")
-        if "firm" in values:
-            values["firm"] = values["firm"].strip()
-        if "closed_at" in values and values["closed_at"] is not None:
-            values["closed_at"] = values["closed_at"].isoformat()
-        if account_id is None:
-            if values.get("status") in ("blown", "passed") and not values.get("closed_at"):
-                values["closed_at"] = date.today().isoformat()
-            account = Account(**values, daily_loss_limit=0, max_trailing_drawdown=0)
-        else:
-            existing = next((item for item in database.accounts() if item.id == account_id), None)
-            if existing is None:
-                raise HTTPException(404, "Account not found.")
-            if "status" in values and "closed_at" not in values:
-                if values["status"] in ("blown", "passed") and existing.status == "active" and not existing.closed_at:
-                    values["closed_at"] = date.today().isoformat()
-                elif values["status"] == "active" and existing.status != "active":
-                    values["closed_at"] = None
-            account = replace(existing, **values)
-        try:
-            account.id = database.upsert_account(account)
-        except IntegrityError:
-            raise HTTPException(409, "An account with that name already exists.") from None
-        return asdict(account)
-
-    @app.get("/api/journal-accounts/presets")
-    def get_journal_account_presets(request: Request, member=Depends(workspace)):
-        return {"presets": daily_journal.account_presets(db(request, member))}
-
-    @app.put("/api/journal-accounts/presets")
-    def put_journal_account_presets(payload: JournalAccountPresets, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.workspace_lock(member["key"]):
-            try:
-                saved = daily_journal.save_account_presets(
-                    db(request, member), [item.model_dump() for item in payload.presets]
-                )
-            except ValueError as exc:
-                raise HTTPException(422, str(exc)) from None
-            app.state.workspaces.bump(member["key"])
-        return {"presets": saved}
-
-    @app.post("/api/journal-accounts", status_code=201)
-    def add_journal_account(payload: JournalAccount, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.workspace_lock(member["key"]):
-            result = write_journal_account(db(request, member), payload)
-            app.state.workspaces.bump(member["key"])
-            return result
-
-    @app.put("/api/journal-accounts/{account_id}")
-    def edit_journal_account(account_id: int, payload: JournalAccount, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.workspace_lock(member["key"]):
-            result = write_journal_account(db(request, member), payload, account_id)
-            app.state.workspaces.bump(member["key"])
-            return result
-
-    @app.delete("/api/journal-accounts/{account_id}")
-    def remove_journal_account(account_id: int, request: Request, member=Depends(workspace)):
-        database = db(request, member)
-        with app.state.workspaces.workspace_lock(member['key']):
-            if daily_journal.references_account(database, account_id):
-                raise HTTPException(409, "This account has linked Journal trades. Mark it as Blown or Passed to keep its history.")
-            if not database.delete_unused_account(account_id):
-                accounts = database.accounts()
-                if not any(account.id == account_id for account in accounts):
-                    raise HTTPException(404, "Account not found.")
-                if len(accounts) == 1:
-                    raise HTTPException(409, "Keep at least one account for trades and imports.")
-                raise HTTPException(409, "This account has linked trades and cannot be deleted.")
-            app.state.workspaces.bump(member["key"])
-        return {"deleted": account_id}
-
-    @app.get("/api/matrix/snapshot")
-    def matrix_snapshot():
-        if not (config.site_preview or config.site_enabled):
-            return {"snapshot": None}
-        try:
-            if config.local:
-                path=Path(__file__).resolve().parents[1]/'data/private/matrix-verified-snapshot.json'
-                return {'snapshot':json.loads(path.read_text()) if path.is_file() else None}
-            from sqlalchemy import text
-            with app.state.workspaces.root.engine.connect() as connection:
-                snapshot=connection.execute(text("SELECT snapshot FROM public.macro_scorecard WHERE id = 'matrix'")).scalar_one_or_none()
-            return {'snapshot':snapshot}
-        except (SQLAlchemyError, OSError, ValueError, TypeError):
-            raise HTTPException(503, "The macro snapshot could not be read.") from None
-
-    matrix_refresh_lock = Lock()
-    matrix_last_refresh = [float("-inf")]
-
-    @app.post("/api/matrix/refresh")
-    async def refresh_matrix_now(request: Request, member=Depends(workspace)):
-        if not (config.site_preview or config.site_enabled):
-            raise HTTPException(404, "The Matrix is unavailable.")
-        if member["key"] != "owner":
-            raise HTTPException(403, "Only the workspace owner can trigger a live Matrix refresh.")
-        now = time.monotonic()
-        with matrix_refresh_lock:
-            elapsed = now - matrix_last_refresh[0]
-            if elapsed < 300:
-                wait_s = max(1, int(300 - elapsed))
-                raise HTTPException(429, f"Matrix was refreshed recently. Try again in {wait_s}s.")
-            matrix_last_refresh[0] = now
-
-        def _run_refresh():
-            from sqlalchemy import text
-            from tools import refresh_matrix as rm
-
-            local_path = Path(__file__).resolve().parents[1] / "data/private/matrix-verified-snapshot.json"
-            snapshot = {}
-            if config.local:
-                if local_path.is_file():
-                    snapshot = json.loads(local_path.read_text())
-            else:
-                with app.state.workspaces.root.engine.connect() as conn:
-                    existing = conn.execute(text("SELECT snapshot FROM public.macro_scorecard WHERE id = 'matrix'")).scalar_one_or_none()
-                    if isinstance(existing, dict):
-                        snapshot = dict(existing)
-
-            changed = rm.refresh_snapshot(snapshot, source="all")
-            if not changed:
-                raise HTTPException(502, "No macro providers responded. Existing snapshot retained.")
-
-            if config.local:
-                local_path.parent.mkdir(parents=True, exist_ok=True)
-                local_path.write_text(json.dumps(snapshot))
-            else:
-                with app.state.workspaces.root.engine.begin() as conn:
-                    conn.execute(
-                        text(
-                            "INSERT INTO public.macro_scorecard(id, snapshot) VALUES ('matrix', CAST(:snap AS jsonb)) "
-                            "ON CONFLICT (id) DO UPDATE SET snapshot = excluded.snapshot"
-                        ),
-                        {"snap": json.dumps(snapshot)},
-                    )
-            return snapshot
-
-        try:
-            updated = await to_thread.run_sync(_run_refresh)
-        except HTTPException:
-            with matrix_refresh_lock:
-                matrix_last_refresh[0] = float("-inf")
-            raise
-        except (SQLAlchemyError, OSError, ValueError, TypeError) as err:
-            with matrix_refresh_lock:
-                matrix_last_refresh[0] = float("-inf")
-            raise HTTPException(502, f"Matrix refresh failed ({type(err).__name__}).") from None
-        return {"snapshot": updated, "refreshed": True}
+    from . import routes_imports, routes_journal, routes_matrix, routes_tools
+    routes_matrix.mount(app, config, workspace)
+    routes_journal.mount(app, config, workspace, check_write, db)
+    routes_tools.mount(app, workspace, db)
+    routes_imports.mount(app, workspace, signer, db)
 
     @app.get("/health")
     def health():
@@ -486,234 +345,6 @@ def create_app(config: Settings | None = None):
             raise HTTPException(404, 'Prepare the local candle sample first.')
         return FileResponse(sample, media_type='application/json', headers={'Cache-Control':'private, no-store'})
 
-    def journal_preview():
-        if not config.site_enabled and not (config.site_preview and config.local):
-            raise HTTPException(404)
-
-    def journal_images():
-        if not app.state.image_storage.enabled:
-            raise HTTPException(404)
-
-    @app.get('/api/journal')
-    def list_journal(request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            return daily_journal.entries(db(request, member))
-
-    @app.get('/api/journal/summary')
-    def list_journal_summary(request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            return daily_journal.entries_summary(db(request, member))
-
-    @app.get('/api/journal/equity')
-    def journal_equity(
-        request: Request,
-        scope: Literal['active', 'funded', 'eval', 'personal', 'passed', 'blown', 'all'] = 'active',
-        account_id: int | None = Query(default=None, gt=0),
-        member=Depends(workspace),
-    ):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            return daily_journal.equity_and_insights(db(request, member), scope=scope, account_id=account_id)
-
-    @app.post('/api/journal/transcribe')
-    async def transcribe_journal_voice(request: Request, file: UploadFile = File(...), member=Depends(workspace)):
-        journal_preview()
-        try:
-            content = await file.read(daily_journal.MAX_AUDIO_UPLOAD + 1)
-        finally:
-            await file.close()
-        if len(content) > daily_journal.MAX_AUDIO_UPLOAD:
-            raise HTTPException(413, 'Keep voice recordings smaller than 8 MB.')
-        try:
-            text = await run_in_threadpool(daily_journal.transcribe_audio, content)
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from None
-        except RuntimeError as exc:
-            raise HTTPException(503, str(exc)) from None
-        return {'text': text}
-
-    from pydantic import BaseModel, Field
-
-    class AuraTurn(BaseModel):
-        question: str = Field(max_length=400)
-        answer: str = Field(max_length=650)
-
-    @app.get('/api/journal/coach')
-    @app.post('/api/journal/coach')
-    def journal_coach(day: date, request: Request, account_id: int | None = None,
-                      member=Depends(workspace), question: str = Body("", embed=True, max_length=1000),
-                      history: list[AuraTurn] | None = Body(None, max_length=3)):
-        journal_preview()
-        check_write(request, allow_missing_origin=request.method == "GET")
-        load_extensions(Path(__file__).resolve().parents[1] / 'extensions')
-        provider = COACH_PROVIDERS.get('Primax - Trading Assistant')
-        if provider is None:
-            raise HTTPException(503, 'Primax is unavailable.')
-        database = db(request, member)
-        accounts = database.accounts()
-        account = next((item for item in accounts if account_id is None or item.id == account_id), None)
-        if account is None:
-            raise HTTPException(404, 'Choose an available Journal account.')
-        journal_day = day.isoformat()
-        entry = daily_journal.entry(database, journal_day)
-        notes = '\n'.join(f'{label}: {entry.get(field) or ""}' for label, field in (
-            ('Plan', 'plan'), ('Observations', 'notes'), ('Review', 'lesson'),
-        ))
-        email = (member.get('email') or (config.owner_email if not config.google_required else '')).strip().casefold()
-        matches = [name for name in ('Sajid', 'Safwaan', 'Mubeen', 'Mustafa', 'Amir')
-                   if email and email == os.getenv(f'COACH_{name.upper()}_EMAIL', '').strip().casefold()]
-        asked = question.strip() if request.method == 'POST' else ''
-        recalled = primax_memory.recall(
-            database,
-            asked or notes,
-            exclude_day=journal_day,
-            limit=4,
-        )
-        markdown = provider({
-            'database': database, 'account': account,
-            'trader_name': matches[0] if len(matches) == 1 else 'Trader',
-            'notes': f'Journal date: {journal_day}\nDid you trade today? {entry.get("traded_today") or "Not recorded"}\n{notes}',
-            'question': asked,
-            'history': [turn.model_dump() for turn in (history or [])],
-            'recalled_memories': recalled,
-            'journal_trades': [
-                {field: str(trade.get(field) or "")[:220] if field != "net_pnl" else trade.get(field)
-                 for field in ("symbol", "direction", "strategy", "outcome", "net_pnl", "notes")}
-                for trade in entry['trades']
-                if account_id is None or trade.get('account_id') == account_id
-            ][:6],
-            'image_ids': [image['id'] for image in entry['images']],
-            'read_image': lambda image_id: app.state.image_storage.read(member['key'], journal_day, image_id),
-        })
-        reply = {'markdown': markdown}
-        if recalled:
-            reply['memories'] = [
-                {'day': item['day'], 'mindset': item['mindset'], 'preview': item['preview']}
-                for item in recalled
-            ]
-        return reply
-
-    @app.get('/api/journal/export')
-    def export_journal(request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            database = db(request, member)
-            content = json.dumps({'entries': daily_journal.entries(database),
-                                  'images': 'Download screenshot files separately; this JSON contains notes and image references.'})
-        return Response(content, media_type='application/json', headers={'Content-Disposition':'attachment; filename="primus-journal-notes.json"'})
-
-    @app.get('/api/journal/trash')
-    def journal_trash(request: Request, member=Depends(workspace)):
-        journal_preview()
-        return daily_journal.deleted_entries(db(request, member))
-
-    @app.delete('/api/journal/{day}')
-    def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            database = db(request, member)
-            archive_id = daily_journal.delete_entry(database, day.isoformat())
-            primax_memory.remove_day(database, day.isoformat())
-            app.state.workspaces.bump(member['key'])
-        return {'ok': True, 'archive_id': archive_id}
-
-    @app.post('/api/journal/trash/{archive_id}/restore')
-    def restore_journal_entry(archive_id: str, request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            result = daily_journal.restore_entry(db(request, member), archive_id)
-            app.state.workspaces.bump(member['key'])
-            return daily_journal.with_day_result(db(request, member), result)
-
-    @app.get('/api/journal/{day}')
-    def read_journal_day(day: date, request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            return daily_journal.entry(db(request, member), day.isoformat())
-
-    @app.put('/api/journal/{day}')
-    def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            values = payload.model_dump(exclude_unset=True)
-            if values.get('trades') is None:
-                values.pop('trades', None)
-            try:
-                database = db(request, member)
-                result = daily_journal.save_day(database, day.isoformat(), values)
-                compound_edge.journal_saved(database, day, result)
-            except ValueError as exc:
-                raise HTTPException(422, str(exc)) from None
-            app.state.workspaces.bump(member['key'])
-            pending_embed = primax_memory.prepare_day(database, result)
-        if pending_embed:
-            try:
-                embed_day, embed_digest, embed_text = pending_embed
-                vector = primax_memory.embed_text(embed_text)
-                if vector is not None:
-                    with app.state.workspaces.workspace_lock(member['key']):
-                        primax_memory.store_vector(db(request, member), embed_day, embed_digest, vector)
-            except Exception:
-                pass
-        return result
-
-    @app.post('/api/journal/{day}/images')
-    async def upload_journal_image(day: date, request: Request, file: UploadFile = File(...), trade_id: str = "", member=Depends(workspace)):
-        journal_images()
-        try:
-            content = await file.read(daily_journal.MAX_UPLOAD + 1)
-        finally:
-            await file.close()
-        if len(content) > daily_journal.MAX_UPLOAD:
-            raise HTTPException(413, 'Choose a screenshot smaller than 8 MB.')
-        def operation():
-            with app.state.workspaces.workspace_lock(member['key']):
-                result = daily_journal.add_image(db(request, member), config, member['key'], day.isoformat(), content, trade_id, app.state.image_storage)
-                app.state.workspaces.bump(member['key'])
-                return result
-        return await run_in_threadpool(operation)
-
-    @app.get('/api/journal/{day}/images/{image_id}')
-    def journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
-        journal_images()
-        database = db(request, member)
-        stored = daily_journal.entry(database, day.isoformat())
-        if not any(item['id'] == image_id for item in stored['images']):
-            raise HTTPException(404)
-        data = app.state.image_storage.read(member['key'], day.isoformat(), image_id)
-        if data is None:
-            raise HTTPException(404)
-        return Response(data, media_type='image/webp', headers={'Content-Disposition':'inline; filename="primus-screenshot.webp"'})
-
-    @app.delete('/api/journal/{day}/images/{image_id}')
-    def remove_journal_image(day: date, image_id: str, request: Request, member=Depends(workspace)):
-        journal_images()
-        with app.state.workspaces.workspace_lock(member['key']):
-            database = db(request, member)
-            stored = daily_journal.entry(database, day.isoformat())
-            images = [item for item in stored['images'] if item['id'] != image_id]
-            if len(images) == len(stored['images']):
-                raise HTTPException(404)
-            result = daily_journal.save(database, day.isoformat(), {'images': images})
-            referenced_in_trash = any(
-                isinstance(row, dict) and any(img.get('id') == image_id for img in row.get('images', []))
-                for row in database.settings_with_prefix(daily_journal.TRASH_PREFIX).values()
-            )
-            app.state.workspaces.bump(member['key'])
-        if not referenced_in_trash:
-            app.state.image_storage.discard_unreferenced(member['key'], day.isoformat(), image_id)
-        return result
-
-    @app.put('/api/journal/{day}/trades/{record_id}/link')
-    def link_journal_trade(day: date, record_id: str, payload: JournalTradeLink, request: Request, member=Depends(workspace)):
-        journal_preview()
-        with app.state.workspaces.workspace_lock(member['key']):
-            result = daily_journal.link_trade(db(request, member), day.isoformat(), record_id, payload.trade_id)
-            app.state.workspaces.bump(member['key'])
-            return result
-
     @app.get("/api/metadata")
     def metadata(request: Request, member=Depends(workspace)):
         return app.state.workspaces.metadata(member["key"])
@@ -737,41 +368,6 @@ def create_app(config: Settings | None = None):
         app.state.workspaces.google.set_allowed(account_key, payload.allowed)
         app.state.workspaces.bump(account_key)
         return {'ok': True}
-
-    @app.post("/api/learn/risk-matrix")
-    def learn_risk_matrix(
-        balance: float = Body(gt=0, le=1_000_000_000),
-        risk_percent: float = Body(gt=0, le=100),
-        stop_ticks: int = Body(ge=1, le=4_000_000),
-    ):
-        from core import risk
-        from core.instruments import instrument_map
-
-        instruments = instrument_map()
-        results = {}
-        for symbol in ("NQ", "MNQ"):
-            instrument = instruments[symbol]
-            results[symbol] = risk.position_size(
-                0, stop_ticks * instrument.tick_size, instrument.multiplier,
-                instrument.tick_size, balance, risk_pct=risk_percent,
-            )
-        return results
-
-    @app.post('/api/tools/position-size')
-    def position_size(payload: PositionSize, request: Request, member=Depends(workspace)):
-        from core import risk
-        from .workspaces import clean
-        database = db(request, member)
-        account = next((item for item in database.accounts() if item.id == payload.account_id), None)
-        instrument = database.instruments().get(payload.symbol)
-        if account is None or instrument is None:
-            raise ValueError('Choose a valid market from your lab.')
-        if payload.entry == payload.stop:
-            raise ValueError('Entry and stop must be different prices.')
-        return clean(risk.position_size(payload.entry, payload.stop, instrument.multiplier, instrument.tick_size,
-                                       account.starting_balance, risk_dollars=payload.risk_dollars,
-                                       max_contracts=account.max_contracts,
-                                       commission_per_contract=instrument.commission_per_contract))
 
     def trade_rows(frame):
         frame = frame.copy()
@@ -1147,111 +743,6 @@ def create_app(config: Settings | None = None):
                 app.state.workspaces.bump(member["key"])
         await run_in_threadpool(save)
         return {"ok": True}
-
-    @app.put('/api/import-preferences')
-    def save_import_preferences(payload: ImportPreferences, request: Request, member=Depends(workspace)):
-        with app.state.workspaces.workspace_lock(member['key']):
-            database = db(request, member)
-            if payload.account_id not in {account.id for account in database.accounts()}:
-                raise ValueError('Reload your lab and try again.')
-            values = payload.model_dump()
-            database.set_setting(import_updates.PROFILE_KEY, values)
-            app.state.workspaces.bump(member['key'])
-        return values
-
-    @app.post("/api/import/{action}")
-    async def import_file(action: str, request: Request, file: UploadFile = File(...), account_id: int = Form(...),
-                          source: str = Form("fxreplay"), timezone: str = Form("UTC"), dayfirst: bool = Form(False),
-                          mapping: str = Form("{}"), preview_token: str = Form(""), update_labels: bool = Form(False),
-                          include_breakeven: bool = Form(True),
-                          remember_profile: bool = Form(False), study_id: str = Form(''), member=Depends(workspace)):
-        if action not in ("preview", "confirm"):
-            raise HTTPException(404)
-        try:
-            content = await file.read(imports.MAX_UPLOAD + 1)
-        finally:
-            await file.close()
-        if len(content) > imports.MAX_UPLOAD:
-            raise HTTPException(413, "Choose a file smaller than 5 MB.")
-        filename = file.filename or "trades.csv"
-        try:
-            columns = json.loads(mapping)
-        except json.JSONDecodeError:
-            raise ValueError("Check the column mapping.") from None
-        fingerprint = imports.digest(content, filename, account_id, source, timezone, dayfirst, columns, include_breakeven)
-        def operation():
-            with app.state.workspaces.workspace_lock(member['key']):
-                database = db(request, member)
-                parsed, preview = imports.parse(content, filename, database, account_id, source, timezone, dayfirst, columns, include_breakeven)
-                study = research.get_test(database, study_id, active=True)
-                for trade in parsed:
-                    research.attach(database, trade, study_id, study=study)
-                preview['study'] = {'id': study['id'], 'name': study['name']} if study else None
-                if study and study.get('symbol') and any(trade.symbol != study['symbol'] for trade in parsed):
-                    preview['issues'].append(f"Some trades use a different market from this test’s planned {study['symbol']}. Check the destination before importing.")
-                notes = preview.pop('_notes', {})
-                tag_context = preview.pop('_tag_context', {})
-                changes, issues = import_updates.plan(database, parsed, notes) if update_labels else ([], [])
-                preview['issues'].extend(issues)
-                if update_labels:
-                    preview['counts']['updates'] = len(changes)
-                preview['label_updates'] = [{'id':item['id'], **item['preview']} for item in changes][:200]
-                signature = [member['key'], fingerprint, import_updates.digest({
-                    'mappings': database.get_setting(trade_labels.MAPPING_KEY, {}),
-                    'automatic_labels': tag_context,
-                    'aliases': database.get_setting(tag_cleanup.KEY, {}), 'study_id': study_id,
-                    'update_labels': update_labels, 'remember_profile': remember_profile,
-                    'changes':changes if update_labels else None})]
-                if action == "confirm":
-                    try:
-                        approval = signer.loads(preview_token, max_age=900)
-                    except (BadSignature, SignatureExpired):
-                        raise HTTPException(409, "Preview the file again before importing.") from None
-                    if approval != signature:
-                        raise HTTPException(409, "File, labels or import options changed. Preview again.")
-                    result = import_updates.apply(database, parsed, changes) if update_labels else database.insert_trades(parsed)
-                    if remember_profile:
-                        database.set_setting(import_updates.PROFILE_KEY, {'account_id':account_id, 'source':preview['source'],
-                            'timezone':timezone, 'dayfirst':dayfirst, 'update_labels':update_labels,
-                            'include_breakeven':include_breakeven})
-                    if preview['excluded_breakeven']:
-                        result['excluded_breakeven'] = preview['excluded_breakeven']
-                    app.state.workspaces.bump(member["key"])
-                    return result
-                preview["preview_token"] = signer.dumps(signature)
-                return preview
-        return await run_in_threadpool(operation)
-
-    @app.get("/api/export/{kind}")
-    def export(kind: str, request: Request, member=Depends(workspace)):
-        database = db(request, member)
-        if kind == "backup":
-            content, media, name = database.export_json(), "application/json", "primuslab-backup.json"
-        elif kind == "csv":
-            # Complete label/notes history in UTC; screenshots remain separate files.
-            from .csv_security import safe_cell
-            content, media, name = database.trades_df(sources=SCOPES["All"]).drop(columns=["screenshot_path"], errors="ignore").map(safe_cell).to_csv(index=False), "text/csv", "primuslab-trades.csv"
-        else:
-            raise HTTPException(404)
-        return Response(content, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
-
-    @app.post("/api/restore")
-    async def restore(request: Request, file: UploadFile = File(...), member=Depends(workspace)):
-        try:
-            content = await file.read(imports.MAX_UPLOAD + 1)
-        finally:
-            await file.close()
-        if len(content) > imports.MAX_UPLOAD:
-            raise HTTPException(413, "Choose a backup smaller than 5 MB.")
-        def operation():
-            with app.state.workspaces.workspace_lock(member['key']):
-                database = db(request, member)
-                if database.count_trades():
-                    raise HTTPException(409, "Restore is available only in an empty lab. Download a backup before migrating an existing lab.")
-                result = database.import_json(backups.validate(content.decode("utf-8")), replace=True)
-                app.state.workspaces.bump(member["key"])
-                return result
-        return await run_in_threadpool(operation)
 
     if (config.assets / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=config.assets / "assets"), name="assets")
