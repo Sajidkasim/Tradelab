@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowUpRight, Clock3, Gauge, Layers3, Minus,
+  Activity, ArrowDownRight, ArrowUpRight, BookOpen, Clock3, Gauge, Layers3, Minus,
   ShieldCheck, RefreshCw, Send, Copy, Check, CalendarClock, Flame,
-  BarChart3, AlertTriangle, Compass, Zap,
+  BarChart3, AlertTriangle, Compass, Zap, X,
 } from 'lucide-react';
 import { PrimusHeader, localSitePreview } from './SiteExperience';
 import { api } from './api';
@@ -248,6 +248,128 @@ function formatCalCountdown(ms) {
   return `in ${Math.ceil(diffMin / 1440)}d`;
 }
 
+const GUIDE_SECTIONS = [
+  {
+    id: 'routine',
+    title: 'Your 15-Second Morning Routine',
+    badge: 'START HERE',
+    intro: 'You do not need to read every number on this page. Just follow these 4 quick steps before NY open:',
+    items: [
+      { label: '1. Check the Sizing Gate', text: 'Green (Standard Size) = normal contracts. Amber (Micro Only) = volatile tape, trade MNQ / smaller size so you don’t blow an eval. Red (Stand Down) = major news is hitting right now, wait for the dust to settle.' },
+      { label: '2. Check Implied NQ Move', text: 'Shows how many points NQ is expected to swing today based on VIX. A 200-pt day = normal stops. A 400+ pt day = wild wicks, widen your stop and cut contract size.' },
+      { label: '3. Check Mag 7 + Next Catalyst', text: 'If 6/7 or 7/7 Mag 7 tech stocks are green, shorting NQ is fighting a freight train. Check the Next Catalyst countdown so you aren’t in a trade when 8:30 AM news drops.' },
+      { label: '4. Click Send to Today’s Journal', text: 'Pastes today’s 1-line macro summary straight into your Daily Journal plan, then go trade your setups.' },
+    ],
+  },
+  {
+    id: 'tickers',
+    title: 'Top 6 Market Tickers',
+    badge: 'OVERVIEW',
+    intro: 'The 6 live markets that drive intraday futures and FX:',
+    items: [
+      { label: 'NQ1! · ES1! · Gold', text: 'Current price and recent trend for Nasdaq, S&P 500, and Gold futures.' },
+      { label: 'VIX (Fear Gauge)', text: 'Measures expected market volatility. Under 18 = calm and clean. Over 22 = bigger swings. Over 27 = violent candles — protect your accounts with micros.' },
+      { label: '10Y Yield (Interest Rates)', text: 'US 10-year Treasury yield. When yields drop (red), tech/NQ usually gets a tailwind. When yields spike (green), NQ often sells off.' },
+      { label: 'DXY (US Dollar Index)', text: 'Strength of the US Dollar. When DXY pushes higher, EURUSD, GBPUSD, and Gold usually face downward pressure.' },
+    ],
+  },
+  {
+    id: 'scoreboard',
+    title: 'Multi-Asset Scoreboard & 6 Pillars',
+    badge: 'OVERVIEW & BIAS',
+    intro: 'Grades each market from 0 (Very Bearish) to 100 (Very Bullish). Click any row to see why it got that score:',
+    items: [
+      { label: 'COT Institutional', text: 'Shows how big hedge funds and asset managers are positioned in weekly CFTC filings (Long % vs Short %). Heavy long positioning = bullish institutional backing.' },
+      { label: 'Rates & Real Yields', text: 'Tracks whether bond yields are rising or falling over the last 5 sessions. Falling real yields help NQ, ES, and Gold; rising yields help DXY.' },
+      { label: 'Inflation & Fed', text: 'Looks at Core CPI and PCE inflation. Cooling inflation lets the Fed stay friendly (bullish stocks). Sticky/hot inflation keeps the Fed hawkish (headwind).' },
+      { label: 'Liquidity & Credit', text: 'Tracks Fed Net Liquidity (money flowing through the financial system) and High-Yield Credit Spreads (corporate stress). More liquidity + tight spreads = healthy risk-on tape.' },
+      { label: 'Volatility & Risk', text: 'Combines VIX level, VIX term structure (calm vs panic), and Mag 7 tech breadth to flag whether the tape is clean or defensive.' },
+      { label: 'Trend & Seasonality', text: 'Combines current price trend with how this market has historically performed in the current calendar month over the last 10 years.' },
+    ],
+  },
+  {
+    id: 'playbook',
+    title: 'Intraday Playbook & Mag 7 Breadth',
+    badge: 'EXECUTION',
+    intro: 'Your intraday risk filter right before placing trades:',
+    items: [
+      { label: 'Implied NQ Daily Move', text: 'Calculated as VIX ÷ √252. Tells you the expected 1-standard-deviation daily range in points so you calibrate stops and targets realistically.' },
+      { label: 'Active Sizing Rules', text: 'Lists the exact warnings triggering Micro Only or Stand Down — such as VIX above 22, a sharp 3-day VIX spike, or VIX backwardation (short-term panic higher than 3-month fear).' },
+      { label: 'Mag 7 + Semis (SMH)', text: 'NVDA, AAPL, MSFT, AMZN, META, GOOGL, and TSLA make up ~45% of NQ. When almost all 7 are green or red together, trade with that momentum rather than fading it.' },
+    ],
+  },
+  {
+    id: 'positioning',
+    title: 'Positioning & Liquidity Tab',
+    badge: 'BIG PICTURE',
+    intro: 'Swing-level context for multi-day direction:',
+    items: [
+      { label: 'COT Institutional Board', text: 'Green vs red bar shows institutional Long vs Short split. "WoW" is how many contracts funds added or cut this week. "Crowded Long / Short" warns when positioning is at a 52-week extreme (watch for reversals).' },
+      { label: '10-Year Seasonality', text: 'Shows what % of the last 10 years this month closed green and the average monthly return — a helpful tailwind, never a standalone entry signal.' },
+      { label: 'Macro Liquidity & Addons', text: 'Fed Net Liquidity (WALCL − TGA − RRP), HY Credit Spreads, Fear & Greed sentiment, 10Y Inflation Breakeven, and VIX/VIX3M ratio (under 1.0 = calm contango; over 1.0 = headline stress).' },
+    ],
+  },
+  {
+    id: 'calendar',
+    title: 'Catalyst Calendar Tab',
+    badge: 'NEWS RISK',
+    intro: 'Scheduled US economic releases that cause instant spikes:',
+    items: [
+      { label: 'RED Badge & Countdown', text: 'Tier-1 market movers (CPI, PCE, NFP Jobs, FOMC, GDP). Avoid holding tight stops right into a live countdown.' },
+      { label: 'Act vs Est (Beat / Miss)', text: 'Once released, compares the Actual number to the Wall Street Estimate so you immediately know if it was a surprise.' },
+      { label: 'NQ Tailwind / Headwind', text: 'Translates the news release into plain NQ direction — e.g. cooler inflation = NQ Tailwind; hotter inflation = NQ Headwind.' },
+    ],
+  },
+];
+
+function MatrixGuideModal({ onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="mx-guide-backdrop" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="mx-guide-modal" role="dialog" aria-modal="true" aria-labelledby="mx-guide-title">
+        <header className="mx-guide-header">
+          <div>
+            <span className="mx-decision-label">THE MATRIX · PLAIN-ENGLISH GUIDE</span>
+            <h2 id="mx-guide-title" className="tw:text-lg tw:font-semibold">Get started with The Matrix</h2>
+            <p className="tw:text-xs mx-muted">Everything on this page explained simply — no Wall Street jargon.</p>
+          </div>
+          <button type="button" className="mx-btn" onClick={onClose} aria-label="Close guide">
+            <X size={15} aria-hidden="true" /> Close
+          </button>
+        </header>
+        <div className="mx-guide-body">
+          {GUIDE_SECTIONS.map((sec) => (
+            <section key={sec.id} className="mx-guide-section">
+              <div className="mx-guide-sec-head">
+                <h3>{sec.title}</h3>
+                <span className="mx-badge tw:text-[10px]">{sec.badge}</span>
+              </div>
+              <p className="tw:text-xs mx-muted">{sec.intro}</p>
+              <dl className="mx-guide-list">
+                {sec.items.map((item) => (
+                  <div key={item.label} className="mx-subcard mx-guide-item">
+                    <dt>{item.label}</dt>
+                    <dd>{item.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+        <footer className="mx-guide-footer">
+          <span className="tw:text-xs mx-muted">Tip: You can re-open this guide anytime from the top right of The Matrix.</span>
+          <button type="button" className="mx-btn is-primary" onClick={onClose}>Got it, let’s trade</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 export default function MatrixPage() {
   const bullpen = useBullpen();
   const [snapshot, setSnapshot] = useState(null);
@@ -262,6 +384,7 @@ export default function MatrixPage() {
   const [calFilter, setCalFilter] = useState('week'); // 'today' | 'week' | 'all'
   const [briefState, setBriefState] = useState(''); // '' | 'sent' | 'copied'
   const [journalState, setJournalState] = useState(''); // '' | 'saving' | 'saved' | 'error'
+  const [showGuide, setShowGuide] = useState(false);
 
   useEffect(() => {
     document.title = 'The Matrix — PrimusTrader';
@@ -470,6 +593,9 @@ export default function MatrixPage() {
                   <Clock3 size={13} aria-hidden="true" />{dateFormat.format(asOf)} ET
                 </time>
               )}
+              <button type="button" className="mx-btn" onClick={() => setShowGuide(true)}>
+                <BookOpen size={13} aria-hidden="true" /> Get started
+              </button>
               {data && (
                 <button type="button" className="mx-btn" onClick={sendPreMarketBrief}>
                   {briefState === 'sent' || briefState === 'copied' ? <Check size={13} /> : bullpen?.inCall ? <Send size={13} /> : <Copy size={13} />}
@@ -1059,6 +1185,7 @@ export default function MatrixPage() {
           )}
         </div>
       </main>
+      {showGuide && <MatrixGuideModal onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

@@ -54,6 +54,12 @@ test('Matrix explains snapshot age, retains data after failed refresh and switch
  await expect(page.getByText('Snapshot older than 48 hours',{exact:true})).toBeVisible();
  await expect(page.getByLabel('Data freshness')).toContainText('Check freshness before using this snapshot.');
  await expect(page.getByRole('region',{name:'Morning decision summary'})).toBeVisible();
+ await page.getByRole('button',{name:'Get started',exact:true}).click();
+ const guide=page.getByRole('dialog',{name:'Get started with The Matrix'});
+ await expect(guide).toBeVisible();
+ await expect(guide).toContainText('Your 15-Second Morning Routine');
+ await guide.getByRole('button',{name:'Close guide',exact:true}).click();
+ await expect(guide).toHaveCount(0);
  await page.getByRole('tab',{name:/Positioning & Liquidity/}).click();
  await expect(page.getByRole('heading',{name:'COT Institutional Positioning'})).toBeVisible();
  await page.getByRole('tab',{name:/Catalyst Calendar/}).click();
