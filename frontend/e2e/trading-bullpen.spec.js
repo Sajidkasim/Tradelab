@@ -113,3 +113,75 @@ test(`private Bullpen works with ${desktopMode?'desktop-site tablet':'Android'} 
   await expect(page.getByRole('navigation',{name:'Primus navigation'}).getByText('LIVE')).toHaveCount(0);
 });
 }
+
+test('Trading Floor Audio & Mic Settings popover switches devices, adjusts input gain, and persists filters', async ({page}) => {
+  const token = 'e30.eyJleHAiOjQxMDI0NDQ4MDB9.fake';
+  await page.route('**/api/session', route => route.fulfill({json: {
+    authenticated: true, auth_mode: 'google', csrf: 'test-csrf',
+  }}));
+  await page.route('**/api/bullpen**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/macro-feed')) return route.fulfill({json: {items: [], stale: false}});
+    if (path.endsWith('/sfu/sessions')) return route.fulfill({json: {sessionId: 'sfu-test-1', sessionDescription: {type: 'answer', sdp: 'v=0\r\n'}}});
+    const join = new URL(route.request().url()).searchParams.has('join');
+    return route.fulfill({json: {
+      name: 'Sajid', configured: true, provider: 'cloudflare', topic: 'primus:bullpen:v1',
+      url: 'https://primus-test.supabase.co', publishableKey: 'test-key', token,
+      ...(join ? {meeting: {provider: 'cloudflare', iceServers: [{urls: 'stun:stun.cloudflare.com:3478'}], turnEnabled: true}} : {}),
+    }});
+  });
+  await page.routeWebSocket(/primus-test\.supabase\.co/, socket => {
+    socket.onMessage(message => {
+      if (Buffer.isBuffer(message)) return;
+      const packet = JSON.parse(message);
+      const array = Array.isArray(packet);
+      const [joinRef, ref, topic, event, payload] = array ? packet : [packet.join_ref, packet.ref, packet.topic, packet.event, packet.payload];
+      const reply = (kind, data, responseRef = null) => socket.send(JSON.stringify(array ?
+        [joinRef, responseRef, topic, kind, data] : {join_ref: joinRef, ref: responseRef, topic, event: kind, payload: data}));
+      if (ref) reply('phx_reply', {status: 'ok', response: {}}, ref);
+      if (event === 'presence') reply('presence_state', payload.event === 'track' ? {member: {metas: [{phx_ref: 'member', name: 'Sajid'}]}} : {});
+    });
+  });
+  await page.addInitScript(() => {
+    window.RTCPeerConnection = class {
+      addTransceiver() { return { mid: '0', sender: { replaceTrack: async () => {} } }; }
+      async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
+      async setLocalDescription() {}
+      async setRemoteDescription() {}
+      close() {}
+    };
+    window.RTCSessionDescription = class { constructor(d) { Object.assign(this, d); } };
+    if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { value: {}, configurable: true });
+    navigator.mediaDevices.enumerateDevices = async () => [
+      { kind: 'audioinput', deviceId: 'mic-usb', label: 'Shure MV7 USB Mic' },
+      { kind: 'audiooutput', deviceId: 'spk-lg', label: 'LG 43" Display Audio' },
+    ];
+    navigator.mediaDevices.addEventListener = () => {};
+    navigator.mediaDevices.removeEventListener = () => {};
+  });
+
+  await page.goto('http://127.0.0.1:8119/learn');
+  await page.getByRole('button', {name: 'Join Live Trading Floor'}).click();
+  const settingsBtn = page.getByRole('button', {name: 'Audio & mic settings', exact: true});
+  await expect(settingsBtn).toBeVisible();
+  await settingsBtn.click();
+
+  const dialog = page.getByRole('dialog', {name: 'Audio & mic settings', exact: true});
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Input microphone', {exact: true}).selectOption('mic-usb');
+  const gain = dialog.getByLabel('Microphone input volume', {exact: true});
+  await gain.fill('140');
+  await expect(dialog).toContainText('140%');
+  const autoGain = dialog.getByRole('button', {name: 'Auto Gain', exact: true});
+  await expect(autoGain).toHaveAttribute('aria-pressed', 'true');
+  await autoGain.click();
+  await expect(autoGain).toHaveAttribute('aria-pressed', 'false');
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('primus_floor_audio_v1') || '{}'));
+  expect(saved.inputId).toBe('mic-usb');
+  expect(saved.inputGain).toBeCloseTo(1.4);
+  expect(saved.autoGainControl).toBe(false);
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
