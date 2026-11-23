@@ -37,8 +37,8 @@ test('Journal, Mindset and Backtesting share light and dark workspace colours', 
   await page.setViewportSize({width:390,height:844});
   await page.goto(origin+'/mindset');
   for (const [theme, pageColor, ink] of [
-    ['light','rgb(244, 243, 235)','rgb(23, 39, 31)'],
-    ['dark','rgb(32, 34, 37)','rgb(243, 241, 235)'],
+    ['light','rgb(247, 247, 242)','rgb(16, 21, 19)'],
+    ['dark','rgb(12, 15, 14)','rgb(241, 243, 239)'],
   ]) {
     await page.evaluate((mode) => localStorage.setItem('primus-theme',mode), theme);
     for (const [path, selector] of [

@@ -172,7 +172,7 @@ test('Lab uses the Primus loading logo and exposes its theme button on desktop a
 test('navigation order and Journal account management', async ({page}) => {
   await page.goto(origin + '/journal');
   const nav = page.getByRole('navigation', {name: 'Primus navigation'});
-  await expect(nav.getByRole('link')).toHaveText(['Journal', 'Strategy Lab', 'Mindset', 'Backtesting', 'Learn Beta', 'The Matrix']);
+  await expect(nav.getByRole('link')).toHaveText(['Journal', 'Strategy Lab', 'Mindset', 'Backtesting', 'Learn', 'The Matrix']);
   await expect(nav.getByRole('button', {name: /glossary/i})).toHaveCount(0);
   await page.locator('.pj-accounts > summary').click();
   await page.getByRole('button', {name: 'Add account', exact: true}).click();

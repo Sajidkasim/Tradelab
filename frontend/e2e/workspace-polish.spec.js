@@ -32,10 +32,15 @@ test('Journal rules save across reload and account controls have room',async({pa
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
-test('navigation keeps Beta badge on Learn while Backtesting and Matrix are graduated',async({page})=>{
- await page.goto(origin);
- for(const href of ['/backtesting','/matrix'])await expect(page.locator(`nav a[href="${href}"] .pt-beta-badge`)).toHaveCount(0);
- await expect(page.locator('nav a[href="/learn"] .pt-beta-badge')).toHaveText('Beta');
+test('all workspace modules are graduated with zero Beta badges in navigation',async({page})=>{
+ await page.goto(origin+'/learn');
+ await expect(page.locator('nav .pt-beta-badge')).toHaveCount(0);
+ await page.getByRole('button',{name:'Get started',exact:true}).click();
+ const tour=page.getByRole('dialog',{name:'Four core foundations'});
+ await expect(tour).toBeVisible();
+ await expect(tour).toContainText('1 of 4');
+ await tour.getByRole('button',{name:'Skip guide',exact:true}).click();
+ await expect(page.locator('dialog.learn-tour')).toHaveCount(0);
 });
 
 test('Journal delays Plotly until its results chart is approached',async({page})=>{

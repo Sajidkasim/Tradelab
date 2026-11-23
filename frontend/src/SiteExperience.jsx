@@ -7,7 +7,6 @@ import compass from '../../assets/primus-compass.png';
 import LearningTrail from './LearningTrail';
 import WorkspaceResume from './WorkspaceResume';
 import PrimusSignIn from './PrimusSignIn';
-import BetaBadge from './BetaBadge';
 import MatrixLoading from './MatrixLoading';
 import AuraCheckIn from './AuraCheckIn';
 import CommandPalette from './CommandPalette';
@@ -92,7 +91,9 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
         <hr className="pt-mobile-nav-divider" />
         <a href="/mindset" aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
         {(localSitePreview() || document.querySelector('meta[name="primus-replay-enabled"]')) && <a href="/backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
-        <a href="/learn" aria-current={active === 'learn' ? 'page' : undefined}>Learn <BetaBadge /> {Boolean(bullpen?.people.length) && <span className="bullpen-live">LIVE</span>}</a>
+        <a href="/learn" aria-current={active === 'learn' ? 'page' : undefined}>
+          Learn {Boolean(bullpen?.people.length) && <span className="bullpen-live"><span className="primus-live-dot" aria-hidden="true" /> LIVE · {bullpen.people.length}</span>}
+        </a>
         <a href="/matrix" aria-current={active === 'matrix' ? 'page' : undefined}>The Matrix</a>
         {member?.can_lock && <button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
       </nav>

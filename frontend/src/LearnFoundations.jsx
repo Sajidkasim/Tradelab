@@ -192,7 +192,7 @@ export default function LearnFoundations({ identity }) {
           future performance.
         </p>
       </section>
-      <section className="learn-glossary" aria-labelledby="glossary-title">
+      <section data-learn-tour="glossary" className="learn-glossary" aria-labelledby="glossary-title">
         <div className="wp-section-heading">
           <div>
             <span className="pt-overline">THE WORDS BEHIND THE CHART</span>
