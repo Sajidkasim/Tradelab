@@ -14,7 +14,7 @@
 .pt-header nav{display:flex;align-items:center;gap:36px;font-size:13px}
 .pt-header nav a{display:inline-flex;align-items:center;gap:5px;padding:8px 0;color:#c0c9bf;position:relative;white-space:nowrap}
 .pt-header nav a[aria-current=page]{color:var(--pt-lime)}
-.pt-header nav a[aria-current=page]:after{content:'';width:4px;height:4px;position:absolute;border-radius:50%;background:var(--pt-lime);bottom:-8px;left:calc(50% - 2px)}
+.pt-header nav a[aria-current=page]:after{content:'';height:2px;position:absolute;border-radius:99px;background:var(--pt-lime);bottom:0;left:0;right:0}
 .pt-header-action{justify-self:end;display:flex;align-items:center;gap:20px;border:1px solid #78908466;padding:11px 17px;border-radius:3px;font-size:12px}
 .pt-header a:hover{color:var(--pt-lime)}
 .pt-mobile-toggle{display:none}

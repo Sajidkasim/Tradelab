@@ -26,7 +26,6 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Close',exact:true}).click();
-    await page.getByRole('dialog',{name:'Close Lab settings?',exact:true}).getByRole('button',{name:'Close settings',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toHaveCount(0);
     if(width<521)await page.getByRole('button',{name:'Close navigation',exact:true}).click();
   }

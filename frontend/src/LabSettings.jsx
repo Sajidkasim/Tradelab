@@ -27,8 +27,22 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
     [error, setError] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
   const [archiveToDelete, setArchiveToDelete] = useState(null);
+  const isDirty = (
+    journalClock !== (meta.journal_preferences?.timezone || "America/New_York") ||
+    strategies !== meta.playbook.strategies.join("\n") ||
+    levels !== meta.playbook.levels.join("\n") ||
+    news !== meta.lab_settings.news.join("\n") ||
+    conditions !== meta.lab_settings.conditions.join("\n") ||
+    JSON.stringify(settings.sessions) !== JSON.stringify(meta.lab_settings.sessions) ||
+    settings.timezone !== meta.lab_settings.timezone ||
+    JSON.stringify(labels.confirmations) !== JSON.stringify(meta.lab_settings.confirmations) ||
+    JSON.stringify(labels.level_timeframes) !== JSON.stringify(meta.lab_settings.level_timeframes) ||
+    JSON.stringify(labels.entry_timeframes) !== JSON.stringify(meta.lab_settings.entry_timeframes)
+  );
   const requestClose = () => {
-    if (!busy) setConfirmClose(true);
+    if (busy) return;
+    if (isDirty) setConfirmClose(true);
+    else onClose();
   };
   async function deleteArchive() {
     setBusy(true);
@@ -63,7 +77,7 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
       <details className="disclosure">
         <summary>Archived {title} · {removed.length}</summary>
         <div className="stack">
-          <p>Restore a choice and save to bring it back, or delete it from this list. Saved trades keep their original labels.</p>
+          <p className="muted">Restore or remove from this archive. Saved trades keep their labels.</p>
           {removed.map((name) => (
             <div className="archive-row" key={name}>
               <span>{name}</span>
@@ -134,19 +148,17 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
           onChange={setTab}
         />
         {tab === "context" && <section className="lab-settings-card stack">
-          <h3>Timezone Settings</h3>
+          <h3>Timezone</h3>
           <Select label="Tester clock" value={journalClock} onChange={(e) => setJournalClock(e.target.value)} values={[{value:"America/New_York",label:"New York · EST / EDT"},{value:"Europe/London",label:"UK · GMT / BST"}]} />
-          <p className="muted">Used for trade entry, trade dates, graph times and From/To date filters. UK time follows GMT and BST automatically. Stored trade timestamps stay in UTC.</p>
-          <p className="muted">Session windows and the Day filter use the Session clock. CSV files use the export time zone in Import settings.</p>
+          <p className="muted">Display timezone for trade times, charts, and date filters. Stored timestamps stay in UTC.</p>
         </section>}
         {tab === "setup" && (
           <div className="lab-settings-card stack">
-            <div><h3>Strategies & key levels</h3><p className="muted">One name per line. Each choice becomes an import tag automatically and is shared with Explore and trade entry. Removing a name hides the choice; its saved trades are kept.</p></div>
+            <div><h3>Strategies &amp; key levels</h3><p className="muted">One per line. Shared across Explore, trade entry, and imports.</p></div>
             <div className="form-grid two">
-              <Field label="Strategies" hint="The setups you want available in your lab."><textarea rows={12} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
-              <Field label="Key levels" hint="The levels you use to classify your trades."><textarea rows={12} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
+              <Field label="Strategies"><textarea rows={8} value={strategies} onChange={(event) => setStrategies(event.target.value)} /></Field>
+              <Field label="Key levels"><textarea rows={8} value={levels} onChange={(event) => setLevels(event.target.value)} /></Field>
             </div>
-            <small className="muted">Changing a list keeps existing trade labels. Use Clean up tags when you want to merge or rename labels already saved on trades.</small>
           </div>
         )}
         {tab === "maintenance" && <>
@@ -164,8 +176,8 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
         {tab === "setup" && (
           <section className="lab-settings-card stack">
             <div>
-              <h3>Setup choices</h3>
-              <p className="muted">Press Enter to add a choice. Removed choices stay on saved trades.</p>
+              <h3>Confirmations &amp; timeframes</h3>
+              <p className="muted">Press Enter to add. Removed items stay on existing trades.</p>
             </div>
             <TagInput label="Confirmations / confluence" values={labels.confirmations}
               onChange={(values) => setLabels((current) => ({ ...current, confirmations: values }))} />
@@ -175,21 +187,13 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
               <TagInput label="Entry timeframes" values={labels.entry_timeframes}
                 onChange={(values) => setLabels((current) => ({ ...current, entry_timeframes: values }))} />
             </div>
-            <small className="muted">
-              Every saved choice is recognised on import automatically. If the same
-              timeframe is in both lists, use CSV tags such as Key level timeframe: 15m
-              and Entry timeframe: 15m. Missing labels can be left blank.
-            </small>
           </section>
         )}
         {tab === "context" && (
           <section className="lab-settings-card stack">
             <div>
               <h3>Session windows</h3>
-              <p className="muted">
-                Trades are grouped by entry time. Changing these windows
-                regroups the results without changing your saved trades.
-              </p>
+              <p className="muted">Groups trades by entry time without modifying saved records.</p>
             </div>
             <Select
               label="Session clock"
@@ -209,11 +213,6 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
                 },
               ]}
             />
-            <small className="muted">
-              New York uses UTC−4 in summer and UTC−5 in winter. Fixed UTC−4
-              stays the same all year. Overnight windows, such as 20:00–02:00,
-              continue into the next day.
-            </small>
             <div className="session-settings-list">
               {settings.sessions.map((session, index) => (
                 <div className="session-settings-row" key={index}>
@@ -281,35 +280,30 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
             >
               <Plus size={16} /> Add session
             </Button>
-            <small className="muted">
-              Start times are included; end times belong to the next window.
-              Times outside your windows remain included under All sessions.
-            </small>
           </section>
         )}
         {tab === "context" && (
           <section className="lab-settings-card stack">
-            <h3>News & market condition labels</h3>
+            <div>
+              <h3>News &amp; market conditions</h3>
+              <p className="muted">One per line. Removed labels remain on existing trades.</p>
+            </div>
             <div className="form-grid two">
-              <Field label="News labels" hint="One per line">
+              <Field label="News labels">
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={news}
                   onChange={(e) => setNews(e.target.value)}
                 />
               </Field>
-              <Field label="Market condition labels" hint="One per line">
+              <Field label="Market condition labels">
                 <textarea
-                  rows={5}
+                  rows={4}
                   value={conditions}
                   onChange={(e) => setConditions(e.target.value)}
                 />
               </Field>
             </div>
-            <p className="muted">
-              Removing a label from these lists keeps it on existing trades. Not
-              recorded is provided automatically for unlabelled trades.
-            </p>
           </section>
         )}
         {tab === "dynamic" && (

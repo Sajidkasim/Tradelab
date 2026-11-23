@@ -103,15 +103,43 @@
   .pt-lab .pt-header:has(.workspace-menu[open]){z-index:50}
 }
 :root[data-site-lab="true"][data-theme="dark"]{--tl-page:#202225;--tl-surface:#2a2d30;--tl-ink:#f3f1eb;--tl-ink2:#d0cfc8;--tl-muted:#b8b8b1;--tl-border:#45484b;--lab-canvas:#202225;--lab-tint:#363c35}
-/* Readable research controls and the same visible theme switch as other pages. */
+/* Readable, balanced Strategy Lab controls without crowding or clipping. */
 .pt-lab .pt-header-tools{display:flex;align-items:center;gap:12px}
-:root .pt-lab .lab-grid .explorer .field>span,
-:root .pt-lab .lab-grid .checks label,
-:root .pt-lab .lab-grid .explorer .segments button{font-size:14px}
-.pt-lab .lab-source-note,.pt-lab .history-footer,.pt-lab .history-hint,.pt-lab .lab-summary-label,.pt-lab .history-source{font-size:13px!important;line-height:1.65}
-.pt-lab .trade-table th{font-size:13px}.pt-lab .trade-table td small{font-size:12px;line-height:1.6}
-.pt-lab .lab-step{font-size:11px;letter-spacing:1.4px}
-.pt-lab .lab-grid .stat p,.pt-lab .lab-grid .stat small,.pt-lab .explorer small{font-size:13px;line-height:1.6}
+.pt-lab .pt-lab-page>.journal-intro{margin-bottom:22px}
+.pt-lab .pt-lab-page>.research-toolbar{margin-bottom:24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+:root .pt-lab .journal-intro h1{font-size:38px;margin-top:8px}
+.pt-lab .journal-intro p{margin-top:8px;color:var(--tl-ink2)}
+.pt-lab .lab-section-heading .section-heading{margin-bottom:12px}
+.pt-lab .lab-grid.exploring{grid-template-columns:292px minmax(0,1fr);gap:22px;align-items:start}
+:root .pt-lab .lab-grid .explorer{padding:18px 18px 20px;max-height:none;overflow:visible}
+:root .pt-lab .explorer .section-title{margin-bottom:12px}
+:root .pt-lab .explorer .section-title h2{font-size:18px;margin-top:0}
+:root .pt-lab .lab-grid .explorer>.field,
+:root .pt-lab .lab-grid .explorer>.form-grid,
+:root .pt-lab .lab-grid .explorer>.disclosure{margin-top:13px}
+:root .pt-lab .lab-grid .explorer .field{gap:6px}
+:root .pt-lab .lab-grid .explorer .field>span{font-size:12px;font-weight:600;letter-spacing:.01em;color:var(--tl-ink2)}
+:root .pt-lab .lab-grid .explorer .picker-trigger,
+:root .pt-lab .lab-grid .explorer .field select,
+:root .pt-lab .lab-grid .explorer .field input:not([type="checkbox"]):not([type="radio"]){font-size:13px;min-height:38px;padding:7px 34px 7px 11px;line-height:1.4}
+:root .pt-lab .lab-grid .explorer .field:has(>select)::after{bottom:15px;right:14px}
+:root .pt-lab .lab-grid .explorer .segments{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:3px;gap:2px}
+:root .pt-lab .lab-grid .explorer .segments button{font-size:12px;min-height:33px;padding:5px 6px;gap:4px;white-space:nowrap}
+:root .pt-lab .lab-grid .explorer .checks{gap:6px}
+:root .pt-lab .lab-grid .explorer .checks label{font-size:12px;min-height:32px;padding:5px 9px;gap:6px;border-radius:5px}
+:root .pt-lab .lab-grid .explorer .checks input[type="checkbox"]{width:14px;height:14px;flex:0 0 14px}
+:root .pt-lab .lab-grid .explorer .archive-toggle,
+:root .pt-lab .lab-grid .explorer .disclosure summary{font-size:12px;line-height:1.45}
+:root .pt-lab .lab-grid .explorer small{font-size:11.5px;line-height:1.5}
+.pt-lab .lab-source-note,.pt-lab .history-footer,.pt-lab .history-hint,.pt-lab .lab-summary-label,.pt-lab .history-source{font-size:12.5px!important;line-height:1.55}
+.pt-lab .trade-table th{font-size:12.5px}.pt-lab .trade-table td small{font-size:12px;line-height:1.55}
+.pt-lab .lab-step{font-size:10px;letter-spacing:1.4px}
+.pt-lab .lab-grid .stat{padding:18px 20px;gap:8px}
+.pt-lab .lab-grid .stat p,.pt-lab .lab-grid .stat small{font-size:12px;line-height:1.5}
+.pt-lab .lab-grid .chart-card h2{font-size:24px}
+.pt-lab .lab-grid .stats{margin-top:16px}
+.pt-lab .lab-settings-card h3{margin:0 0 4px;font-size:15px}
+.pt-lab .lab-settings-card p.muted{margin:0;font-size:12.5px;line-height:1.5}
 .pt-loading{background:var(--tl-page);color:var(--tl-ink);gap:18px;padding:30px;text-align:center}
 .pt-loading-logo{position:relative;width:116px;height:116px;border-radius:50%;background:#25272a;padding:13px;margin-bottom:8px}
 .pt-loading .pt-loading-logo img{width:100%;height:100%;object-fit:contain;mix-blend-mode:screen}
@@ -120,6 +148,8 @@
 .pt-loading p{font-size:16px;line-height:1.6;max-width:340px;margin:0;color:var(--tl-ink2)}
 @keyframes pt-loading-orbit{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.pt-loading-logo>span{animation:none}}
+@media(max-width:900px){.pt-lab .lab-grid.exploring{grid-template-columns:264px minmax(0,1fr);gap:16px}}
+@media(max-width:700px){.pt-lab .lab-grid.exploring{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:520px){
 .pt-lab .pt-header{grid-template-columns:minmax(0,1fr) auto auto;gap:10px}
 .pt-lab .pt-header>.pt-mobile-toggle{grid-column:3;grid-row:1}

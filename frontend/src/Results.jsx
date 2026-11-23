@@ -172,7 +172,6 @@ export default function Results({
     <>
       <div className="lab-section-heading">
         <div>
-          <span className="eyebrow">Your research space</span>
           <h2 className="section-heading">Results</h2>
         </div>
       </div>
@@ -187,19 +186,11 @@ export default function Results({
           onChange={setScope}
           label="Data source"
         />
-        <p className="lab-source-note">
-          {scope === "All"
-            ? "Combined history · backtesting + live trades"
-            : scope === "Backtesting"
-              ? "Practice and replay trades"
-              : "Your actual trading results"}
-        </p>
       </div>
       <div className="results-grid exploring lab-grid">
         <aside className="explorer card">
           <div className="section-title">
             <div>
-              <span className="lab-step">01 / EXPLORE</span>
               <h2>Explore a strategy</h2>
             </div>
             <button
@@ -480,8 +471,7 @@ function ResultSample({
       <div className="card chart-card history-card">
         <div className="section-title" data-tour="results">
           <div>
-            <span className="lab-step">02 / OBSERVE</span>
-            <h2>Your trading history</h2>
+            <h2>Trading history</h2>
             <p>Closed trades · {clockName} time</p>
           </div>
         </div>
@@ -514,7 +504,7 @@ function ResultSample({
           </>
         ) : (
           <Empty
-            title={busy && !data ? "Loading your results" : "No trades yet"}
+            title={busy && !data ? "Loading results" : "No trades yet"}
             action={
               !busy && (
                 <Button onClick={onTrades} variant="primary">
@@ -524,14 +514,10 @@ function ResultSample({
             }
           >
             {busy && !data
-              ? "Opening your private sample…"
-              : "Add or import trades to see your results."}
+              ? "Opening your sample…"
+              : "Add or import trades to see your equity curve and stats."}
           </Empty>
         )}
-      </div>
-      <div className="lab-summary-label">
-        <span className="lab-step">03 / UNDERSTAND</span>
-        <span>Results for your selection</span>
       </div>
       <div className={`stats card ${busy ? "updating" : ""}`}>
         <Stat
@@ -539,8 +525,8 @@ function ResultSample({
           value={s ? percent(s.win_rate) : "—"}
           caption={
             s?.small_sample
-              ? "Small sample · fewer than 30 trades"
-              : "Break-even trades excluded"
+              ? "Small sample (< 30)"
+              : "Excludes break-even"
           }
         />
         <Stat
@@ -548,10 +534,10 @@ function ResultSample({
           value={s ? rvalue(useFixed ? model.avg_r : s.avg_r) : "—"}
           caption={
             useFixed ? (
-              `${model.count} tagged backtests · before costs`
+              `${model.count} tagged · before costs`
             ) : s ? (
               <>
-                {`R recorded on ${data.r_count} of ${s.trades} trades`}
+                {`${data.r_count}/${s.trades} trades with R`}
                 {data.r_count < s.trades && (
                   <button
                     className="inline-action risk-review-link"
@@ -562,14 +548,14 @@ function ResultSample({
                 )}
               </>
             ) : (
-              "Realised return on risk"
+              "Return on risk"
             )
           }
         />
         <Stat
           label="Trades analysed"
           value={s ? number(s.trades) : "—"}
-          caption="Matching closed trades"
+          caption="Closed trades"
         />
       </div>
       <details className="r-explainer">

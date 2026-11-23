@@ -193,11 +193,10 @@ export default function JournalAccounts({ accounts, setAccounts }) {
               <div className="pj-account-meta">
                 <div className="pj-account-title">
                   <strong>{account.name}</strong>
-                  <span className={`pj-acct-type type-${(account.account_type || 'Personal').toLowerCase()}`}>{account.account_type}</span>
                   {account.firm && <span className="pj-acct-firm">{account.firm}</span>}
                 </div>
                 <small>
-                  {size.format(account.starting_balance)}
+                  {size.format(account.starting_balance)} · {account.account_type}
                   {Number(account.fee_paid || 0) > 0 && ` · Fee ${size.format(account.fee_paid)}`}
                   {Number(account.payouts_total || 0) > 0 && ` · Payouts ${size.format(account.payouts_total)}`}
                   {account.closed_at && ` · ${st === 'passed' ? 'Passed' : 'Blown'} ${account.closed_at}`}

@@ -40,7 +40,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     <button className="pt-mobile-toggle" aria-label={open?'Close navigation':'Open navigation'} aria-expanded={open} onClick={()=>setOpen(!open)}>{open?<X/>:<MenuIcon/>}</button>
     <nav onClick={event=>{if(event.target.closest('a'))setOpen(false)}} onKeyDown={event=>{if(event.key==='Escape'){setOpen(false);event.currentTarget.previousElementSibling?.focus()}}} className={open?'is-open':''} aria-label="Primus navigation">
       <a className="pt-nav-primary" href="/journal" aria-current={active==='journal'?'page':undefined}>Journal</a>
-      <a className="pt-nav-primary" href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab <ArrowUpRight size={14}/></a>
+      <a className="pt-nav-primary" href="/lab" aria-current={active==='lab'?'page':undefined}>Strategy Lab</a>
       <hr className="pt-mobile-nav-divider" />
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting</a>}

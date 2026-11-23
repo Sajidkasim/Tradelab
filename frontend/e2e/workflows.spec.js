@@ -1363,7 +1363,7 @@ test("Lab setup labels edit confirmations and separate timeframes without rewrit
     .getByRole("button", { name: "Setup Labels", exact: true })
     .click();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: "Close settings", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   // Log a disposable trade using the new choices, then hide them in settings.
   await page.getByRole("button", { name: "Add trade", exact: true }).click();

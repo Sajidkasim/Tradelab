@@ -79,7 +79,7 @@ test("tag inputs and dynamic trade fields update Strategy Lab without reloading"
     expect(field.options).toEqual(["Present", "Absent"]);
     await expect(dialog.getByText("Browser indicator", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
-    await page.getByRole("button", { name: "Close settings", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
 
     await expect(page.getByRole("combobox", { name: "Browser indicator", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Go to trades", exact: true }).click();

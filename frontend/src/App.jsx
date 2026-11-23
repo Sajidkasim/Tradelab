@@ -293,6 +293,13 @@ export default function App() {
                 </div>
                 <div className="research-toolbar">
                   <Button
+                    type="button"
+                    className="lab-settings-shortcut"
+                    onClick={() => setLabSettings(true)}
+                  >
+                    <Settings2 size={15} aria-hidden="true" /> Settings
+                  </Button>
+                  <Button
                     variant="primary"
                     className="jump-to-trades"
                     onClick={() => navigate("trades")}
