@@ -342,6 +342,89 @@ def aura_check_in(data, context):
         raise HTTPException(502, 'Primax couldn’t generate a reply. Try again shortly.') from None
 
 
+def morning_brief(summary: dict) -> dict:
+    """Generate a crisp 3-bullet personalized Pre-Market Brief via Cloudflare Workers AI (with deterministic fallback)."""
+    load_dotenv()
+
+    def fallback() -> dict:
+        energy = summary.get('energy') or 'unspecified'
+        headspace = summary.get('headspace') or 'unspecified'
+        recent = summary.get('recent_entries') or []
+        recalled = summary.get('recalled_memories') or []
+        bullets = []
+        if headspace in ('emotional', 'distracted') or energy == 'fumes':
+            bullets.append(
+                f"Elevated tilt risk ({headspace} / {energy}): cut size in half or wait 15 minutes after NY open before clicking."
+            )
+        else:
+            bullets.append(
+                "Protect your first hour: wait for your exact HTF level and entry confirmation before taking trade one."
+            )
+        broken = [e for e in recent if e.get('plan_followed') in ('No', 'Partly')]
+        if broken:
+            last_note = broken[0].get('lesson') or broken[0].get('notes') or 'broke plan rules'
+            bullets.append(f"Recent leak ({broken[0]['day']}): {last_note[:140]}")
+        elif recent and (recent[0].get('lesson') or recent[0].get('plan')):
+            bullets.append(f"Carry forward from {recent[0]['day']}: {(recent[0].get('lesson') or recent[0].get('plan'))[:140]}")
+        else:
+            bullets.append("Log your pre-market plan in Journal before the bell so you have a clear benchmark to grade against.")
+        if recalled:
+            bullets.append(f"Memory check ({recalled[0]['day']} · {recalled[0].get('mindset') or 'past session'}): {recalled[0].get('preview', '')[:130]}")
+        elif summary.get('affirmation'):
+            bullets.append(f"Session rule locked in: \"{summary['affirmation']}\"")
+        else:
+            bullets.append("Hard stop: step away for a 60-second reset after any two consecutive losses.")
+        return {
+            'headline': 'Pre-Market Mental Game Plan',
+            'bullets': bullets[:3],
+            'source': 'local',
+        }
+
+    system = (
+        'You are Primax, a sharp discretionary futures trading psychology coach. '
+        'Given the trader’s morning readiness (energy, headspace, optional voice note), recent Journal lessons, '
+        'and any recalled past sessions in a similar state, return ONLY valid JSON: '
+        '{"headline": string (max 60 chars), "bullets": [string, string, string]} '
+        'where each bullet is a punchy, concrete, actionable pre-market focus point (max 150 chars each) grounded ONLY in the data provided. '
+        'Never invent market predictions, prices, or trades. Warm, direct, zero fluff.'
+    )
+    prompt = json.dumps(summary, ensure_ascii=False)
+    try:
+        if os.getenv('COACH_PROVIDER', 'cloudflare').strip().lower() != 'gemini':
+            raw = _cloudflare_chat(
+                [{'role': 'system', 'content': system}, {'role': 'user', 'content': prompt}],
+                max_tokens=320,
+                retry_empty=True,
+            ).strip()
+        else:
+            key = os.getenv('COACH_API_KEY')
+            model = os.getenv('COACH_GEMINI_MODEL', 'gemini-2.5-flash').removeprefix('models/')
+            if not key or not re.fullmatch(r'[a-zA-Z0-9_.-]+', model):
+                return fallback()
+            response = requests.post(
+                f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
+                headers={'x-goog-api-key': key}, timeout=(4, 15), allow_redirects=False,
+                json={
+                    'systemInstruction': {'parts': [{'text': system}]},
+                    'contents': [{'parts': [{'text': prompt}]}],
+                    'generationConfig': {'responseMimeType': 'application/json', 'maxOutputTokens': 320},
+                },
+            )
+            response.raise_for_status()
+            parts = response.json()['candidates'][0]['content']['parts']
+            raw = ''.join(part.get('text', '') for part in parts if not part.get('thought')).strip()
+        if raw.startswith('```'):
+            raw = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw).strip()
+        parsed = json.loads(raw)
+        bullets = [str(b).strip()[:200] for b in (parsed.get('bullets') or []) if str(b).strip()][:3]
+        headline = str(parsed.get('headline') or 'Pre-Market Mental Game Plan').strip()[:80]
+        if not bullets:
+            return fallback()
+        return {'headline': headline, 'bullets': bullets, 'source': 'ai'}
+    except Exception:
+        return fallback()
+
+
 def aura_coach(briefing_data, model=None, system=None, user=None):
     """Accept a Journal briefing or the registry's documented four arguments."""
     brief = user if user is not None else briefing_data

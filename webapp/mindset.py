@@ -487,3 +487,125 @@ def mount(app, config, workspace):
                 return {'day': day, 'leader': None}
             name, score = min(scores.items(), key=lambda item: (-item[1], item[0]))
             return {'day': day, 'leader': {'name': name, 'score': score, 'max_score': 60}}
+
+    @app.get('/api/mindset/mirror')
+    def mindset_mirror(member=Depends(workspace)):
+        """Compare real Journal P&L and plan adherence on prepped vs. unprepped days."""
+        with workspaces().workspace_lock(member['key']):
+            db = database(member)
+            journal_rows = daily_journal.entries(db)
+            prep_rows = db.settings_with_prefix(PREP)
+
+        prepped_days = set()
+        for key, val in prep_rows.items():
+            if not isinstance(val, dict):
+                continue
+            d = key[len(PREP):]
+            if val.get('completed') is True or len(val.get('checklist') or []) > 0:
+                prepped_days.add(d)
+
+        def bucket():
+            return {'days': 0, 'pnl_days': 0, 'wins': 0, 'net_pnl': 0.0, 'plan_tagged': 0, 'plan_yes': 0}
+
+        prepped = bucket()
+        unprepped = bucket()
+        calm = {'days': 0, 'net_pnl': 0.0}
+        tilted = {'days': 0, 'net_pnl': 0.0}
+
+        for row in journal_rows:
+            day_key = row.get('day')
+            if not day_key:
+                continue
+            target = prepped if day_key in prepped_days else unprepped
+            target['days'] += 1
+            pf = row.get('plan_followed')
+            if pf in ('Yes', 'Partly', 'No'):
+                target['plan_tagged'] += 1
+                if pf == 'Yes':
+                    target['plan_yes'] += 1
+            pnl = (row.get('day_result') or {}).get('net_pnl')
+            if pnl is not None:
+                val = float(pnl)
+                target['pnl_days'] += 1
+                if val > 0:
+                    target['wins'] += 1
+                target['net_pnl'] = round(target['net_pnl'] + val, 2)
+                ms = row.get('mindset')
+                if ms in ('Focused', 'Patient'):
+                    calm['days'] += 1
+                    calm['net_pnl'] = round(calm['net_pnl'] + val, 2)
+                elif ms in ('Distracted', 'Frustrated'):
+                    tilted['days'] += 1
+                    tilted['net_pnl'] = round(tilted['net_pnl'] + val, 2)
+
+        def summarize(b):
+            return {
+                'days': b['days'],
+                'pnl_days': b['pnl_days'],
+                'net_pnl': b['net_pnl'],
+                'win_pct': round((b['wins'] / b['pnl_days']) * 100) if b['pnl_days'] else None,
+                'plan_pct': round((b['plan_yes'] / b['plan_tagged']) * 100) if b['plan_tagged'] else None,
+            }
+
+        return {
+            'total_journal_days': len(journal_rows),
+            'prepped': summarize(prepped),
+            'unprepped': summarize(unprepped),
+            'calm': calm,
+            'tilted': tilted,
+        }
+
+    class MorningBriefInput(StrictModel):
+        note: str = Field(default='', max_length=600)
+
+    @app.post('/api/mindset/morning-brief')
+    def generate_morning_brief(payload: MorningBriefInput, member=Depends(workspace)):
+        from extensions.ai_coach import morning_brief
+        from . import primax_memory
+
+        day, _ = day_window(now_utc())
+        with workspaces().workspace_lock(member['key']):
+            db = database(member)
+            today_prep = prep(db, day)
+            recent_rows = daily_journal.entries(db)[:5]
+            query_bits = [
+                today_prep.get('headspace') or '',
+                today_prep.get('energy') or '',
+                payload.note.strip(),
+                today_prep.get('affirmation') or '',
+            ]
+            query = ' '.join(b for b in query_bits if b).strip()
+            recalled = primax_memory.recall(db, query, exclude_day=day, limit=3) if query else []
+
+        recent_entries = [
+            {
+                'day': r['day'],
+                'mindset': r.get('mindset') or 'Not set',
+                'plan_followed': r.get('plan_followed'),
+                'net_pnl': (r.get('day_result') or {}).get('net_pnl'),
+                'lesson': (r.get('lesson') or '')[:220],
+                'notes': (r.get('notes') or '')[:180],
+                'plan': (r.get('plan') or '')[:140],
+            }
+            for r in recent_rows
+        ]
+        summary = {
+            'day': day,
+            'energy': today_prep.get('energy') or '',
+            'headspace': today_prep.get('headspace') or '',
+            'affirmation': today_prep.get('affirmation') or '',
+            'voice_or_text_note': payload.note.strip(),
+            'recent_entries': recent_entries,
+            'recalled_memories': [
+                {'day': m['day'], 'mindset': m.get('mindset', ''), 'preview': m.get('preview', '')}
+                for m in recalled
+            ],
+        }
+        brief = morning_brief(summary)
+        return {
+            **brief,
+            'recalled': [
+                {'day': m['day'], 'mindset': m.get('mindset', ''), 'preview': m.get('preview', '')}
+                for m in recalled
+            ],
+        }

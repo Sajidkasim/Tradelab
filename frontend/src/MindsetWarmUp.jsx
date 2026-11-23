@@ -1,9 +1,12 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {Volume2, VolumeX} from 'lucide-react';
 import {Button, Modal, Notice, Segments} from './components';
 import {api} from './api';
 import AffirmationPicker, {affirmations} from './MindsetAffirmations';
+import {playBreathCue} from './mindsetAudio';
 
 const BREATH_MS = 120000;
+const TILT_RESET_MS = 60000;
 const STEPS = ['Breathwork', 'Focus Games', 'Affirmation'];
 function clock(ms) {
   const seconds = Math.ceil(ms / 1000);
@@ -52,18 +55,23 @@ const RHYTHMS = [
   },
 ];
 
-function Breathwork({onNext}) {
-  const [rhythm, setRhythm] = useState(0);
+function Breathwork({onNext, tiltReset = false, onClose}) {
+  const durationMs = tiltReset ? TILT_RESET_MS : BREATH_MS;
+  const [rhythm, setRhythm] = useState(tiltReset ? 2 : 0);
+  const [soundOn, setSoundOn] = useState(false);
   const [creditError, setCreditError] = useState("");
   const [creditPending, setCreditPending] = useState(false);
   const breathAttempt = useRef(null);
+  const lastCuePhase = useRef('');
   useEffect(() => {
+    if (tiltReset) return;
     const controller = new AbortController();
     breathAttempt.current = api("/mindset/breathwork/start", { method: "POST", signal: controller.signal })
       .then((response) => response.attempt).catch(() => null);
     return () => controller.abort();
-  }, []);
+  }, [tiltReset]);
   async function proceed() {
+    if (tiltReset) { onClose?.(); return; }
     if (!finished || creditError) { onNext(); return; }
     setCreditPending(true);
     try {
@@ -77,13 +85,13 @@ function Breathwork({onNext}) {
       setCreditPending(false);
     }
   }
-  const [deadline, setDeadline] = useState(() => Date.now() + BREATH_MS);
-  const remaining = Math.min(BREATH_MS, useCountdown(deadline) ?? BREATH_MS);
+  const [deadline, setDeadline] = useState(() => Date.now() + durationMs);
+  const remaining = Math.min(durationMs, useCountdown(deadline) ?? durationMs);
   const [paused, setPaused] = useState(null);
   const left = paused ?? remaining;
   const finished = left === 0;
   const {phases, use, name} = RHYTHMS[rhythm];
-  let elapsed = ((BREATH_MS - left) / 1000) % phases.reduce((total, phase) => total + phase[1], 0);
+  let elapsed = ((durationMs - left) / 1000) % phases.reduce((total, phase) => total + phase[1], 0);
   const active = phases.find(([, seconds]) => {
     if (elapsed < seconds) return true;
     elapsed -= seconds;
@@ -93,13 +101,34 @@ function Breathwork({onNext}) {
   const progress = Math.min(1, elapsed / seconds);
   const ease = progress * progress * (3 - 2 * progress);
   const level = finished ? .44 : from + (to - from) * ease;
+  const cuePhase = finished ? 'Complete' : paused != null ? '' : phase;
+
+  useEffect(() => {
+    if (!soundOn || !cuePhase) return;
+    if (lastCuePhase.current !== cuePhase) {
+      lastCuePhase.current = cuePhase;
+      playBreathCue(cuePhase);
+    }
+  }, [soundOn, cuePhase]);
+
   return <section className="mw-step">
-    <h3>Breathwork</h3>
-    <label className="mw-rhythm">Breathing technique
-      <select aria-describedby="mw-breath-purpose" value={rhythm} onChange={e => {
-        setRhythm(Number(e.target.value)); setPaused(null); setDeadline(Date.now() + BREATH_MS);
-      }}>{RHYTHMS.map(({name}, index) => <option key={name} value={index}>{name}</option>)}</select>
-    </label>
+    <h3>{tiltReset ? '60-Second Tilt Reset' : 'Breathwork'}</h3>
+    <div className="mw-breath-toolbar">
+      <label className="mw-rhythm">Breathing technique
+        <select aria-describedby="mw-breath-purpose" value={rhythm} onChange={e => {
+          setRhythm(Number(e.target.value)); setPaused(null); setDeadline(Date.now() + durationMs);
+        }}>{RHYTHMS.map(({name}, index) => <option key={name} value={index}>{name}</option>)}</select>
+      </label>
+      <button type="button" className={`mw-sound-toggle ${soundOn ? 'is-on' : ''}`} aria-pressed={soundOn}
+        onClick={() => {
+          const next = !soundOn;
+          setSoundOn(next);
+          if (next) { lastCuePhase.current = cuePhase; playBreathCue(phase); }
+        }}>
+        {soundOn ? <Volume2 size={15}/> : <VolumeX size={15}/>}
+        <span>{soundOn ? 'Chimes on' : 'Audio chimes'}</span>
+      </button>
+    </div>
     <div className="mw-breath-guide">
       <strong>{name}</strong>
       <p id="mw-breath-purpose">{use}</p>
@@ -119,7 +148,13 @@ function Breathwork({onNext}) {
         if (paused == null) {setPaused(left); setDeadline(null);}
         else {setDeadline(Date.now() + paused); setPaused(null);}
       }}>{paused == null ? 'Pause' : 'Resume'}</Button>}
-      <Button variant="primary" busy={creditPending} onClick={proceed}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
+      {tiltReset ? (
+        <Button variant="primary" onClick={() => onClose?.()}>
+          {finished ? 'Reset complete — back to desk' : 'Done early'}
+        </Button>
+      ) : (
+        <Button variant="primary" busy={creditPending} onClick={proceed}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
+      )}
     </div>
     {creditError && <Notice error>{creditError}</Notice>}
   </section>;
@@ -264,8 +299,8 @@ function FocusGames({day, onContinue, onSkip}) {
   </section>;
 }
 
-export default function MindsetWarmUp({day, initialStep=0, pinnedGoal, savedAffirmation, onClose, onScore, onComplete}) {
-  const [step, setStep] = useState(initialStep);
+export default function MindsetWarmUp({day, initialStep=0, tiltReset=false, pinnedGoal, savedAffirmation, onClose, onScore, onComplete}) {
+  const [step, setStep] = useState(tiltReset ? 0 : initialStep);
   const [attemptId, setAttemptId] = useState(null);
   const [confirmedScore, setConfirmedScore] = useState(null);
   const [affirmation, setAffirmation] = useState(affirmations.includes(savedAffirmation) ? savedAffirmation : affirmations[0]);
@@ -286,14 +321,14 @@ export default function MindsetWarmUp({day, initialStep=0, pinnedGoal, savedAffi
     }
   }
 
-  return <Modal title="Pre-Market Warm-Up" className="mw-modal" onClose={onClose}>
+  return <Modal title={tiltReset ? '60s Tilt Reset' : 'Pre-Market Warm-Up'} className="mw-modal" onClose={onClose}>
     {pinnedGoal && <aside className="mw-pinned-goal"><span>Your Anchor</span><strong>{pinnedGoal.title}</strong></aside>}
-    <ol className="mw-steps" aria-label="Warm-up steps">
+    {!tiltReset && <ol className="mw-steps" aria-label="Warm-up steps">
       {STEPS.map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}>
         <span>0{index + 1}</span> {label}
       </li>)}
-    </ol>
-    {step === 0&&<Breathwork onNext={() => setStep(1)}/>}
+    </ol>}
+    {step === 0&&<Breathwork tiltReset={tiltReset} onClose={onClose} onNext={() => setStep(1)}/>}
     {step === 1&&<FocusGames day={day} onSkip={() => setStep(2)} onContinue={(id, score) => {setAttemptId(id); setConfirmedScore(score); setStep(2); onScore();}}/>}
     {step === 2&&<section className="mw-step mw-affirmation">
       <h3>Affirmation &amp; Lock-In</h3>

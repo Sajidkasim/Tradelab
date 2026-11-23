@@ -322,3 +322,26 @@ test('Primax opens with a contextual prompt and quick replies on a dark surface'
   await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();
   await expect(dialog.getByRole('log')).toContainText('Take one setup at a time.');
 });
+
+test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits work cleanly', async ({page}) => {
+  await page.goto(`${origin}/mindset`);
+  await expect(page.getByRole('button', {name: /Start Warm-Up|Run Warm-Up again/})).toBeVisible();
+
+  // Selecting Emotional triggers the Tilt Guard banner and launches 60s Tilt Reset
+  await page.getByRole('group', {name: 'Current headspace'}).getByRole('button', {name: 'Emotional', exact: true}).click();
+  await expect(page.getByText(/Elevated tilt risk/)).toBeVisible();
+  await page.getByRole('button', {name: 'Run 60s Reset', exact: true}).click();
+  const resetDialog = page.getByRole('dialog', {name: '60s Tilt Reset'});
+  await expect(resetDialog.getByRole('heading', {name: '60-Second Tilt Reset'})).toBeVisible();
+  await resetDialog.getByRole('button', {name: 'Done early', exact: true}).click();
+  await expect(resetDialog).toHaveCount(0);
+
+  // Morning Primax Brief generates a 3-point plan
+  await page.getByLabel('Pre-market check-in note').fill('Need to stay patient for 9:45 NY open.');
+  await page.getByRole('button', {name: 'Generate brief', exact: true}).click();
+  await expect(page.locator('.mw-brief-result li')).toHaveCount(3);
+
+  // Mobile overflow check
+  await page.setViewportSize({width: 390, height: 844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

@@ -268,13 +268,44 @@ export default function CompoundEdge() {
       }
     });
   }
+  const pillars = data?.pillars ?? emptyScores;
   return <section aria-label="Aura" className="ce-widget">
-    <header className="ce-widget-heading"><h2>YOUR AURA</h2><p>TRACK YOUR 1% DAILY EDGE.</p></header>
+    <header className="ce-widget-heading">
+      <div>
+        <h2>YOUR AURA</h2>
+        <p>TRACK YOUR 1% DAILY EDGE.</p>
+      </div>
+      {data && (
+        <span className="ce-streak-badge" aria-label={`Current streak ${data.current_streak} days`}>
+          <strong>{data.current_streak}d</strong> streak
+        </span>
+      )}
+    </header>
     <button ref={trigger} type="button" className={`ce-trigger ${complete === 3 ? "ce-celebrate" : ""}`}
       aria-label={message ? `Open Aura. ${message}` : "Open Aura"} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
       onClick={() => setOpen(true)}>
-      <TradingRings scores={data?.pillars ?? emptyScores} />
-      <span className="ce-widget-status">{message}</span>
+      <div className="ce-trigger-body">
+        <TradingRings scores={pillars} />
+        <div className="ce-mini-pillars" aria-hidden="true">
+          {ringPillars.map(({ name, cap, color }, i) => {
+            const val = pillars[i] ?? 0;
+            const pct = Math.min(100, Math.round((val / cap) * 100));
+            return <div key={name} className="ce-mini-pillar">
+              <div className="ce-mini-pillar-row">
+                <span className={`ce-tone-${color}`}>{name}</span>
+                <span>{val}/{cap}</span>
+              </div>
+              <div className="ce-mini-track">
+                <span className={`ce-mini-fill ce-fill-${color}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>
+      <div className="ce-trigger-footer">
+        <span className="ce-widget-status">{message || (data ? `${data.days_kept} days kept this year` : "")}</span>
+        <span className="ce-open-hint">365-day grid <ArrowUpRight size={13} aria-hidden="true" /></span>
+      </div>
     </button>
     {open && <EdgeDrawer data={data} onSaved={setData} onClose={() => close()} onJump={close} />}
   </section>;

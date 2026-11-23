@@ -287,3 +287,58 @@ def test_journal_checklist_uses_the_saved_date_and_template(draft, monkeypatch):
     login(client, identity, 'friend@example.com', 'friend-sub')
     assert client.get(path).json()['items'] == []
     assert client.get(path).json()['warmup_completed'] is False
+
+
+def test_mindset_mirror_and_morning_brief_stay_private_and_data_grounded(draft, monkeypatch):
+    from uuid import uuid4
+
+    client, _, identity = draft
+    now = [datetime(2026, 11, 12, 15, tzinfo=timezone.utc)]
+    monkeypatch.setattr(mindset, 'now_utc', lambda: now[0])
+    monkeypatch.delenv('COACH_CLOUDFLARE_ACCOUNT_ID', raising=False)
+    monkeypatch.delenv('COACH_CLOUDFLARE_API_TOKEN', raising=False)
+
+    assert client.get('/api/mindset/mirror').status_code == 401
+    assert client.post('/api/mindset/morning-brief', json={'note': ''}).status_code == 401
+
+    login(client, identity)
+    # Day 1: prepped + calm + followed plan + green
+    assert client.put('/api/mindset/warmup', json={
+        'day': '2026-11-12', 'energy': 'rested', 'headspace': 'calm', 'checklist': ['levels'],
+    }).status_code == 200
+    assert client.put('/api/journal/2026-11-12', json={
+        'plan': 'Wait for NY open sweep',
+        'lesson': 'Patience paid off on NQ.',
+        'plan_followed': 'Yes',
+        'mindset': 'Focused',
+        'trades': [{'id': uuid4().hex, 'symbol': 'NQ', 'net_pnl': 500}],
+    }).status_code == 200
+
+    # Day 2: unprepped + frustrated + off-plan + red
+    assert client.put('/api/journal/2026-11-11', json={
+        'lesson': 'Chased lunch chop after a loss.',
+        'plan_followed': 'No',
+        'mindset': 'Frustrated',
+        'trades': [{'id': uuid4().hex, 'symbol': 'NQ', 'net_pnl': -300}],
+    }).status_code == 200
+
+    mirror = client.get('/api/mindset/mirror').json()
+    assert mirror['total_journal_days'] == 2
+    assert mirror['prepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': 500.0, 'win_pct': 100, 'plan_pct': 100}
+    assert mirror['unprepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': -300.0, 'win_pct': 0, 'plan_pct': 0}
+    assert mirror['calm'] == {'days': 1, 'net_pnl': 500.0}
+    assert mirror['tilted'] == {'days': 1, 'net_pnl': -300.0}
+
+    # Morning brief falls back cleanly to data-grounded 3-bullet plan when Cloudflare AI is unconfigured
+    assert client.put('/api/mindset/warmup', json={
+        'day': '2026-11-12', 'energy': 'fumes', 'headspace': 'emotional', 'checklist': ['levels'],
+    }).status_code == 200
+    brief = client.post('/api/mindset/morning-brief', json={'note': 'Feeling rushed after yesterday'}).json()
+    assert len(brief['bullets']) == 3
+    assert any('tilt' in b.lower() for b in brief['bullets'])
+    assert any('lunch chop' in b.lower() for b in brief['bullets'])
+
+    # Tenant isolation
+    client.post('/api/logout')
+    login(client, identity, 'friend@example.com', 'friend-sub')
+    assert client.get('/api/mindset/mirror').json()['total_journal_days'] == 0

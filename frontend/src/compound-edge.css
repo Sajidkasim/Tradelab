@@ -108,3 +108,49 @@ button.ce-square { cursor: pointer; }
 .ce-ring-metric-full { fill: var(--ce-prep); filter: drop-shadow(0 0 3px var(--ce-prep)); }
 
 .ce-widget-status { min-height: 1.3em; }
+
+/* Upgraded YOUR AURA card layout: live pillar bars + streak badge + 365-day cue */
+.ce-widget-heading {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.ce-streak-badge {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 4px 9px; border-radius: 99px;
+  background: #ffffff12; border: 1px solid #ffffff22;
+  color: #dbe4dc; font-size: .74rem; font-variant-numeric: tabular-nums;
+}
+.ce-streak-badge strong { color: var(--ce-prep); font-size: .85rem; }
+:root:not([data-theme="dark"]) .ce-streak-badge {
+  background: var(--pt-paper, #f5f5f0); border-color: var(--pt-line); color: var(--pt-ink);
+}
+:root:not([data-theme="dark"]) .ce-streak-badge strong { color: #2b6e3f; }
+.ce-widget .ce-trigger {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  padding: 72px 18px 16px; text-align: left;
+}
+.ce-trigger-body {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 18px; width: 100%;
+}
+.ce-mini-pillars { display: grid; gap: 10px; min-width: 0; }
+.ce-mini-pillar { display: grid; gap: 4px; }
+.ce-mini-pillar-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: .78rem; font-variant-numeric: tabular-nums;
+}
+.ce-mini-pillar-row > span:last-child { opacity: .78; }
+.ce-mini-track { height: 6px; border-radius: 99px; background: #ffffff18; overflow: hidden; }
+:root:not([data-theme="dark"]) .ce-mini-track { background: var(--pt-line, #e2e4df); }
+.ce-mini-fill { display: block; height: 100%; border-radius: 99px; transition: width 320ms ease-out; }
+.ce-fill-prep { background: var(--ce-prep); }
+.ce-fill-execute { background: var(--ce-execute); }
+.ce-fill-study { background: var(--ce-study); }
+.ce-trigger-footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; padding-top: 10px; border-top: 1px solid #ffffff16; font-size: .78rem;
+}
+:root:not([data-theme="dark"]) .ce-trigger-footer { border-top-color: var(--pt-line); }
+.ce-open-hint { display: inline-flex; align-items: center; gap: 3px; opacity: .82; font-weight: 600; white-space: nowrap; }
+@media (max-width: 440px) {
+  .ce-trigger-body { grid-template-columns: 1fr; justify-items: center; }
+  .ce-mini-pillars { width: 100%; }
+}

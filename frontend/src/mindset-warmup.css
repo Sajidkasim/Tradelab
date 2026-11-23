@@ -365,3 +365,184 @@
 }
 .mw-aura-suggestions button:not(:disabled):hover { border-color:var(--pt-soft); }
 .mw-aura-suggestions button:disabled { cursor:default; opacity:.55; }
+
+/* ---- Mindset Upgrades: Cockpit CTAs, Focus Audio, Readiness Strip, Primax Brief, Mirror, Compact Layout ---- */
+.mw-hero-cta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-top: 18px;
+}
+.mw-hero-cta .button { display: inline-flex; align-items: center; gap: 7px; }
+.mw-journal-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px 10px; font-size: 13px; font-weight: 550; color: var(--pt-ink);
+  text-decoration: none; border-radius: 8px;
+}
+.mw-journal-link:hover { text-decoration: underline; }
+
+.mw-session-rule {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+  margin-top: 14px; padding: 9px 13px;
+  border-left: 3px solid var(--mw-action); border-radius: 6px;
+  background: color-mix(in srgb, var(--pt-white) 70%, var(--pt-paper));
+  font-size: 13px;
+}
+.mw-session-rule span { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--pt-muted); font-weight: 700; }
+.mw-session-rule strong { color: var(--pt-ink); font-weight: 600; }
+
+.mw-audio-bar {
+  display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 3px 5px 3px 9px; border: 1px solid var(--pt-line); border-radius: 99px;
+  background: var(--pt-white); color: var(--pt-muted); font-size: 11px;
+}
+.mw-audio-bar button {
+  border: 0; background: transparent; color: var(--pt-muted);
+  font: inherit; font-size: 11px; padding: 4px 8px; border-radius: 99px; cursor: pointer;
+}
+.mw-audio-bar button[aria-pressed="true"] {
+  background: var(--mw-action); color: var(--mw-action-text); font-weight: 600;
+}
+
+/* Pre-Market Readiness Strip */
+.mw-readiness-strip {
+  padding: 14px 18px;
+  display: grid; gap: 12px;
+}
+.mw-readiness-strip.is-caution {
+  border-color: color-mix(in srgb, #e1ad54 55%, var(--pt-line));
+}
+.mw-readiness-groups {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px;
+}
+.mw-readiness-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+}
+.mw-readiness-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--pt-muted); font-weight: 700; min-width: 72px;
+}
+.mw-readiness-group > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.mw-readiness-group button {
+  padding: 6px 12px; min-height: 34px;
+  border: 1px solid var(--pt-line); border-radius: 99px;
+  background: transparent; color: var(--pt-ink); font: inherit; font-size: 12px; cursor: pointer;
+}
+.mw-readiness-group button[aria-pressed="true"] {
+  background: var(--mw-action); color: var(--mw-action-text); border-color: transparent; font-weight: 600;
+}
+.mw-readiness-group button.tone-warn[aria-pressed="true"] {
+  background: #d46a61; color: #fff;
+}
+.mw-tilt-guard {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 10px 13px; border-radius: 9px;
+  background: color-mix(in srgb, var(--pt-white) 86%, #e1ad54);
+  border: 1px solid color-mix(in srgb, #e1ad54 50%, var(--pt-line));
+  font-size: 12.5px; color: var(--pt-ink);
+}
+.mw-tilt-guard > span { flex: 1 1 220px; }
+.mw-tilt-guard > button {
+  padding: 6px 11px; border-radius: 7px; border: 1px solid var(--pt-ink);
+  background: transparent; color: inherit; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+
+/* Breathwork toolbar & sound chimes toggle */
+.mw-breath-toolbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 10px;
+  width: min(100%, 440px);
+}
+.mw-breath-toolbar .mw-rhythm { flex: 1 1 220px; }
+.mw-sound-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 42px; padding: 8px 12px;
+  border: 1px solid var(--pt-line); border-radius: 8px;
+  background: var(--pt-paper); color: var(--pt-ink); font: inherit; font-size: 12px; font-weight: 550; cursor: pointer;
+}
+.mw-sound-toggle.is-on { background: var(--mw-action); color: var(--mw-action-text); border-color: transparent; }
+
+/* Morning Primax Brief + Prep vs Performance Mirror */
+.mw-intel-grid {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px;
+}
+.mw-intel-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--pt-muted);
+  padding: 3px 9px; border: 1px solid var(--pt-line); border-radius: 99px;
+}
+.mw-muted-copy { margin: 8px 0 12px; font-size: 13px; color: var(--pt-muted); line-height: 1.55; }
+.mw-muted-copy a { color: var(--pt-ink); font-weight: 550; }
+.mw-brief-compose {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.mw-brief-compose > input {
+  flex: 1 1 200px; min-width: 0; min-height: 40px; padding: 8px 12px;
+  border: 1px solid var(--pt-line); border-radius: 8px;
+  background: var(--pt-paper); color: var(--pt-ink); font: inherit; font-size: 13px;
+}
+.mw-voice-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-height: 40px; padding: 0 11px; border: 1px solid var(--pt-line); border-radius: 8px;
+  background: var(--pt-paper); color: var(--pt-ink); font: inherit; font-size: 12px; font-weight: 550; cursor: pointer;
+}
+.mw-voice-pill.is-recording { background: #fae8e2; color: #963f2c; border-color: #d9a393; }
+:root[data-theme="dark"] .mw-voice-pill.is-recording { background: #4a302b; color: #f5c1b1; border-color: #895345; }
+.mw-brief-result {
+  margin-top: 14px; padding: 13px 15px;
+  border: 1px solid var(--pt-line); border-radius: 10px; background: var(--pt-paper);
+}
+.mw-brief-result > strong { display: block; font-size: 14px; margin-bottom: 8px; }
+.mw-brief-result ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.5; }
+.mw-brief-recalled {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--pt-line);
+  font-size: 11px; color: var(--pt-muted);
+}
+.mw-brief-recalled a {
+  padding: 2px 8px; border-radius: 99px; border: 1px solid var(--pt-line);
+  background: var(--pt-white); color: var(--pt-ink); text-decoration: none; font-weight: 500;
+}
+
+.mw-mirror-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px;
+}
+.mw-mirror-box {
+  padding: 12px; border: 1px solid var(--pt-line); border-radius: 10px;
+  background: var(--pt-paper); display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.mw-mirror-box.is-good { border-color: color-mix(in srgb, var(--desk-check, #3ca367) 40%, var(--pt-line)); }
+.mw-mirror-label { font-size: 11px; color: var(--pt-muted); font-weight: 600; }
+.mw-mirror-box strong { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--pt-ink); }
+.mw-mirror-box strong.gain { color: #23935d; }
+.mw-mirror-box strong.loss { color: #d5444f; }
+:root[data-theme="dark"] .mw-mirror-box strong.gain { color: #5bd494; }
+:root[data-theme="dark"] .mw-mirror-box strong.loss { color: #f27a82; }
+.mw-mirror-box small { font-size: 11.5px; color: var(--pt-muted); }
+
+/* Starter habits pills */
+.mw-starter-habits {
+  display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px;
+}
+.mw-starter-habits button {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 11px; border: 1px dashed var(--pt-line); border-radius: 99px;
+  background: transparent; color: var(--pt-ink); font: inherit; font-size: 12px; cursor: pointer;
+}
+.mw-starter-habits button:hover:not(:disabled) {
+  border-color: var(--mw-action); background: var(--pt-paper);
+}
+
+/* Compact 2-column Anchor + Mental Capital row on desktop */
+.mw-board-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start;
+}
+.mw-board-grid > * { min-width: 0; }
+.mw-board-grid .wp-panel,
+.mw-board-grid .vb-empty,
+.mw-board-grid .rl-empty { padding-block: 24px; }
+
+@media (max-width: 960px) {
+  .mw-intel-grid,
+  .mw-board-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .mw-mirror-grid { grid-template-columns: 1fr; }
+}
