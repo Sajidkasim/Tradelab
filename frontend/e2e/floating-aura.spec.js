@@ -14,7 +14,7 @@ test('Primax stays in the corner, opens without sending, and renders a requested
   await expect(orb).toBeVisible();
   const start = await orb.boundingBox();
   expect(390 - start.x - start.width).toBeCloseTo(20);
-  expect(844 - start.y - start.height).toBeCloseTo(20);
+  expect(844 - start.y - start.height).toBeCloseTo(68);
   const no = page.getByRole('group', {name:'Did you trade today?'}).getByRole('button', {name:'No'});
   await no.evaluate((button, bottom) => {
     const {top, height} = button.getBoundingClientRect();

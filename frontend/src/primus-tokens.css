@@ -1,0 +1,939 @@
+/* ============================================================================
+   PRIMUS SIGNATURE — Unified Design Token Sheet & One-UI Shell System
+   Single source of truth for Light & Dark modes across Home, Journal,
+   Strategy Lab, Mindset, The Matrix, Backtesting, and Learn.
+   ============================================================================ */
+
+:root {
+  /* Core Primus Signature Light Palette (Warm Ivory + Deep Obsidian + Acid Lime) */
+  --primus-bg: #f7f7f2;
+  --primus-surface: #ffffff;
+  --primus-surface-2: #f0f0ea;
+  --primus-surface-3: #e7e7df;
+  --primus-border: #e2e2d9;
+  --primus-border-strong: #c8c8bc;
+  --primus-ink: #101513;
+  --primus-ink-2: #3b443f;
+  --primus-muted: #66706a;
+
+  /* Obsidian Structural Chrome (Header, Portal Hero, Dark Feature Panels) */
+  --primus-rail: #101513;
+  --primus-rail-2: #161d1a;
+  --primus-rail-border: rgba(255, 255, 255, 0.1);
+  --primus-rail-ink: #f4f5f0;
+  --primus-rail-muted: #98a69e;
+
+  /* Brand & Semantic Signals */
+  --primus-accent: #c8f169;
+  --primus-accent-hover: #d7f786;
+  --primus-accent-ink: #101513;
+  --primus-accent-text: #22583c;
+  --primus-accent-soft: rgba(34, 88, 60, 0.1);
+  --primus-glow: rgba(182, 232, 82, 0.16);
+
+  --primus-pos: #0e8a5f;
+  --primus-pos-bg: rgba(14, 138, 95, 0.1);
+  --primus-pos-border: rgba(14, 138, 95, 0.28);
+  --primus-neg: #cf2e44;
+  --primus-neg-bg: rgba(207, 46, 68, 0.1);
+  --primus-neg-border: rgba(207, 46, 68, 0.28);
+  --primus-warn: #b4690e;
+  --primus-warn-bg: rgba(180, 105, 14, 0.11);
+  --primus-warn-border: rgba(180, 105, 14, 0.28);
+
+  /* Typography & Architectural Geometry */
+  --primus-font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --primus-font-serif: Georgia, "Times New Roman", serif;
+  --primus-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --primus-radius-sm: 6px;
+  --primus-radius-md: 10px;
+  --primus-radius-lg: 14px;
+  --primus-shadow-card: 0 1px 2px rgba(16, 21, 19, 0.04);
+  --primus-shadow-lift: 0 12px 28px rgba(16, 21, 19, 0.08);
+  --primus-shadow-float: 0 24px 60px rgba(16, 21, 19, 0.16);
+
+  /* Unify all legacy module token namespaces onto Primus Signature */
+  --pt-dark: var(--primus-rail);
+  --pt-deep: #0b0f0d;
+  --pt-lime: var(--primus-accent);
+  --pt-paper: var(--primus-bg);
+  --pt-white: var(--primus-surface);
+  --pt-ink: var(--primus-ink);
+  --pt-muted: var(--primus-muted);
+  --pt-line: var(--primus-border);
+  --pt-focus: var(--primus-accent-text);
+
+  --desk-page: var(--primus-bg);
+  --desk-surface: var(--primus-surface);
+  --desk-ink: var(--primus-ink);
+  --desk-muted: var(--primus-muted);
+  --desk-border: var(--primus-border);
+  --desk-action: var(--primus-rail);
+  --desk-action-ink: #ffffff;
+  --desk-selected: var(--primus-surface-2);
+  --desk-focus: var(--primus-accent-text);
+  --desk-check: var(--primus-pos);
+
+  --tl-page: var(--primus-bg);
+  --tl-surface: var(--primus-surface);
+  --tl-ink: var(--primus-ink);
+  --tl-ink2: var(--primus-ink-2);
+  --tl-muted: var(--primus-muted);
+  --tl-border: var(--primus-border);
+  --tl-accent: var(--primus-accent-text);
+  --tl-positive: var(--primus-pos);
+  --tl-negative: var(--primus-neg);
+  --tl-warning: var(--primus-warn);
+  --tl-sage: var(--primus-pos);
+  --lab-accent: var(--primus-accent-text);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* Core Primus Signature Dark Palette (Deep Obsidian + Acid Lime) */
+  --primus-bg: #0c0f0e;
+  --primus-surface: #131816;
+  --primus-surface-2: #19201d;
+  --primus-surface-3: #212a26;
+  --primus-border: #242d29;
+  --primus-border-strong: #35413b;
+  --primus-ink: #f1f3ef;
+  --primus-ink-2: #c5cdc7;
+  --primus-muted: #8a9790;
+
+  --primus-rail: #090c0b;
+  --primus-rail-2: #111614;
+  --primus-rail-border: #1e2622;
+  --primus-rail-ink: #f1f3ef;
+  --primus-rail-muted: #89968f;
+
+  --primus-accent: #c8f169;
+  --primus-accent-hover: #d8f78b;
+  --primus-accent-ink: #0f1411;
+  --primus-accent-text: #c8f169;
+  --primus-accent-soft: rgba(200, 241, 105, 0.13);
+  --primus-glow: rgba(200, 241, 105, 0.14);
+
+  --primus-pos: #34d399;
+  --primus-pos-bg: rgba(52, 211, 153, 0.13);
+  --primus-pos-border: rgba(52, 211, 153, 0.32);
+  --primus-neg: #fb7185;
+  --primus-neg-bg: rgba(251, 113, 133, 0.13);
+  --primus-neg-border: rgba(251, 113, 133, 0.32);
+  --primus-warn: #fbbf24;
+  --primus-warn-bg: rgba(251, 191, 36, 0.13);
+  --primus-warn-border: rgba(251, 191, 36, 0.32);
+
+  --primus-shadow-card: 0 2px 10px rgba(0, 0, 0, 0.25);
+  --primus-shadow-lift: 0 16px 36px rgba(0, 0, 0, 0.42);
+  --primus-shadow-float: 0 28px 70px rgba(0, 0, 0, 0.58);
+
+  --pt-dark: #0f1412;
+  --pt-deep: #090c0b;
+  --pt-lime: var(--primus-accent);
+  --pt-paper: var(--primus-bg);
+  --pt-white: var(--primus-surface);
+  --pt-ink: var(--primus-ink);
+  --pt-muted: var(--primus-muted);
+  --pt-line: var(--primus-border);
+  --pt-focus: var(--primus-accent);
+
+  --desk-page: var(--primus-bg);
+  --desk-surface: var(--primus-surface);
+  --desk-ink: var(--primus-ink);
+  --desk-muted: var(--primus-muted);
+  --desk-border: var(--primus-border);
+  --desk-action: var(--primus-accent);
+  --desk-action-ink: var(--primus-accent-ink);
+  --desk-selected: var(--primus-surface-2);
+  --desk-focus: var(--primus-accent);
+  --desk-check: var(--primus-pos);
+
+  --tl-page: var(--primus-bg);
+  --tl-surface: var(--primus-surface);
+  --tl-ink: var(--primus-ink);
+  --tl-ink2: var(--primus-ink-2);
+  --tl-muted: var(--primus-muted);
+  --tl-border: var(--primus-border);
+  --tl-accent: var(--primus-accent);
+  --tl-positive: var(--primus-pos);
+  --tl-negative: var(--primus-neg);
+  --tl-warning: var(--primus-warn);
+  --tl-sage: var(--primus-pos);
+  --lab-accent: var(--primus-accent);
+
+  color-scheme: dark;
+}
+
+/* Override late legacy dark blocks in site-preview.css & lab-preview.css so every page speaks ONE obsidian language */
+:root[data-theme="dark"] :is(.pt-site, .pt-journal) {
+  --pt-paper: var(--primus-bg);
+  --pt-white: var(--primus-surface);
+  --pt-ink: var(--primus-ink);
+  --pt-muted: var(--primus-muted);
+  --pt-line: var(--primus-border);
+  --pt-focus: var(--primus-accent);
+}
+:root[data-site-lab="true"][data-theme="dark"] {
+  --tl-page: var(--primus-bg);
+  --tl-surface: var(--primus-surface);
+  --tl-ink: var(--primus-ink);
+  --tl-ink2: var(--primus-ink-2);
+  --tl-muted: var(--primus-muted);
+  --tl-border: var(--primus-border);
+  --lab-canvas: var(--primus-bg);
+  --lab-tint: var(--primus-surface-2);
+}
+:root[data-theme="dark"] .pt-header,
+:root[data-theme="dark"] .pt-header nav.is-open {
+  background: rgba(9, 12, 11, 0.94);
+  border-bottom-color: var(--primus-rail-border);
+}
+:root[data-theme="dark"] .pt-site .pt-hero {
+  background: var(--primus-rail);
+}
+:root[data-theme="dark"] .pt-clock-strip {
+  background: var(--primus-rail-2);
+  border-color: var(--primus-rail-border);
+}
+:root[data-theme="dark"] .pt-tools-section {
+  background: #0f1311;
+  border-color: var(--primus-border);
+}
+:root[data-theme="dark"] .pt-tool-journal,
+:root[data-theme="dark"] .pt-site .pt-tool-lab,
+:root[data-theme="dark"] .pt-market-widget,
+:root[data-theme="dark"] .pt-day-editor,
+:root[data-theme="dark"] .history-card,
+:root[data-theme="dark"] .pt-private-entrance .login-panel {
+  background: var(--primus-surface);
+  border-color: var(--primus-border);
+}
+:root[data-theme="dark"] :is(.pt-briefing-sidebar, .pt-widget-source, .pt-entry-tabs, .pt-day-bottom, .pt-dropzone, .pt-private-entrance .login-story) {
+  background: var(--primus-surface-2);
+}
+:root[data-theme="dark"] .pt-private-entrance {
+  background: var(--primus-bg);
+}
+:root[data-theme="dark"] .pt-trader:hover {
+  background: var(--primus-surface-2);
+}
+
+/* Matrix tokens aligned to Primus Signature */
+.matrix-terminal {
+  --mx-bg: var(--primus-bg);
+  --mx-surface: var(--primus-surface);
+  --mx-surface-2: var(--primus-surface-2);
+  --mx-border: var(--primus-border);
+  --mx-border-strong: var(--primus-border-strong);
+  --mx-ink: var(--primus-ink);
+  --mx-ink-2: var(--primus-ink-2);
+  --mx-muted: var(--primus-muted);
+  --mx-accent: var(--primus-accent-text);
+  --mx-accent-soft: var(--primus-accent-soft);
+  --mx-pos: var(--primus-pos);
+  --mx-pos-bg: var(--primus-pos-bg);
+  --mx-pos-border: var(--primus-pos-border);
+  --mx-neg: var(--primus-neg);
+  --mx-neg-bg: var(--primus-neg-bg);
+  --mx-neg-border: var(--primus-neg-border);
+  --mx-warn: var(--primus-warn);
+  --mx-warn-bg: var(--primus-warn-bg);
+  --mx-warn-border: var(--primus-warn-border);
+}
+:root[data-theme="dark"] .matrix-terminal {
+  --mx-accent: var(--primus-accent);
+}
+
+/* Global floating Primax launcher stays docked even when JournalPage is lazy-loaded */
+.pj-aura {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  width: 58px;
+  height: 58px;
+}
+.pj-aura-orb[hidden] {
+  display: none;
+}
+.pj-aura-panel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(380px, calc(100vw - 48px));
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  border-radius: 12px;
+}
+
+/* ============================================================================
+   UNIFIED PRIMUS COMMAND HEADER (Sticky Architectural Obsidian Bar)
+   ============================================================================ */
+.pt-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 70px;
+  padding: 0 clamp(16px, 3vw, 40px);
+  background: rgba(16, 21, 19, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--primus-rail-border);
+  color: var(--primus-rail-ink);
+  gap: 20px;
+}
+.pt-wordmark {
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+.pt-header nav {
+  gap: clamp(16px, 2.2vw, 30px);
+  font-size: 13px;
+  font-weight: 500;
+}
+.pt-header nav a {
+  color: var(--primus-rail-muted);
+  transition: color 160ms ease;
+}
+.pt-header nav a:hover,
+.pt-header nav a[aria-current="page"] {
+  color: var(--primus-rail-ink);
+}
+.pt-header nav a[aria-current="page"] {
+  color: var(--primus-accent);
+}
+.pt-header nav a[aria-current="page"]::after {
+  height: 2px;
+  background: var(--primus-accent);
+  bottom: -1px;
+}
+
+/* Header Command Palette Trigger (⌘K) */
+.pt-cmd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--primus-rail-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+  white-space: nowrap;
+}
+.pt-cmd-trigger:hover {
+  border-color: rgba(200, 241, 105, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--primus-rail-ink);
+}
+.pt-cmd-trigger kbd {
+  font-family: var(--primus-font-mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--primus-rail-ink);
+}
+.pt-theme-toggle {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--primus-accent);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.pt-theme-toggle:hover {
+  background: rgba(200, 241, 105, 0.14);
+  border-color: rgba(200, 241, 105, 0.45);
+}
+.pt-header-action {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 241, 105, 0.35);
+  background: var(--primus-accent);
+  color: var(--primus-accent-ink) !important;
+  font-weight: 600;
+  gap: 8px;
+}
+.pt-header-action:hover {
+  background: var(--primus-accent-hover);
+  color: var(--primus-accent-ink) !important;
+}
+.pt-lab .pt-header .workspace-menu > summary {
+  color: var(--primus-rail-ink);
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  min-height: 36px;
+  padding: 7px 13px;
+}
+.pt-lab .pt-header .workspace-menu > summary:hover {
+  border-color: rgba(200, 241, 105, 0.45);
+}
+:root:not([data-theme="dark"]) :is(.pt-site, .pt-journal) .pt-btn-dark {
+  background: var(--primus-rail);
+  border-color: var(--primus-rail);
+  color: #ffffff;
+}
+:root[data-theme="dark"] :is(.pt-site, .pt-journal) .pt-btn-dark {
+  background: var(--primus-accent);
+  border-color: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+@media (max-width: 960px) {
+  .pt-cmd-trigger span { display: none; }
+}
+@media (max-width: 520px) {
+  .pt-cmd-trigger { display: none; }
+}
+
+/* ============================================================================
+   LIVING KINETIC PORTAL HERO (Mouse-Reactive 3D Showcase + Blueprint Spotlight)
+   ============================================================================ */
+.pt-site .pt-hero {
+  position: relative;
+  background: var(--primus-rail);
+  padding: clamp(56px, 6.5vw, 88px) max(24px, calc((100vw - 1320px) / 2)) clamp(56px, 6vw, 80px);
+  gap: clamp(32px, 4vw, 56px);
+  isolation: isolate;
+}
+.pt-hero-grid-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 85% 80% at 55% 40%, #000 40%, transparent 100%);
+  pointer-events: none;
+}
+.pt-hero-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(560px circle at var(--hero-mx, 68%) var(--hero-my, 38%), var(--primus-glow), transparent 65%);
+  pointer-events: none;
+  transition: background 120ms linear;
+}
+.pt-hero-3d-stage {
+  perspective: 1350px;
+}
+.pt-portal-window {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: linear-gradient(160deg, #17211d 0%, #0e1412 100%);
+  box-shadow: 0 32px 72px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform 240ms cubic-bezier(0.16, 0.84, 0.44, 1), border-color 200ms ease;
+  will-change: transform;
+}
+.pt-portal-window:hover {
+  border-color: rgba(200, 241, 105, 0.34);
+}
+.pt-portal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+.pt-portal-tabs {
+  display: inline-flex;
+  gap: 4px;
+}
+.pt-portal-tabs button {
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primus-rail-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.pt-portal-tabs button:hover {
+  color: var(--primus-rail-ink);
+  background: rgba(255, 255, 255, 0.06);
+}
+.pt-portal-tabs button[aria-selected="true"] {
+  background: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+.pt-portal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+  font-family: var(--primus-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.pt-portal-body {
+  padding: 18px 20px 16px;
+  animation: primus-fade-up 240ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+.pt-portal-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pt-portal-kpi {
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.pt-portal-kpi span {
+  display: block;
+  font-family: var(--primus-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--primus-rail-muted);
+}
+.pt-portal-kpi strong {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--primus-font-mono);
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--primus-rail-ink);
+}
+.pt-portal-kpi small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--primus-accent);
+}
+.pt-portal-rows {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+}
+.pt-portal-row {
+  display: grid;
+  grid-template-columns: 62px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11.5px;
+  color: var(--primus-rail-ink);
+}
+.pt-portal-row:last-child { border-bottom: 0; }
+.pt-portal-row strong { font-family: var(--primus-font-mono); }
+.pt-portal-row em { font-style: normal; font-family: var(--primus-font-mono); color: var(--primus-rail-muted); font-size: 11px; }
+.pt-portal-tag {
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(52, 211, 153, 0.14);
+  color: #34d399;
+}
+.pt-portal-tag.is-neg {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fb7185;
+}
+.pt-portal-note {
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #d6dfd8;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.pt-portal-note footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--primus-font-mono);
+  font-size: 10.5px;
+  color: var(--primus-rail-muted);
+}
+.pt-portal-note footer b { color: #34d399; }
+
+/* Live Pulsing Indicator & Smooth Page Motion */
+.primus-live-dot {
+  position: relative;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #34d399;
+  flex-shrink: 0;
+}
+.primus-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #34d399;
+  animation: primus-pulse 2.2s ease-out infinite;
+}
+.pt-status-dot {
+  position: relative;
+  background: var(--primus-accent);
+}
+.pt-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--primus-accent);
+  animation: primus-pulse 2.4s ease-out infinite;
+}
+
+@keyframes primus-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  60% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes primus-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Smooth architectural elevation on interactive workspace cards */
+.pt-site .pt-trader,
+.pt-site .pt-tool,
+.mx-card,
+.wp-panel {
+  transition: border-color 180ms ease, transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease, background 180ms ease;
+}
+.pt-site .pt-tool:hover {
+  transform: translateY(-2px);
+}
+
+/* ============================================================================
+   GLOBAL ⌘K COMMAND PALETTE
+   ============================================================================ */
+.primus-cmd-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(14vh, 110px) 16px 24px;
+  background: rgba(8, 11, 10, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.primus-cmd-dialog {
+  width: min(520px, 100%);
+  border: 1px solid var(--primus-border-strong);
+  border-radius: 12px;
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+  box-shadow: var(--primus-shadow-float);
+  overflow: hidden;
+  animation: primus-fade-up 180ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+.primus-cmd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--primus-border);
+}
+.primus-cmd-head input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primus-ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.primus-cmd-head input::placeholder {
+  color: var(--primus-muted);
+}
+.primus-cmd-esc {
+  padding: 3px 7px;
+  border: 1px solid var(--primus-border);
+  border-radius: 5px;
+  background: var(--primus-surface-2);
+  color: var(--primus-muted);
+  font-family: var(--primus-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.primus-cmd-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+.primus-cmd-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--primus-ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.primus-cmd-item:hover,
+.primus-cmd-item[aria-selected="true"] {
+  background: var(--primus-surface-2);
+}
+.primus-cmd-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.primus-cmd-item-sub {
+  font-size: 11.5px;
+  color: var(--primus-muted);
+}
+.primus-cmd-item-kbd {
+  font-family: var(--primus-font-mono);
+  font-size: 10.5px;
+  color: var(--primus-muted);
+}
+.primus-cmd-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--primus-muted);
+}
+
+/* ============================================================================
+   UNIFIED MOBILE ARCHITECTURAL BOTTOM DOCK (Native App Parity)
+   ============================================================================ */
+.primus-mobile-dock {
+  display: none;
+}
+@media (max-width: 768px) {
+  .primus-mobile-dock {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 38;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    background: var(--primus-surface);
+    border-top: 1px solid var(--primus-border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.08);
+  }
+  .primus-mobile-dock a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 54px;
+    padding: 6px 4px;
+    color: var(--primus-muted);
+    text-decoration: none;
+    font-size: 10.5px;
+    font-weight: 550;
+    transition: color 140ms ease;
+  }
+  .primus-mobile-dock a[aria-current="page"] {
+    color: var(--primus-ink);
+    font-weight: 650;
+  }
+  .primus-mobile-dock a[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 2px;
+    background: var(--primus-accent-text);
+  }
+  :root[data-theme="dark"] .primus-mobile-dock a[aria-current="page"]::before {
+    background: var(--primus-accent);
+  }
+  /* Keep bottom dock clear of full-screen Backtesting charts and active Bullpen calls */
+  body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .primus-mobile-dock {
+    display: none;
+  }
+  /* Add breathing room below page content & float Primax above the dock */
+  #root:has(.primus-mobile-dock) {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.primus-mobile-dock) [data-primax-fab].pj-aura {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ============================================================================
+   SHARED SPOTLIGHT TOUR (Primus Signature)
+   ============================================================================ */
+.primus-tour {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  color: var(--primus-ink);
+}
+.primus-tour::backdrop { background: transparent; }
+.primus-tour-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.primus-tour-highlight {
+  fill: none;
+  stroke: var(--primus-accent);
+  stroke-width: 1.75;
+}
+.primus-tour-card {
+  position: fixed;
+  width: min(328px, calc(100vw - 24px));
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--primus-border-strong);
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+  box-shadow: var(--primus-shadow-float);
+  outline: none;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  animation: primus-fade-up 180ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+.primus-tour-topline,
+.primus-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.primus-tour-topline { margin-bottom: 12px; }
+.primus-tour-step {
+  color: var(--primus-muted);
+  font-family: var(--primus-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+.primus-tour-skip,
+.primus-tour-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--primus-ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.primus-tour-skip:hover,
+.primus-tour-back:hover { color: var(--primus-ink); }
+.primus-tour-card h2 {
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.3;
+  margin: 0 0 8px;
+  color: var(--primus-ink);
+}
+.primus-tour-card p {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 18px;
+  color: var(--primus-ink-2);
+}
+.primus-tour-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid var(--primus-accent);
+  border-radius: 8px;
+  background: var(--primus-accent);
+  color: var(--primus-accent-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.primus-tour-cta:hover { background: var(--primus-accent-hover); }
+.primus-tour-card.is-ready {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.primus-tour-ready-icon {
+  color: var(--primus-pos);
+  margin: 0 auto 12px;
+  display: block;
+}
+
+@media (max-width: 520px) {
+  .pt-portal-kpis { grid-template-columns: 1fr; }
+  .pt-portal-row { grid-template-columns: 54px 1fr auto; }
+  .pt-portal-row em { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .primus-live-dot::after,
+  .pt-status-dot::after,
+  .pt-portal-body,
+  .primus-cmd-dialog,
+  .primus-tour-card {
+    animation: none !important;
+  }
+  .pt-portal-window,
+  .pt-site .pt-tool {
+    transition: none !important;
+    transform: none !important;
+  }
+}

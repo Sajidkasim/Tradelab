@@ -1,6 +1,6 @@
-import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CheckCircle2, Clock3, Gauge, Layers3, Minus,
+  Activity, ArrowDownRight, ArrowUpRight, BookOpen, Clock3, Gauge, Layers3, Minus,
   ShieldCheck, RefreshCw, Send, Copy, Check, CalendarClock, Flame,
   BarChart3, AlertTriangle, Compass, Zap,
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { api } from './api';
 import { matrixFreshness } from './matrixFreshness';
 import { useBullpen } from './hooks/usePresence';
 import MatrixLoading from './MatrixLoading';
+import SpotlightTour from './SpotlightTour';
 import './matrix.css';
 
 const TOP_TICKERS = [
@@ -298,201 +299,6 @@ const MATRIX_TOUR_STEPS = [
     text: 'Scheduled US economic news. RED badges (CPI, PCE, NFP, FOMC) cause violent spikes — check the countdown so you aren’t caught with a tight stop when news drops.',
   },
 ];
-
-function MatrixTour({ activeTab, setActiveTab, onClose }) {
-  const [step, setStep] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [bounds, setBounds] = useState(null);
-  const [position, setPosition] = useState({});
-  const dialog = useRef();
-  const card = useRef();
-  const returnFocus = useRef();
-  const id = useId().replaceAll(':', '');
-  const current = MATRIX_TOUR_STEPS[step];
-  const total = MATRIX_TOUR_STEPS.length;
-
-  useLayoutEffect(() => {
-    returnFocus.current = document.activeElement;
-    const element = dialog.current;
-    if (element && !element.open) element.showModal();
-    return () => {
-      if (element?.open) element.close();
-      const target = returnFocus.current;
-      if (target?.getClientRects?.().length) target.focus();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready && current?.tab && activeTab !== current.tab) {
-      setActiveTab(current.tab);
-    }
-  }, [ready, current?.tab, activeTab, setActiveTab]);
-
-  useLayoutEffect(() => {
-    if (ready) {
-      setBounds(null);
-      card.current?.focus();
-      return;
-    }
-    if (current?.tab && activeTab !== current.tab) return;
-
-    let frame;
-    const target = document.querySelector(current.target);
-    const header = document.querySelector('.pt-header, .site-header');
-
-    const measure = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const cardWidth = Math.min(320, width - 24);
-      const cardHeight = card.current?.offsetHeight || 210;
-
-      if (!target) {
-        setBounds(null);
-        setPosition({
-          width: cardWidth,
-          left: Math.max(12, (width - cardWidth) / 2),
-          top: Math.max(12, (height - cardHeight) / 2),
-        });
-        return;
-      }
-
-      const r = target.getBoundingClientRect();
-      const left = Math.max(6, r.left - 8);
-      const top = Math.max(6, r.top - 8);
-      const right = Math.min(width - 6, r.right + 8);
-      const bottom = Math.min(height - 6, r.bottom + 8);
-      const rect = { left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
-      setBounds(rect);
-
-      let cardLeft = left;
-      let cardTop;
-      if (width >= 760 && width - right >= cardWidth + 28) {
-        cardLeft = right + 16;
-        cardTop = top + (rect.height - cardHeight) / 2;
-      } else if (width >= 760 && left >= cardWidth + 28) {
-        cardLeft = left - cardWidth - 16;
-        cardTop = top + (rect.height - cardHeight) / 2;
-      } else if (bottom + 16 + cardHeight <= height - 12) {
-        cardLeft = left + (rect.width - cardWidth) / 2;
-        cardTop = bottom + 16;
-      } else if (top - cardHeight - 16 >= 12) {
-        cardLeft = left + (rect.width - cardWidth) / 2;
-        cardTop = top - cardHeight - 16;
-      } else {
-        cardLeft = width - cardWidth - 16;
-        cardTop = height - cardHeight - 16;
-      }
-
-      setPosition({
-        width: cardWidth,
-        left: Math.max(12, Math.min(cardLeft, width - cardWidth - 12)),
-        top: Math.max(12, Math.min(cardTop, height - cardHeight - 12)),
-      });
-    };
-
-    if (target) {
-      target.scrollIntoView({ block: 'center', behavior: 'instant' });
-      const r = target.getBoundingClientRect();
-      const minTop = (header?.getBoundingClientRect().bottom || 0) + 14;
-      if (r.top < minTop) window.scrollBy({ top: r.top - minTop, behavior: 'instant' });
-    }
-
-    measure();
-    frame = requestAnimationFrame(measure);
-    const observer = new ResizeObserver(measure);
-    if (target) observer.observe(target);
-    if (card.current) observer.observe(card.current);
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', measure, true);
-    card.current?.focus();
-
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', measure, true);
-    };
-  }, [step, ready, activeTab, current.target, current.tab]);
-
-  function finishAndClose() {
-    setActiveTab('overview');
-    onClose();
-  }
-
-  return (
-    <dialog
-      ref={dialog}
-      className="mx-tour"
-      aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-text`}
-      onCancel={(e) => { e.preventDefault(); onClose(); }}
-    >
-      <svg className="mx-tour-shade" aria-hidden="true" width="100%" height="100%">
-        <defs>
-          <mask id={`${id}-mask`}>
-            <rect width="100%" height="100%" fill="white" />
-            {bounds && (
-              <rect x={bounds.left} y={bounds.top} width={bounds.width} height={bounds.height} rx="12" fill="black" />
-            )}
-          </mask>
-        </defs>
-        <rect width="100%" height="100%" fill="rgba(0,0,0,.42)" mask={`url(#${id}-mask)`} />
-        {bounds && (
-          <rect className="mx-tour-highlight" x={bounds.left} y={bounds.top} width={bounds.width} height={bounds.height} rx="12" />
-        )}
-      </svg>
-
-      <section
-        ref={card}
-        className={`mx-tour-card ${ready ? 'is-ready' : ''}`}
-        style={ready ? undefined : position}
-        tabIndex={-1}
-        aria-labelledby={`${id}-title`}
-        aria-describedby={`${id}-text`}
-      >
-        {ready ? (
-          <>
-            <CheckCircle2 className="mx-tour-ready-icon" size={32} aria-hidden="true" />
-            <h2 id={`${id}-title`}>You’re ready to use The Matrix</h2>
-            <p id={`${id}-text`}>Check the Sizing Gate, Implied Move, and Next Catalyst before NY open. Replay this tour anytime from Get started.</p>
-            <button type="button" className="mx-btn is-primary mx-tour-cta" onClick={finishAndClose}>
-              Start trading <ArrowRight size={15} aria-hidden="true" />
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="mx-tour-topline">
-              <span className="mx-tour-step" aria-label={`Step ${step + 1} of ${total}`}>
-                {step + 1} of {total}
-              </span>
-              <button type="button" className="mx-tour-skip" onClick={onClose}>
-                Skip guide
-              </button>
-            </div>
-            <h2 id={`${id}-title`}>{current.title}</h2>
-            <p id={`${id}-text`}>{current.text}</p>
-            <div className="mx-tour-actions">
-              {step > 0 ? (
-                <button type="button" className="mx-tour-back" onClick={() => setStep((s) => s - 1)}>
-                  <ArrowLeft size={14} aria-hidden="true" /> Back
-                </button>
-              ) : (
-                <span />
-              )}
-              <button
-                type="button"
-                className="mx-btn is-primary mx-tour-next"
-                onClick={() => (step === total - 1 ? setReady(true) : setStep((s) => s + 1))}
-              >
-                {step === total - 1 ? 'Finish' : 'Next'} <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-    </dialog>
-  );
-}
 
 export default function MatrixPage() {
   const bullpen = useBullpen();
@@ -1310,9 +1116,14 @@ export default function MatrixPage() {
         </div>
       </main>
       {showGuide && (
-        <MatrixTour
+        <SpotlightTour
+          className="mx-tour"
+          steps={MATRIX_TOUR_STEPS}
           activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          onSelectTab={setActiveTab}
+          readyTitle="You’re ready to use The Matrix"
+          readyText="Check the Sizing Gate, Implied Move, and Next Catalyst before NY open. Replay this tour anytime from Get started."
+          readyCta="Start trading"
           onClose={() => setShowGuide(false)}
         />
       )}

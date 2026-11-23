@@ -10,6 +10,7 @@ import "./responsive.css";
 import "./lab-preview.css";
 import "./workspace-theme.css";
 import "./mobile-shell.css";
+import "./primus-tokens.css";
 
 
 class ErrorBoundary extends React.Component {
@@ -17,11 +18,16 @@ class ErrorBoundary extends React.Component {
   static getDerivedStateFromError() {
     return { failed: true };
   }
+  componentDidUpdate(prevProps) {
+    if (this.state.failed && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ failed: false });
+    }
+  }
   render() {
     return this.state.failed ? (
       <div className="loading-screen">
-        <h1>PrimusLab</h1>
-        <p>This page could not be displayed. Refresh to retry.</p>
+        <h1>PrimusTrader</h1>
+        <p>This page could not be displayed. Refresh or switch views to retry.</p>
         <button className="button primary" onClick={() => location.reload()}>
           Refresh page
         </button>
@@ -68,9 +74,11 @@ function RootRouter() {
   }, []);
 
   return (
-    <Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
-      {sitePreview() && isSitePath(pathname) ? <SiteExperience pathname={pathname} /> : <App />}
-    </Suspense>
+    <ErrorBoundary resetKey={pathname}>
+      <Suspense fallback={<main className="loading-screen" role="status">Opening your workspace…</main>}>
+        {sitePreview() && isSitePath(pathname) ? <SiteExperience pathname={pathname} /> : <App />}
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

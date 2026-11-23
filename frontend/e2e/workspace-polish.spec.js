@@ -83,6 +83,14 @@ test('homepage offers a clear return to Journal replay and results',async({page}
  await expect(next).toBeVisible();
  await expect(next.getByRole('link',{name:'Today’s Journal'})).toHaveAttribute('href','/journal');
  await expect(next.getByRole('link',{name:'Review results'})).toHaveAttribute('href','/lab');
+ await page.getByRole('tablist',{name:'Desk preview views'}).getByRole('tab',{name:'The Matrix'}).click();
+ await expect(page.getByText('SIZING GATE',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Quick navigation',exact:true}).click();
+ const cmd=page.getByRole('dialog',{name:'Quick navigation'});
+ await expect(cmd).toBeVisible();
+ await cmd.getByRole('textbox',{name:'Jump to workspace'}).fill('Matrix');
+ await cmd.getByRole('option',{name:/The Matrix/}).click();
+ await expect(page).toHaveURL(/\/matrix$/);
 });
 
 test('Primus Trader entrance has its own responsive design and recovers from Google errors',async({page},info)=>{

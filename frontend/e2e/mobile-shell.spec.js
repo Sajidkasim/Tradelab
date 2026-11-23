@@ -35,7 +35,7 @@ test("home actions and mobile navigation keep readable contrast in both themes",
     const resume = page.getByRole("region", { name: "Continue your work" }).getByRole("link", { name: "Review results" });
     await resume.hover();
     await expect(resume).toHaveCSS("color", "rgb(16, 35, 28)");
-    await expect(resume).toHaveCSS("background-color", "rgb(211, 230, 175)");
+    await expect(resume).toHaveCSS("background-color", "rgb(200, 241, 105)");
     await page.getByRole("button", { name: "Open navigation" }).click();
     const nav = page.getByRole("navigation", { name: "Primus navigation" });
     for (const name of ["Journal", "Strategy Lab"]) {
