@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity, ArrowDownRight, ArrowUpRight, BookOpen, Clock3, Gauge, Layers3, Minus,
+  Activity, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CheckCircle2, Clock3, Gauge, Layers3, Minus,
   ShieldCheck, RefreshCw, Send, Copy, Check, CalendarClock, Flame,
-  BarChart3, AlertTriangle, Compass, Zap, X,
+  BarChart3, AlertTriangle, Compass, Zap,
 } from 'lucide-react';
 import { PrimusHeader, localSitePreview } from './SiteExperience';
 import { api } from './api';
@@ -248,125 +248,249 @@ function formatCalCountdown(ms) {
   return `in ${Math.ceil(diffMin / 1440)}d`;
 }
 
-const GUIDE_SECTIONS = [
+const MATRIX_TOUR_STEPS = [
   {
-    id: 'routine',
-    title: 'Your 15-Second Morning Routine',
-    badge: 'START HERE',
-    intro: 'You do not need to read every number on this page. Just follow these 4 quick steps before NY open:',
-    items: [
-      { label: '1. Check the Sizing Gate', text: 'Green (Standard Size) = normal contracts. Amber (Micro Only) = volatile tape, trade MNQ / smaller size so you don’t blow an eval. Red (Stand Down) = major news is hitting right now, wait for the dust to settle.' },
-      { label: '2. Check Implied NQ Move', text: 'Shows how many points NQ is expected to swing today based on VIX. A 200-pt day = normal stops. A 400+ pt day = wild wicks, widen your stop and cut contract size.' },
-      { label: '3. Check Mag 7 + Next Catalyst', text: 'If 6/7 or 7/7 Mag 7 tech stocks are green, shorting NQ is fighting a freight train. Check the Next Catalyst countdown so you aren’t in a trade when 8:30 AM news drops.' },
-      { label: '4. Click Send to Today’s Journal', text: 'Pastes today’s 1-line macro summary straight into your Daily Journal plan, then go trade your setups.' },
-    ],
+    target: '[data-matrix-tour="decision"]',
+    tab: 'overview',
+    title: 'Your 15-second morning check',
+    text: 'Start here before NY open. Green (Standard Size) = normal contracts. Amber (Micro Only) = wild tape, drop to micros. Red (Stand Down) = big news right now. Hit Send to Today’s Journal to log it in one click.',
   },
   {
-    id: 'tickers',
-    title: 'Top 6 Market Tickers',
-    badge: 'OVERVIEW',
-    intro: 'The 6 live markets that drive intraday futures and FX:',
-    items: [
-      { label: 'NQ1! · ES1! · Gold', text: 'Current price and recent trend for Nasdaq, S&P 500, and Gold futures.' },
-      { label: 'VIX (Fear Gauge)', text: 'Measures expected market volatility. Under 18 = calm and clean. Over 22 = bigger swings. Over 27 = violent candles — protect your accounts with micros.' },
-      { label: '10Y Yield (Interest Rates)', text: 'US 10-year Treasury yield. When yields drop (red), tech/NQ usually gets a tailwind. When yields spike (green), NQ often sells off.' },
-      { label: 'DXY (US Dollar Index)', text: 'Strength of the US Dollar. When DXY pushes higher, EURUSD, GBPUSD, and Gold usually face downward pressure.' },
-    ],
+    target: '[data-matrix-tour="tickers"]',
+    tab: 'overview',
+    title: 'The 6 market drivers',
+    text: 'Live prices for NQ, ES, Gold, VIX, 10Y Yields, and DXY. Watch VIX (under 18 = calm, over 22 = big swings), 10Y Yields (falling yields help NQ), and DXY (a strong Dollar weighs on Gold and FX).',
   },
   {
-    id: 'scoreboard',
-    title: 'Multi-Asset Scoreboard & 6 Pillars',
-    badge: 'OVERVIEW & BIAS',
-    intro: 'Grades each market from 0 (Very Bearish) to 100 (Very Bullish). Click any row to see why it got that score:',
-    items: [
-      { label: 'COT Institutional', text: 'Shows how big hedge funds and asset managers are positioned in weekly CFTC filings (Long % vs Short %). Heavy long positioning = bullish institutional backing.' },
-      { label: 'Rates & Real Yields', text: 'Tracks whether bond yields are rising or falling over the last 5 sessions. Falling real yields help NQ, ES, and Gold; rising yields help DXY.' },
-      { label: 'Inflation & Fed', text: 'Looks at Core CPI and PCE inflation. Cooling inflation lets the Fed stay friendly (bullish stocks). Sticky/hot inflation keeps the Fed hawkish (headwind).' },
-      { label: 'Liquidity & Credit', text: 'Tracks Fed Net Liquidity (money flowing through the financial system) and High-Yield Credit Spreads (corporate stress). More liquidity + tight spreads = healthy risk-on tape.' },
-      { label: 'Volatility & Risk', text: 'Combines VIX level, VIX term structure (calm vs panic), and Mag 7 tech breadth to flag whether the tape is clean or defensive.' },
-      { label: 'Trend & Seasonality', text: 'Combines current price trend with how this market has historically performed in the current calendar month over the last 10 years.' },
-    ],
+    target: '[data-matrix-tour="scoreboard"]',
+    tab: 'overview',
+    title: 'Multi-asset scoreboard',
+    text: 'Grades every market from 0 (Very Bearish) to 100 (Very Bullish). Click any row to see exactly why it got that score.',
   },
   {
-    id: 'playbook',
-    title: 'Intraday Playbook & Mag 7 Breadth',
-    badge: 'EXECUTION',
-    intro: 'Your intraday risk filter right before placing trades:',
-    items: [
-      { label: 'Implied NQ Daily Move', text: 'Calculated as VIX ÷ √252. Tells you the expected 1-standard-deviation daily range in points so you calibrate stops and targets realistically.' },
-      { label: 'Active Sizing Rules', text: 'Lists the exact warnings triggering Micro Only or Stand Down — such as VIX above 22, a sharp 3-day VIX spike, or VIX backwardation (short-term panic higher than 3-month fear).' },
-      { label: 'Mag 7 + Semis (SMH)', text: 'NVDA, AAPL, MSFT, AMZN, META, GOOGL, and TSLA make up ~45% of NQ. When almost all 7 are green or red together, trade with that momentum rather than fading it.' },
-    ],
+    target: '[data-matrix-tour="pillars"]',
+    tab: 'overview',
+    title: 'The 6 score pillars',
+    text: 'Breaks the selected market’s score into 6 simple pieces: big-money COT positioning, bond yields, inflation, Fed liquidity, volatility, and trend/seasonality.',
   },
   {
-    id: 'positioning',
-    title: 'Positioning & Liquidity Tab',
-    badge: 'BIG PICTURE',
-    intro: 'Swing-level context for multi-day direction:',
-    items: [
-      { label: 'COT Institutional Board', text: 'Green vs red bar shows institutional Long vs Short split. "WoW" is how many contracts funds added or cut this week. "Crowded Long / Short" warns when positioning is at a 52-week extreme (watch for reversals).' },
-      { label: '10-Year Seasonality', text: 'Shows what % of the last 10 years this month closed green and the average monthly return — a helpful tailwind, never a standalone entry signal.' },
-      { label: 'Macro Liquidity & Addons', text: 'Fed Net Liquidity (WALCL − TGA − RRP), HY Credit Spreads, Fear & Greed sentiment, 10Y Inflation Breakeven, and VIX/VIX3M ratio (under 1.0 = calm contango; over 1.0 = headline stress).' },
-    ],
+    target: '[data-matrix-tour="playbook"]',
+    tab: 'overview',
+    title: 'Intraday playbook & sizing',
+    text: 'Shows NQ’s expected daily point swing (Implied Move) so you can size stops properly, plus the exact rules triggering Micro Only or Stand Down.',
   },
   {
-    id: 'calendar',
-    title: 'Catalyst Calendar Tab',
-    badge: 'NEWS RISK',
-    intro: 'Scheduled US economic releases that cause instant spikes:',
-    items: [
-      { label: 'RED Badge & Countdown', text: 'Tier-1 market movers (CPI, PCE, NFP Jobs, FOMC, GDP). Avoid holding tight stops right into a live countdown.' },
-      { label: 'Act vs Est (Beat / Miss)', text: 'Once released, compares the Actual number to the Wall Street Estimate so you immediately know if it was a surprise.' },
-      { label: 'NQ Tailwind / Headwind', text: 'Translates the news release into plain NQ direction — e.g. cooler inflation = NQ Tailwind; hotter inflation = NQ Headwind.' },
-    ],
+    target: '[data-matrix-tour="mag7"]',
+    tab: 'overview',
+    title: 'Mag 7 + Semis breadth',
+    text: 'NVDA, AAPL, MSFT, AMZN, META, GOOGL, and TSLA make up ~45% of NQ. When 6/7 or 7/7 are green together, trade with that momentum instead of fighting it.',
+  },
+  {
+    target: '[data-matrix-tour="positioning"]',
+    tab: 'positioning',
+    title: 'Positioning & liquidity',
+    text: 'Big-picture swing context: where hedge funds are positioned in weekly CFTC filings (COT), 10-year monthly win rates (Seasonality), and Fed Net Liquidity.',
+  },
+  {
+    target: '[data-matrix-tour="calendar"]',
+    tab: 'calendar',
+    title: 'Catalyst calendar',
+    text: 'Scheduled US economic news. RED badges (CPI, PCE, NFP, FOMC) cause violent spikes — check the countdown so you aren’t caught with a tight stop when news drops.',
   },
 ];
 
-function MatrixGuideModal({ onClose }) {
+function MatrixTour({ activeTab, setActiveTab, onClose }) {
+  const [step, setStep] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [bounds, setBounds] = useState(null);
+  const [position, setPosition] = useState({});
+  const dialog = useRef();
+  const card = useRef();
+  const returnFocus = useRef();
+  const id = useId().replaceAll(':', '');
+  const current = MATRIX_TOUR_STEPS[step];
+  const total = MATRIX_TOUR_STEPS.length;
+
+  useLayoutEffect(() => {
+    returnFocus.current = document.activeElement;
+    const element = dialog.current;
+    if (element && !element.open) element.showModal();
+    return () => {
+      if (element?.open) element.close();
+      const target = returnFocus.current;
+      if (target?.getClientRects?.().length) target.focus();
+    };
+  }, []);
+
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    if (!ready && current?.tab && activeTab !== current.tab) {
+      setActiveTab(current.tab);
+    }
+  }, [ready, current?.tab, activeTab, setActiveTab]);
+
+  useLayoutEffect(() => {
+    if (ready) {
+      setBounds(null);
+      card.current?.focus();
+      return;
+    }
+    if (current?.tab && activeTab !== current.tab) return;
+
+    let frame;
+    const target = document.querySelector(current.target);
+    const header = document.querySelector('.pt-header, .site-header');
+
+    const measure = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const cardWidth = Math.min(320, width - 24);
+      const cardHeight = card.current?.offsetHeight || 210;
+
+      if (!target) {
+        setBounds(null);
+        setPosition({
+          width: cardWidth,
+          left: Math.max(12, (width - cardWidth) / 2),
+          top: Math.max(12, (height - cardHeight) / 2),
+        });
+        return;
+      }
+
+      const r = target.getBoundingClientRect();
+      const left = Math.max(6, r.left - 8);
+      const top = Math.max(6, r.top - 8);
+      const right = Math.min(width - 6, r.right + 8);
+      const bottom = Math.min(height - 6, r.bottom + 8);
+      const rect = { left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+      setBounds(rect);
+
+      let cardLeft = left;
+      let cardTop;
+      if (width >= 760 && width - right >= cardWidth + 28) {
+        cardLeft = right + 16;
+        cardTop = top + (rect.height - cardHeight) / 2;
+      } else if (width >= 760 && left >= cardWidth + 28) {
+        cardLeft = left - cardWidth - 16;
+        cardTop = top + (rect.height - cardHeight) / 2;
+      } else if (bottom + 16 + cardHeight <= height - 12) {
+        cardLeft = left + (rect.width - cardWidth) / 2;
+        cardTop = bottom + 16;
+      } else if (top - cardHeight - 16 >= 12) {
+        cardLeft = left + (rect.width - cardWidth) / 2;
+        cardTop = top - cardHeight - 16;
+      } else {
+        cardLeft = width - cardWidth - 16;
+        cardTop = height - cardHeight - 16;
+      }
+
+      setPosition({
+        width: cardWidth,
+        left: Math.max(12, Math.min(cardLeft, width - cardWidth - 12)),
+        top: Math.max(12, Math.min(cardTop, height - cardHeight - 12)),
+      });
+    };
+
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const r = target.getBoundingClientRect();
+      const minTop = (header?.getBoundingClientRect().bottom || 0) + 14;
+      if (r.top < minTop) window.scrollBy({ top: r.top - minTop, behavior: 'instant' });
+    }
+
+    measure();
+    frame = requestAnimationFrame(measure);
+    const observer = new ResizeObserver(measure);
+    if (target) observer.observe(target);
+    if (card.current) observer.observe(card.current);
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    card.current?.focus();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [step, ready, activeTab, current.target, current.tab]);
+
+  function finishAndClose() {
+    setActiveTab('overview');
+    onClose();
+  }
 
   return (
-    <div className="mx-guide-backdrop" role="presentation" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="mx-guide-modal" role="dialog" aria-modal="true" aria-labelledby="mx-guide-title">
-        <header className="mx-guide-header">
-          <div>
-            <span className="mx-decision-label">THE MATRIX · PLAIN-ENGLISH GUIDE</span>
-            <h2 id="mx-guide-title" className="tw:text-lg tw:font-semibold">Get started with The Matrix</h2>
-            <p className="tw:text-xs mx-muted">Everything on this page explained simply — no Wall Street jargon.</p>
-          </div>
-          <button type="button" className="mx-btn" onClick={onClose} aria-label="Close guide">
-            <X size={15} aria-hidden="true" /> Close
-          </button>
-        </header>
-        <div className="mx-guide-body">
-          {GUIDE_SECTIONS.map((sec) => (
-            <section key={sec.id} className="mx-guide-section">
-              <div className="mx-guide-sec-head">
-                <h3>{sec.title}</h3>
-                <span className="mx-badge tw:text-[10px]">{sec.badge}</span>
-              </div>
-              <p className="tw:text-xs mx-muted">{sec.intro}</p>
-              <dl className="mx-guide-list">
-                {sec.items.map((item) => (
-                  <div key={item.label} className="mx-subcard mx-guide-item">
-                    <dt>{item.label}</dt>
-                    <dd>{item.text}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          ))}
-        </div>
-        <footer className="mx-guide-footer">
-          <span className="tw:text-xs mx-muted">Tip: You can re-open this guide anytime from the top right of The Matrix.</span>
-          <button type="button" className="mx-btn is-primary" onClick={onClose}>Got it, let’s trade</button>
-        </footer>
-      </div>
-    </div>
+    <dialog
+      ref={dialog}
+      className="mx-tour"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-text`}
+      onCancel={(e) => { e.preventDefault(); onClose(); }}
+    >
+      <svg className="mx-tour-shade" aria-hidden="true" width="100%" height="100%">
+        <defs>
+          <mask id={`${id}-mask`}>
+            <rect width="100%" height="100%" fill="white" />
+            {bounds && (
+              <rect x={bounds.left} y={bounds.top} width={bounds.width} height={bounds.height} rx="12" fill="black" />
+            )}
+          </mask>
+        </defs>
+        <rect width="100%" height="100%" fill="rgba(0,0,0,.42)" mask={`url(#${id}-mask)`} />
+        {bounds && (
+          <rect className="mx-tour-highlight" x={bounds.left} y={bounds.top} width={bounds.width} height={bounds.height} rx="12" />
+        )}
+      </svg>
+
+      <section
+        ref={card}
+        className={`mx-tour-card ${ready ? 'is-ready' : ''}`}
+        style={ready ? undefined : position}
+        tabIndex={-1}
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-text`}
+      >
+        {ready ? (
+          <>
+            <CheckCircle2 className="mx-tour-ready-icon" size={32} aria-hidden="true" />
+            <h2 id={`${id}-title`}>You’re ready to use The Matrix</h2>
+            <p id={`${id}-text`}>Check the Sizing Gate, Implied Move, and Next Catalyst before NY open. Replay this tour anytime from Get started.</p>
+            <button type="button" className="mx-btn is-primary mx-tour-cta" onClick={finishAndClose}>
+              Start trading <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mx-tour-topline">
+              <span className="mx-tour-step" aria-label={`Step ${step + 1} of ${total}`}>
+                {step + 1} of {total}
+              </span>
+              <button type="button" className="mx-tour-skip" onClick={onClose}>
+                Skip guide
+              </button>
+            </div>
+            <h2 id={`${id}-title`}>{current.title}</h2>
+            <p id={`${id}-text`}>{current.text}</p>
+            <div className="mx-tour-actions">
+              {step > 0 ? (
+                <button type="button" className="mx-tour-back" onClick={() => setStep((s) => s - 1)}>
+                  <ArrowLeft size={14} aria-hidden="true" /> Back
+                </button>
+              ) : (
+                <span />
+              )}
+              <button
+                type="button"
+                className="mx-btn is-primary mx-tour-next"
+                onClick={() => (step === total - 1 ? setReady(true) : setStep((s) => s + 1))}
+              >
+                {step === total - 1 ? 'Finish' : 'Next'} <ArrowRight size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </>
+        )}
+      </section>
+    </dialog>
   );
 }
 
@@ -634,7 +758,7 @@ export default function MatrixPage() {
           )}
 
           {/* 1. Live Macro Ticker Strip (Always visible) */}
-          <section aria-label="Macro ticker" className="tw:grid tw:grid-cols-2 tw:gap-2.5 tw:sm:grid-cols-3 tw:lg:grid-cols-6">
+          <section data-matrix-tour="tickers" aria-label="Macro ticker" className="tw:grid tw:grid-cols-2 tw:gap-2.5 tw:sm:grid-cols-3 tw:lg:grid-cols-6">
             {TOP_TICKERS.map(({ id, label, name }) => {
               const reading = (data?.tickers || []).find((item) => item.id === id);
               return (
@@ -655,7 +779,7 @@ export default function MatrixPage() {
 
           {/* 2. 3-Second Morning Decision Strip */}
           {data && (
-            <section className="mx-card mx-decision-strip" aria-label="Morning decision summary">
+            <section data-matrix-tour="decision" className="mx-card mx-decision-strip" aria-label="Morning decision summary">
               <div className="mx-decision-cell">
                 <span className="mx-decision-label">Session Sizing Gate</span>
                 <div>
@@ -735,7 +859,7 @@ export default function MatrixPage() {
             <div className="tw:grid tw:gap-3.5" role="tabpanel" aria-label="Overview and Bias">
               {/* Multi-Asset Bias Scoreboard + Interactive Pillar Breakdown */}
               <section className="tw:grid tw:gap-3.5 tw:lg:grid-cols-12" aria-label="Multi-asset bias scoreboard">
-                <div className="mx-card tw:overflow-hidden tw:lg:col-span-7">
+                <div data-matrix-tour="scoreboard" className="mx-card tw:overflow-hidden tw:lg:col-span-7">
                   <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                     <div className="tw:flex tw:items-center tw:gap-2">
                       <Compass size={16} className="mx-pos" aria-hidden="true" />
@@ -804,7 +928,7 @@ export default function MatrixPage() {
                 </div>
 
                 {/* Transparent Pillar Breakdown Panel */}
-                <div className="mx-card tw:flex tw:flex-col tw:lg:col-span-5">
+                <div data-matrix-tour="pillars" className="mx-card tw:flex tw:flex-col tw:lg:col-span-5">
                   <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                     <div>
                       <h2 className="tw:text-sm tw:font-semibold">
@@ -864,7 +988,7 @@ export default function MatrixPage() {
 
               {/* Intraday Session Playbook + Mag 7 & Semis Breadth */}
               <div className="tw:grid tw:gap-3.5 tw:lg:grid-cols-12">
-                <section className="mx-card tw:flex tw:flex-col tw:lg:col-span-7" aria-label="NQ intraday session playbook">
+                <section data-matrix-tour="playbook" className="mx-card tw:flex tw:flex-col tw:lg:col-span-7" aria-label="NQ intraday session playbook">
                   <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                     <div className="tw:flex tw:items-center tw:gap-2">
                       <ShieldCheck size={16} className="mx-pos" aria-hidden="true" />
@@ -924,7 +1048,7 @@ export default function MatrixPage() {
                   </div>
                 </section>
 
-                <section className="mx-card tw:flex tw:flex-col tw:lg:col-span-5" aria-label="Mag 7 and Semiconductors breadth">
+                <section data-matrix-tour="mag7" className="mx-card tw:flex tw:flex-col tw:lg:col-span-5" aria-label="Mag 7 and Semiconductors breadth">
                   <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                     <div className="tw:flex tw:items-center tw:gap-2">
                       <BarChart3 size={16} className="mx-pos" aria-hidden="true" />
@@ -979,7 +1103,7 @@ export default function MatrixPage() {
 
           {/* TAB 2: Positioning & Liquidity */}
           {activeTab === 'positioning' && (
-            <div className="tw:grid tw:gap-3.5 tw:lg:grid-cols-12" role="tabpanel" aria-label="Positioning and Liquidity">
+            <div data-matrix-tour="positioning" className="tw:grid tw:gap-3.5 tw:lg:grid-cols-12" role="tabpanel" aria-label="Positioning and Liquidity">
               <section className="mx-card tw:lg:col-span-6" aria-label="COT institutional positioning">
                 <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                   <div className="tw:flex tw:items-center tw:gap-2">
@@ -1103,7 +1227,7 @@ export default function MatrixPage() {
 
           {/* TAB 3: Catalyst Calendar */}
           {activeTab === 'calendar' && (
-            <section className="mx-card tw:p-4 tw:text-xs" role="tabpanel" aria-label="Economic calendar">
+            <section data-matrix-tour="calendar" className="mx-card tw:p-4 tw:text-xs" role="tabpanel" aria-label="Economic calendar">
               <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:pb-3">
                 <div className="tw:flex tw:items-center tw:gap-2">
                   <CalendarClock size={16} className="mx-pos" aria-hidden="true" />
@@ -1185,7 +1309,13 @@ export default function MatrixPage() {
           )}
         </div>
       </main>
-      {showGuide && <MatrixGuideModal onClose={() => setShowGuide(false)} />}
+      {showGuide && (
+        <MatrixTour
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onClose={() => setShowGuide(false)}
+        />
+      )}
     </div>
   );
 }

@@ -55,11 +55,13 @@ test('Matrix explains snapshot age, retains data after failed refresh and switch
  await expect(page.getByLabel('Data freshness')).toContainText('Check freshness before using this snapshot.');
  await expect(page.getByRole('region',{name:'Morning decision summary'})).toBeVisible();
  await page.getByRole('button',{name:'Get started',exact:true}).click();
- const guide=page.getByRole('dialog',{name:'Get started with The Matrix'});
+ const guide=page.getByRole('dialog',{name:'Your 15-second morning check'});
  await expect(guide).toBeVisible();
- await expect(guide).toContainText('Your 15-Second Morning Routine');
- await guide.getByRole('button',{name:'Close guide',exact:true}).click();
- await expect(guide).toHaveCount(0);
+ await expect(guide).toContainText('1 of 8');
+ await guide.getByRole('button',{name:/^Next/}).click();
+ await expect(page.getByRole('dialog',{name:'The 6 market drivers'})).toContainText('2 of 8');
+ await page.getByRole('button',{name:'Skip guide',exact:true}).click();
+ await expect(page.locator('dialog.mx-tour')).toHaveCount(0);
  await page.getByRole('tab',{name:/Positioning & Liquidity/}).click();
  await expect(page.getByRole('heading',{name:'COT Institutional Positioning'})).toBeVisible();
  await page.getByRole('tab',{name:/Catalyst Calendar/}).click();
