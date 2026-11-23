@@ -260,30 +260,35 @@
 /* ============================================================================
    PRIMUS SIGNATURE — GRADUATED LEARN DESK HUB & TEAM SETUP VAULT
    ============================================================================ */
-.learn-hub-actions {
+.learn-hub-bar {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--primus-border);
 }
 .learn-hub-jumps {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .learn-hub-jumps a {
-  padding: 6px 12px;
-  border: 1px solid var(--primus-border);
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--primus-border-strong);
+  border-radius: 8px;
   background: var(--primus-surface);
   color: var(--primus-ink-2);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 550;
   transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
 }
 .learn-hub-jumps a:hover {
-  border-color: var(--primus-border-strong);
+  border-color: var(--primus-accent-text);
   background: var(--primus-surface-2);
   color: var(--primus-ink);
 }
@@ -291,8 +296,8 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 36px;
-  padding: 7px 13px;
+  min-height: 38px;
+  padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--primus-border-strong);
   background: var(--primus-surface);
@@ -342,8 +347,8 @@
   border-color: var(--primus-accent);
   color: var(--primus-accent-ink);
   font-weight: 650;
-  border-radius: 999px;
-  padding: 10px 18px;
+  border-radius: 8px;
+  padding: 9px 18px;
 }
 .learn-bullpen-hero .button.primary:hover:not(:disabled) {
   background: var(--primus-accent-hover);

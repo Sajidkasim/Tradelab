@@ -56,18 +56,6 @@ export default function LearnPage() {
       kicker="THE PRIMUS DESK HUB"
       title="Learn"
       intro="Take an idea from understanding to practice. Start with the basics, study team playbooks and setups, and jump straight onto the live desk."
-      heroAside={(
-        <div className="learn-hub-actions">
-          <div className="learn-hub-jumps" role="navigation" aria-label="Learn sections">
-            <a href="#learn-start-title">Foundations</a>
-            <a href="#glossary-title">Glossary</a>
-            <a href="#learn-library">Team Library</a>
-          </div>
-          <button type="button" className="button learn-tour-btn" onClick={() => setShowTour(true)}>
-            <BookOpen size={14} aria-hidden="true" /> Get started
-          </button>
-        </div>
-      )}
     >
       {access && (
         <section className="wp-panel bullpen-entry learn-bullpen-hero">
@@ -110,6 +98,17 @@ export default function LearnPage() {
           {error && <Notice error>{error}</Notice>}
         </section>
       )}
+
+      <div className="learn-hub-bar">
+        <div className="learn-hub-jumps" role="navigation" aria-label="Learn sections">
+          <a href="#learn-start-title">Foundations</a>
+          <a href="#glossary-title">Glossary</a>
+          <a href="#learn-library">Team Library</a>
+        </div>
+        <button type="button" className="button learn-tour-btn" onClick={() => setShowTour(true)}>
+          <BookOpen size={14} aria-hidden="true" /> Get started
+        </button>
+      </div>
 
       <div data-learn-tour="foundations">
         <LearnFoundations identity={identity} />

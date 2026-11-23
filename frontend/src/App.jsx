@@ -1,4 +1,3 @@
-import AuraCheckIn from "./AuraCheckIn";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Sun,
@@ -271,7 +270,6 @@ export default function App() {
             </nav>
             {workspaceMenu}
           </header>}
-          {sitePreview() && <AuraCheckIn/>}
           <div className="main-shell">
             <main className="content">
               {session.local && (

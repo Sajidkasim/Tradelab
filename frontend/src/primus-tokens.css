@@ -937,3 +937,100 @@
     transform: none !important;
   }
 }
+
+/* ============================================================================
+   UNIFIED PRIMUS SIGNATURE BUTTONS & DROPDOWNS (IDENTICAL ACROSS ALL PAGES)
+   ============================================================================ */
+
+/* Every button across Home, Journal, Strategy Lab, Mindset, Matrix, Learn, Backtesting */
+:root body :is(.button, .pt-btn, .mx-btn, button.pj-sidebar-action, .bt-new-session, .learn-tour-btn, .primus-tour-cta) {
+  border-radius: 8px;
+  font-family: var(--primus-font-sans);
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 140ms ease;
+}
+:root body :is(.button.primary, .pt-btn-dark, .mx-btn.is-primary, .bt-new-session, .primus-tour-cta) {
+  border-radius: 8px;
+  font-weight: 600;
+}
+:root .pt-header-action {
+  border-radius: 8px;
+}
+:root body :is(.button:not(.primary):not(.ghost):not(.danger), .mx-btn:not(.is-primary)) {
+  border: 1px solid var(--primus-border-strong);
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+}
+:root body :is(.button:not(.primary):not(.ghost):not(.danger), .mx-btn:not(.is-primary)):hover:not(:disabled) {
+  border-color: var(--primus-accent-text);
+  background: var(--primus-surface-2);
+}
+:root:not([data-theme="dark"]) body :is(.button.primary, .mx-btn.is-primary, .bt-new-session) {
+  background: var(--primus-rail);
+  border-color: var(--primus-rail);
+  color: #ffffff;
+}
+:root:not([data-theme="dark"]) body :is(.button.primary, .mx-btn.is-primary, .bt-new-session):hover:not(:disabled) {
+  background: #1d2622;
+  border-color: #1d2622;
+}
+:root[data-theme="dark"] body :is(.button.primary, .mx-btn.is-primary, .bt-new-session) {
+  background: var(--primus-accent);
+  border-color: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+:root[data-theme="dark"] body :is(.button.primary, .mx-btn.is-primary, .bt-new-session):hover:not(:disabled) {
+  background: var(--primus-accent-hover);
+  border-color: var(--primus-accent-hover);
+}
+/* Keep Bullpen primary CTA glowing Acid-Lime on its dark obsidian banner in both themes */
+:root body .learn-bullpen-hero .button.primary {
+  background: var(--primus-accent);
+  border-color: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+:root body .learn-bullpen-hero .button.primary:hover:not(:disabled) {
+  background: var(--primus-accent-hover);
+  border-color: var(--primus-accent-hover);
+}
+
+/* Every dropdown, select, custom picker, and menu popover across all pages */
+:root body :is(select, .picker-trigger) {
+  border-radius: 8px;
+  border: 1px solid var(--primus-border-strong);
+  background-color: var(--primus-surface);
+  color: var(--primus-ink);
+  font-family: var(--primus-font-sans);
+  min-height: 38px;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+:root body :is(select, .picker-trigger):hover:not(:disabled) {
+  border-color: var(--primus-accent-text);
+}
+:root body :is(select, .picker-trigger):focus-visible {
+  outline: 2px solid var(--primus-accent-text);
+  outline-offset: 2px;
+}
+:root[data-theme="dark"] body :is(select, .picker-trigger):focus-visible {
+  outline-color: var(--primus-accent);
+}
+:root body :is(.picker-panel, .menu-panel) {
+  border-radius: 10px;
+  border: 1px solid var(--primus-border-strong);
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+  box-shadow: var(--primus-shadow-lift);
+}
+:root body :is(.picker-options button, .menu-panel button, .menu-panel a) {
+  border-radius: 6px;
+}
+:root body .picker-options button[aria-selected="true"] {
+  background: var(--primus-accent-soft);
+  color: var(--primus-ink);
+  font-weight: 600;
+}
+:root[data-theme="dark"] body .picker-options button[aria-selected="true"] {
+  color: var(--primus-accent);
+}
+
