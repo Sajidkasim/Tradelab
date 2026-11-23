@@ -1059,15 +1059,17 @@ export default function CloudflareStage({
     const isCrisp = mode === 'crisp';
     if ('contentHint' in track) track.contentHint = isCrisp ? 'detail' : 'motion';
     track.applyConstraints?.({
-      frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 20 : 30 },
+      frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 15 : 30 },
     }).catch(() => {});
     const sender = screenTransceiverRef.current?.sender;
     if (sender?.getParameters && sender?.setParameters) {
       try {
         const params = sender.getParameters();
+        params.degradationPreference = isCrisp ? 'maintain-resolution' : 'balanced';
         if (params.encodings?.[0]) {
-          params.encodings[0].maxBitrate = isCrisp ? 5_000_000 : 3_500_000;
-          params.encodings[0].maxFramerate = isCrisp ? 20 : 30;
+          params.encodings[0].maxBitrate = isCrisp ? 8_000_000 : 4_000_000;
+          params.encodings[0].maxFramerate = isCrisp ? 15 : 30;
+          params.encodings[0].scaleResolutionDownBy = 1;
           sender.setParameters(params).catch(() => {});
         }
       } catch {}
@@ -1088,7 +1090,7 @@ export default function CloudflareStage({
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
-          frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 20 : 30 },
+          frameRate: { ideal: isCrisp ? 15 : 30, max: isCrisp ? 15 : 30 },
           width: { ideal: isCrisp ? 3840 : 1920 },
           height: { ideal: isCrisp ? 2160 : 1080 },
         },
@@ -1109,8 +1111,32 @@ export default function CloudflareStage({
         if (!pc || !sid) return;
         const transceiver = pc.addTransceiver(videoTrack, {
           direction: 'sendonly',
-          sendEncodings: [{ maxBitrate: isCrisp ? 5_000_000 : 3_500_000, maxFramerate: isCrisp ? 20 : 30 }],
+          sendEncodings: [{
+            maxBitrate: isCrisp ? 8_000_000 : 4_000_000,
+            maxFramerate: isCrisp ? 15 : 30,
+            scaleResolutionDownBy: 1,
+          }],
         });
+        // Prefer sharp screen-text codecs (VP9 / H.264) over muddy VP8 when supported.
+        if (typeof transceiver.setCodecPreferences === 'function' && typeof RTCRtpSender?.getCapabilities === 'function') {
+          try {
+            const caps = RTCRtpSender.getCapabilities('video')?.codecs || [];
+            const preferred = [
+              ...caps.filter((c) => /video\/vp9/i.test(c.mimeType)),
+              ...caps.filter((c) => /video\/h264/i.test(c.mimeType)),
+              ...caps.filter((c) => !/video\/(vp9|h264)/i.test(c.mimeType)),
+            ];
+            if (preferred.length) transceiver.setCodecPreferences(preferred);
+          } catch {}
+        }
+        // Tell WebRTC to keep full resolution crisp instead of downscaling 4K to 720p.
+        if (transceiver.sender?.getParameters && transceiver.sender?.setParameters) {
+          try {
+            const params = transceiver.sender.getParameters();
+            params.degradationPreference = isCrisp ? 'maintain-resolution' : 'balanced';
+            await transceiver.sender.setParameters(params);
+          } catch {}
+        }
         screenTransceiverRef.current = transceiver;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
