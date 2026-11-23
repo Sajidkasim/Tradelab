@@ -32,10 +32,10 @@ test('Journal rules save across reload and account controls have room',async({pa
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
-test('navigation shares Beta badges on Learn and Matrix while Backtesting is graduated',async({page})=>{
+test('navigation keeps Beta badge on Learn while Backtesting and Matrix are graduated',async({page})=>{
  await page.goto(origin);
- await expect(page.locator('nav a[href="/backtesting"] .pt-beta-badge')).toHaveCount(0);
- for(const href of ['/learn','/matrix'])await expect(page.locator(`nav a[href="${href}"] .pt-beta-badge`)).toHaveText('Beta');
+ for(const href of ['/backtesting','/matrix'])await expect(page.locator(`nav a[href="${href}"] .pt-beta-badge`)).toHaveCount(0);
+ await expect(page.locator('nav a[href="/learn"] .pt-beta-badge')).toHaveText('Beta');
 });
 
 test('Journal delays Plotly until its results chart is approached',async({page})=>{
@@ -47,12 +47,17 @@ test('Journal delays Plotly until its results chart is approached',async({page})
  await page.locator('.chart').first().scrollIntoViewIfNeeded();
  await expect.poll(()=>plotly.length).toBe(1);
 });
-test('Matrix explains snapshot age and retains data after failed refresh',async({page})=>{
+test('Matrix explains snapshot age, retains data after failed refresh and switches tabs cleanly',async({page})=>{
  await page.route('**/api/matrix/snapshot',r=>r.fulfill({json:{snapshot:{asOf:'2020-01-01T00:00:00Z',tickers:[{id:'dgs10',value:'4.31%',detail:'FRED · DGS10 · 2019-12-31'}]}}}));
  await page.route('**/api/matrix/refresh',r=>r.fulfill({status:503,json:{detail:'Unavailable'}}));
  await page.goto(origin+'/matrix');
  await expect(page.getByText('Snapshot older than 48 hours',{exact:true})).toBeVisible();
  await expect(page.getByLabel('Data freshness')).toContainText('Check freshness before using this snapshot.');
+ await expect(page.getByRole('region',{name:'Morning decision summary'})).toBeVisible();
+ await page.getByRole('tab',{name:/Positioning & Liquidity/}).click();
+ await expect(page.getByRole('heading',{name:'COT Institutional Positioning'})).toBeVisible();
+ await page.getByRole('tab',{name:/Catalyst Calendar/}).click();
+ await expect(page.getByRole('heading',{name:'High-Impact US Economic Calendar'})).toBeVisible();
  await page.getByRole('button',{name:'Refresh Now',exact:true}).click();
  await expect(page.getByText('Refresh failed. Showing the last snapshot.')).toBeVisible();
  await expect(page.getByText('4.31%',{exact:true})).toBeVisible();

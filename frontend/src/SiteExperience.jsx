@@ -45,7 +45,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <a href="/mindset" aria-current={active==='mindset'?'page':undefined}>Mindset</a>
       {(localSitePreview()||document.querySelector('meta[name="primus-replay-enabled"]'))&&<a href="/backtesting" aria-current={active==='backtesting'?'page':undefined}>Backtesting</a>}
       <a href="/learn" aria-current={active==='learn'?'page':undefined}>Learn <BetaBadge/> {Boolean(bullpen?.people.length)&&<span className="bullpen-live">LIVE</span>}</a>
-      <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix <BetaBadge/></a>
+      <a href="/matrix" aria-current={active==='matrix'?'page':undefined}>The Matrix</a>
       {member?.can_lock&&<button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
     </nav>
     {actions ? <div className="pt-header-tools">{themeControl}{actions}</div> : <div className="pt-header-controls">{themeControl}{member&&!member.authenticated&&<a className="pt-header-action" href="/signin">Sign in <ArrowUpRight size={15}/></a>}{member?.can_lock&&<button className="pt-header-signout" onClick={signOut}>Sign out</button>}</div>}
