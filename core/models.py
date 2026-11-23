@@ -77,6 +77,10 @@ class Account:
     id: Optional[int] = None
     account_type: str = "Personal"
     status: str = "active"
+    firm: str = ""
+    fee_paid: float = 0.0
+    payouts_total: float = 0.0
+    closed_at: Optional[str] = None
 
 
 @dataclass

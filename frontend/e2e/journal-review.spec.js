@@ -91,3 +91,57 @@ test('one Journal card can cover three copy-trading accounts', async ({page}) =>
   await card.locator('.pj-trade-summary').click();
   for (const name of names) await expect(card.getByRole('checkbox',{name,exact:true})).toBeChecked();
 });
+
+test('Journal equity curve defaults to active accounts and excludes blown accounts', async ({page}) => {
+  const origin = 'http://127.0.0.1:8119';
+  const day = '2026-09-22';
+  await page.goto(`${origin}/journal?day=${day}`);
+  await expect(page.getByRole('heading', {name: 'Trades taken today'})).toBeVisible();
+  const session = await (await page.request.get(`${origin}/api/session`)).json();
+  const headers = {'X-Primus-CSRF': session.csrf, Origin: origin};
+
+  const activeResp = await page.request.post(`${origin}/api/journal-accounts`, {
+    headers, data: {name: 'Live Funded 50K', starting_balance: 50000, account_type: 'Funded', firm: 'Topstep', fee_paid: 150, payouts_total: 1200},
+  });
+  expect(activeResp.ok()).toBeTruthy();
+  const activeAcct = await activeResp.json();
+
+  const blownResp = await page.request.post(`${origin}/api/journal-accounts`, {
+    headers, data: {name: 'Blown Eval 99', starting_balance: 50000, account_type: 'Eval', status: 'blown', fee_paid: 50},
+  });
+  expect(blownResp.ok()).toBeTruthy();
+  const blownAcct = await blownResp.json();
+
+  const saved = await page.request.put(`${origin}/api/journal/${day}`, {
+    headers,
+    data: {
+      plan: 'Wait for London low sweep before entry.',
+      plan_followed: 'Yes',
+      mindset: 'Focused',
+      trades: [
+        {id: 'd'.repeat(32), symbol: 'NQ', account_id: activeAcct.id, net_pnl: 400},
+        {id: 'e'.repeat(32), symbol: 'NQ', account_id: blownAcct.id, net_pnl: -2500},
+      ],
+    },
+  });
+  expect(saved.ok()).toBeTruthy();
+
+  await page.reload();
+  const equity = page.getByRole('region', {name: 'Journal equity curve'});
+  // Default Active scope excludes Blown Eval 99 from chips and P&L
+  await expect(equity.getByRole('group', {name: 'Equity curve account'}).getByRole('button', {name: 'Blown Eval 99', exact: true})).toHaveCount(0);
+  await expect(equity).toContainText('excluding 1 blown');
+  await expect(equity.getByRole('heading', {name: 'Discipline & mindset breakdown'})).toBeVisible();
+
+  // Switching scope to Blown isolates the blown account's -$2,500 result
+  await equity.getByRole('group', {name: 'Equity scope'}).getByRole('button', {name: /Blown/}).click();
+  await expect(equity).toContainText('-$2,500');
+
+  // Sidebar search locates the saved entry by keyword
+  await page.getByLabel('Search journal entries').fill('London low sweep');
+  await expect(page.getByRole('button', {name: 'Edit entry 22 September 2026', exact: true})).toBeVisible();
+  await page.getByLabel('Clear search and filters').click();
+
+  await page.setViewportSize({width: 390, height: 844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});

@@ -13,7 +13,21 @@ class JournalAccount(StrictModel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
     starting_balance: Annotated[float, Field(gt=0)]
     account_type: Literal["Funded", "Eval", "Personal"]
-    status: Literal["active", "blown"] = "active"
+    status: Literal["active", "passed", "blown"] = "active"
+    firm: str = Field(default="", max_length=60)
+    fee_paid: float = Field(default=0.0, ge=0, le=1_000_000)
+    payouts_total: float = Field(default=0.0, ge=0, le=10_000_000)
+    closed_at: date | None = None
+
+
+class JournalAccountPreset(StrictModel):
+    id: str = Field(pattern=r'^[a-f0-9]{1,32}$')
+    name: Annotated[str, Field(min_length=1, max_length=60)]
+    account_ids: list[Annotated[int, Field(gt=0)]] = Field(min_length=1, max_length=50)
+
+
+class JournalAccountPresets(StrictModel):
+    presets: list[JournalAccountPreset] = Field(default_factory=list, max_length=12)
 
 
 class AccountAccess(StrictModel):

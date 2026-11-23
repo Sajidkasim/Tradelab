@@ -55,9 +55,7 @@ def card_accounts(card):
 
 
 def with_day_result(database, row, *, replay_ids=None, trades_by_id=None):
-    """Journal-only totals use the tested core; missing results never imply zero."""
-    import pandas as pd
-    from core.metrics import daily_pnl
+    """Journal-only totals computed in pure Python; missing results never imply zero."""
     trades = []
     amounts = []
     trade_results = []
@@ -87,11 +85,10 @@ def with_day_result(database, row, *, replay_ids=None, trades_by_id=None):
         if len(selected) > 1:
             result['account_ids'] = selected
         trade_results.append(result)
-    recorded = [amount for amount in amounts if amount is not None]
+    recorded = [float(amount) for amount in amounts if amount is not None]
     total = None
     if amounts and len(recorded) == len(amounts):
-        frame = pd.DataFrame({'net_pnl': recorded, 'exit_time': [row['day']] * len(recorded)})
-        total = float(daily_pnl(frame).iloc[0])
+        total = round(sum(recorded), 10)
     return {**row, 'trades': trades, 'trade_results': trade_results, 'day_result': {'net_pnl': total, 'outcome': outcome(total),
                                  'recorded_trades': len(recorded), 'total_trades': len(amounts)}}
 
@@ -292,3 +289,249 @@ def references_account(database, account_id):
             if isinstance(row, dict) and any(account_id in card_accounts(card) for card in row.get('trades', [])):
                 return True
     return False
+
+
+PRESETS_KEY = 'primus_journal_account_presets'
+MAX_AUDIO_UPLOAD = 8 * 1024 * 1024
+WHISPER_MODEL = '@cf/openai/whisper'
+VALID_SCOPES = ('active', 'funded', 'eval', 'personal', 'passed', 'blown', 'all')
+
+
+def account_presets(database):
+    raw = database.get_setting(PRESETS_KEY, [])
+    if not isinstance(raw, list):
+        return []
+    valid_ids = {account.id for account in database.accounts()}
+    cleaned = []
+    for item in raw[:12]:
+        if not isinstance(item, dict):
+            continue
+        ids = [aid for aid in item.get('account_ids', []) if isinstance(aid, int) and aid in valid_ids]
+        name = str(item.get('name') or '').strip()[:60]
+        pid = str(item.get('id') or '').strip()
+        if pid and name and ids:
+            cleaned.append({'id': pid, 'name': name, 'account_ids': list(dict.fromkeys(ids))})
+    return cleaned
+
+
+def save_account_presets(database, presets):
+    valid_ids = {account.id for account in database.accounts()}
+    cleaned = []
+    for item in (presets or [])[:12]:
+        ids = [int(aid) for aid in item.get('account_ids', []) if int(aid) in valid_ids]
+        name = str(item.get('name') or '').strip()[:60]
+        pid = str(item.get('id') or '').strip()
+        if not pid or not name or not ids:
+            raise ValueError('Each preset needs a name and at least one existing account.')
+        cleaned.append({'id': pid, 'name': name, 'account_ids': list(dict.fromkeys(ids))})
+    database.set_setting(PRESETS_KEY, cleaned)
+    return cleaned
+
+
+def entries_summary(database):
+    """Compact index of all saved Journal days for fast calendar, search and analytics."""
+    full = entries(database)
+    out = []
+    for row in full:
+        trades = row.get('trades') or []
+        symbols = list(dict.fromkeys(t.get('symbol') for t in trades if t.get('symbol')))
+        strategies = list(dict.fromkeys(t.get('strategy') for t in trades if t.get('strategy')))
+        snippet = (row.get('lesson') or row.get('notes') or row.get('plan') or '').strip()
+        if len(snippet) > 160:
+            snippet = snippet[:157] + '…'
+        out.append({
+            'day': row['day'],
+            'updated_at': row.get('updated_at'),
+            'plan_followed': row.get('plan_followed'),
+            'traded_today': row.get('traded_today'),
+            'no_trade_plan': bool(row.get('no_trade_plan')),
+            'mindset': row.get('mindset') or 'Not set',
+            'day_result': row.get('day_result'),
+            'trade_results': row.get('trade_results') or [],
+            'trade_count': len(trades),
+            'image_count': len(row.get('images') or []),
+            'symbols': symbols,
+            'strategies': strategies,
+            'preview': snippet,
+        })
+    return out
+
+
+def _scope_accounts(accounts, scope='active', account_id=None):
+    if account_id is not None:
+        return [a for a in accounts if a.id == account_id], False
+    if scope == 'all':
+        return list(accounts), True
+    if scope == 'active':
+        return [a for a in accounts if (a.status or 'active') == 'active'], True
+    if scope == 'funded':
+        return [a for a in accounts if (a.status or 'active') == 'active' and a.account_type == 'Funded'], False
+    if scope == 'eval':
+        return [a for a in accounts if (a.status or 'active') == 'active' and a.account_type == 'Eval'], False
+    if scope == 'personal':
+        return [a for a in accounts if (a.status or 'active') == 'active' and a.account_type == 'Personal'], False
+    if scope == 'passed':
+        return [a for a in accounts if a.status == 'passed'], False
+    if scope == 'blown':
+        return [a for a in accounts if a.status == 'blown'], False
+    return [a for a in accounts if (a.status or 'active') == 'active'], True
+
+
+def _scoped_day_pnl(row, target_ids, include_unassigned):
+    results = row.get('trade_results') or []
+    recorded = []
+    split_estimated = False
+    for res in results:
+        net = res.get('net_pnl')
+        if net is None:
+            continue
+        ids = card_accounts(res)
+        if not ids:
+            if include_unassigned:
+                recorded.append(float(net))
+            continue
+        matched = [aid for aid in ids if aid in target_ids]
+        if not matched:
+            continue
+        if len(matched) == len(ids):
+            recorded.append(float(net))
+        else:
+            recorded.append(round(float(net) * len(matched) / len(ids), 2))
+            split_estimated = True
+    if not recorded:
+        return None, split_estimated
+    return round(sum(recorded), 2), split_estimated
+
+
+def equity_and_insights(database, scope='active', account_id=None):
+    """Compute active-first equity curve, discipline/mindset stats and prop-firm ROI in Python."""
+    if scope not in VALID_SCOPES:
+        scope = 'active'
+    accounts = database.accounts()
+    selected_accounts, include_unassigned = _scope_accounts(accounts, scope=scope, account_id=account_id)
+    target_ids = {a.id for a in selected_accounts}
+    starting = round(sum(float(a.starting_balance or 0.0) for a in selected_accounts), 2)
+    rows = entries(database)
+
+    day_points = []
+    split_estimated = False
+    plan_stats = {k: {'days': 0, 'pnl_days': 0, 'wins': 0, 'net_pnl': 0.0} for k in ('Yes', 'Partly', 'No')}
+    mindset_stats = {k: {'days': 0, 'pnl_days': 0, 'wins': 0, 'net_pnl': 0.0} for k in ('Focused', 'Patient', 'Distracted', 'Frustrated')}
+    weekday_stats = {d: {'days': 0, 'net_pnl': 0.0} for d in ('Mon', 'Tue', 'Wed', 'Thu', 'Fri')}
+    weekday_names = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
+
+    for row in sorted(rows, key=lambda r: r['day']):
+        pnl, was_split = _scoped_day_pnl(row, target_ids, include_unassigned)
+        if was_split:
+            split_estimated = True
+        if pnl is not None:
+            day_points.append({'day': row['day'], 'pnl': pnl})
+            wd = weekday_names[datetime.strptime(row['day'], '%Y-%m-%d').weekday()]
+            if wd in weekday_stats:
+                weekday_stats[wd]['days'] += 1
+                weekday_stats[wd]['net_pnl'] = round(weekday_stats[wd]['net_pnl'] + pnl, 2)
+
+        pf = row.get('plan_followed')
+        if pf in plan_stats:
+            plan_stats[pf]['days'] += 1
+            if pnl is not None:
+                plan_stats[pf]['pnl_days'] += 1
+                if pnl > 0:
+                    plan_stats[pf]['wins'] += 1
+                plan_stats[pf]['net_pnl'] = round(plan_stats[pf]['net_pnl'] + pnl, 2)
+
+        ms = row.get('mindset')
+        if ms in mindset_stats:
+            mindset_stats[ms]['days'] += 1
+            if pnl is not None:
+                mindset_stats[ms]['pnl_days'] += 1
+                if pnl > 0:
+                    mindset_stats[ms]['wins'] += 1
+                mindset_stats[ms]['net_pnl'] = round(mindset_stats[ms]['net_pnl'] + pnl, 2)
+
+    balance = starting
+    series = []
+    for pt in day_points:
+        balance = round(balance + pt['pnl'], 2)
+        series.append({'day': pt['day'], 'pnl': pt['pnl'], 'balance': balance})
+
+    net = round(balance - starting, 2)
+    return_pct = round((net / starting) * 100, 2) if starting > 0 else None
+
+    fees = round(sum(float(getattr(a, 'fee_paid', 0.0) or 0.0) for a in accounts), 2)
+    payouts = round(sum(float(getattr(a, 'payouts_total', 0.0) or 0.0) for a in accounts), 2)
+
+    return {
+        'scope': scope,
+        'account_id': account_id,
+        'starting_balance': starting,
+        'current_balance': balance,
+        'net_pnl': net,
+        'return_pct': return_pct,
+        'split_estimated': split_estimated,
+        'series': series,
+        'counts': {
+            'active': sum(1 for a in accounts if (a.status or 'active') == 'active'),
+            'passed': sum(1 for a in accounts if a.status == 'passed'),
+            'blown': sum(1 for a in accounts if a.status == 'blown'),
+            'total': len(accounts),
+        },
+        'insights': {
+            'plan': plan_stats,
+            'mindset': mindset_stats,
+            'weekdays': weekday_stats,
+        },
+        'prop_ledger': {
+            'fees_total': fees,
+            'payouts_total': payouts,
+            'net_roi': round(payouts - fees, 2),
+        },
+    }
+
+
+def _whisper_creds():
+    import os
+    account_id = os.getenv('COACH_CLOUDFLARE_ACCOUNT_ID', '').strip()
+    token = os.getenv('COACH_CLOUDFLARE_API_TOKEN', '').strip()
+    if not re.fullmatch(r'[a-fA-F0-9]{32}', account_id) or not token:
+        return None
+    return account_id, token
+
+
+def voice_transcribe_enabled():
+    return _whisper_creds() is not None
+
+
+def transcribe_audio(content: bytes) -> str:
+    """Transcribe a short voice journal clip via Cloudflare Workers AI Whisper."""
+    import os
+    import requests
+
+    if not content:
+        raise ValueError('No audio was recorded. Try speaking for at least a second.')
+    if len(content) > MAX_AUDIO_UPLOAD:
+        raise ValueError('Recording is too large. Keep voice clips under 8 MB.')
+    creds = _whisper_creds()
+    if not creds:
+        raise RuntimeError('Voice transcription requires Cloudflare Workers AI credentials.')
+    account_id, token = creds
+    model = os.getenv('COACH_CLOUDFLARE_WHISPER_MODEL', '').strip() or WHISPER_MODEL
+    try:
+        response = requests.post(
+            f'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}',
+            headers={'Authorization': f'Bearer {token}', 'Content-Type': 'application/octet-stream'},
+            data=content,
+            timeout=(5, 25),
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError('Voice transcription is temporarily unreachable.') from exc
+    if not response.ok:
+        raise RuntimeError('Voice transcription failed. Try again in a moment.')
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError('Voice transcription returned an unreadable response.') from exc
+    result = payload.get('result', payload) if isinstance(payload, dict) else {}
+    text = (result.get('text') if isinstance(result, dict) else '') or ''
+    return ' '.join(str(text).split())

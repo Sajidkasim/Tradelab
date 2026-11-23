@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from core import edge
 from core.models import Account, Source
 from core.registry import COACH_PROVIDERS, load_extensions
-from .schemas import ArchivedChoice, CustomFieldId, CustomTradeField, JournalAccount
+from .schemas import ArchivedChoice, CustomFieldId, CustomTradeField, JournalAccount, JournalAccountPresets
 from services import trade_labels, fixed_rr, strategy_catalog, research, review as trade_review, tag_cleanup
 from .config import Settings, from_env
 from .image_storage import ImageStorage, StorageUnavailable
@@ -197,12 +197,23 @@ def create_app(config: Settings | None = None):
         values["name"] = values["name"].strip()
         if not values["name"]:
             raise HTTPException(422, "Enter an account name.")
+        if "firm" in values:
+            values["firm"] = values["firm"].strip()
+        if "closed_at" in values and values["closed_at"] is not None:
+            values["closed_at"] = values["closed_at"].isoformat()
         if account_id is None:
+            if values.get("status") in ("blown", "passed") and not values.get("closed_at"):
+                values["closed_at"] = date.today().isoformat()
             account = Account(**values, daily_loss_limit=0, max_trailing_drawdown=0)
         else:
             existing = next((item for item in database.accounts() if item.id == account_id), None)
             if existing is None:
                 raise HTTPException(404, "Account not found.")
+            if "status" in values and "closed_at" not in values:
+                if values["status"] in ("blown", "passed") and existing.status == "active" and not existing.closed_at:
+                    values["closed_at"] = date.today().isoformat()
+                elif values["status"] == "active" and existing.status != "active":
+                    values["closed_at"] = None
             account = replace(existing, **values)
         try:
             account.id = database.upsert_account(account)
@@ -210,22 +221,42 @@ def create_app(config: Settings | None = None):
             raise HTTPException(409, "An account with that name already exists.") from None
         return asdict(account)
 
+    @app.get("/api/journal-accounts/presets")
+    def get_journal_account_presets(request: Request, member=Depends(workspace)):
+        return {"presets": daily_journal.account_presets(db(request, member))}
+
+    @app.put("/api/journal-accounts/presets")
+    def put_journal_account_presets(payload: JournalAccountPresets, request: Request, member=Depends(workspace)):
+        with app.state.workspaces.workspace_lock(member["key"]):
+            try:
+                saved = daily_journal.save_account_presets(
+                    db(request, member), [item.model_dump() for item in payload.presets]
+                )
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
+            app.state.workspaces.bump(member["key"])
+        return {"presets": saved}
+
     @app.post("/api/journal-accounts", status_code=201)
     def add_journal_account(payload: JournalAccount, request: Request, member=Depends(workspace)):
         with app.state.workspaces.workspace_lock(member["key"]):
-            return write_journal_account(db(request, member), payload)
+            result = write_journal_account(db(request, member), payload)
+            app.state.workspaces.bump(member["key"])
+            return result
 
     @app.put("/api/journal-accounts/{account_id}")
     def edit_journal_account(account_id: int, payload: JournalAccount, request: Request, member=Depends(workspace)):
         with app.state.workspaces.workspace_lock(member["key"]):
-            return write_journal_account(db(request, member), payload, account_id)
+            result = write_journal_account(db(request, member), payload, account_id)
+            app.state.workspaces.bump(member["key"])
+            return result
 
     @app.delete("/api/journal-accounts/{account_id}")
     def remove_journal_account(account_id: int, request: Request, member=Depends(workspace)):
         database = db(request, member)
         with app.state.workspaces.workspace_lock(member['key']):
             if daily_journal.references_account(database, account_id):
-                raise HTTPException(409, "This account has linked Journal trades. Mark it as Blown to keep its history.")
+                raise HTTPException(409, "This account has linked Journal trades. Mark it as Blown or Passed to keep its history.")
             if not database.delete_unused_account(account_id):
                 accounts = database.accounts()
                 if not any(account.id == account_id for account in accounts):
@@ -233,6 +264,7 @@ def create_app(config: Settings | None = None):
                 if len(accounts) == 1:
                     raise HTTPException(409, "Keep at least one account for trades and imports.")
                 raise HTTPException(409, "This account has linked trades and cannot be deleted.")
+            app.state.workspaces.bump(member["key"])
         return {"deleted": account_id}
 
     @app.get("/api/matrix/snapshot")
@@ -354,7 +386,8 @@ def create_app(config: Settings | None = None):
         return {'authenticated': True, 'name': member['name'], 'owner': member['key'] == 'owner', 'local': config.local,
                 'auth_mode': config.auth_mode, 'can_lock': config.password_required or config.google_required,
                 'csrf': request.session['csrf'], 'images_enabled': request.app.state.image_storage.enabled,
-                'chart_vision_cloud_enabled': chart_vision.enabled()}
+                'chart_vision_cloud_enabled': chart_vision.enabled(),
+                'voice_journal_enabled': daily_journal.voice_transcribe_enabled()}
 
     def google_return_paths():
         paths = ('/lab', '/journal', '/learn', '/mindset', '/matrix') if (config.site_enabled or config.site_preview) else (config.lab_path or '/',)
@@ -467,6 +500,40 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.workspace_lock(member['key']):
             return daily_journal.entries(db(request, member))
 
+    @app.get('/api/journal/summary')
+    def list_journal_summary(request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.workspace_lock(member['key']):
+            return daily_journal.entries_summary(db(request, member))
+
+    @app.get('/api/journal/equity')
+    def journal_equity(
+        request: Request,
+        scope: Literal['active', 'funded', 'eval', 'personal', 'passed', 'blown', 'all'] = 'active',
+        account_id: int | None = Query(default=None, gt=0),
+        member=Depends(workspace),
+    ):
+        journal_preview()
+        with app.state.workspaces.workspace_lock(member['key']):
+            return daily_journal.equity_and_insights(db(request, member), scope=scope, account_id=account_id)
+
+    @app.post('/api/journal/transcribe')
+    async def transcribe_journal_voice(request: Request, file: UploadFile = File(...), member=Depends(workspace)):
+        journal_preview()
+        try:
+            content = await file.read(daily_journal.MAX_AUDIO_UPLOAD + 1)
+        finally:
+            await file.close()
+        if len(content) > daily_journal.MAX_AUDIO_UPLOAD:
+            raise HTTPException(413, 'Keep voice recordings smaller than 8 MB.')
+        try:
+            text = await run_in_threadpool(daily_journal.transcribe_audio, content)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
+        except RuntimeError as exc:
+            raise HTTPException(503, str(exc)) from None
+        return {'text': text}
+
     from pydantic import BaseModel, Field
 
     class AuraTurn(BaseModel):
@@ -559,6 +626,12 @@ def create_app(config: Settings | None = None):
             result = daily_journal.restore_entry(db(request, member), archive_id)
             app.state.workspaces.bump(member['key'])
             return daily_journal.with_day_result(db(request, member), result)
+
+    @app.get('/api/journal/{day}')
+    def read_journal_day(day: date, request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.workspace_lock(member['key']):
+            return daily_journal.entry(db(request, member), day.isoformat())
 
     @app.put('/api/journal/{day}')
     def save_journal(day: date, payload: DailyEntry, request: Request, member=Depends(workspace)):

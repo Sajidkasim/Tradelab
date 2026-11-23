@@ -21,7 +21,7 @@ function CoachMarkdown({text}) {
   });
 }
 
-function AuraReview({day, account, dirty, titleId, onClose}) {
+function AuraReview({day, account, dirty, titleId, onClose, initialPrompt, onPromptConsumed}) {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [question, setQuestion] = useState('');
   const [turns, setTurns] = useState([]);
@@ -30,6 +30,13 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
 
   const request = useRef(null);
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => {
+    if (initialPrompt && !request.current) {
+      const prompt = initialPrompt;
+      onPromptConsumed?.();
+      review(prompt);
+    }
+  }, [initialPrompt]);
 
   async function review(submitted) {
     if (request.current || !submitted) return;
@@ -111,9 +118,21 @@ function AuraReview({day, account, dirty, titleId, onClose}) {
 
 export default function FloatingAura({day, account, dirty}) {
   const [open, setOpen] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState('');
   const button = useRef(null);
   const titleId = useId();
   const panelId = useId();
+
+  useEffect(() => {
+    const onAsk = (event) => {
+      const prompt = event?.detail?.question;
+      if (!prompt) return;
+      setOpen(true);
+      setPendingPrompt(String(prompt));
+    };
+    window.addEventListener('primus:ask-primax', onAsk);
+    return () => window.removeEventListener('primus:ask-primax', onAsk);
+  }, []);
 
   function close() {
     setOpen(false);
@@ -134,7 +153,8 @@ export default function FloatingAura({day, account, dirty}) {
     </button>
     {open && <div id={panelId} className="pj-aura-panel">
       <AuraReview key={JSON.stringify([day, account])} day={day} account={account}
-        dirty={dirty} titleId={titleId} onClose={close}/>
+        dirty={dirty} titleId={titleId} onClose={close}
+        initialPrompt={pendingPrompt} onPromptConsumed={() => setPendingPrompt('')}/>
     </div>}
   </div>;
 }

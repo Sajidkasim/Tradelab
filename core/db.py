@@ -38,6 +38,10 @@ accounts_t = Table(
     Column("starting_balance", Float, nullable=False),
     Column("account_type", String(16), nullable=False, default="Personal", server_default="Personal"),
     Column("status", String(16), nullable=False, default="active", server_default="active"),
+    Column("firm", String(60), nullable=False, default="", server_default=""),
+    Column("fee_paid", Float, nullable=False, default=0.0, server_default="0"),
+    Column("payouts_total", Float, nullable=False, default=0.0, server_default="0"),
+    Column("closed_at", String(32)),
     Column("daily_loss_limit", Float, nullable=False),
     Column("max_trailing_drawdown", Float, nullable=False),
     Column("max_contracts", Integer, default=5),
@@ -313,7 +317,15 @@ class Database:
         with self.engine.connect() as conn:
             rows = conn.execute(select(accounts_t).order_by(accounts_t.c.id)).mappings().all()
         known = Account.__dataclass_fields__
-        return [Account(**{k: v for k, v in dict(r).items() if k in known}) for r in rows]
+        out = []
+        for r in rows:
+            d = {k: v for k, v in dict(r).items() if k in known}
+            d["status"] = d.get("status") or "active"
+            d["firm"] = d.get("firm") or ""
+            d["fee_paid"] = float(d.get("fee_paid") or 0.0)
+            d["payouts_total"] = float(d.get("payouts_total") or 0.0)
+            out.append(Account(**d))
+        return out
 
     def delete_account(self, account_id: int) -> None:
         with self.engine.begin() as conn:

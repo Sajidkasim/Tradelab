@@ -372,3 +372,115 @@ def test_custom_field_definitions_are_private(draft):
     response = client.post('/api/trades', json={**trade_payload(), 'custom_fields': {field_id: ['Present']}})
     assert response.status_code == 422
     assert client.get('/api/trades').json() == []
+
+
+def test_journal_equity_defaults_to_active_accounts_and_tracks_prop_ledger(draft, monkeypatch):
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+    from webapp import daily_journal
+
+    client, _, state = draft
+    login(client, state)
+
+    default_acct = client.get('/api/journal-accounts').json()[0]
+    default_start = default_acct['starting_balance']
+
+    funded = client.post('/api/journal-accounts', json={
+        'name': 'Apex Funded #1',
+        'starting_balance': 50000,
+        'account_type': 'Funded',
+        'firm': 'Apex',
+        'fee_paid': 150,
+        'payouts_total': 2000,
+    }).json()
+    passed = client.post('/api/journal-accounts', json={
+        'name': 'Topstep Eval Passed',
+        'starting_balance': 50000,
+        'account_type': 'Eval',
+        'status': 'passed',
+        'firm': 'Topstep',
+        'fee_paid': 100,
+    }).json()
+    blown = client.post('/api/journal-accounts', json={
+        'name': 'Blown Eval #1',
+        'starting_balance': 50000,
+        'account_type': 'Eval',
+        'status': 'blown',
+        'firm': 'Apex',
+        'fee_paid': 50,
+    }).json()
+    assert passed['closed_at'] is not None
+    assert blown['closed_at'] is not None
+
+    # Save 2 days: one with active + blown + partial copy-trade, one with off-plan loss
+    day1 = '2026-09-07'  # Monday
+    day2 = '2026-09-08'  # Tuesday
+    r1 = client.put(f'/api/journal/{day1}', json={
+        'plan': 'Wait for NY open sweep',
+        'plan_followed': 'Yes',
+        'mindset': 'Focused',
+        'trades': [
+            {'id': uuid4().hex, 'symbol': 'NQ', 'account_id': funded['id'], 'net_pnl': 600},
+            {'id': uuid4().hex, 'symbol': 'NQ', 'account_id': blown['id'], 'net_pnl': -2000},
+            {'id': uuid4().hex, 'symbol': 'ES', 'account_ids': [funded['id'], blown['id']], 'net_pnl': 200},
+        ],
+    })
+    assert r1.status_code == 200, r1.text
+    r2 = client.put(f'/api/journal/{day2}', json={
+        'lesson': 'Overtraded lunch chop',
+        'plan_followed': 'No',
+        'mindset': 'Frustrated',
+        'trades': [
+            {'id': uuid4().hex, 'symbol': 'NQ', 'account_id': funded['id'], 'net_pnl': -250},
+        ],
+    })
+    assert r2.status_code == 200, r2.text
+
+    # Active equity excludes blown & passed starting balances and blown-only trades
+    eq_active = client.get('/api/journal/equity?scope=active').json()
+    assert eq_active['starting_balance'] == default_start + 50000
+    assert eq_active['net_pnl'] == 450.0  # 600 + 100 (half of copy trade) - 250
+    assert eq_active['split_estimated'] is True
+    assert eq_active['counts'] == {'active': 2, 'passed': 1, 'blown': 1, 'total': 4}
+    assert eq_active['prop_ledger'] == {'fees_total': 300.0, 'payouts_total': 2000.0, 'net_roi': 1700.0}
+    assert eq_active['insights']['plan']['Yes']['net_pnl'] == 700.0
+    assert eq_active['insights']['plan']['No']['net_pnl'] == -250.0
+    assert eq_active['insights']['mindset']['Focused']['net_pnl'] == 700.0
+    assert eq_active['insights']['weekdays']['Mon']['net_pnl'] == 700.0
+
+    # Blown equity isolates the blown account cleanly
+    eq_blown = client.get('/api/journal/equity?scope=blown').json()
+    assert eq_blown['starting_balance'] == 50000
+    assert eq_blown['net_pnl'] == -1900.0  # -2000 + 100 (half of copy trade)
+
+    # Lightweight summary + single-day fetch
+    summary = client.get('/api/journal/summary').json()
+    assert len(summary) == 2
+    assert summary[0]['day'] == day2
+    assert summary[0]['preview'] == 'Overtraded lunch chop'
+    assert summary[1]['symbols'] == ['NQ', 'ES']
+    single = client.get(f'/api/journal/{day1}').json()
+    assert single['plan'] == 'Wait for NY open sweep'
+
+    # Copy-trade account presets
+    preset_id = uuid4().hex
+    saved_presets = client.put('/api/journal-accounts/presets', json={
+        'presets': [{'id': preset_id, 'name': 'Funded Pair', 'account_ids': [default_acct['id'], funded['id']]}],
+    })
+    assert saved_presets.status_code == 200
+    assert client.get('/api/journal-accounts/presets').json()['presets'][0]['name'] == 'Funded Pair'
+
+    # Voice-to-Journal Whisper transcription: 503 when unconfigured, 200 when Cloudflare mocked
+    monkeypatch.delenv('COACH_CLOUDFLARE_ACCOUNT_ID', raising=False)
+    monkeypatch.delenv('COACH_CLOUDFLARE_API_TOKEN', raising=False)
+    assert client.post('/api/journal/transcribe', files={'file': ('clip.webm', b'webmdata', 'audio/webm')}).status_code == 503
+
+    monkeypatch.setenv('COACH_CLOUDFLARE_ACCOUNT_ID', 'a' * 32)
+    monkeypatch.setenv('COACH_CLOUDFLARE_API_TOKEN', 'secret-token')
+    fake_resp = MagicMock(ok=True)
+    fake_resp.json.return_value = {'result': {'text': 'Waited for London sweep and took NQ long.'}}
+    monkeypatch.setattr('requests.post', lambda *args, **kwargs: fake_resp)
+    transcribed = client.post('/api/journal/transcribe', files={'file': ('clip.webm', b'webmdata', 'audio/webm')})
+    assert transcribed.status_code == 200
+    assert transcribed.json() == {'text': 'Waited for London sweep and took NQ long.'}
+    assert daily_journal.voice_transcribe_enabled() is True
