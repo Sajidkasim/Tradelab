@@ -92,3 +92,27 @@ test('a replay can be linked to a Journal card, saved, and deleted separately', 
  await expect(imported).toHaveCount(0);
  await expect(card.getByRole('button',{name:'Link imported replay'})).toBeVisible();
 });
+
+test('replay imports page through long lists and can all be deleted with one confirmation',async({page})=>{
+ const origin='http://127.0.0.1:8119';
+ await page.goto(`${origin}/journal?day=2026-08-19`);
+ await page.locator('summary').filter({hasText:'Trade replay'}).click();
+ const csv=['trade_id,execution_id,symbol,timestamp,side,quantity,price,role',
+  ...Array.from({length:12},(_,i)=>`bulk-${i},entry,EURUSD,2026-08-19T13:30:00Z,buy,1,1.08,entry`)].join('\n');
+ await page.getByLabel('Replay execution CSV').setInputFiles({name:'bulk.csv',mimeType:'text/csv',buffer:Buffer.from(csv)});
+ await page.getByRole('button',{name:'Import trades',exact:true}).click();
+ await expect(page.getByText('12 replay trades imported.',{exact:true})).toBeVisible();
+ const list=page.getByRole('region',{name:'Imported replay trades'});
+ await expect(list.locator('.jr-import-row')).toHaveCount(10);
+ const paging=list.getByRole('navigation',{name:'Replay import pages'});
+ await paging.getByRole('button',{name:'Next',exact:true}).click();
+ await expect(paging.getByRole('status')).toHaveText('2 of 2');
+ await list.getByRole('button',{name:'Delete all imports',exact:true}).click();
+ const confirmation=page.getByRole('dialog',{name:'Delete all replay imports?'});
+ await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(list).toBeVisible();
+ await list.getByRole('button',{name:'Delete all imports',exact:true}).click();
+ await confirmation.getByRole('button',{name:'Delete all imports',exact:true}).click();
+ await expect(list).toHaveCount(0);
+ expect(await (await page.request.get(`${origin}/api/journal-replay`)).json()).toEqual([]);
+});

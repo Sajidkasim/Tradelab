@@ -204,7 +204,7 @@ export default function JournalTradeCards({
             </div>
             <p>Key level timeframe is where you found the level; entry timeframe is where you entered. Enter a loss with a minus sign. A recorded result sets Win, Loss or Break-even when saved.</p>
           </details>
-          <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><p>Tick what you saw at entry.</p><div>{Array.from(new Set([...(meta?.confirmations || []), ...(trade.confirmations || [])])).map(value => <label key={value}
+          <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><div>{Array.from(new Set([...(meta?.confirmations || []), ...(trade.confirmations || [])])).map(value => <label key={value}
             onMouseEnter={() => setVisionFocus({key: evidenceKey, value})} onMouseLeave={() => setVisionFocus(null)}
             onFocus={() => setVisionFocus({key: evidenceKey, value})} onBlur={() => setVisionFocus(null)}>
             <input type="checkbox" checked={(trade.confirmations || []).includes(value)} disabled={busy || !!trade.lab_trade_id} onChange={e => onChange(trade.id, 'confirmations', e.target.checked ? [...(trade.confirmations || []), value] : (trade.confirmations || []).filter(item => item !== value))}/>{value}{inferred.includes(value) && (trade.confirmations || []).includes(value) && <span aria-label="Chart auto-fill" title="Chart auto-fill">✧</span>}</label>)}</div></fieldset>
@@ -213,7 +213,7 @@ export default function JournalTradeCards({
               disabled={busy || Boolean(trade.lab_trade_id)}
               onChange={(value) => onChange(trade.id, 'custom_fields', value)}/>
           </div>}
-          <label className="pj-field">Trade notes<textarea aria-label="Trade notes" maxLength={6000} placeholder="Why I entered, how I managed it, and what happened…" value={trade.notes} disabled={busy} onChange={e => onChange(trade.id, 'notes', e.target.value)}/></label>
+          <label className="pj-field pj-trade-notes">Trade notes<textarea aria-label="Trade notes" rows={2} maxLength={6000} placeholder="Add a note…" value={trade.notes} disabled={busy} onChange={e => onChange(trade.id, 'notes', e.target.value)}/></label>
           <JournalScreenshots images={entry.images.filter(i => i.trade_id === trade.id)} allImages={entry.images} day={entry.day} busy={busy} onUpload={file => onUpload(file, trade.id)} onRemove={onRemoveImage} onView={onView} label={`Upload screenshot for trade ${index + 1}`} canUpload={canUpload}/>
           <div className="pj-trade-actions">
             <JournalReplayLink trade={trade} day={entry.day} timezone={meta?.journal_preferences?.timezone || 'America/New_York'} onChange={value => onChange(trade.id, 'replay_id', value)}/>

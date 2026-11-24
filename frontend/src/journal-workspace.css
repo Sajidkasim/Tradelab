@@ -69,6 +69,7 @@
 .pj-field{display:flex;flex-direction:column;gap:8px;line-height:1.5}
 .pj-field input,.pj-field textarea{border:1px solid var(--pt-line);background:var(--pt-white);color:var(--pt-ink);font:14px Inter,Arial,sans-serif;padding:11px 12px;border-radius:3px;min-height:43px;width:100%;min-width:0}
 .pj-field textarea{min-height:95px;resize:vertical;line-height:1.7}
+.pj-trade-notes textarea{box-sizing:border-box;min-height:64px;line-height:1.45;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}
 .pj-wide{grid-column:1/-1}
 .pj-trade-fields .picker-trigger{background:var(--pt-white);color:var(--pt-ink);border-color:var(--pt-line);font-size:14px}
 .pj-trade-fields .field{min-width:0}
@@ -91,8 +92,7 @@
 .pj-session-images>summary>span{font-size:11px;font-weight:400;color:var(--pt-muted);margin-left:12px}
 .pj-workspace .pt-mindset{padding:23px 30px}
 .pj-workspace .pt-day-bottom{border-radius:0 0 5px 5px}
-.pj-workspace .pt-day-bottom>span{display:flex;gap:8px;font-size:11px;line-height:1.7;color:var(--pt-muted);max-width:65%}
-.pj-workspace .pt-day-bottom>span>svg{flex-shrink:0;margin-top:3px}
+.pj-workspace .pt-day-bottom{justify-content:flex-end}
 .pj-lab-modal{max-width:920px}
 .pj-modal-hint{font-size:13px;line-height:1.8;color:var(--tl-ink2);margin:0 0 22px!important}
 .pj-link-modal{max-width:650px}

@@ -7,6 +7,8 @@ import {replayProjector} from './replayViewport';
 import {advanceWindow,reachedExecutions} from './journalReplayWindow';
 import './journal-replay.css';
 
+const REPLAY_PAGE_SIZE = 10;
+
 function ReplayChart({record,reference}){
  const host=useRef(null),chart=useRef(null),subscribers=useRef(new Set());
  const state=useRef({active:[],pending:[],next:null,loading:false,time:0,ended:false});
@@ -131,8 +133,12 @@ export default function JournalReplayImports({onDelete}){
  const [message,setMessage]=useState(null),[busy,setBusy]=useState(false),[opened,setOpened]=useState(false);
  const [deleting,setDeleting]=useState(null);
  const [showUnavailable,setShowUnavailable]=useState(false);
+ const [page,setPage]=useState(1);
  const unavailableCount=rows.filter(row=>row.provider==='unavailable').length;
  const visibleRows=showUnavailable?rows:rows.filter(row=>row.provider!=='unavailable');
+ const pageCount=Math.max(1,Math.ceil(visibleRows.length/REPLAY_PAGE_SIZE));
+ const currentPage=Math.min(page,pageCount);
+ const pageStart=(currentPage-1)*REPLAY_PAGE_SIZE;
  const request=useRef(null);
  const fileInput=useRef(null);
  useEffect(()=>()=>request.current?.abort(),[]);
@@ -157,6 +163,7 @@ export default function JournalReplayImports({onDelete}){
    body.append('source_timezone',zone);
    const {inserted,skipped}=await api('/journal-replay/import',{method:'POST',body});
    setFile(null);
+   setPage(1);
    fileInput.current.value='';
    setMessage({text:`${inserted} replay ${inserted===1?'trade':'trades'} imported.${skipped?` ${skipped} already imported.`:''}`});
    await refresh();
@@ -167,12 +174,27 @@ export default function JournalReplayImports({onDelete}){
  async function removeImport(){
   setBusy(true);
   try{
-   await api(`/journal-replay/${deleting.id}`,{method:'DELETE'});
-   setRows(current=>current.filter(row=>row.id!==deleting.id));
-   onDelete?.(deleting.id);
+   if(deleting.all){
+    const {deleted_ids}=await api(`/journal-replay?expected_count=${deleting.count}`,{method:'DELETE'});
+    setRows([]);
+    setPage(1);
+    onDelete?.(deleted_ids);
+    setMessage({text:`Deleted ${deleted_ids.length} replay imports.`});
+   }else{
+    await api(`/journal-replay/${deleting.id}`,{method:'DELETE'});
+    setRows(current=>current.filter(row=>row.id!==deleting.id));
+    setPage(currentPage);
+    onDelete?.([deleting.id]);
+    setMessage({text:'Replay import deleted.'});
+   }
    setDeleting(null);
-   setMessage({text:'Replay import deleted.'});
-  }catch(error){setMessage({error:true,text:error.message})}
+  }catch(error){
+   if(error.status===409){
+    setDeleting(null);
+    await refresh();
+   }
+   setMessage({error:true,text:error.message});
+  }
   finally{setBusy(false)}
  }
 
@@ -202,29 +224,38 @@ export default function JournalReplayImports({onDelete}){
    {message&&!deleting&&<p role={message.error?'alert':'status'}>{message.text}</p>}
   </form>
   {rows.length>0&&<section className="jr-import-list" aria-label="Imported replay trades">
-   <h3>Imported trades <span>{rows.length}</span></h3>
+   <div className="jr-import-list-heading">
+    <h3>Imported trades <span>({rows.length})</span></h3>
+    <button type="button" className="pj-remove" disabled={busy} onClick={()=>{setMessage(null);setDeleting({all:true,count:rows.length})}}>Delete all imports</button>
+   </div>
    <p>Trade times are shown in New York time.</p>
    {unavailableCount>0&&<div className="jr-import-availability">
     <p>{rows.length-unavailableCount} with a supported candle source · {unavailableCount} without a candle mapping</p>
     <label className="jr-import-clock">
-     <input type="checkbox" checked={showUnavailable} onChange={event=>setShowUnavailable(event.target.checked)}/>
+     <input type="checkbox" checked={showUnavailable} onChange={event=>{setShowUnavailable(event.target.checked);setPage(1)}}/>
      Show trades without replay ({unavailableCount})
     </label>
    </div>}
-   {visibleRows.map(row=><div key={row.id} className="jr-import-row">
-    <div><strong>{row.symbol}</strong> <time dateTime={row.executions[0].time}>{tradeDate.format(new Date(row.executions[0].time))}</time><small> · {row.executions[0].side} @ {row.executions[0].price}</small></div>
+   {visibleRows.slice(pageStart,pageStart+REPLAY_PAGE_SIZE).map(row=><div key={row.id} className="jr-import-row">
+    <div><strong>{row.symbol}</strong> <time dateTime={row.executions[0].time}>{tradeDate.format(new Date(row.executions[0].time))}</time><small> · {row.executions[0].side} @ {String(row.executions[0].price).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}</small></div>
     <div className="jr-import-row-actions">
      {row.provider==='unavailable'?<span>Replay unavailable for this market</span>:<ReplayButton reference={row.id}/>}
      <button type="button" className="pj-remove" onClick={()=>{setMessage(null);setDeleting(row)}} disabled={busy}>Delete import</button>
     </div>
    </div>)}
+   {pageCount>1&&<nav className="jr-import-pagination" aria-label="Replay import pages">
+    <button type="button" className="pt-btn" disabled={busy||currentPage===1} onClick={()=>setPage(currentPage-1)}>Previous</button>
+    <span role="status">{currentPage} of {pageCount}</span>
+    <button type="button" className="pt-btn" disabled={busy||currentPage===pageCount} onClick={()=>setPage(currentPage+1)}>Next</button>
+   </nav>}
   </section>}
-  {deleting&&<Modal title="Delete replay import?" onClose={()=>!busy&&setDeleting(null)} className="pj-link-modal">
-   <p>{replayLabel(deleting)}. Journal cards linked to this import will lose their replay link.</p>
+  {deleting&&<Modal title={deleting.all?'Delete all replay imports?':'Delete replay import?'} onClose={()=>!busy&&setDeleting(null)} className="pj-link-modal">
+   {deleting.all?<p>Permanently delete all {deleting.count} replay imports, including hidden ones. Linked Journal cards will lose their replay links. Journal and Strategy Lab trades will stay saved.</p>
+    :<p>{replayLabel(deleting)}. Journal cards linked to this import will lose their replay link.</p>}
    {message?.error&&<p role="alert">{message.text}</p>}
    <div className="pj-modal-actions">
     <button type="button" className="pt-btn" disabled={busy} onClick={()=>setDeleting(null)}>Cancel</button>
-    <button type="button" className="pt-btn pj-danger" disabled={busy} onClick={removeImport}>Delete import</button>
+    <button type="button" className="pt-btn pj-danger" disabled={busy} onClick={removeImport}>{deleting.all?'Delete all imports':'Delete import'}</button>
    </div>
   </Modal>}
  </details>;

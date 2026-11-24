@@ -722,7 +722,6 @@ export default function JournalPage({theme = 'light'}) {
               })}
             </div>
             <p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p>
-            <p>Dots reflect the selected scope (Active accounts by default). Y / P / N = plan followed · ✓ traded · – no trade.</p>
           </div>
 
           <details className="pj-history" open>
@@ -775,7 +774,6 @@ export default function JournalPage({theme = 'light'}) {
           </details>
           <a className="pt-download-notes" href="/api/journal/export"><Download size={16}/> Download your Journal</a>
           <button className="pj-trash-link" onClick={openTrash} disabled={busy}><Trash2 size={15}/> Deleted entries</button>
-          <p className="pj-storage-note">{localSitePreview() ? 'Local design preview · example entries and screenshots stay in this temporary workspace.' : 'Your entries are saved privately in the cloud.'}</p>
         </aside>
 
         <section className="pt-day-editor" aria-label="Daily journal editor">
@@ -872,8 +870,9 @@ export default function JournalPage({theme = 'light'}) {
             </div>
           </div>
 
-          <JournalReplayImports onDelete={reference => {
-            const unlink = row => ({...row, trades: row.trades.map(trade => trade.replay_id === reference ? {...trade, replay_id: null} : trade)});
+          <JournalReplayImports onDelete={references => {
+            const deleted = new Set(references);
+            const unlink = row => ({...row, trades: row.trades.map(trade => deleted.has(trade.replay_id) ? {...trade, replay_id: null} : trade)});
             setEntry(unlink);
             setRows(currentRows => currentRows.map(unlink));
           }}/>
@@ -918,7 +917,6 @@ export default function JournalPage({theme = 'light'}) {
           )}
 
           <div className="pt-day-bottom">
-            <span><LockKeyhole size={14}/> Save your notes here. Only trades you add to the Lab affect Lab results.</span>
             <div className="pj-day-bottom-actions">
               <label className="pj-autosave-toggle">
                 <input type="checkbox" checked={autoSaveEnabled} onChange={e => toggleAutoSave(e.target.checked)}/>

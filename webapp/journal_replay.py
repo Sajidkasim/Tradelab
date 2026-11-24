@@ -56,6 +56,17 @@ def mount(app, config, workspace):
             app.state.workspaces.bump(member['key'])
         return {'inserted':inserted,'skipped':len(rows)-inserted}
 
+    @app.delete('/api/journal-replay')
+    def delete_all_imports(expected_count: int = Query(..., ge=1, le=1000), member=Depends(workspace)):
+        with app.state.workspaces.workspace_lock(member['key']):
+            db = database(member)
+            stored = db.get_setting(KEY, {})
+            if len(stored) != expected_count:
+                raise HTTPException(409, 'Replay imports changed. Reopen the list and try again.')
+            db.set_setting(KEY, {})
+            app.state.workspaces.bump(member['key'])
+        return {'deleted_ids': list(stored)}
+
     @app.delete('/api/journal-replay/{reference}')
     def delete_import(reference: str, member=Depends(workspace)):
         with app.state.workspaces.workspace_lock(member['key']):

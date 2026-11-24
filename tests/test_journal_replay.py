@@ -112,6 +112,40 @@ def test_ftmo_native_duplicate_price_columns_and_timezone_guard():
     assert len(unsupported['executions'])==2
 
 
+def test_bulk_delete_is_workspace_scoped_and_clears_only_replay_imports(draft):
+    client, _, state = draft
+    endpoint = '/api/journal-replay'
+    day = '/api/journal/2026-06-05'
+
+    def upload(content):
+        return client.post(endpoint+'/import', files={'file': ('trades.csv', content)}, data={'source_timezone': 'UTC'})
+
+    assert client.delete(endpoint, params={'expected_count': 1}).status_code == 401
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert upload(CSV).status_code == 200
+    client.post('/api/logout')
+    login(client, state)
+    assert upload(CSV).status_code == 200
+    assert upload(FTMO.replace(b'XAUUSD', b'US100.cash')).status_code == 200
+    imports = client.get(endpoint).json()
+    assert {row['provider'] for row in imports} == {'dukascopy', 'unavailable'}
+    card = {'id': 'a'*32, 'notes': 'Keep this card', 'replay_id': imports[0]['id']}
+    assert client.put(day, json={'trades': [card]}).status_code == 200
+    lab_before = client.get('/api/trades').json()
+
+    assert client.delete(endpoint, params={'expected_count': 1}).status_code == 409
+    assert client.get(endpoint).json() == imports
+    deleted = client.delete(endpoint, params={'expected_count': 2})
+    assert deleted.json() == {'deleted_ids': [row['id'] for row in imports]}
+    assert client.get(endpoint).json() == []
+    saved = client.get(day).json()['trades'][0]
+    assert saved['notes'] == card['notes'] and saved['replay_id'] is None
+    assert client.get('/api/trades').json() == lab_before
+    client.post('/api/logout')
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert len(client.get(endpoint).json()) == 1
+
+
 def test_native_import_atomic_and_repeat_safe(draft):
     client,app,state=draft
     login(client,state)
