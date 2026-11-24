@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 from secrets import randbelow
 import smtplib
-import ssl
 from tempfile import TemporaryFile
 from time import monotonic
 from typing import Literal
@@ -31,6 +30,7 @@ from core.models import Account
 from core.registry import COACH_PROVIDERS, load_extensions
 from . import compound_edge, daily_journal, journal_preferences, journal_replay, primax_memory
 from .image_storage import StorageUnavailable
+from .mail_delivery import send_gmail
 from .schemas import DailyEntry, JournalAccount, JournalAccountPresets, JournalTradeLink
 
 
@@ -72,22 +72,7 @@ def send_journal_reset_code(provider, sender, secret, recipient, code):
     message = EmailMessage()
     message["From"], message["To"], message["Subject"] = sender, recipient, subject
     message.set_content(content)
-    tls = ssl.create_default_context()
-    smtp = None
-    try:
-        try:
-            smtp = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5, context=tls)
-            smtp.login(sender, secret)
-        except (smtplib.SMTPServerDisconnected, TimeoutError, ConnectionError):
-            if smtp is not None:
-                smtp.close()
-            smtp = smtplib.SMTP("smtp.gmail.com", 587, timeout=8)
-            smtp.starttls(context=tls)
-            smtp.login(sender, secret)
-        smtp.send_message(message)
-    finally:
-        if smtp is not None:
-            smtp.close()
+    send_gmail(message, sender, secret, [recipient])
 
 
 def journal_reset_snapshot(database):

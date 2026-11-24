@@ -6,9 +6,8 @@ import json
 import os
 import re
 import logging
-import smtplib
-import ssl
 from email.message import EmailMessage
+from email.utils import parseaddr
 from threading import Lock
 import time
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -21,6 +20,7 @@ from fastapi import BackgroundTasks, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from .bullpen_feed import MacroFeed
+from .mail_delivery import send_gmail
 
 TOPIC = "primus:bullpen:v1"
 ALERT_TOPIC = "primus:bullpen:alerts:v1"
@@ -55,21 +55,46 @@ def _team_name(email):
     return matches[0] if len(matches) == 1 else None
 
 
-def _send_live_alert(sender, password, recipients, name):
-    message = EmailMessage()
-    message["From"] = sender
-    message["To"] = "undisclosed-recipients:;"
-    message["Subject"] = f"🔴 {name} is live in the NQ Bullpen"
-    message.set_content(f"{name} is live in the NQ Bullpen. Open Learn in PrimusLab to join.")
+def _alert_mail_credentials():
+    resend_key = os.getenv("BULLPEN_RESEND_API_KEY", "").strip()
+    resend_sender = os.getenv("BULLPEN_RESEND_FROM", "").strip()
+    domain = parseaddr(resend_sender)[1].rpartition("@")[2].casefold()
+    if resend_key and domain and domain != "resend.dev":
+        return "resend", resend_sender, resend_key
+    sender = os.getenv("BULLPEN_GMAIL_ADDRESS", "").strip()
+    password = "".join(os.getenv("BULLPEN_GMAIL_APP_PASSWORD", "").split())
+    if sender and password:
+        return "gmail", sender, password
+    return None
+
+
+def _send_live_alert(provider, sender, secret, recipients, name):
+    subject = f"🔴 {name} is live in the NQ Bullpen"
+    content = f"{name} is live in the NQ Bullpen. Open Learn in PrimusLab to join."
+    logger = logging.getLogger(__name__)
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10,
-                              context=ssl.create_default_context()) as smtp:
-            smtp.login(sender, password)
-            refused = smtp.send_message(message, from_addr=sender, to_addrs=recipients)
+        if provider == "resend":
+            response = httpx.post(
+                "https://api.resend.com/emails/batch",
+                headers={"Authorization": f"Bearer {secret}"},
+                json=[{"from": sender, "to": [recipient], "subject": subject, "text": content}
+                      for recipient in recipients],
+                timeout=10,
+            )
+            response.raise_for_status()
+        else:
+            message = EmailMessage()
+            message["From"] = sender
+            message["To"] = "undisclosed-recipients:;"
+            message["Subject"] = subject
+            message.set_content(content)
+            refused = send_gmail(message, sender, secret, recipients)
             if refused:
-                logging.getLogger(__name__).warning("Bullpen email refused for %d recipients", len(refused))
-    except OSError as error:
-        logging.getLogger(__name__).warning("Bullpen email failed (%s)", type(error).__name__)
+                logger.warning("Bullpen email refused for %d recipients", len(refused))
+    except httpx.HTTPStatusError as error:
+        logger.warning("Bullpen email failed provider=%s status=%d", provider, error.response.status_code)
+    except (OSError, ValueError, httpx.RequestError) as error:
+        logger.warning("Bullpen email failed provider=%s error_type=%s", provider, type(error).__name__)
 
 
 def mount(app, config, workspace, check_write):
@@ -97,19 +122,18 @@ def mount(app, config, workspace, check_write):
         if not name:
             raise HTTPException(403, "The Bullpen is reserved for the Primus team.")
 
-        sender = os.getenv("BULLPEN_GMAIL_ADDRESS", "").strip()
-        password = "".join(os.getenv("BULLPEN_GMAIL_APP_PASSWORD", "").split())
+        credentials = _alert_mail_credentials()
         configured_emails = os.getenv("BULLPEN_TEAM_EMAILS", "").casefold().split(",")
         recipients = sorted({address for value in configured_emails
                              if (address := value.strip()) != email and _team_name(address)})
-        if not (sender and password and recipients):
+        if not credentials or not recipients:
             return {"queued": False}
         with alert_lock:
             now = time.monotonic()
             if now - last_alert.get(name, float("-inf")) < 900:
                 return {"queued": False}
             last_alert[name] = now
-        background_tasks.add_task(_send_live_alert, sender, password, recipients, name)
+        background_tasks.add_task(_send_live_alert, *credentials, recipients, name)
         return {"queued": True}
 
     @app.post("/api/tv-webhook")

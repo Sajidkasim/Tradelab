@@ -4,6 +4,8 @@ import hmac
 import json
 import re
 
+import httpx
+import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
@@ -72,13 +74,19 @@ def test_bullpen_requires_verified_team_email_and_issues_scoped_tokens(draft, mo
     assert client.get("/api/bullpen?join=true").json() == {"name": "Sajid", "configured": False}
 
 
-def test_live_alert_checks_team_and_suppresses_reconnects(draft, monkeypatch):
+@pytest.mark.parametrize("resend_sender, expected_mail", [
+    ("desk@alerts.example.com", ("resend", "desk@alerts.example.com", "test-resend-key")),
+    ("PrimusTrader <onboarding@resend.dev>", ("gmail", "desk@gmail.com", "testpassword")),
+])
+def test_live_alert_checks_team_and_suppresses_reconnects(draft, monkeypatch, resend_sender, expected_mail):
     client, _, state = draft
     for key, value in {
         "BULLPEN_ENABLED": "1",
         "BULLPEN_SAJID_EMAIL": "owner@example.com",
         "BULLPEN_AMIR_EMAIL": "amir@example.com",
         "BULLPEN_TEAM_EMAILS": "owner@example.com, AMIR@example.com, outsider@example.com",
+        "BULLPEN_RESEND_API_KEY": "test-resend-key",
+        "BULLPEN_RESEND_FROM": resend_sender,
         "BULLPEN_GMAIL_ADDRESS": "desk@gmail.com",
         "BULLPEN_GMAIL_APP_PASSWORD": "test password",
     }.items():
@@ -91,7 +99,22 @@ def test_live_alert_checks_team_and_suppresses_reconnects(draft, monkeypatch):
     assert client.post("/api/alert-team", headers={"X-Primus-CSRF": ""}).status_code == 403
     assert client.post("/api/alert-team").json() == {"queued": True}
     assert client.post("/api/alert-team").json() == {"queued": False}
-    assert sent == [("desk@gmail.com", "testpassword", ["amir@example.com"], "Sajid")]
+    assert sent == [(*expected_mail, ["amir@example.com"], "Sajid")]
+
+
+def test_resend_alert_keeps_recipient_addresses_private(monkeypatch):
+    requests = []
+
+    def post(url, **kwargs):
+        requests.append((url, kwargs))
+        return httpx.Response(200, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", post)
+    bullpen._send_live_alert("resend", "desk@alerts.example.com", "secret",
+                             ["one@example.com", "two@example.com"], "Sajid")
+    url, request = requests[0]
+    assert url == "https://api.resend.com/emails/batch"
+    assert [message["to"] for message in request["json"]] == [["one@example.com"], ["two@example.com"]]
 
 
 def test_tradingview_webhook_publishes_only_valid_alerts(draft, monkeypatch):
