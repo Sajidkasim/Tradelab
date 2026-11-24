@@ -6,6 +6,7 @@ import ResourceLibrary from './ResourceLibrary';
 import SetupGallery from './SetupGallery';
 import SpotlightTour from './SpotlightTour';
 import { Button, Notice } from './components';
+import { PrimusTopoField } from './components/PrimusAtmosphere';
 import { useBullpen } from './hooks/usePresence';
 
 const LEARN_TOUR_STEPS = [
@@ -59,6 +60,7 @@ export default function LearnPage() {
     >
       {access && (
         <section className="wp-panel bullpen-entry learn-bullpen-hero">
+          <PrimusTopoField variant="card" />
           <div className="learn-bullpen-copy">
             <span className="pt-overline">
               {liveCount > 0 && <span className="primus-live-dot" aria-hidden="true" />}

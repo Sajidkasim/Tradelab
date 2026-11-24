@@ -1,0 +1,1047 @@
+/* ============================================================================
+   PRIMUS LIVING OPTICAL SYSTEM
+   Tactile architectural glass, etched topographic contours, obsidian light
+   seams, volumetric alabaster sunbeams, matte monoliths, and emerald optical
+   lens caustics — crafted for both Light & Dark modes.
+   ============================================================================ */
+
+/* --- 1. Precision Reticle Compass Mark --- */
+.pt-reticle-mark {
+  display: inline-block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.pt-reticle-needle {
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.pt-reticle-mark.is-interactive .pt-reticle-needle {
+  transition: none;
+  filter: drop-shadow(0 0 5px rgba(200, 241, 105, 0.35));
+}
+.pt-wordmark:hover .pt-reticle-mark:not(.is-interactive) .pt-reticle-needle,
+.pt-wordmark:focus-visible .pt-reticle-mark:not(.is-interactive) .pt-reticle-needle {
+  transform: rotate(72deg) !important;
+}
+/* Deep architectural moss needle on light-surface reticles; acid-lime stays on obsidian */
+:root:not([data-theme="dark"]) :is(.pt-trader, .pt-tool-backtesting, .pt-footer) .pt-reticle-needle > * {
+  fill: #1f5c3e;
+}
+
+/* Sticky header subtle machined bottom light hairline */
+.pt-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(200, 241, 105, 0.08) 20%,
+    rgba(200, 241, 105, 0.38) 50%,
+    rgba(52, 211, 153, 0.14) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* --- 2. Etched Architectural Glass Topographic Contours --- */
+.primus-topo-field {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+}
+.primus-topo-field > svg {
+  position: absolute;
+  inset: -4% -3%;
+  width: 106%;
+  height: 108%;
+  color: rgba(212, 232, 184, 0.12);
+  animation: primus-topo-drift 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.primus-topo-field.is-hero > svg {
+  mask-image: radial-gradient(
+    ellipse 86% 84% at 62% 46%,
+    rgba(0, 0, 0, 0.95) 28%,
+    rgba(0, 0, 0, 0.32) 68%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 86% 84% at 62% 46%,
+    rgba(0, 0, 0, 0.95) 28%,
+    rgba(0, 0, 0, 0.32) 68%,
+    transparent 100%
+  );
+}
+.primus-topo-field.is-signin > svg {
+  color: rgba(212, 234, 180, 0.11);
+  opacity: 0.9;
+}
+.primus-topo-field.is-card {
+  z-index: 0;
+  opacity: 0.72;
+}
+.primus-topo-field.is-card > svg {
+  color: rgba(200, 241, 105, 0.11);
+  animation-duration: 32s;
+}
+/* Pointer-reactive warm acid-lime glass refraction sheen */
+.primus-topo-sheen {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      520px circle at var(--hero-mx, 68%) var(--hero-my, 38%),
+      rgba(200, 241, 105, 0.16) 0%,
+      rgba(52, 211, 153, 0.06) 36%,
+      transparent 68%
+    ),
+    linear-gradient(
+      125deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      transparent 42%,
+      rgba(200, 241, 105, 0.05) 100%
+    );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+@keyframes primus-topo-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-1.6%, 1.4%, 0) scale(1.03); }
+}
+
+/* Chamfered smoked-glass edge highlights on the Hero 3D Portal Window */
+.pt-portal-window {
+  background:
+    radial-gradient(
+      420px circle at var(--hero-mx, 78%) var(--hero-my, 18%),
+      rgba(200, 241, 105, 0.09),
+      transparent 62%
+    ),
+    linear-gradient(158deg, #16201c 0%, #0d1311 55%, #090d0b 100%);
+  border: 1px solid rgba(226, 240, 206, 0.15);
+  box-shadow:
+    0 34px 80px rgba(0, 0, 0, 0.54),
+    inset 0 1px 0 rgba(244, 252, 224, 0.22),
+    inset 1px 0 0 rgba(200, 241, 105, 0.1),
+    inset 0 -1px 0 rgba(200, 241, 105, 0.08);
+}
+.pt-portal-window::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 8%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(244, 248, 228, 0.28) 38%,
+    rgba(200, 241, 105, 0.82) 72%,
+    rgba(255, 255, 255, 0.35) 90%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 3;
+}
+/* Breathing optical ring on the Hero reaction node */
+.pt-study-callout circle:first-child {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: primus-reaction-ring 3.8s ease-in-out infinite;
+}
+@keyframes primus-reaction-ring {
+  0%, 100% { stroke-opacity: 0.28; transform: scale(1); }
+  50% { stroke-opacity: 0.62; transform: scale(1.14); }
+}
+
+/* --- 3. Architectural Obsidian Light Seam --- */
+.primus-light-seam {
+  position: relative;
+  height: 2px;
+  width: 100%;
+  background: #070a09;
+  overflow-x: clip;
+  overflow-y: visible;
+  z-index: 3;
+  pointer-events: none;
+}
+.primus-light-seam-beam {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(200, 241, 105, 0.14) 14%,
+    rgba(200, 241, 105, 0.68) 46%,
+    #e2ff85 52%,
+    rgba(52, 211, 153, 0.42) 66%,
+    rgba(200, 241, 105, 0.1) 86%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 18px rgba(200, 241, 105, 0.42),
+    0 0 42px rgba(52, 211, 153, 0.18);
+}
+.primus-light-seam-flare {
+  position: absolute;
+  top: -11px;
+  bottom: -11px;
+  left: 0;
+  width: 28%;
+  background: radial-gradient(
+    ellipse 50% 44% at 50% 50%,
+    rgba(218, 255, 118, 0.56) 0%,
+    rgba(52, 211, 153, 0.18) 42%,
+    transparent 74%
+  );
+  filter: blur(4px);
+  animation: primus-seam-glide 9.5s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+  will-change: transform, opacity;
+}
+@keyframes primus-seam-glide {
+  0% { transform: translateX(0); opacity: 0.25; }
+  18% { opacity: 0.95; }
+  50% { transform: translateX(250%); opacity: 0.85; }
+  82% { opacity: 0.9; }
+  100% { transform: translateX(0); opacity: 0.25; }
+}
+
+/* Keep the clock strip sleek beneath the light seam */
+.pt-clock-strip {
+  position: relative;
+  border-top: 0;
+  background: linear-gradient(180deg, #0c1210 0%, #090d0b 100%);
+}
+:root[data-theme="dark"] .pt-clock-strip {
+  background: linear-gradient(180deg, #0d1210 0%, #090c0b 100%);
+}
+
+/* --- 4. Volumetric Alabaster Sunbeams & Mist Atmosphere --- */
+.pt-atmosphere-band {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.primus-sunbeams {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.primus-beam {
+  position: absolute;
+  top: -28%;
+  height: 165%;
+  transform: rotate(-28deg);
+  transform-origin: top right;
+  filter: blur(22px);
+  opacity: 0.65;
+  will-change: transform, opacity;
+}
+.primus-beam-1 {
+  right: 8%;
+  width: 220px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 250, 232, 0.78) 0%,
+    rgba(229, 216, 184, 0.34) 48%,
+    transparent 92%
+  );
+  animation: primus-beam-sway 16s ease-in-out infinite alternate;
+}
+.primus-beam-2 {
+  right: 26%;
+  width: 145px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 249, 226, 0.62) 0%,
+    rgba(218, 206, 174, 0.26) 52%,
+    transparent 92%
+  );
+  animation: primus-beam-sway 21s ease-in-out infinite alternate-reverse;
+}
+.primus-beam-3 {
+  right: 48%;
+  width: 170px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 238, 0.48) 0%,
+    rgba(200, 241, 105, 0.08) 54%,
+    transparent 92%
+  );
+  animation: primus-beam-sway 19s ease-in-out infinite alternate;
+}
+.primus-mist-horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36%;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(247, 247, 242, 0.62) 60%,
+    var(--primus-bg) 100%
+  );
+}
+@keyframes primus-beam-sway {
+  0% { transform: rotate(-28deg) translateX(0); opacity: 0.52; }
+  100% { transform: rotate(-26deg) translateX(-24px); opacity: 0.78; }
+}
+
+/* Dark mode nocturnal emerald/lime volumetric beams */
+:root[data-theme="dark"] .primus-beam-1 {
+  background: linear-gradient(
+    180deg,
+    rgba(200, 241, 105, 0.09) 0%,
+    rgba(52, 211, 153, 0.04) 50%,
+    transparent 90%
+  );
+}
+:root[data-theme="dark"] .primus-beam-2 {
+  background: linear-gradient(
+    180deg,
+    rgba(240, 246, 234, 0.06) 0%,
+    rgba(52, 211, 153, 0.03) 50%,
+    transparent 90%
+  );
+}
+:root[data-theme="dark"] .primus-beam-3 {
+  background: linear-gradient(
+    180deg,
+    rgba(200, 241, 105, 0.06) 0%,
+    transparent 86%
+  );
+}
+:root[data-theme="dark"] .primus-mist-horizon {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(12, 15, 14, 0.55) 60%,
+    var(--primus-bg) 100%
+  );
+}
+
+/* --- 5. Sculptural Matte-Obsidian Monolith Cards (Five Minds) --- */
+.pt-traders {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid var(--primus-border);
+  box-shadow: var(--primus-shadow-card);
+}
+.pt-site .pt-trader {
+  position: relative;
+  overflow: hidden;
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+  border-right-color: var(--primus-border);
+}
+.pt-site .pt-trader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    260px circle at var(--card-mx, 50%) var(--card-my, 24%),
+    rgba(200, 241, 105, 0.12),
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 240ms ease;
+  pointer-events: none;
+}
+.pt-site .pt-trader:hover::before {
+  opacity: 1;
+}
+.pt-site .pt-trader:hover {
+  background: #f5f6ef;
+}
+:root[data-theme="dark"] .pt-site .pt-trader {
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+}
+:root[data-theme="dark"] .pt-site .pt-trader:hover {
+  background: var(--primus-surface-2);
+}
+
+/* Monolith sculptural stage inside each trader card */
+.pt-monolith-stage {
+  position: relative;
+  height: 128px;
+  margin: 12px 0 8px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(155deg, #ebe8de 0%, #f5f3ec 56%, #faf9f4 100%);
+  border: 1px solid rgba(16, 21, 19, 0.06);
+}
+:root[data-theme="dark"] .pt-monolith-stage {
+  background: linear-gradient(155deg, #1b221f 0%, #101513 62%, #0a0d0c 100%);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+/* Diagonal volumetric sunbeam inside the stone stage */
+.pt-monolith-ray {
+  position: absolute;
+  top: -35%;
+  right: -12%;
+  width: 68%;
+  height: 170%;
+  transform: rotate(-28deg);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 251, 236, 0.88) 0%,
+    rgba(235, 224, 196, 0.25) 55%,
+    transparent 95%
+  );
+  filter: blur(8px);
+  pointer-events: none;
+  transition: opacity 320ms ease, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+:root[data-theme="dark"] .pt-monolith-ray {
+  background: linear-gradient(
+    180deg,
+    rgba(200, 241, 105, 0.16) 0%,
+    rgba(52, 211, 153, 0.06) 52%,
+    transparent 92%
+  );
+}
+.pt-trader:hover .pt-monolith-ray {
+  opacity: 1;
+  transform: rotate(-24deg) translateX(-6px);
+}
+
+/* Tactile matte-obsidian sculptural stone shapes (Ovoid, Bevel, Sphere, Pillar, Lens) */
+.pt-monolith-stone {
+  position: relative;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 68% 58% at 32% 24%, #3c423e 0%, #181c1a 46%, #090b0a 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 252, 240, 0.26),
+    inset -6px -10px 18px rgba(0, 0, 0, 0.72),
+    0 14px 26px rgba(16, 21, 19, 0.28);
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 360ms ease;
+}
+:root[data-theme="dark"] .pt-monolith-stone {
+  background:
+    radial-gradient(ellipse 68% 58% at 32% 24%, #2f3834 0%, #111614 48%, #050706 100%);
+  box-shadow:
+    inset 0 1px 1px rgba(200, 241, 105, 0.24),
+    inset -6px -10px 18px rgba(0, 0, 0, 0.85),
+    0 14px 28px rgba(0, 0, 0, 0.65);
+}
+.pt-monolith-stage.is-ovoid .pt-monolith-stone {
+  width: 66px;
+  height: 82px;
+  border-radius: 38% 38% 42% 42% / 34% 34% 46% 46%;
+}
+.pt-monolith-stage.is-bevel .pt-monolith-stone {
+  width: 58px;
+  height: 88px;
+  border-radius: 36% 52% 44% 26% / 22% 44% 46% 32%;
+  transform: rotate(-4deg);
+}
+.pt-monolith-stage.is-sphere .pt-monolith-stone {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+}
+.pt-monolith-stage.is-pillar .pt-monolith-stone {
+  width: 64px;
+  height: 84px;
+  border-radius: 26% 44% 30% 42% / 38% 24% 40% 28%;
+  transform: rotate(3deg);
+}
+.pt-monolith-stage.is-lens .pt-monolith-stone {
+  width: 80px;
+  height: 72px;
+  border-radius: 46% 46% 48% 48% / 44% 44% 52% 52%;
+}
+.pt-monolith-specular {
+  position: absolute;
+  inset: 6px 10px auto auto;
+  width: 38%;
+  height: 44%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 240, 222, 0.24) 0%, transparent 72%);
+  filter: blur(3px);
+  pointer-events: none;
+}
+:root[data-theme="dark"] .pt-monolith-specular {
+  background: radial-gradient(circle, rgba(200, 241, 105, 0.24) 0%, transparent 72%);
+}
+.pt-trader:hover .pt-monolith-stone {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow:
+    inset 0 1px 2px rgba(200, 241, 105, 0.36),
+    inset -6px -10px 18px rgba(0, 0, 0, 0.72),
+    0 20px 32px rgba(16, 21, 19, 0.34);
+}
+.pt-trader:hover .pt-monolith-stage.is-bevel .pt-monolith-stone {
+  transform: translateY(-4px) rotate(-1deg) scale(1.03);
+}
+.pt-trader:hover .pt-monolith-stage.is-pillar .pt-monolith-stone {
+  transform: translateY(-4px) rotate(1deg) scale(1.03);
+}
+/* Ground mist fog enveloping the base of the obsidian stone */
+.pt-monolith-mist {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34px;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(247, 246, 240, 0.82) 66%,
+    #f7f6f0 100%
+  );
+  pointer-events: none;
+}
+:root[data-theme="dark"] .pt-monolith-mist {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(19, 24, 22, 0.82) 66%,
+    var(--primus-surface) 100%
+  );
+}
+/* Monogram crisp ivory/lime lettering centered on the obsidian monolith */
+.pt-monolith-stage .pt-monogram {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  z-index: 3;
+  font-family: var(--primus-font-serif);
+  font-size: 28px;
+  letter-spacing: -1.2px;
+  color: #f4f5ee;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.pt-trader:nth-child(even) .pt-monolith-stage .pt-monogram {
+  color: #d8f294;
+}
+.pt-monolith-stage .pt-monogram > span {
+  position: absolute;
+  right: 11px;
+  bottom: 9px;
+  font-size: 14px;
+  color: var(--primus-muted);
+  text-shadow: none;
+}
+.pt-trader:hover .pt-monolith-stage .pt-monogram > span {
+  color: var(--primus-accent-text);
+  transform: translate(2px, -2px);
+}
+:root[data-theme="dark"] .pt-trader:hover .pt-monolith-stage .pt-monogram > span {
+  color: var(--primus-accent);
+}
+
+/* Staggered reveal choreography for trader cards */
+.pt-traders .pt-trader:nth-child(2) { animation-delay: 55ms; }
+.pt-traders .pt-trader:nth-child(3) { animation-delay: 110ms; }
+.pt-traders .pt-trader:nth-child(4) { animation-delay: 165ms; }
+.pt-traders .pt-trader:nth-child(5) { animation-delay: 220ms; }
+
+/* --- 6. Backtesting Obsidian Light-Seam Preview Card --- */
+.pt-site .pt-tool-backtesting {
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+}
+.pt-replay-preview {
+  position: relative;
+  height: 176px;
+  margin: 0 0 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(200, 241, 105, 0.16);
+  background: #0a0e0d;
+  padding: 15px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #d9e3d5;
+  isolation: isolate;
+}
+/* Angled architectural obsidian monolith plates parted by a light slit */
+.pt-replay-plate-top,
+.pt-replay-plate-bottom {
+  position: absolute;
+  left: -8%;
+  right: -8%;
+  z-index: -1;
+  background: linear-gradient(145deg, #171e1b 0%, #0b0f0e 70%, #070a09 100%);
+  pointer-events: none;
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pt-replay-plate-top {
+  top: 0;
+  height: calc(50% - 1px);
+  border-bottom: 1px solid rgba(200, 241, 105, 0.22);
+}
+.pt-replay-plate-bottom {
+  bottom: 0;
+  height: calc(50% - 1px);
+  border-top: 1px solid rgba(200, 241, 105, 0.16);
+}
+.pt-tool-backtesting:is(:hover, :focus-visible) .pt-replay-plate-top {
+  transform: translateY(-2px);
+}
+.pt-tool-backtesting:is(:hover, :focus-visible) .pt-replay-plate-bottom {
+  transform: translateY(2px);
+}
+.pt-replay-seam-core {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    90deg,
+    rgba(200, 241, 105, 0.08) 0%,
+    rgba(200, 241, 105, 0.72) 48%,
+    #e5ff8a 58%,
+    rgba(52, 211, 153, 0.55) 74%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 18px rgba(200, 241, 105, 0.52),
+    0 0 42px rgba(52, 211, 153, 0.24);
+  z-index: 0;
+  transition: box-shadow 300ms ease, filter 300ms ease;
+}
+.pt-tool-backtesting:is(:hover, :focus-visible) .pt-replay-seam-core {
+  box-shadow:
+    0 0 26px rgba(200, 241, 105, 0.8),
+    0 0 56px rgba(52, 211, 153, 0.35);
+}
+.pt-replay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--primus-font-mono);
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  color: #9cb2a2;
+  position: relative;
+  z-index: 2;
+}
+.pt-replay-head b {
+  color: var(--primus-accent);
+  font-weight: 600;
+}
+.pt-replay-wave {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 76px;
+  display: block;
+}
+.pt-replay-cursor {
+  transform: translateX(0);
+  transition: transform 780ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pt-tool-backtesting:is(:hover, :focus-visible) .pt-replay-cursor {
+  transform: translateX(108px);
+}
+.pt-replay-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--primus-font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.7px;
+  color: #a9bdb0;
+  position: relative;
+  z-index: 2;
+}
+.pt-replay-foot span:last-child {
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid rgba(200, 241, 105, 0.3);
+  background: rgba(200, 241, 105, 0.1);
+  color: var(--primus-accent);
+}
+
+/* Lab card subtle etched topo texture layer */
+.pt-tool-lab {
+  position: relative;
+  isolation: isolate;
+}
+.pt-tool-lab > :not(.primus-topo-field) {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- 7. Living Closing Sanctuary --- */
+.pt-closing {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  width: 100%;
+  max-width: none;
+  padding-inline: max(24px, calc((100vw - 1320px) / 2));
+}
+.pt-closing-emblem {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+  background:
+    radial-gradient(circle at 32% 28%, #222925 0%, #0e1311 65%, #070a09 100%);
+  color: #f4f5ee;
+  border: 1px solid rgba(200, 241, 105, 0.24);
+  box-shadow:
+    0 20px 44px rgba(16, 21, 19, 0.22),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+:root[data-theme="dark"] .pt-closing-emblem {
+  box-shadow:
+    0 20px 54px rgba(0, 0, 0, 0.6),
+    0 0 36px rgba(200, 241, 105, 0.08),
+    inset 0 1px 1px rgba(200, 241, 105, 0.22);
+}
+
+/* --- 8. Living Optical Glass Lens Orb (Primax AI) --- */
+/* Directly inspired by the pitch-obsidian optical glass lens with internal emerald-to-lime caustics */
+.aura-orb {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background:
+    radial-gradient(circle at 50% 50%, #09130f 0%, #040706 66%, #020303 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.42),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.9),
+    inset 0 0 12px rgba(16, 185, 129, 0.34),
+    0 10px 24px rgba(4, 12, 9, 0.52),
+    0 0 22px rgba(16, 185, 129, 0.16);
+  color: #f3f7ef;
+  isolation: isolate;
+}
+/* Curved optical glass specular crescent highlight */
+.aura-orb::before {
+  content: "";
+  position: absolute;
+  inset: 3px 6px auto 6px;
+  height: 44%;
+  border-radius: 50% 50% 44% 44%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.44) 0%,
+    rgba(255, 255, 255, 0.08) 54%,
+    transparent 100%
+  );
+  z-index: 2;
+  pointer-events: none;
+}
+/* Living internal emerald-to-acid-lime refracted caustic aura */
+.aura-orb::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 66% 36%, rgba(16, 185, 129, 0.88) 0%, rgba(5, 150, 105, 0.38) 32%, transparent 62%),
+    radial-gradient(circle at 34% 68%, rgba(200, 241, 105, 0.64) 0%, rgba(16, 185, 129, 0.32) 34%, transparent 64%);
+  filter: blur(5px);
+  opacity: 0.92;
+  z-index: 0;
+  pointer-events: none;
+  animation: primus-orb-caustic 8.5s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+.aura-orb > * {
+  position: relative;
+  z-index: 3;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.72);
+}
+.aura-orb:hover {
+  transform: translateY(-2px);
+  border-color: rgba(200, 241, 105, 0.56);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.52),
+    inset 0 -8px 14px rgba(0, 0, 0, 0.9),
+    inset 0 0 16px rgba(200, 241, 105, 0.44),
+    0 12px 28px rgba(4, 14, 10, 0.62),
+    0 0 28px rgba(52, 211, 153, 0.28);
+}
+@keyframes primus-orb-caustic {
+  0% { transform: rotate(0deg) scale(0.96); opacity: 0.84; }
+  50% { transform: rotate(95deg) scale(1.06); opacity: 1; }
+  100% { transform: rotate(190deg) scale(0.98); opacity: 0.88; }
+}
+
+/* --- 9. Sign-In Entrance Living Polish & Learn Bullpen Topo --- */
+.ps-editorial {
+  isolation: isolate;
+}
+.ps-editorial > :not(.primus-topo-field) {
+  position: relative;
+  z-index: 1;
+}
+.ps-access {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ps-access > :not(.primus-sunbeams) {
+  position: relative;
+  z-index: 1;
+}
+.ps-seal {
+  background: radial-gradient(circle at 32% 28%, #1f2723 0%, #0d1210 75%);
+  color: #f4f5ee;
+  border-color: rgba(16, 21, 19, 0.16);
+  box-shadow:
+    0 12px 28px rgba(16, 21, 19, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.22);
+}
+
+/* Learn Bullpen obsidian hero banner subtle topo contour depth */
+.learn-bullpen-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.learn-bullpen-hero > :not(.primus-topo-field) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Keep Hero study-process pills crisp ivory on obsidian in both Light and Dark themes */
+.pt-site .pt-study-process > span {
+  color: var(--primus-rail-ink);
+}
+
+/* --- 10. Inner Workspaces: Journal, The Matrix, Mindset & Learn --- */
+
+/* Daily Journal: serene morning sunbeam wash behind header & KPIs */
+.pj-workspace {
+  position: relative;
+  isolation: isolate;
+}
+.pj-atmosphere-wash {
+  position: absolute;
+  top: 70px;
+  left: 0;
+  right: 0;
+  height: 360px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.78;
+}
+.pj-workspace .pt-journal-main {
+  position: relative;
+  z-index: 1;
+}
+.pj-kpi-card {
+  position: relative;
+  overflow: hidden;
+  transition: border-color 180ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease;
+}
+.pj-kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16%;
+  right: 16%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200, 241, 105, 0.52), transparent);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+.pj-kpi-card:hover {
+  border-color: var(--primus-border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--primus-shadow-lift);
+}
+.pj-kpi-card:hover::before {
+  opacity: 1;
+}
+
+/* The Matrix: razor light-seam along Morning Decision Strip & crisp ticker catchlights */
+.mx-decision-strip {
+  position: relative;
+  overflow: hidden;
+}
+.mx-decision-seam {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 2;
+}
+.matrix-terminal .mx-card {
+  position: relative;
+}
+.matrix-terminal [data-matrix-tour="tickers"] .mx-card {
+  overflow: hidden;
+  transition: border-color 180ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease;
+}
+.matrix-terminal [data-matrix-tour="tickers"] .mx-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14%;
+  right: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.55), rgba(200, 241, 105, 0.7), transparent);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.matrix-terminal [data-matrix-tour="tickers"] .mx-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primus-border-strong);
+  box-shadow: var(--primus-shadow-lift);
+}
+.matrix-terminal [data-matrix-tour="tickers"] .mx-card:hover::before {
+  opacity: 1;
+}
+:root:not([data-theme="dark"]) .matrix-terminal .mx-pos .pt-reticle-needle > * {
+  fill: #0e8a5f;
+}
+
+/* Matrix loading screen: etched topo & precision reticle badge */
+.matrix-loading {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.matrix-loading-inner {
+  position: relative;
+  z-index: 1;
+}
+.matrix-loading-reticle {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 32% 28%, #1e2622 0%, #0b100e 76%);
+  color: #f4f5ee;
+  border: 1px solid rgba(200, 241, 105, 0.28);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+}
+
+/* Mindset: etched topo contour depth on Pre-Market Warm-Up hero & optical breath lens */
+.mw-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.mw-hero > :not(.primus-topo-field) {
+  position: relative;
+  z-index: 1;
+}
+.mw-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200, 241, 105, 0.62), rgba(52, 211, 153, 0.32), transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+.mw-hero .primus-topo-field > svg {
+  color: rgba(34, 88, 60, 0.09);
+}
+:root[data-theme="dark"] .mw-hero .primus-topo-field > svg {
+  color: rgba(200, 241, 105, 0.11);
+}
+.wp-breath-orb {
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.35),
+    0 10px 28px rgba(14, 138, 95, 0.12);
+}
+.wp-breath-orb.inhale {
+  border-color: var(--primus-pos);
+  box-shadow:
+    inset 0 0 24px rgba(52, 211, 153, 0.26),
+    0 0 34px rgba(200, 241, 105, 0.24);
+}
+:root[data-theme="dark"] .wp-breath-orb {
+  background: radial-gradient(circle at 50% 48%, #0e1e18 0%, #070b0a 74%);
+  border-color: rgba(200, 241, 105, 0.32);
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.22),
+    inset 0 0 22px rgba(16, 185, 129, 0.24),
+    0 14px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Learn & shared workspace cards subtle architectural hover elevation */
+.workspace-page :is(.wp-resource, .wp-goal) {
+  transition: border-color 180ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms ease;
+}
+.workspace-page :is(.wp-resource, .wp-goal):hover {
+  border-color: var(--primus-border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--primus-shadow-lift);
+}
+
+/* --- 11. Mobile & Reduced-Motion Safety --- */
+@media (max-width: 520px) {
+  .pt-monolith-stage {
+    height: 102px;
+  }
+  .pt-monolith-stage .pt-monogram {
+    font-size: 24px;
+  }
+  .pt-trader:last-child .pt-monolith-stage {
+    grid-row: 2 / 6;
+    margin: 6px 0;
+  }
+  .pt-trader:last-child .pt-monolith-stage .pt-monogram {
+    grid-row: auto;
+  }
+  .pt-closing-emblem {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primus-topo-field > svg,
+  .primus-light-seam-flare,
+  .primus-beam,
+  .pt-study-callout circle:first-child,
+  .aura-orb::after {
+    animation: none !important;
+  }
+  .pt-reticle-needle,
+  .pt-monolith-stone,
+  .pt-monolith-ray,
+  .pt-replay-plate-top,
+  .pt-replay-plate-bottom,
+  .pt-replay-cursor,
+  .pj-kpi-card,
+  .matrix-terminal [data-matrix-tour="tickers"] .mx-card,
+  .workspace-page :is(.wp-resource, .wp-goal) {
+    transition: none !important;
+  }
+  .pt-wordmark:hover .pt-reticle-needle {
+    transform: rotate(45deg) !important;
+  }
+}

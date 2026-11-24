@@ -11,6 +11,8 @@ import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
+import PrimusCompass from './components/PrimusCompass';
+import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
 import './workspace-pages.css';
 import {useIdentity} from './WorkspacePages';
@@ -82,7 +84,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
 
   return <>
     <header className={`pt-header ${actions ? 'has-tools' : ''}`}>
-      <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><Compass size={26} strokeWidth={1.3} /><span>PRIMUS<span>TRADER</span></span></a>
+      <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><PrimusCompass size={26} /><span>PRIMUS<span>TRADER</span></span></a>
       <button className="pt-mobile-toggle" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X /> : <MenuIcon />}</button>
       <nav onClick={(event) => { if (event.target.closest('a')) setOpen(false); }} onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.currentTarget.previousElementSibling?.focus(); } }} className={open ? 'is-open' : ''} aria-label="Primus navigation">
         <a className="pt-nav-primary" href="/journal" aria-current={active === 'journal' ? 'page' : undefined}>Journal</a>
@@ -123,12 +125,50 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
 }
 
 const traders = [
-  {name:'Sajid Kasim', initials:'SK', role:'Strategy & Research', alias:'The Strategist', focus:'The idea. The setup. The evidence.'},
-  {name:'Safwaan Alad', initials:'SA', role:'Macro Research', alias:'The Navigator', focus:'The bigger picture behind the move.'},
-  {name:'Mubeen Patel', initials:'MP', role:'Data & Analysis', alias:'The Analyst', focus:'Turning observations into questions.'},
-  {name:'Mustafa Dal', initials:'MD', role:'Price Action Research', alias:'The Tape Reader', focus:'Reading the detail in every session.'},
-  {name:'Amir Patel', initials:'AP', role:'Risk & Process', alias:'The Risk Keeper', focus:'A considered process, every time.'},
+  {name:'Sajid Kasim', initials:'SK', shape:'ovoid', role:'Strategy & Research', alias:'The Strategist', focus:'The idea. The setup. The evidence.'},
+  {name:'Safwaan Alad', initials:'SA', shape:'bevel', role:'Macro Research', alias:'The Navigator', focus:'The bigger picture behind the move.'},
+  {name:'Mubeen Patel', initials:'MP', shape:'sphere', role:'Data & Analysis', alias:'The Analyst', focus:'Turning observations into questions.'},
+  {name:'Mustafa Dal', initials:'MD', shape:'pillar', role:'Price Action Research', alias:'The Tape Reader', focus:'Reading the detail in every session.'},
+  {name:'Amir Patel', initials:'AP', shape:'lens', role:'Risk & Process', alias:'The Risk Keeper', focus:'A considered process, every time.'},
 ];
+
+function BacktestingSeamPreview() {
+  return (
+    <div className="pt-replay-preview" aria-hidden="true">
+      <span className="pt-replay-plate-top" />
+      <span className="pt-replay-plate-bottom" />
+      <span className="pt-replay-seam-core" />
+      <div className="pt-replay-head">
+        <span>NQ1! · 1M REPLAY</span>
+        <b>1× BAR-BY-BAR</b>
+      </div>
+      <svg className="pt-replay-wave" viewBox="0 0 320 76" fill="none">
+        {[18, 38, 58].map((y) => (
+          <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="#b6d1b6" strokeOpacity="0.09" />
+        ))}
+        {[14, 30, 46, 62, 78, 94, 110, 126, 142, 158, 174, 190, 206, 222, 238, 254, 270, 286, 302].map((x, i) => {
+          const y = 46 - Math.sin(i * 0.55) * 14 - i * 0.7;
+          const up = i % 3 !== 1;
+          return (
+            <g key={x} stroke={up ? '#c8f169' : '#6f8b7d'} fill={up ? '#c8f169' : '#172922'}>
+              <line x1={x} y1={y - 9} x2={x} y2={y + 16} strokeWidth="1" />
+              <rect x={x - 3} y={y} width="6" height="10" rx="1" />
+            </g>
+          );
+        })}
+        <g className="pt-replay-cursor">
+          <line x1="126" y1="4" x2="126" y2="72" stroke="#c8f169" strokeWidth="1.2" strokeDasharray="2 3" />
+          <circle cx="126" cy="38" r="8" stroke="#c8f169" strokeOpacity="0.45" fill="rgba(200,241,105,0.12)" />
+          <circle cx="126" cy="38" r="2.8" fill="#c8f169" />
+        </g>
+      </svg>
+      <div className="pt-replay-foot">
+        <span>NQ · ES · XAU · FX · QQQ</span>
+        <span>DETERMINISTIC</span>
+      </div>
+    </div>
+  );
+}
 
 function MarketDrawing(){
   return <svg viewBox="0 0 630 350" role="img" aria-label="Illustrative price-action study, not live market data">
@@ -275,12 +315,19 @@ function HomePage(){
   function handleHeroLeave() {
     if (heroWindowRef.current) heroWindowRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
   }
+  function handleCardMove(event) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const card = event.currentTarget;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--card-mx', `${(((event.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    card.style.setProperty('--card-my', `${(((event.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+  }
 
   return <div className="pt-site">
     <PrimusHeader/>
     <main>
       <section ref={heroRef} className="pt-hero pt-wrap" onMouseMove={handleHeroMove} onMouseLeave={handleHeroLeave}>
-        <div className="pt-hero-grid-bg" aria-hidden="true" />
+        <PrimusTopoField variant="hero" />
         <div className="pt-hero-spotlight" aria-hidden="true" />
         <div className="pt-hero-copy">
           <div className="pt-overline"><span className="pt-status-dot"/> INDEPENDENT MINDS. A SHARED PURSUIT.</div>
@@ -294,12 +341,16 @@ function HomePage(){
           <a className="pt-btn pt-study-cta" href="/lab">Open Strategy Lab <ArrowUpRight size={18}/></a>
         </div>
       </section>
+      <PrimusLightSeam />
       <div className="pt-clock-strip"><div className="pt-wrap"><span><span className="primus-live-dot" aria-hidden="true" style={{ marginRight: '8px', verticalAlign: 'middle' }} />THE WORLD DOESN’T TRADE IN ONE TIME ZONE.</span><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><a href="#briefing">Your market briefing <ChevronDown size={14}/></a></div></div>
       <WorkspaceResume/>
-      <section className="pt-wrap pt-section" id="traders">
-        <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">01</span><span className="pt-overline">01 / THE PEOPLE</span><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Primus starts with the people at the desk. Different perspectives, a shared place to study and a process that stays your own.</p></div>
-        <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader"><div className="pt-profile-mark"><span>0{i+1}</span><Compass size={17} strokeWidth={1}/></div><div className="pt-monogram">{t.initials}<span>↗</span></div><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>
-      </section>
+      <div className="pt-atmosphere-band">
+        <PrimusSunbeams />
+        <section className="pt-wrap pt-section" id="traders">
+          <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">01</span><span className="pt-overline">01 / THE PEOPLE</span><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Primus starts with the people at the desk. Different perspectives, a shared place to study and a process that stays your own.</p></div>
+          <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader" onMouseMove={handleCardMove}><div className="pt-profile-mark"><span>0{i+1}</span><PrimusCompass size={17}/></div><PrimusMonolith shape={t.shape} initials={t.initials}/><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>
+        </section>
+      </div>
       <section className="pt-wrap pt-section" id="briefing">
         <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">02</span><span className="pt-overline">02 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>
         <div className="pt-briefing"><div className="pt-briefing-sidebar"><span className="pt-overline">AT YOUR DESK</span><h3>One less tab<br/>to keep open.</h3><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><div className="pt-widget-frame"><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div></div>
@@ -308,13 +359,13 @@ function HomePage(){
         <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">03</span><span className="pt-overline">03 / YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Backtesting lets you practise the setup in replay.</p></div>
         <div className="pt-tools">
           <a className="pt-tool pt-tool-journal" href="/journal"><div className="pt-tool-top"><NotebookPen size={24}/><span>THE DAILY PRACTICE</span><ArrowUpRight/></div><h3>Your trades have<br/>a story. <em>Keep it.</em></h3><p>Plan your session. Add your screenshots. Write down the lesson while it’s still fresh.</p><div className="pt-paper-preview"><span>SESSION NOTES / A PREVIEW</span><strong>What did the market teach you?</strong><div className="pt-paper-line"><span aria-hidden="true">Wait for the level. Then the reaction.</span></div><div className="pt-paper-rule"/><span className="pt-paper-tag">Plan → Trade → Reflect <NotebookPen size={12}/></span></div><span className="pt-tool-bottom">Open Journal <ArrowRight size={18}/></span></a>
-          <a className="pt-tool pt-tool-lab" href="/lab"><div className="pt-tool-top"><FlaskConical size={24}/><span>THE RESEARCH PROCESS</span><ArrowUpRight/></div><h3>An idea is a start.<br/><em>Test the setup.</em></h3><p>Explore strategies, levels and confirmations. Let your own recorded results shape the questions.</p><div className="pt-lab-preview"><span>STRATEGY → LEVEL → CONFIRMATION</span><MarketDrawing/><div className="pt-preview-tags" aria-hidden="true"><span>Key level</span><span>Confirmation</span><span>Review</span></div></div><span className="pt-tool-bottom">Enter Strategy Lab <ArrowRight size={18}/></span></a>
-          <a className="pt-tool pt-tool-backtesting" href="/backtesting"><div className="pt-tool-top"><Compass size={24}/><span>FREE BACKTESTING</span><ArrowUpRight/></div><h3>Replay the market.<br/><em>Practise your edge.</em></h3><p>Multi-chart historical replay across futures, FX, gold, and QQQ — with deterministic fills and Lab export.</p><span className="pt-tool-bottom">Start backtesting <ArrowRight size={18}/></span></a>
+          <a className="pt-tool pt-tool-lab" href="/lab"><PrimusTopoField variant="card" /><div className="pt-tool-top"><FlaskConical size={24}/><span>THE RESEARCH PROCESS</span><ArrowUpRight/></div><h3>An idea is a start.<br/><em>Test the setup.</em></h3><p>Explore strategies, levels and confirmations. Let your own recorded results shape the questions.</p><div className="pt-lab-preview"><span>STRATEGY → LEVEL → CONFIRMATION</span><MarketDrawing/><div className="pt-preview-tags" aria-hidden="true"><span>Key level</span><span>Confirmation</span><span>Review</span></div></div><span className="pt-tool-bottom">Enter Strategy Lab <ArrowRight size={18}/></span></a>
+          <a className="pt-tool pt-tool-backtesting" href="/backtesting"><div className="pt-tool-top"><PrimusCompass size={24}/><span>FREE BACKTESTING</span><ArrowUpRight/></div><h3>Replay the market.<br/><em>Practise your edge.</em></h3><p>Multi-chart historical replay across futures, FX, gold, and QQQ — with deterministic fills and Lab export.</p><BacktestingSeamPreview /><span className="pt-tool-bottom">Start backtesting <ArrowRight size={18}/></span></a>
         </div>
       </div></section>
-      <section className="pt-closing pt-wrap"><Compass size={42} strokeWidth={1}/><span className="pt-overline">A PROCESS WORTH RETURNING TO.</span><h2>Study. Trade.<br/><em>Reflect. Repeat.</em></h2><a className="pt-btn pt-btn-lime" href="/journal">Make room for the next lesson <ArrowUpRight size={18}/></a></section>
+      <section className="pt-closing"><PrimusSunbeams /><div className="pt-closing-emblem" aria-hidden="true"><PrimusCompass size={46} interactive/></div><span className="pt-overline">A PROCESS WORTH RETURNING TO.</span><h2>Study. Trade.<br/><em>Reflect. Repeat.</em></h2><a className="pt-btn pt-btn-lime" href="/journal">Make room for the next lesson <ArrowUpRight size={18}/></a></section>
     </main>
-    <footer className="pt-footer pt-wrap"><a className="pt-wordmark" href="/"><Compass size={23}/><span>PRIMUS<span>TRADER</span></span></a><p>Independent trading research. Personal tools. Shared curiosity.</p><a href="/privacy">Privacy</a><span>© {clock.getFullYear()} PrimusTrader</span></footer>
+    <footer className="pt-footer pt-wrap"><a className="pt-wordmark" href="/"><PrimusCompass size={23}/><span>PRIMUS<span>TRADER</span></span></a><p>Independent trading research. Personal tools. Shared curiosity.</p><a href="/privacy">Privacy</a><span>© {clock.getFullYear()} PrimusTrader</span></footer>
     {localSitePreview()&&<div className="pt-preview-label">LOCAL CONCEPT PREVIEW · NOT PUBLISHED</div>}
   </div>;
 }
