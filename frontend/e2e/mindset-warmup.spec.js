@@ -30,37 +30,8 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await page.clock.install();
   // The browser clock advances in this test while the server clock stays real.
   await page.route('**/api/mindset/breathwork/finish', route => route.fulfill({json:{completed:true}}));
-  await page.route('**/api/mindset/check-in/reflect', route => {
-    const {step, reflection, history} = route.request().postDataJSON();
-    expect(step).toBe('question');
-    const firstQuestion = 'I rushed into trades after a loss.';
-    const firstAnswer = 'Pause before you place another trade.';
-    if (reflection === firstQuestion) {
-      expect(history).toEqual([]);
-      return route.fulfill({json:{text:firstAnswer}});
-    }
-    expect(reflection).toBe('How long should I pause?');
-    expect(history).toEqual([{question:firstQuestion, answer:firstAnswer}]);
-    return route.fulfill({json:{text:'Until you can clearly state your entry criteria.'}});
-  });
   await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Primax'}).click();
-  const aura = page.getByRole('dialog',{name:'Primax',exact:true});
-  const composer = aura.getByRole('textbox',{name:'Message Primax'});
-  const thread = aura.getByRole('log');
-  await composer.fill('I rushed into trades after a loss.');
-  await composer.press('Enter');
-  await expect(composer).toBeEmpty();
-  await expect(thread).toContainText('I rushed into trades after a loss.');
-  await expect(thread).toContainText('Pause before you place another trade.');
-  await composer.fill('How long should I pause?');
-  await aura.getByRole('button',{name:'Send message'}).click();
-  await expect(composer).toBeEmpty();
-  await expect(thread).toContainText('Until you can clearly state your entry criteria.');
-  await aura.getByRole('button',{name:'Close'}).click();
-  await page.getByRole('button',{name:'Ask Primax'}).click();
-  await expect(thread).not.toContainText('I rushed into trades after a loss.');
-  await aura.getByRole('button',{name:'Close'}).click();
+  await expect(page.getByRole('button',{name:'Ask Primax'})).toHaveCount(0);
   const progress = page.getByRole('progressbar',{name:'Pre-session checklist progress'});
   await expect(progress).toHaveAttribute('aria-valuenow','0');
   for (const [index, name] of ['HTF levels marked','News checked','Give to charity'].entries()) {
@@ -108,7 +79,7 @@ test('private morning prep persists and the warm-up leads to a saved affirmation
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
   const saved = await (await page.request.get(`${origin}/api/mindset/warmup`)).json();
   expect(saved.affirmation).toBe('The next trade has to meet my rules. It does not owe me back the last loss.');
-  await expect(page.getByRole('button',{name:'Ask Primax'})).toHaveCSS('border-radius','50%');
+  await expect(page.getByRole('button',{name:'Ask Primax'})).toHaveCount(0);
 });
 
 test('Pattern Match works at 390px in dark mode with reduced motion',async({page},info)=>{
@@ -181,67 +152,6 @@ test('custom checklist persists and every warm-up step can be skipped', async ({
   await expect(page.getByText('Warm-Up Complete',{exact:true})).toBeVisible();
 });
 
-test('Primax puts dictated words into the composer for review', async ({page}) => {
-  await page.addInitScript(()=>{
-    window.SpeechRecognition = class {
-      start(){setTimeout(()=>{
-        this.onresult?.({results:[[{transcript:'I feel ready to wait for my setup.'}]]});
-        this.onend?.();
-      },50);}
-      abort(){}
-    };
-  });
-  await page.setViewportSize({width:390,height:844});
-  await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Primax'}).click();
-  const dialog=page.getByRole('dialog',{name:'Primax',exact:true});
-  await dialog.getByRole('button',{name:'Dictate message'}).click();
-  await expect(dialog.getByRole('textbox',{name:'Message Primax'})).toHaveValue('I feel ready to wait for my setup.');
-  await expect(dialog.getByRole('button',{name:'Send message'})).toBeEnabled();
-});
-
-for (const failure of ['timeout', 'server error']) {
-  test(`Primax keeps the message available to retry after a ${failure}`, async ({page}) => {
-    await page.clock.install();
-    await page.route('**/api/mindset/check-in/reflect', (route) => failure === 'timeout'
-      ? new Promise((resolve) => setTimeout(() => resolve(route.abort().catch(() => {})), 26500))
-      : route.fulfill({status:500, json:{detail:'unavailable'}}));
-    await page.goto(`${origin}/mindset`);
-    await page.getByRole('button',{name:'Ask Primax'}).click();
-    const aura = page.getByRole('dialog',{name:'Primax',exact:true});
-    const composer = aura.getByRole('textbox',{name:'Message Primax'});
-    await composer.fill('I’m tempted to rush');
-    await aura.getByRole('button',{name:'Send message'}).click();
-    if (failure === 'timeout') await page.clock.fastForward(25001);
-    await expect(aura.getByRole('log')).toContainText('Primax is resting');
-    await expect(aura.getByRole('log')).toContainText('I’m tempted to rush');
-    await page.route('**/api/mindset/check-in/reflect', (route) =>
-      route.fulfill({json:{text:'Wait for your entry criteria.'}}));
-    await aura.getByRole('button',{name:'Try again'}).click();
-    await expect(aura.getByRole('log')).toContainText('Wait for your entry criteria.');
-    await expect(composer).toBeEmpty();
-  });
-}
-
-test('Primax shows and clears a blocked microphone state', async ({page}) => {
-  await page.clock.install();
-  await page.addInitScript(() => {
-    window.SpeechRecognition = class {
-      start() { setTimeout(() => { this.onerror({error:'not-allowed'}); this.onend(); }, 100); }
-      abort() {}
-    };
-  });
-  await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Ask Primax'}).click();
-  const aura = page.getByRole('dialog',{name:'Primax',exact:true});
-  await aura.getByRole('button',{name:'Dictate message'}).click();
-  await expect(aura.getByRole('button',{name:'Stop dictation'})).toBeVisible();
-  await page.clock.fastForward(100);
-  await expect(aura.getByRole('button',{name:'Microphone blocked'})).toBeDisabled();
-  await page.clock.fastForward(3000);
-  await expect(aura.getByRole('button',{name:'Dictate message'})).toBeEnabled();
-});
-
 test('the two focus games remember separate difficulty settings and hard Visual Search lasts a minute', async ({page}) => {
   await page.setViewportSize({width:390,height:844});
   await page.clock.install();
@@ -303,24 +213,14 @@ test('Journal shows the saved Mindset checklist on its matching date', async ({p
   await expect(summary).toContainText(`${prep.items[0].label} · Done`);
 });
 
-test('Primax opens with a contextual prompt and quick replies on a dark surface', async ({page}) => {
-  await page.route('**/api/mindset/check-in/opening', (route) => route.fulfill({json:{
-    text:'Yesterday was a red day. What will help you trade your plan today?',
-    suggestions:['Help me reset after yesterday'],
-  }}));
-  await page.route('**/api/mindset/check-in/reflect', (route) => {
-    expect(route.request().postDataJSON().reflection).toBe('Help me reset after yesterday');
-    return route.fulfill({json:{text:'Take one setup at a time.'}});
-  });
-  await page.goto(`${origin}/mindset`);
-  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
-  await page.getByRole('button',{name:'Ask Primax'}).click();
-  const dialog = page.getByRole('dialog',{name:'Primax',exact:true});
-  await expect(dialog).toHaveCSS('background-color','rgb(26, 26, 25)');
-  await expect(dialog.getByRole('heading',{name:'Prime your execution for the session.'})).toBeVisible();
-  await expect(dialog.getByText(/Yesterday was a red day/)).toBeVisible();
-  await dialog.getByRole('button',{name:'Help me reset after yesterday'}).click();
-  await expect(dialog.getByRole('log')).toContainText('Take one setup at a time.');
+test('floating Primax bubble stays on Journal only and stays hidden on other workspaces', async ({page}) => {
+  for (const path of ['/mindset', '/learn', '/matrix']) {
+    await page.goto(`${origin}${path}`);
+    await expect(page.getByRole('button', {name: 'Ask Primax'})).toHaveCount(0);
+    await expect(page.getByRole('button', {name: 'Primax - Trading Assistant'})).toHaveCount(0);
+  }
+  await page.goto(`${origin}/journal`);
+  await expect(page.getByRole('button', {name: 'Primax - Trading Assistant'})).toBeVisible();
 });
 
 test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits work cleanly', async ({page}) => {
