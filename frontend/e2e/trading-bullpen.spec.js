@@ -165,7 +165,8 @@ test('Trading Floor groups settings and replaces the desk overview while sharing
     ];
     navigator.mediaDevices.addEventListener = () => {};
     navigator.mediaDevices.removeEventListener = () => {};
-    navigator.mediaDevices.getDisplayMedia = async () => {
+    navigator.mediaDevices.getDisplayMedia = async (options) => {
+      window.bullpenShareConstraints = options.video;
       const canvas = document.createElement('canvas');
       canvas.getContext('2d').fillRect(0, 0, canvas.width, canvas.height);
       return canvas.captureStream(5);
@@ -199,9 +200,9 @@ test('Trading Floor groups settings and replaces the desk overview while sharing
   expect(saved.inputGain).toBeCloseTo(1.4);
   expect(saved.autoGainControl).toBe(false);
 
-  await dialog.getByRole('button', {name: 'Display', exact: true}).click();
-  await dialog.getByLabel('Screen share quality').selectOption('smooth');
-  await expect(dialog.getByRole('button', {name: 'Theater mode'})).toBeVisible();
+  await expect(dialog.getByRole('button', {name: 'Desk chimes'})).toBeVisible();
+  await expect(dialog.getByLabel('Screen share quality')).toHaveCount(0);
+  await expect(dialog.getByRole('button', {name: 'Theater mode'})).toHaveCount(0);
   await dialog.getByRole('button', {name: 'Shortcuts', exact: true}).click();
   await expect(dialog.getByText('Push to talk', {exact: true})).toBeVisible();
   await page.setViewportSize({width:390,height:844});
@@ -209,8 +210,29 @@ test('Trading Floor groups settings and replaces the desk overview while sharing
   await expect(dialog).toHaveCount(0);
   await expect(settingsBtn).toBeFocused();
   await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('button', {name: 'Share screen', exact: true}).click();
+  const viewButton = page.getByRole('button', {name: 'View', exact: true});
+  await viewButton.click();
+  const viewOptions = page.getByRole('group', {name: 'Trading Floor view'});
+  await viewOptions.getByRole('button', {name: 'Move sidebar left'}).click();
+  await expect(page.locator('.bullpen-split')).toHaveClass(/bullpen-sidebar-left/);
+  await viewButton.click();
+  await viewOptions.getByRole('button', {name: 'Theater mode'}).click();
+  await expect(page.locator('.bullpen-room')).toHaveClass(/is-theater/);
+  await viewButton.click();
+  await viewOptions.getByRole('button', {name: 'Theater mode'}).click();
+  await expect(page.locator('.bullpen-room')).not.toHaveClass(/is-theater/);
+  await viewButton.click();
+  await viewOptions.getByRole('button', {name: 'Fullscreen', exact: true}).click();
+  const exitFullscreen = controls.getByRole('button', {name: 'Exit fullscreen'});
+  await expect(exitFullscreen).toBeVisible();
+  await exitFullscreen.click();
+  await expect(exitFullscreen).toHaveCount(0);
+
+  const shareControls = page.getByRole('group', {name: 'Screen sharing', exact: true});
+  await shareControls.getByLabel('Screen share quality').selectOption('smooth');
+  await shareControls.getByRole('button', {name: 'Share screen', exact: true}).click();
   await expect(controls.getByRole('button', {name: 'Stop sharing'})).toBeVisible();
+  expect(await page.evaluate(() => window.bullpenShareConstraints.frameRate.ideal)).toBe(30);
   await expect(page.getByRole('button', {name: 'Pinned levels', exact: true})).toHaveCount(0);
   await settingsBtn.click();
   await dialog.getByRole('button', {name: 'Chart tools', exact: true}).click();

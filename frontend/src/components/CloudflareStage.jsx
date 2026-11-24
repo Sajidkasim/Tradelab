@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
-  Maximize2, Minimize2, Mic, MicOff, MonitorUp, MonitorOff,
+  Minimize2, Mic, MicOff, MonitorUp, MonitorOff,
   ZoomIn, ZoomOut, RotateCcw, Volume2, HeadphoneOff,
   Crop, Camera, Film, PictureInPicture2, Crosshair, Columns2,
-  Bell, BellOff, Tv2, Search, ShieldAlert,
+  Bell, BellOff, Search, ShieldAlert,
   Settings, Headphones, X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -275,8 +275,7 @@ export default function CloudflareStage({
   minimised,
   theater,
   onToggleTheater,
-  sidebarLeft,
-  onToggleSidebar,
+  ref,
   speakingMap,
   deskOverview,
   peerVolumes = {},
@@ -293,7 +292,6 @@ export default function CloudflareStage({
   const [audioPrefs, setAudioPrefs] = useState(loadAudioPrefs);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState('audio');
-  const audioMenuOpen = settingsOpen && settingsSection === 'audio' && !minimised;
   const [audioDevices, setAudioDevices] = useState({ inputs: [], outputs: [] });
   const [micLevel, setMicLevel] = useState(0); // 0..100 live input meter
   const [testingMic, setTestingMic] = useState(false);
@@ -651,6 +649,9 @@ export default function CloudflareStage({
     md.addEventListener('devicechange', refreshAudioDevices);
     return () => md.removeEventListener('devicechange', refreshAudioDevices);
   }, [refreshAudioDevices]);
+
+  const activeSettingsSection = settingsSection === 'chart' && !localScreen && !remoteScreens.length ? 'audio' : settingsSection;
+  const audioMenuOpen = settingsOpen && activeSettingsSection === 'audio' && !minimised;
 
   useEffect(() => {
     if (audioMenuOpen) void refreshAudioDevices();
@@ -1291,11 +1292,17 @@ export default function CloudflareStage({
     return () => clearInterval(timer);
   }, [lasers]);
 
-  // Fullscreen listener
   useEffect(() => {
-    const onFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    const onFs = () => {
+      const element = document.fullscreenElement || document.webkitFullscreenElement;
+      setIsFullscreen(Boolean(element && element === stageRef.current));
+    };
     document.addEventListener('fullscreenchange', onFs);
-    return () => document.removeEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+    };
   }, []);
 
   // Smart Magnifier Loupe render loop (60fps crisp 4K slice directly from <video>)
@@ -1674,6 +1681,8 @@ export default function CloudflareStage({
     setPseudoFullscreen(true);
   };
 
+  useImperativeHandle(ref, () => ({ toggleFullscreen }));
+
   // Compute CSS transform for single-screen video (Crop-to-Chart + Zoom + Pan)
   const cropScale = cropBox ? Math.min(6, Math.min(1 / cropBox.w, 1 / cropBox.h)) : 1;
   const cropOffsetX = cropBox ? (0.5 - (cropBox.x + cropBox.w / 2)) * 100 : 0;
@@ -1713,6 +1722,22 @@ export default function CloudflareStage({
     const top = loupePos.y - size / 2 < 8 ? 8 : Math.min(rect.height - size - 8, loupePos.y - size / 2);
     return { left: `${left}px`, top: `${top}px`, width: `${size}px`, height: `${size}px` };
   }, [loupeOn, loupePos]);
+
+  const shareControls = (primary = false) => (
+    <div className="bullpen-share-group" role="group" aria-label="Screen sharing">
+      <button type="button"
+        className={primary ? 'button primary' : `bullpen-bar-btn${sharing ? ' is-sharing' : ''}`}
+        onClick={startScreenShare} disabled={status !== 'live' || isDisabled} aria-pressed={sharing}>
+        {sharing ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
+        <span>{sharing ? 'Stop sharing' : 'Share screen'}</span>
+      </button>
+      {!minimised && <select aria-label="Screen share quality" value={shareQuality}
+        onChange={(event) => applyShareQualityLive(event.target.value)}>
+        <option value="crisp">4K · 15 fps</option>
+        <option value="smooth">1080p · 30 fps</option>
+      </select>}
+    </div>
+  );
 
   return (
     <div className={`bullpen-cf-stage${pseudoFullscreen ? ' is-pseudo-fs' : ''}`} ref={stageRef}>
@@ -1877,11 +1902,7 @@ export default function CloudflareStage({
           {!minimised && (
             <>
               <div className="bullpen-voice-prompt">
-                {status === 'live' ? (
-                  <button type="button" className="button primary" onClick={startScreenShare} disabled={isDisabled}>
-                    <MonitorUp size={16} /> Share screen
-                  </button>
-                ) : (status === 'connecting' || status === 'reconnecting') && (
+                {status === 'live' ? shareControls(true) : (status === 'connecting' || status === 'reconnecting') && (
                   <p role="status">{status === 'connecting' ? 'Connecting to voice…' : 'Reconnecting to voice…'}</p>
                 )}
               </div>
@@ -1904,18 +1925,7 @@ export default function CloudflareStage({
             {micOn ? <Mic size={14} /> : <MicOff size={14} />}
             <span>{pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
           </button>
-          {(minimised || currentScreen || sharing) && (
-            <button
-              type="button"
-              className={`bullpen-bar-btn${sharing ? ' is-sharing' : ''}`}
-              onClick={startScreenShare}
-              disabled={status !== 'live' || isDisabled}
-              aria-pressed={sharing}
-            >
-              {sharing ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
-              <span>{sharing ? 'Stop sharing' : 'Share screen'}</span>
-            </button>
-          )}
+          {(minimised || currentScreen || sharing) && shareControls()}
           {deafened && <button type="button" className="bullpen-bar-btn is-warn" onClick={toggleDeafen}>
             <HeadphoneOff size={14} /> Restore audio
           </button>}
@@ -1924,6 +1934,9 @@ export default function CloudflareStage({
           {!minimised && toast && <span className="bullpen-bar-toast" role="status">
             {toast.text}{toast.link && <a href={toast.link}> Open ↗</a>}
           </span>}
+          {(isFullscreen || pseudoFullscreen) && <button type="button" className="bullpen-bar-btn" onClick={toggleFullscreen}>
+            <Minimize2 size={14} /> Exit fullscreen
+          </button>}
           {!minimised && (
             <div className="bullpen-settings-anchor" ref={settingsRef}>
               <button
@@ -1945,20 +1958,25 @@ export default function CloudflareStage({
                   </div>
                   <div className="bullpen-settings-sections" role="group" aria-label="Settings sections">
                     {[
-                      ['audio', 'Audio'], ['display', 'Display'],
+                      ['audio', 'Audio'],
                       ...(currentScreen ? [['chart', 'Chart tools']] : []),
                       ['shortcuts', 'Shortcuts'],
                     ].map(([id, label]) => (
                       <button type="button" key={id} className="bullpen-bar-btn"
-                        aria-pressed={settingsSection === id || (id === 'display' && settingsSection === 'chart' && !currentScreen)}
+                        aria-pressed={activeSettingsSection === id}
                         onClick={() => setSettingsSection(id)}>{label}</button>
                     ))}
                   </div>
-                  {settingsSection === 'audio' && <>
-                    <button type="button" className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}
-                      onClick={toggleDeafen} aria-pressed={deafened}>
-                      {deafened ? <HeadphoneOff size={14} /> : <Volume2 size={14} />} Deafen
-                    </button>
+                  {activeSettingsSection === 'audio' && <>
+                    <div className="bullpen-settings-tools">
+                      <button type="button" className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}
+                        onClick={toggleDeafen} aria-pressed={deafened}>
+                        {deafened ? <HeadphoneOff size={14} /> : <Volume2 size={14} />} Deafen
+                      </button>
+                      <button type="button" className="bullpen-bar-btn" onClick={onToggleChimes} aria-pressed={chimesOn}>
+                        {chimesOn ? <Bell size={14} /> : <BellOff size={14} />} Desk chimes
+                      </button>
+                    </div>
                     <label className="bullpen-audio-field">
                       <span>Microphone</span>
                       <select
@@ -2056,30 +2074,6 @@ export default function CloudflareStage({
                         onClick={() => toggleAudioConstraint('autoGainControl', 'Auto gain')}
                       >
                         Auto Gain
-                      </button>
-                    </div>
-                  </>}
-                  {(settingsSection === 'display' || (settingsSection === 'chart' && !currentScreen)) && <>
-                    <label className="bullpen-audio-field">
-                      <span>Screen share quality</span>
-                      <select value={shareQuality} onChange={(event) => applyShareQualityLive(event.target.value)}>
-                        <option value="crisp">4K · 15 fps</option>
-                        <option value="smooth">1080p · 30 fps</option>
-                      </select>
-                    </label>
-                    <div className="bullpen-settings-tools">
-                      <button type="button" className="bullpen-bar-btn" onClick={onToggleTheater} aria-pressed={theater}>
-                        <Tv2 size={14} /> Theater mode
-                      </button>
-                      <button type="button" className="bullpen-bar-btn" onClick={toggleFullscreen}>
-                        {isFullscreen || pseudoFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                        {isFullscreen || pseudoFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                      </button>
-                      <button type="button" className="bullpen-bar-btn bullpen-settings-sidebar" onClick={onToggleSidebar}>
-                        Move sidebar {sidebarLeft ? 'right' : 'left'}
-                      </button>
-                      <button type="button" className="bullpen-bar-btn" onClick={onToggleChimes} aria-pressed={chimesOn}>
-                        {chimesOn ? <Bell size={14} /> : <BellOff size={14} />} Desk chimes
                       </button>
                     </div>
                   </>}

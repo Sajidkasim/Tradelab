@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MessageSquare, CalendarClock, Layers, Send, AlertTriangle, Volume2,
-  MicOff, MonitorOff, Ban, UserCheck, CheckCircle2, Settings, X,
+  MicOff, MonitorOff, Ban, UserCheck, CheckCircle2, ChevronDown, Maximize2, Tv2, X,
 } from 'lucide-react';
 import { Button, Notice } from '../components';
 import { REACTIONS, useBullpen } from '../hooks/usePresence';
@@ -78,6 +78,55 @@ function formatMmSs(ms) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function TradingFloorView({ theater, sidebarLeft, onToggleTheater, onToggleSidebar, onFullscreen }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  function apply(action) {
+    setOpen(false);
+    buttonRef.current?.focus();
+    action();
+  }
+
+  return <div ref={menuRef} className="bullpen-view">
+    <button type="button" ref={buttonRef} className="button bullpen-view-trigger"
+      aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      View <ChevronDown size={13} aria-hidden="true" />
+    </button>
+    {open && <div className="bullpen-view-options" role="group" aria-label="Trading Floor view">
+      <Button onClick={() => apply(onToggleTheater)} aria-pressed={theater}>
+        <Tv2 size={14} aria-hidden="true" /> Theater mode
+      </Button>
+      {onFullscreen && <Button onClick={() => apply(onFullscreen)}>
+        <Maximize2 size={14} aria-hidden="true" /> Fullscreen
+      </Button>}
+      <Button className="bullpen-view-sidebar" onClick={() => apply(onToggleSidebar)}>
+        Move sidebar {sidebarLeft ? 'right' : 'left'}
+      </Button>
+    </div>}
+  </div>;
+}
+
 export default function TradingRoom({ meeting, onLeave, minimised = false, onMinimise, onRestore }) {
   const {
     access, connected, people, peers, messages, reaction,
@@ -111,6 +160,7 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
   const [videoError, setVideoError] = useState('');
 
   const layout = useRef(null);
+  const stageControls = useRef(null);
   const handlers = useRef(null);
   const leave = useRef(onLeave);
   const messagesEnd = useRef(null);
@@ -481,17 +531,13 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
         </div>
 
         <div className="bullpen-head-actions">
-          {!minimised && !isCloudflare && (
-            <details className="bullpen-legacy-settings">
-              <summary className="button"><Settings size={14} /> Settings</summary>
-              <div className="bullpen-legacy-settings-options">
-                <Button onClick={() => setTheater((value) => !value)} aria-pressed={theater}>Theater mode</Button>
-                <Button className="bullpen-settings-sidebar" onClick={() => setSidebarLeft((value) => !value)}>
-                  Move sidebar {sidebarLeft ? 'right' : 'left'}
-                </Button>
-              </div>
-            </details>
-          )}
+          {!minimised && <TradingFloorView
+            theater={theater}
+            sidebarLeft={sidebarLeft}
+            onToggleTheater={() => setTheater((value) => !value)}
+            onToggleSidebar={() => setSidebarLeft((value) => !value)}
+            onFullscreen={isCloudflare ? () => stageControls.current?.toggleFullscreen() : undefined}
+          />}
           {onMinimise && <Button onClick={() => { if (minimised) onRestore(); else onMinimise(); }}>{minimised ? 'Restore' : 'Minimise'}</Button>}
           <Button onClick={onLeave}>Leave</Button>
         </div>
@@ -504,12 +550,11 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
           <div className="bullpen-call-frame">
             {isCloudflare ? (
               <CloudflareStage
+                ref={stageControls}
                 meeting={meeting}
                 minimised={minimised}
                 theater={theater}
                 onToggleTheater={() => setTheater((v) => !v)}
-                sidebarLeft={sidebarLeft}
-                onToggleSidebar={() => setSidebarLeft((value) => !value)}
                 speakingMap={speakingMap}
                 deskOverview={<div className="bullpen-voice-overview" aria-label="Desk overview">
                   <section>
