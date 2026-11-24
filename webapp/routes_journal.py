@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
-from datetime import date
+from datetime import date, datetime
+from email.message import EmailMessage
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
+from secrets import randbelow
+import smtplib
+import ssl
+from time import monotonic
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
@@ -16,7 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from core.models import Account
 from core.registry import COACH_PROVIDERS, load_extensions
-from . import compound_edge, daily_journal, primax_memory
+from . import compound_edge, daily_journal, journal_preferences, primax_memory
 from .schemas import DailyEntry, JournalAccount, JournalAccountPresets, JournalTradeLink
 
 
@@ -25,7 +33,45 @@ class AuraTurn(BaseModel):
     answer: str = Field(max_length=650)
 
 
+class JournalHistoryCode(BaseModel):
+    code: str = Field(pattern=r"^[0-9]{6}$")
+
+
+def journal_mail_credentials():
+    sender = (os.getenv("JOURNAL_GMAIL_ADDRESS") or os.getenv("BULLPEN_GMAIL_ADDRESS", "")).strip()
+    password = "".join((os.getenv("JOURNAL_GMAIL_APP_PASSWORD") or os.getenv("BULLPEN_GMAIL_APP_PASSWORD", "")).split())
+    return sender, password
+
+
+def send_journal_history_code(sender, password, recipient, code):
+    message = EmailMessage()
+    message["From"] = sender
+    message["To"] = recipient
+    message["Subject"] = "PrimusTrader Journal deletion code"
+    message.set_content(f"Your Journal deletion code is {code}. It expires in 10 minutes. "
+                        "Ignore this email if you did not request it.")
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10, context=ssl.create_default_context()) as smtp:
+        smtp.login(sender, password)
+        smtp.send_message(message)
+
+
+def journal_history_snapshot(database):
+    timezone = journal_preferences.read(database)["timezone"]
+    cutoff = datetime.now(ZoneInfo(timezone)).date().isoformat()
+    return cutoff, daily_journal.past_entries(database, cutoff)
+
+
+def history_fingerprint(cutoff, records):
+    return hashlib.sha256(json.dumps([cutoff, records], sort_keys=True).encode()).hexdigest()
+
+
 def mount(app, config, workspace, check_write, db):
+    history_codes = {}
+
+    def code_digest(request, member, code):
+        binding = json.dumps([member["key"], member["email"], request.session["csrf"], code])
+        return hmac.digest(config.secret.encode(), binding.encode(), "sha256")
+
     def write_journal_account(database, payload, account_id=None):
         values = payload.model_dump(exclude_unset=True)
         values["name"] = values["name"].strip()
@@ -251,6 +297,73 @@ def mount(app, config, workspace, check_write, db):
     def journal_trash(request: Request, member=Depends(workspace)):
         journal_preview()
         return daily_journal.deleted_entries(db(request, member))
+
+    @app.get("/api/journal/history/preview")
+    def preview_journal_history(request: Request, member=Depends(workspace)):
+        journal_preview()
+        with app.state.workspaces.workspace_lock(member["key"]):
+            cutoff, records = journal_history_snapshot(db(request, member))
+        email = member.get("email") or ""
+        name, _, domain = email.partition("@")
+        return {"count": len(records), "before": cutoff,
+                "email_hint": f"{name[:1]}…@{domain}" if domain else None,
+                "available": bool(domain and all(journal_mail_credentials()))}
+
+    @app.post("/api/journal/history/send-code")
+    def request_journal_history_code(request: Request, member=Depends(workspace)):
+        journal_preview()
+        recipient = member.get("email")
+        if not recipient:
+            raise HTTPException(403, "Sign in with your Google account to verify this action.")
+        sender, password = journal_mail_credentials()
+        if not (sender and password):
+            raise HTTPException(503, "Journal verification email is unavailable.")
+        key = member["key"]
+        with app.state.workspaces.workspace_lock(key):
+            cutoff, records = journal_history_snapshot(db(request, member))
+            if not records:
+                raise HTTPException(409, "There are no past entries to delete.")
+            retry = app.state.rate_counters.consume(f"journal-history-code:{key}", limit=3, window=900)
+            if retry:
+                raise HTTPException(429, "Too many code requests. Try again later.", headers={"Retry-After": str(retry)})
+            fingerprint = history_fingerprint(cutoff, records)
+            history_codes.pop(key, None)
+        code = f"{randbelow(1_000_000):06d}"
+        try:
+            send_journal_history_code(sender, password, recipient, code)
+        except (OSError, ValueError):
+            raise HTTPException(503, "Could not send the verification email. Please try again.") from None
+        with app.state.workspaces.workspace_lock(key):
+            history_codes[key] = {"digest": code_digest(request, member, code), "expires": monotonic() + 600,
+                                  "session": request.session["csrf"], "fingerprint": fingerprint, "attempts": 0}
+        return {"count": len(records), "before": cutoff}
+
+    @app.post("/api/journal/history/delete")
+    def delete_journal_history(payload: JournalHistoryCode, request: Request, member=Depends(workspace)):
+        journal_preview()
+        key = member["key"]
+        with app.state.workspaces.workspace_lock(key):
+            challenge = history_codes.get(key)
+            if not challenge or challenge["session"] != request.session["csrf"]:
+                raise HTTPException(403, "Request a code from this session first.")
+            if monotonic() >= challenge["expires"]:
+                history_codes.pop(key)
+                raise HTTPException(403, "The code expired. Request a new one.")
+            if not hmac.compare_digest(challenge["digest"], code_digest(request, member, payload.code)):
+                challenge["attempts"] += 1
+                if challenge["attempts"] >= 5:
+                    history_codes.pop(key)
+                    raise HTTPException(403, "Too many attempts. Request a new code.")
+                raise HTTPException(422, "That code is incorrect.")
+            history_codes.pop(key)
+            database = db(request, member)
+            cutoff, records = journal_history_snapshot(database)
+            if challenge["fingerprint"] != history_fingerprint(cutoff, records):
+                raise HTTPException(409, "Journal entries changed. Review the count and request a new code.")
+            days = {row["day"] for row in records.values()}
+            daily_journal.archive_past_entries(database, records, additional_settings=primax_memory.without_days(database, days))
+            app.state.workspaces.bump(key)
+        return {"days": sorted(days)}
 
     @app.delete("/api/journal/{day}")
     def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):

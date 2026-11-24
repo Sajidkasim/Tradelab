@@ -202,7 +202,6 @@ export default function JournalTradeCards({
               <label className="pj-field">Amount risked ($)<input type="number" inputMode="decimal" min="0.01" step="any" aria-label="Amount risked ($)" placeholder="e.g. 50" value={trade.risk_amount ?? ''} disabled={busy || !!trade.lab_trade_id} onChange={e => onChange(trade.id, 'risk_amount', e.target.value === '' ? null : Number(e.target.value))}/></label>
               <label className="pj-field">Profit / loss ($)<input type="number" inputMode="decimal" step="any" aria-label="Profit / loss ($)" placeholder="e.g. 150 or -50" value={trade.net_pnl ?? ''} disabled={busy || !!trade.lab_trade_id} onChange={e => onChange(trade.id, 'net_pnl', e.target.value === '' ? null : Number(e.target.value))}/></label>
             </div>
-            <p>Key level timeframe is where you found the level; entry timeframe is where you entered. Enter a loss with a minus sign. A recorded result sets Win, Loss or Break-even when saved.</p>
           </details>
           <fieldset className="pj-confirmations"><legend>Entry confirmations</legend><div>{Array.from(new Set([...(meta?.confirmations || []), ...(trade.confirmations || [])])).map(value => <label key={value}
             onMouseEnter={() => setVisionFocus({key: evidenceKey, value})} onMouseLeave={() => setVisionFocus(null)}

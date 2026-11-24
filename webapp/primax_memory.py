@@ -209,6 +209,14 @@ def remove_day(database, day: str) -> None:
         _save_index(database, items)
 
 
+def without_days(database, days):
+    items = _load_index(database)
+    remaining = {day: item for day, item in items.items() if day not in days}
+    if len(remaining) != len(items):
+        return {KEY: {"model": EMBED_MODEL, "items": remaining}}
+    return {}
+
+
 def prepare_day(database, entry: dict) -> tuple[str, str, str] | None:
     """Return (day, digest, text) if this entry needs embedding, or None if already indexed/empty."""
     day = str((entry or {}).get("day") or "").strip()

@@ -98,6 +98,7 @@
 .pj-link-modal{max-width:650px}
 .pj-link-modal .field{margin-bottom:24px}
 .pj-modal-actions{display:flex;justify-content:flex-end;gap:12px}
+.pj-history-delete-modal .pj-modal-actions{flex-wrap:wrap}
 :root[data-theme="dark"] .pj-workspace{--tl-surface:var(--pt-white);--tl-ink:var(--pt-ink);--tl-ink2:var(--pt-muted);--tl-border:var(--pt-line)}
 :root[data-theme="dark"] .pj-workspace .pt-calendar-grid>button.has-entry{background:#324b3b;color:#d3e9c9;border-color:#526e57}
 @media(min-width:1600px){.pj-workspace .pt-wrap{width:min(1520px,calc(100% - 112px))}.pj-workspace .pt-journal-layout{grid-template-columns:300px minmax(0,1fr);gap:40px}.pj-workspace .pt-writing-area>textarea{min-height:190px}}

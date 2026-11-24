@@ -42,6 +42,54 @@ def picture():
     return data.getvalue()
 
 
+def test_delete_past_entries_requires_email_and_preserves_other_data(draft, monkeypatch):
+    from webapp import routes_journal
+
+    client, _, state = draft
+    monkeypatch.setenv('JOURNAL_GMAIL_ADDRESS', 'sender@example.com')
+    monkeypatch.setenv('JOURNAL_GMAIL_APP_PASSWORD', 'test-password')
+    monkeypatch.setattr(routes_journal, 'randbelow', lambda _: 12345)
+    sent = []
+    monkeypatch.setattr(routes_journal, 'send_journal_history_code', lambda *args: sent.append(args[2:]))
+    assert client.get('/api/journal/history/preview').status_code == 401
+    login(client, state, 'friend@example.com', 'friend-sub')
+    past = '2020-01-01'
+    assert client.put(f'/api/journal/{past}', json={'notes': 'Friend note'}).status_code == 200
+    client.post('/api/logout')
+    login(client, state)
+    preview_url = '/api/journal/history/preview'
+    send_url = '/api/journal/history/send-code'
+    delete_url = '/api/journal/history/delete'
+    code = {'code': '012345'}
+    today = client.get(preview_url).json()['before']
+    for day in (past, today):
+        assert client.put(f'/api/journal/{day}', json={'notes': 'Owner note'}).status_code == 200
+    image = client.post(f'/api/journal/{past}/images', files={'file': ('chart.png', picture(), 'image/png')})
+    assert image.status_code == 200
+    image_url = f"/api/journal/{past}/images/{image.json()['images'][0]['id']}"
+    lab_before = client.get('/api/trades').json()
+    assert client.get('/api/journal/export').json()['entries']
+    assert client.get(preview_url).json()['count'] == 1
+    assert client.post(delete_url, json=code).status_code == 403
+    assert client.post(send_url).status_code == 200
+    assert sent == [('owner@example.com', '012345')]
+    assert client.post(delete_url, json={'code': '000000'}).status_code == 422
+    assert client.put(f'/api/journal/{past}', json={'notes': 'Updated after code'}).status_code == 200
+    assert client.post(delete_url, json=code).status_code == 409
+    assert client.post(send_url).status_code == 200
+    assert client.post(delete_url, json=code).json() == {'days': [past]}
+    assert client.post(delete_url, json=code).status_code == 403
+    assert [entry['day'] for entry in client.get('/api/journal').json()] == [today]
+    assert client.get('/api/trades').json() == lab_before
+    trashed, = client.get('/api/journal/trash').json()
+    assert trashed['day'] == past
+    assert client.post(f"/api/journal/trash/{trashed['id']}/restore").status_code == 200
+    assert client.get(image_url).status_code == 200
+    client.post('/api/logout')
+    login(client, state, 'friend@example.com', 'friend-sub')
+    assert client.get(f'/api/journal/{past}').json()['notes'] == 'Friend note'
+
+
 def test_journal_is_private_and_separate_from_lab_with_safe_images(draft):
     client, app, state = draft
     assert client.get('/').status_code == 200

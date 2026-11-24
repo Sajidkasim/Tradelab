@@ -520,6 +520,10 @@ class Database:
     def set_setting(self, key: str, value: Any) -> None:
         self._upsert(settings_t, [{"key": key, "value": json.dumps(value)}], ["key"])
 
+    def set_settings(self, values: dict[str, Any]) -> None:
+        """Write related settings in one transaction."""
+        self._upsert(settings_t, [{"key": key, "value": json.dumps(value)} for key, value in values.items()], ["key"])
+
     def get_setting(self, key: str, default: Any = None) -> Any:
         with self.engine.connect() as conn:
             r = conn.execute(select(settings_t.c.value).where(settings_t.c.key == key)).scalar()
