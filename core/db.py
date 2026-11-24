@@ -520,9 +520,21 @@ class Database:
     def set_setting(self, key: str, value: Any) -> None:
         self._upsert(settings_t, [{"key": key, "value": json.dumps(value)}], ["key"])
 
-    def set_settings(self, values: dict[str, Any]) -> None:
-        """Write related settings in one transaction."""
-        self._upsert(settings_t, [{"key": key, "value": json.dumps(value)} for key, value in values.items()], ["key"])
+    def accounts_with_history(self) -> set[int]:
+        with self.engine.connect() as conn:
+            return set(conn.scalars(select(trades_t.c.account_id).union(select(breaches_t.c.account_id)))) - {None}
+
+    def reset_journal(self, setting_keys: Iterable[str], retained_accounts: set[int]) -> None:
+        """Clear Journal data and unused accounts in one transaction."""
+        keys = list(setting_keys)
+        with self.engine.begin() as conn:
+            for offset in range(0, len(keys), 200):
+                conn.execute(settings_t.delete().where(settings_t.c.key.in_(keys[offset:offset + 200])))
+            conn.execute(accounts_t.delete().where(accounts_t.c.id.not_in(retained_accounts)))
+            if not retained_accounts:
+                conn.execute(accounts_t.insert().values(
+                    name="My account", starting_balance=50000, daily_loss_limit=1000, max_trailing_drawdown=2000,
+                ))
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         with self.engine.connect() as conn:

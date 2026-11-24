@@ -2,29 +2,35 @@
 from __future__ import annotations
 
 from dataclasses import asdict, replace
-from datetime import date, datetime
+from datetime import date
 from email.message import EmailMessage
 import hashlib
 import hmac
 import json
+import logging
 import os
 from pathlib import Path
 from secrets import randbelow
 import smtplib
 import ssl
+from tempfile import TemporaryFile
 from time import monotonic
 from typing import Literal
-from zoneinfo import ZoneInfo
+from zipfile import ZipFile
 
-from fastapi import Body, Depends, File, HTTPException, Query, Request, UploadFile
-from fastapi.responses import Response
+import httpx
+
+from fastapi import BackgroundTasks, Body, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
 from core.models import Account
 from core.registry import COACH_PROVIDERS, load_extensions
-from . import compound_edge, daily_journal, journal_preferences, primax_memory
+from . import compound_edge, daily_journal, journal_preferences, journal_replay, primax_memory
+from .image_storage import StorageUnavailable
 from .schemas import DailyEntry, JournalAccount, JournalAccountPresets, JournalTradeLink
 
 
@@ -33,40 +39,99 @@ class AuraTurn(BaseModel):
     answer: str = Field(max_length=650)
 
 
-class JournalHistoryCode(BaseModel):
+logger = logging.getLogger(__name__)
+
+
+class JournalResetCode(BaseModel):
     code: str = Field(pattern=r"^[0-9]{6}$")
+    confirmation: Literal["DELETE JOURNAL"]
 
 
 def journal_mail_credentials():
-    sender = (os.getenv("JOURNAL_GMAIL_ADDRESS") or os.getenv("BULLPEN_GMAIL_ADDRESS", "")).strip()
-    password = "".join((os.getenv("JOURNAL_GMAIL_APP_PASSWORD") or os.getenv("BULLPEN_GMAIL_APP_PASSWORD", "")).split())
-    return sender, password
+    api_key = os.getenv("JOURNAL_RESEND_API_KEY", "").strip()
+    api_sender = os.getenv("JOURNAL_RESEND_FROM", "").strip()
+    if api_key and api_sender:
+        return "resend", api_sender, api_key
+    for prefix in ("JOURNAL", "BULLPEN"):
+        sender = os.getenv(f"{prefix}_GMAIL_ADDRESS", "").strip()
+        password = "".join(os.getenv(f"{prefix}_GMAIL_APP_PASSWORD", "").split())
+        if sender and password:
+            return "gmail", sender, password
+    return None
 
 
-def send_journal_history_code(sender, password, recipient, code):
+def send_journal_reset_code(provider, sender, secret, recipient, code):
+    subject = "PrimusTrader Journal reset code"
+    content = f"Your Journal reset code is {code}. It expires in 10 minutes. Ignore this email if you did not request it."
+    if provider == "resend":
+        response = httpx.post("https://api.resend.com/emails", timeout=10,
+                              headers={"Authorization": f"Bearer {secret}"},
+                              json={"from": sender, "to": [recipient], "subject": subject, "text": content})
+        response.raise_for_status()
+        return
     message = EmailMessage()
-    message["From"] = sender
-    message["To"] = recipient
-    message["Subject"] = "PrimusTrader Journal deletion code"
-    message.set_content(f"Your Journal deletion code is {code}. It expires in 10 minutes. "
-                        "Ignore this email if you did not request it.")
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10, context=ssl.create_default_context()) as smtp:
-        smtp.login(sender, password)
+    message["From"], message["To"], message["Subject"] = sender, recipient, subject
+    message.set_content(content)
+    tls = ssl.create_default_context()
+    smtp = None
+    try:
+        try:
+            smtp = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=5, context=tls)
+            smtp.login(sender, secret)
+        except (smtplib.SMTPServerDisconnected, TimeoutError, ConnectionError):
+            if smtp is not None:
+                smtp.close()
+            smtp = smtplib.SMTP("smtp.gmail.com", 587, timeout=8)
+            smtp.starttls(context=tls)
+            smtp.login(sender, secret)
         smtp.send_message(message)
+    finally:
+        if smtp is not None:
+            smtp.close()
 
 
-def journal_history_snapshot(database):
-    timezone = journal_preferences.read(database)["timezone"]
-    cutoff = datetime.now(ZoneInfo(timezone)).date().isoformat()
-    return cutoff, daily_journal.past_entries(database, cutoff)
+def journal_reset_snapshot(database):
+    records = {**database.settings_with_prefix(daily_journal.PREFIX),
+               **database.settings_with_prefix(daily_journal.TRASH_PREFIX)}
+    for key in (daily_journal.PRESETS_KEY, journal_replay.KEY, journal_preferences.KEY, primax_memory.KEY):
+        records[key] = database.get_setting(key, {})
+    accounts = [asdict(account) for account in database.accounts()]
+    retained = database.accounts_with_history()
+    return records, accounts, retained
 
 
-def history_fingerprint(cutoff, records):
-    return hashlib.sha256(json.dumps([cutoff, records], sort_keys=True).encode()).hexdigest()
+def journal_reset_summary(records, accounts, retained):
+    return {
+        "entries": sum(bool(row) for key, row in records.items() if key.startswith(daily_journal.PREFIX)),
+        "trash": sum(bool(row) for key, row in records.items() if key.startswith(daily_journal.TRASH_PREFIX)),
+        "imports": len(records[journal_replay.KEY]),
+        "presets": len(records[daily_journal.PRESETS_KEY]),
+        "accounts": sum(account["id"] not in retained for account in accounts),
+        "shared_accounts": sum(account["id"] in retained for account in accounts),
+    }
+
+
+def journal_reset_fingerprint(records, accounts, retained):
+    data = {key: value for key, value in records.items() if key != primax_memory.KEY}
+    return hashlib.sha256(json.dumps([data, accounts, sorted(retained)], sort_keys=True).encode()).hexdigest()
+
+
+def journal_reset_images(records):
+    return {(row["day"], image["id"]) for key, row in records.items()
+            if key.startswith((daily_journal.PREFIX, daily_journal.TRASH_PREFIX)) and row
+            for image in row.get("images", [])}
+
+
+def discard_reset_screenshots(storage, key, screenshots):
+    for day, image_id in screenshots:
+        try:
+            storage.discard_unreferenced(key, day, image_id)
+        except (ValueError, OSError):
+            logger.warning("journal_reset_screenshot_cleanup_failed")
 
 
 def mount(app, config, workspace, check_write, db):
-    history_codes = {}
+    reset_codes = {}
 
     def code_digest(request, member, code):
         binding = json.dumps([member["key"], member["email"], request.session["csrf"], code])
@@ -298,72 +363,114 @@ def mount(app, config, workspace, check_write, db):
         journal_preview()
         return daily_journal.deleted_entries(db(request, member))
 
-    @app.get("/api/journal/history/preview")
-    def preview_journal_history(request: Request, member=Depends(workspace)):
+    @app.get("/api/journal/reset/preview")
+    def preview_journal_reset(request: Request, member=Depends(workspace)):
         journal_preview()
         with app.state.workspaces.workspace_lock(member["key"]):
-            cutoff, records = journal_history_snapshot(db(request, member))
-        email = member.get("email") or ""
-        name, _, domain = email.partition("@")
-        return {"count": len(records), "before": cutoff,
-                "email_hint": f"{name[:1]}…@{domain}" if domain else None,
-                "available": bool(domain and all(journal_mail_credentials()))}
+            summary = journal_reset_summary(*journal_reset_snapshot(db(request, member)))
+        name, _, domain = (member.get("email") or "").partition("@")
+        return {**summary, "email_hint": f"{name[:1]}…@{domain}" if domain else None,
+                "available": bool(domain and journal_mail_credentials())}
 
-    @app.post("/api/journal/history/send-code")
-    def request_journal_history_code(request: Request, member=Depends(workspace)):
+    @app.get("/api/journal/reset/backup")
+    def download_journal_reset_backup(request: Request, member=Depends(workspace)):
+        journal_preview()
+        key = member["key"]
+        with app.state.workspaces.workspace_lock(key):
+            records, accounts, _ = journal_reset_snapshot(db(request, member))
+        archive = TemporaryFile()
+        try:
+            with ZipFile(archive, "w") as files:
+                files.writestr("journal.json", json.dumps({
+                    "accounts": accounts, "settings": {k: v for k, v in records.items() if k != primax_memory.KEY},
+                }))
+                for day, image_id in sorted(journal_reset_images(records)):
+                    image = app.state.image_storage.read(key, day, image_id)
+                    if image is None:
+                        raise StorageUnavailable()
+                    files.writestr(f"screenshots/{day}/{image_id}.webp", image)
+            archive.seek(0)
+        except (StorageUnavailable, OSError, ValueError):
+            archive.close()
+            raise HTTPException(503, "A complete Journal backup could not be downloaded.") from None
+
+        def chunks():
+            with archive:
+                while chunk := archive.read(64 * 1024):
+                    yield chunk
+
+        return StreamingResponse(chunks(), media_type="application/zip", background=BackgroundTask(archive.close), headers={
+            "Content-Disposition": 'attachment; filename="primus-journal-backup.zip"',
+            "Cache-Control": "private, no-store",
+        })
+
+    @app.post("/api/journal/reset/send-code")
+    def request_journal_reset_code(request: Request, member=Depends(workspace)):
         journal_preview()
         recipient = member.get("email")
         if not recipient:
             raise HTTPException(403, "Sign in with your Google account to verify this action.")
-        sender, password = journal_mail_credentials()
-        if not (sender and password):
+        credentials = journal_mail_credentials()
+        if not credentials:
             raise HTTPException(503, "Journal verification email is unavailable.")
         key = member["key"]
         with app.state.workspaces.workspace_lock(key):
-            cutoff, records = journal_history_snapshot(db(request, member))
-            if not records:
-                raise HTTPException(409, "There are no past entries to delete.")
-            retry = app.state.rate_counters.consume(f"journal-history-code:{key}", limit=3, window=900)
+            snapshot = journal_reset_snapshot(db(request, member))
+            summary = journal_reset_summary(*snapshot)
+            if not any(summary[k] for k in ("entries", "trash", "imports", "presets", "accounts")):
+                raise HTTPException(409, "There is no Journal history to reset.")
+            retry = app.state.rate_counters.consume(f"journal-reset-code:{key}", limit=3, window=900)
             if retry:
                 raise HTTPException(429, "Too many code requests. Try again later.", headers={"Retry-After": str(retry)})
-            fingerprint = history_fingerprint(cutoff, records)
-            history_codes.pop(key, None)
+            challenge = {"fingerprint": journal_reset_fingerprint(*snapshot), "attempts": 0}
+            reset_codes[key] = challenge
         code = f"{randbelow(1_000_000):06d}"
         try:
-            send_journal_history_code(sender, password, recipient, code)
-        except (OSError, ValueError):
-            raise HTTPException(503, "Could not send the verification email. Please try again.") from None
+            send_journal_reset_code(*credentials, recipient, code)
+        except (OSError, ValueError, httpx.HTTPError) as exc:
+            with app.state.workspaces.workspace_lock(key):
+                if reset_codes.get(key) is challenge:
+                    reset_codes.pop(key)
+            logger.warning("journal_reset_mail_failed provider=%s error_type=%s", credentials[0], type(exc).__name__)
+            if isinstance(exc, smtplib.SMTPAuthenticationError):
+                raise HTTPException(503, "Gmail rejected the Journal sender credentials. Update the mail sender and retry.") from None
+            raise HTTPException(503, "The Journal mail sender could not deliver a code. Try again shortly.") from None
         with app.state.workspaces.workspace_lock(key):
-            history_codes[key] = {"digest": code_digest(request, member, code), "expires": monotonic() + 600,
-                                  "session": request.session["csrf"], "fingerprint": fingerprint, "attempts": 0}
-        return {"count": len(records), "before": cutoff}
+            if reset_codes.get(key) is not challenge:
+                raise HTTPException(409, "A newer code was requested. Use the latest email.")
+            challenge.update(digest=code_digest(request, member, code), expires=monotonic() + 600,
+                             session=request.session["csrf"])
+        return summary
 
-    @app.post("/api/journal/history/delete")
-    def delete_journal_history(payload: JournalHistoryCode, request: Request, member=Depends(workspace)):
+    @app.post("/api/journal/reset/confirm")
+    def confirm_journal_reset(payload: JournalResetCode, request: Request, background: BackgroundTasks,
+                              member=Depends(workspace)):
         journal_preview()
         key = member["key"]
         with app.state.workspaces.workspace_lock(key):
-            challenge = history_codes.get(key)
-            if not challenge or challenge["session"] != request.session["csrf"]:
+            challenge = reset_codes.get(key)
+            if not challenge or challenge.get("session") != request.session["csrf"]:
                 raise HTTPException(403, "Request a code from this session first.")
             if monotonic() >= challenge["expires"]:
-                history_codes.pop(key)
+                reset_codes.pop(key)
                 raise HTTPException(403, "The code expired. Request a new one.")
             if not hmac.compare_digest(challenge["digest"], code_digest(request, member, payload.code)):
                 challenge["attempts"] += 1
                 if challenge["attempts"] >= 5:
-                    history_codes.pop(key)
+                    reset_codes.pop(key)
                     raise HTTPException(403, "Too many attempts. Request a new code.")
                 raise HTTPException(422, "That code is incorrect.")
-            history_codes.pop(key)
+            reset_codes.pop(key)
             database = db(request, member)
-            cutoff, records = journal_history_snapshot(database)
-            if challenge["fingerprint"] != history_fingerprint(cutoff, records):
-                raise HTTPException(409, "Journal entries changed. Review the count and request a new code.")
-            days = {row["day"] for row in records.values()}
-            daily_journal.archive_past_entries(database, records, additional_settings=primax_memory.without_days(database, days))
+            snapshot = journal_reset_snapshot(database)
+            if challenge["fingerprint"] != journal_reset_fingerprint(*snapshot):
+                raise HTTPException(409, "The Journal changed. Request a new code to review the updated totals.")
+            records, _, retained = snapshot
+            screenshots = journal_reset_images(records)
+            database.reset_journal(records, retained)
             app.state.workspaces.bump(key)
-        return {"days": sorted(days)}
+        background.add_task(discard_reset_screenshots, app.state.image_storage, key, screenshots)
+        return {"reset": True}
 
     @app.delete("/api/journal/{day}")
     def delete_journal_entry(day: date, request: Request, member=Depends(workspace)):

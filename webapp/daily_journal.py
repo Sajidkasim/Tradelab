@@ -254,24 +254,6 @@ def linked_record(database, day, record_id):
 TRASH_PREFIX = 'primus_deleted_entry:'
 
 
-def past_entries(database, cutoff):
-    return {
-        key: row for key, row in database.settings_with_prefix(PREFIX).items()
-        if isinstance(row, dict) and row.get('day') and row['day'] < cutoff
-        and key == PREFIX + row['day'] and not row.get('deleted_at')
-    }
-
-
-def archive_past_entries(database, records, *, additional_settings):
-    deleted_at = datetime.now(timezone.utc).isoformat()
-    changes = dict(additional_settings)
-    for key, row in records.items():
-        archive_id = uuid4().hex
-        changes[TRASH_PREFIX + archive_id] = {**row, 'archive_id': archive_id, 'deleted_at': deleted_at}
-        changes[key] = {}
-    database.set_settings(changes)
-
-
 def deleted_entries(database):
     return sorted(({'id':row['archive_id'], 'day':row['day'], 'deleted_at':row['deleted_at']} for row in database.settings_with_prefix(TRASH_PREFIX).values()
         if isinstance(row, dict) and row.get('archive_id')), key=lambda row:row['deleted_at'], reverse=True)

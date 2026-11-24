@@ -1,6 +1,8 @@
 from dataclasses import replace
 from io import BytesIO
 import json
+import smtplib
+from zipfile import ZipFile
 
 import httpx
 from fastapi.testclient import TestClient
@@ -42,52 +44,113 @@ def picture():
     return data.getvalue()
 
 
-def test_delete_past_entries_requires_email_and_preserves_other_data(draft, monkeypatch):
-    from webapp import routes_journal
+def test_master_journal_reset_requires_code_and_preserves_shared_data(draft, monkeypatch):
+    from webapp import journal_replay, routes_journal
 
-    client, _, state = draft
+    client, app, state = draft
+    monkeypatch.delenv('JOURNAL_RESEND_API_KEY', raising=False)
     monkeypatch.setenv('JOURNAL_GMAIL_ADDRESS', 'sender@example.com')
     monkeypatch.setenv('JOURNAL_GMAIL_APP_PASSWORD', 'test-password')
     monkeypatch.setattr(routes_journal, 'randbelow', lambda _: 12345)
     sent = []
-    monkeypatch.setattr(routes_journal, 'send_journal_history_code', lambda *args: sent.append(args[2:]))
-    assert client.get('/api/journal/history/preview').status_code == 401
+    monkeypatch.setattr(routes_journal, 'send_journal_reset_code', lambda *args: sent.append(args[3:]))
+    preview_url = '/api/journal/reset/preview'
+    send_url = '/api/journal/reset/send-code'
+    confirm_url = '/api/journal/reset/confirm'
+    code = {'code': '012345', 'confirmation': 'DELETE JOURNAL'}
+    assert client.get(preview_url).status_code == 401
     login(client, state, 'friend@example.com', 'friend-sub')
     past = '2020-01-01'
     assert client.put(f'/api/journal/{past}', json={'notes': 'Friend note'}).status_code == 200
     client.post('/api/logout')
     login(client, state)
-    preview_url = '/api/journal/history/preview'
-    send_url = '/api/journal/history/send-code'
-    delete_url = '/api/journal/history/delete'
-    code = {'code': '012345'}
-    today = client.get(preview_url).json()['before']
+    today = '2099-01-01'
     for day in (past, today):
         assert client.put(f'/api/journal/{day}', json={'notes': 'Owner note'}).status_code == 200
     image = client.post(f'/api/journal/{past}/images', files={'file': ('chart.png', picture(), 'image/png')})
     assert image.status_code == 200
-    image_url = f"/api/journal/{past}/images/{image.json()['images'][0]['id']}"
+    image_id = image.json()['images'][0]['id']
+    assert client.delete(f'/api/journal/{past}').status_code == 200
+    lab_account = client.get('/api/journal-accounts').json()[0]['id']
+    database = app.state.workspaces.database('owner')
+    database.log_breach(lab_account, past, 'Test rule', 2, 1)
+    assert client.post('/api/journal-accounts', json={
+        'name': 'Account to remove', 'starting_balance': 5000, 'account_type': 'Personal',
+    }).status_code == 201
+    database.set_setting(journal_replay.KEY, {'test-import': {'id': 'test-import'}})
     lab_before = client.get('/api/trades').json()
-    assert client.get('/api/journal/export').json()['entries']
-    assert client.get(preview_url).json()['count'] == 1
-    assert client.post(delete_url, json=code).status_code == 403
+    preview = client.get(preview_url).json()
+    assert (preview['entries'], preview['trash'], preview['accounts'], preview['shared_accounts'], preview['imports']) == (1, 1, 1, 1, 1)
+
+    backup = client.get('/api/journal/reset/backup')
+    assert backup.status_code == 200
+    with ZipFile(BytesIO(backup.content)) as archive:
+        exported = json.loads(archive.read('journal.json'))
+        assert len(exported['accounts']) == 2
+        assert archive.read(f'screenshots/{past}/{image_id}.webp').startswith(b'RIFF')
+    assert client.post(confirm_url, json=code).status_code == 403
+    with monkeypatch.context() as patch:
+        def reject(*args):
+            raise smtplib.SMTPAuthenticationError(535, b'private provider response')
+        patch.setattr(routes_journal, 'send_journal_reset_code', reject)
+        failed = client.post(send_url)
+        assert failed.status_code == 503
+        assert 'rejected' in failed.json()['detail']
+        assert 'private provider response' not in failed.text
+    assert client.post(confirm_url, json=code).status_code == 403
     assert client.post(send_url).status_code == 200
     assert sent == [('owner@example.com', '012345')]
-    assert client.post(delete_url, json={'code': '000000'}).status_code == 422
-    assert client.put(f'/api/journal/{past}', json={'notes': 'Updated after code'}).status_code == 200
-    assert client.post(delete_url, json=code).status_code == 409
+    assert client.post(confirm_url, json={**code, 'confirmation': 'wrong'}).status_code == 422
+    assert client.post(confirm_url, json={**code, 'code': '000000'}).status_code == 422
+    assert client.put(f'/api/journal/{today}', json={'notes': 'Updated after code'}).status_code == 200
+    assert client.post(confirm_url, json=code).status_code == 409
     assert client.post(send_url).status_code == 200
-    assert client.post(delete_url, json=code).json() == {'days': [past]}
-    assert client.post(delete_url, json=code).status_code == 403
-    assert [entry['day'] for entry in client.get('/api/journal').json()] == [today]
+    assert client.post(confirm_url, json=code).json() == {'reset': True}
+    assert client.post(confirm_url, json=code).status_code == 403
+    for url in ('/api/journal', '/api/journal/trash', '/api/journal-replay'):
+        assert client.get(url).json() == []
+    assert [account['id'] for account in client.get('/api/journal-accounts').json()] == [lab_account]
+    assert not app.state.image_storage.local_path('owner', past, image_id).exists()
     assert client.get('/api/trades').json() == lab_before
-    trashed, = client.get('/api/journal/trash').json()
-    assert trashed['day'] == past
-    assert client.post(f"/api/journal/trash/{trashed['id']}/restore").status_code == 200
-    assert client.get(image_url).status_code == 200
     client.post('/api/logout')
     login(client, state, 'friend@example.com', 'friend-sub')
     assert client.get(f'/api/journal/{past}').json()['notes'] == 'Friend note'
+
+
+def test_journal_mail_retries_a_failed_smtp_connection_with_starttls(monkeypatch):
+    from unittest.mock import MagicMock
+    from webapp import routes_journal
+
+    def unavailable(*args, **kwargs):
+        raise ConnectionRefusedError()
+
+    smtp = MagicMock()
+    monkeypatch.setattr(smtplib, 'SMTP_SSL', unavailable)
+    monkeypatch.setattr(smtplib, 'SMTP', smtp)
+    routes_journal.send_journal_reset_code('gmail', 'sender@example.com', 'test-secret', 'owner@example.com', '012345')
+    assert smtp.call_args.args == ('smtp.gmail.com', 587)
+    connection = smtp.return_value
+    assert [call[0] for call in connection.method_calls] == ['starttls', 'login', 'send_message', 'close']
+    assert connection.send_message.call_args.args[0]['To'] == 'owner@example.com'
+
+
+def test_master_reset_seeds_default_account_when_all_accounts_are_removed(draft, monkeypatch):
+    from webapp import routes_journal
+
+    client, _, state = draft
+    login(client, state)
+    monkeypatch.setattr(routes_journal, 'journal_mail_credentials', lambda: ('gmail', 'sender@example.com', 'test'))
+    monkeypatch.setattr(routes_journal, 'randbelow', lambda _: 12345)
+    monkeypatch.setattr(routes_journal, 'send_journal_reset_code', lambda *args: None)
+    accounts = client.get('/api/journal-accounts').json()
+    assert client.put(f"/api/journal-accounts/{accounts[0]['id']}", json={
+        'name': 'Old account', 'starting_balance': 5000, 'account_type': 'Personal',
+    }).status_code == 200
+    assert client.post('/api/journal/reset/send-code').status_code == 200
+    assert client.post('/api/journal/reset/confirm', json={
+        'code': '012345', 'confirmation': 'DELETE JOURNAL',
+    }).status_code == 200
+    assert [account['name'] for account in client.get('/api/journal-accounts').json()] == ['My account']
 
 
 def test_journal_is_private_and_separate_from_lab_with_safe_images(draft):

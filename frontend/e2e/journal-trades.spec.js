@@ -3,31 +3,33 @@ const origin='http://127.0.0.1:8119';
 const day='2026-08-12';
 async function choose(card,label,value){await card.getByRole('combobox',{name:label,exact:true}).click();await card.getByRole('option',{name:value,exact:true}).click()}
 
-test('offers a Journal backup and confirms bulk deletion with an email code', async ({page}) => {
-  const scope = {count: 2, before: '2026-08-20'};
-  await page.route('**/api/journal/history/preview', route => route.fulfill({json: {
+test('offers a Journal backup and confirms the master reset with an email code', async ({page}) => {
+  const scope = {entries: 2, trash: 1, accounts: 2, imports: 3, presets: 0, shared_accounts: 1};
+  await page.route('**/api/journal/reset/preview', route => route.fulfill({json: {
     ...scope, available: true, email_hint: 'o…@example.com',
   }}));
-  await page.route('**/api/journal/history/send-code', route => route.fulfill({json: scope}));
-  await page.route('**/api/journal/history/delete', route => {
-    expect(route.request().postDataJSON()).toEqual({code: '012345'});
-    return route.fulfill({json: {days: ['2026-08-14', '2026-08-15']}});
+  await page.route('**/api/journal/reset/send-code', route => route.fulfill({json: scope}));
+  await page.route('**/api/journal/reset/confirm', route => {
+    expect(route.request().postDataJSON()).toEqual({code: '012345', confirmation: 'DELETE JOURNAL'});
+    return route.fulfill({json: {reset: true}});
   });
   await page.setViewportSize({width: 390, height: 760});
   await page.goto(`${origin}/journal`);
-  await page.getByRole('button', {name: 'Delete past entries', exact: true}).click();
-  const dialog = page.getByRole('dialog', {name: 'Delete past Journal entries?'});
-  await expect(dialog.getByText(/2 entries dated before/)).toBeVisible();
-  await expect(dialog.getByRole('link', {name: 'Download Journal backup'})).toHaveAttribute('href', '/api/journal/export');
-  const confirm = dialog.getByRole('button', {name: 'Move past entries to trash'});
+  await page.getByRole('button', {name: 'Master Journal reset', exact: true}).click();
+  const dialog = page.getByRole('dialog', {name: 'Master Journal reset'});
+  await expect(dialog.getByText(/2 active, 1 in trash/)).toBeVisible();
+  await expect(dialog.getByRole('link', {name: 'Download full Journal backup'})).toHaveAttribute('href', '/api/journal/reset/backup');
+  const confirm = dialog.getByRole('button', {name: 'Permanently reset Journal'});
   await expect(confirm).toHaveCount(0);
   await dialog.getByRole('button', {name: 'Email me a code'}).click();
   await expect(dialog.getByRole('status')).toContainText('o…@example.com');
   await expect(confirm).toBeDisabled();
   await dialog.getByLabel('Verification code').fill('012345');
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel('Type DELETE JOURNAL').fill('DELETE JOURNAL');
   await confirm.click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText('2 past Journal entries moved to Deleted entries.')).toBeVisible();
+  await expect(page.getByText('Journal reset complete.')).toBeVisible();
 });
 
 test('keeps trade actions in reach and saves changes to an existing trade',async({page})=>{

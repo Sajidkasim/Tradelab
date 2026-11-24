@@ -16,7 +16,7 @@ import FloatingAura from './FloatingAura';
 import JournalTradeCards, {JournalScreenshots} from './JournalTradeCards';
 import './journal-workspace.css';
 import JournalReplayImports from './JournalReplay';
-import JournalHistoryDelete from './JournalHistoryDelete';
+import JournalReset from './JournalReset';
 import JournalRules from './JournalRules';
 import JournalAccounts from './JournalAccounts';
 import {
@@ -207,7 +207,8 @@ export default function JournalPage({theme = 'light'}) {
   const [expanded, setExpanded] = useState(new URLSearchParams(location.search).get('card')), [viewing, setViewing] = useState(null), [labDraft, setLabDraft] = useState(null);
   const [linking, setLinking] = useState(null), [labTrades, setLabTrades] = useState([]), [selectedLink, setSelectedLink] = useState('');
   const [deleting, setDeleting] = useState(false), [trash, setTrash] = useState(null), [undoId, setUndoId] = useState(null);
-  const [deletingHistory, setDeletingHistory] = useState(false);
+  const [resettingJournal, setResettingJournal] = useState(false);
+  const [journalRevision, setJournalRevision] = useState(0);
 
   const parsedFilter = parseAccountFilter(selection);
   const account = parsedFilter.accountId != null
@@ -531,16 +532,18 @@ export default function JournalPage({theme = 'light'}) {
   async function deleteDay() { setBusy(true); setError(''); try { if (dirty) await persist(); const result = await api(`/journal/${day}`, {method: 'DELETE'}); setUndoId(result.archive_id); setRows(old => old.filter(row => row.day !== day)); setEntry(blank(day)); setDirty(false); setExpanded(null); setDeleting(false); setNotice('Entry moved to deleted entries. Your Lab trades are unchanged.'); } catch (e) { setError(e.message); } finally { setBusy(false); } }
   async function openTrash() { setError(''); try { setTrash(await api('/journal/trash')); } catch (e) { setError(e.message); } }
 
-  function historyDeleted(days) {
-    const deleted = new Set(days);
-    setRows(old => old.filter(row => !deleted.has(row.day)));
-    if (deleted.has(day)) {
-      setEntry(blank(day));
-      setExpanded(null);
-    }
-    setDeletingHistory(false);
+  function journalReset() {
+    setRows([]);
+    setEntry(blank(day));
+    setExpanded(null);
+    setAccounts(null);
+    setSelection(null);
+    setPresets([]);
+    setResettingJournal(false);
     setUndoId(null);
-    setNotice(`${days.length} past Journal ${days.length === 1 ? 'entry' : 'entries'} moved to Deleted entries.`);
+    setNotice('Journal reset complete.');
+    setJournalRevision(value => value + 1);
+    boot();
   }
   async function restoreDay(id) { setBusy(true); setError(''); try { const restored = await api(`/journal/trash/${id}/restore`, {method: 'POST'}); upsert(restored); showDay(restored.day); setTrash(null); setUndoId(null); setNotice('Journal entry restored.'); } catch (e) { setError(e.message); } finally { setBusy(false); } }
   function shiftMonth(amount) { const date = new Date(month + '-15T12:00:00'); date.setMonth(date.getMonth() + amount); setMonth(ymd(date).slice(0, 7)); }
@@ -694,7 +697,7 @@ export default function JournalPage({theme = 'light'}) {
         </section>
       )}
 
-      <JournalAccounts accounts={accounts} setAccounts={setAccounts}/>
+      <JournalAccounts key={journalRevision} accounts={accounts} setAccounts={setAccounts}/>
 
       <div className="pt-journal-layout">
         <aside className="pt-journal-sidebar" aria-label="Journal calendar and history">
@@ -787,8 +790,8 @@ export default function JournalPage({theme = 'light'}) {
           </details>
           <a className="pt-download-notes" href="/api/journal/export"><Download size={16}/> Download your Journal</a>
           <button className="pj-trash-link" onClick={openTrash} disabled={busy}><Trash2 size={15}/> Deleted entries</button>
-          <button className="pj-trash-link" disabled={busy || autoSaving || dirty} onClick={() => setDeletingHistory(true)}>
-            <Trash2 size={15}/> Delete past entries
+          <button className="pj-trash-link" disabled={busy || autoSaving || dirty} onClick={() => setResettingJournal(true)}>
+            <Trash2 size={15}/> Master Journal reset
           </button>
         </aside>
 
@@ -886,7 +889,7 @@ export default function JournalPage({theme = 'light'}) {
             </div>
           </div>
 
-          <JournalReplayImports onDelete={references => {
+          <JournalReplayImports key={journalRevision} onDelete={references => {
             const deleted = new Set(references);
             const unlink = row => ({...row, trades: row.trades.map(trade => deleted.has(trade.replay_id) ? {...trade, replay_id: null} : trade)});
             setEntry(unlink);
@@ -947,7 +950,7 @@ export default function JournalPage({theme = 'light'}) {
       <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme} onAskPrimax={triggerPrimaxDebrief}/>
     </main>
 
-    {deletingHistory && <JournalHistoryDelete onClose={() => setDeletingHistory(false)} onDeleted={historyDeleted}/>}
+    {resettingJournal && <JournalReset onClose={() => setResettingJournal(false)} onReset={journalReset}/>}
     {deleting && <Modal title="Delete journal entry?" onClose={() => setDeleting(false)} className="pj-link-modal"><p className="pj-modal-hint">Move the entry for {niceDay(day)}, its trade cards and screenshots to Deleted entries? You can restore it later. Linked Strategy Lab trades stay saved.</p>{error && <p role="alert">{error}</p>}<div className="pj-modal-actions"><button className="pt-btn" onClick={() => setDeleting(false)} disabled={busy}>Keep entry</button><button className="pt-btn pj-danger" onClick={deleteDay} disabled={busy}>Delete entry</button></div></Modal>}
     {trash && <Modal title="Deleted entries" onClose={() => setTrash(null)} className="pj-link-modal"><p className="pj-modal-hint">Restore an entry with its notes, cards and screenshots. Your Lab trades are unaffected.</p>{!trash.length && <p>No deleted entries.</p>}{trash.map(item => <div className="pj-trash-row" key={item.id}><span>{niceDay(item.day)}</span><button className="pt-btn" disabled={busy} onClick={() => restoreDay(item.id)}><Undo2 size={15}/> Restore</button></div>)}{error && <p role="alert">{error}</p>}</Modal>}
     {viewing && <dialog ref={viewer} className="pt-image-dialog" onCancel={() => setViewing(null)}><button className="pt-image-close" onClick={() => setViewing(null)} aria-label="Close screenshot"><X/></button><img src={viewing} alt="Expanded trading screenshot"/></dialog>}
