@@ -5,6 +5,8 @@ import {
   BarChart3, AlertTriangle, Compass, Zap,
 } from 'lucide-react';
 import { PrimusHeader, localSitePreview } from './SiteExperience';
+import PrimusCompass from './components/PrimusCompass';
+import { PrimusLightSeam } from './components/PrimusAtmosphere';
 import { api } from './api';
 import { matrixFreshness } from './matrixFreshness';
 import { useBullpen } from './hooks/usePresence';
@@ -668,7 +670,7 @@ export default function MatrixPage() {
                 <div data-matrix-tour="scoreboard" className="mx-card tw:overflow-hidden tw:lg:col-span-7">
                   <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
                     <div className="tw:flex tw:items-center tw:gap-2">
-                      <Compass size={16} className="mx-pos" aria-hidden="true" />
+                      <PrimusCompass size={18} className="mx-pos" />
                       <div>
                         <h2 className="tw:text-sm tw:font-semibold">Multi-Asset Bias Scoreboard</h2>
                         <p className="tw:text-xs mx-muted">Click any market to inspect its 6 weighted macro, COT &amp; seasonal pillars</p>

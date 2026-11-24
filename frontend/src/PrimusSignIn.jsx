@@ -1,6 +1,8 @@
 import React,{useEffect,useState} from 'react';
-import {ArrowLeft,ArrowRight,LockKeyhole,Eye,EyeOff,Compass,LoaderCircle} from 'lucide-react';
+import {ArrowLeft,ArrowRight,LockKeyhole,Eye,EyeOff,LoaderCircle} from 'lucide-react';
 import {api,setCsrf} from './api';
+import PrimusCompass from './components/PrimusCompass';
+import {PrimusTopoField,PrimusSunbeams} from './components/PrimusAtmosphere';
 import './primus-signin.css';
 
 function MarketStudy(){
@@ -55,15 +57,17 @@ export function WorkspaceEntrance({workspace='home',session,ready=true,onUnlocke
  const google=session?.auth_mode==='google';
  return <main className={`ps-entry ps-entrance-${workspace}`}>
   <section className="ps-editorial" aria-labelledby="ps-story-title">
-   <header className="ps-brand"><a href="/" aria-label="Primus Trader home"><Compass size={30} strokeWidth={1.2}/><span>PRIMUS <b>TRADER</b></span></a><span className="ps-edition">{content.edition}</span></header>
+   <PrimusTopoField variant="signin"/>
+   <header className="ps-brand"><a href="/" aria-label="Primus Trader home"><PrimusCompass size={30}/><span>PRIMUS <b>TRADER</b></span></a><span className="ps-edition">{content.edition}</span></header>
    <div className="ps-story"><span className="ps-eyebrow">{content.eyebrow}</span><h1 id="ps-story-title">{content.headline}</h1><p>{content.description}</p></div>
    {workspace==='journal'?<JournalStudy/>:workspace==='lab'?<LabStudy/>:workspace==='backtesting'?<ReplayStudy/>:<MarketStudy/>}
    <footer className="ps-process">{content.steps.map(([title,copy],i)=><div key={title}><span>0{i+1}</span><p><strong>{title}</strong><small>{copy}</small></p></div>)}</footer>
   </section>
   <section className="ps-access" aria-labelledby="ps-title">
+   <PrimusSunbeams/>
    <a className="ps-back" href="/"><ArrowLeft size={15}/> Back to the homepage</a>
    <div className="ps-form-wrap">
-    <div className="ps-seal" aria-hidden="true"><Compass size={36} strokeWidth={1}/></div>
+    <div className="ps-seal" aria-hidden="true"><PrimusCompass size={38} interactive/></div>
     <span className="ps-access-kicker">{content.kicker}</span>
     <h2 id="ps-title">{content.title}</h2>
     <p className="ps-intro">{content.intro}</p>

@@ -11,6 +11,7 @@ import "./lab-preview.css";
 import "./workspace-theme.css";
 import "./mobile-shell.css";
 import "./primus-tokens.css";
+import "./primus-living.css";
 
 
 class ErrorBoundary extends React.Component {

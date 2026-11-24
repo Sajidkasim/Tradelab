@@ -12,6 +12,7 @@ import {money} from './format';
 import PrepProgress from './PrepProgress';
 import CompoundEdge from './CompoundEdge';
 import {FocusSoundscape} from './mindsetAudio';
+import {PrimusTopoField} from './components/PrimusAtmosphere';
 import './mindset-warmup.css';
 
 const BrainExplorer = lazy(() => import('./BrainExplorer'));
@@ -42,6 +43,7 @@ function WarmUpHero({state, highScore, onStart, onTiltReset, soundMode, onSoundM
   const [preview, setPreview] = useState(0);
   const step = PREVIEW_STEPS[preview];
   return <section className="mw-hero" aria-labelledby="warm-up-title">
+    <PrimusTopoField variant="card"/>
     <div className="mw-hero-content">
       <h1 id="warm-up-title"><span>Pre-Market</span>{' '}<span>Warm-Up</span></h1>
       <p>Take about five minutes to reset, sharpen your focus and choose a rule for the session.</p>

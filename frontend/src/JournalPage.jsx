@@ -6,6 +6,7 @@ import {
 import {api, setCsrf} from './api';
 import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader, localSitePreview} from './SiteExperience';
+import {PrimusSunbeams} from './components/PrimusAtmosphere';
 import {Modal, Select} from './components';
 import {JournalClock} from './JournalClock';
 import TradeForm from './TradeForm';
@@ -656,6 +657,7 @@ export default function JournalPage({theme = 'light'}) {
     <FloatingAura day={day} account={selectedAccountId} dirty={dirty}/>
     {meta.release_notes && !meta.release_notes.seen && <ReleaseNotes notes={meta.release_notes} onClose={() => setMeta(m => ({...m, release_notes: {...m.release_notes, seen: true}}))} onSeen={async () => {await api('/release-notes/seen', {method: 'POST'}); setMeta(m => ({...m, release_notes: {...m.release_notes, seen: true}}));}}/>}
     <PrimusHeader active="journal"/>
+    <div className="pj-atmosphere-wash" aria-hidden="true"><PrimusSunbeams/></div>
     <main className="pt-wrap pt-journal-main">
       <div className="pt-journal-heading">
         <div>
