@@ -8,7 +8,7 @@
 .bullpen-room{flex:1;min-height:0;display:flex;flex-direction:column;padding:8px 14px 10px;gap:8px;overflow:hidden;animation:bullpen-enter .2s ease-out}
 .bullpen-room.is-theater{padding:6px 10px 8px;gap:6px}
 .bullpen-room.is-theater .bullpen-split{grid-template-columns:1fr}
-.bullpen-room.is-theater .bullpen-side,.bullpen-room.is-theater .bullpen-divider,.bullpen-room.is-theater .bullpen-move-sidebar{display:none}
+.bullpen-room.is-theater .bullpen-side,.bullpen-room.is-theater .bullpen-divider,.bullpen-room.is-theater .bullpen-settings-sidebar{display:none}
 
 /* 5-Min Red-Folder Pre-News Warning Bar */
 .bullpen-redfolder-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 14px;border-radius:10px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.5);color:#fde68a;font-size:.8rem;flex-shrink:0;animation:bullpen-pulse 2s ease-in-out infinite}
@@ -24,7 +24,11 @@
 .bullpen-room-head h1{font-size:clamp(.98rem,1.6vw,1.12rem);font-weight:700;letter-spacing:-.01em}
 .bullpen-clock{font-size:.75rem;color:var(--tl-ink2);font-variant-numeric:tabular-nums;padding:3px 8px;border-radius:6px;background:var(--tl-page);border:1px solid var(--tl-border)}
 .bullpen-head-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.bullpen-theater-btn{display:inline-flex;align-items:center;gap:5px}
+.bullpen-room-count{letter-spacing:normal;font-size:.72rem}
+.bullpen-legacy-settings{position:relative}
+.bullpen-legacy-settings summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none}
+.bullpen-legacy-settings summary::-webkit-details-marker{display:none}
+.bullpen-legacy-settings-options{position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:150px;display:grid;gap:5px;padding:6px;background:var(--tl-surface);border:1px solid var(--tl-border);border-radius:8px}
 
 .bullpen-roster{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-inline-start:auto;position:relative}
 .bullpen-roster-item{position:relative}
@@ -69,7 +73,7 @@
 .bullpen-call-frame{grid-area:1/1;min-width:0;min-height:0;display:flex;flex-direction:column}
 
 /* Native Cloudflare Realtime SFU Stage — Zero Controls Overlapping the Chart */
-.bullpen-cf-stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 30%,rgba(52,211,153,.05),transparent 60%),#090d10;color:#e8eef2;overflow:hidden}
+.bullpen-cf-stage{container-type:size;position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 30%,rgba(52,211,153,.05),transparent 60%),#090d10;color:#e8eef2;overflow:hidden}
 .bullpen-cf-stage.is-pseudo-fs{position:fixed;inset:0;width:100vw;height:100dvh;z-index:2500;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 .bullpen-mod-banner{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 12px;background:rgba(239,68,68,.18);border-bottom:1px solid rgba(248,113,113,.4);color:#fecaca;font-size:.76rem;font-weight:600;flex-shrink:0}
 
@@ -113,9 +117,13 @@
 /* Static Slim Bottom Control Bar (completely off the shared chart!) */
 .bullpen-control-bar{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;background:#0d1317;border-top:1px solid rgba(255,255,255,.09);flex-shrink:0;flex-wrap:wrap}
 .bullpen-bar-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
-.bullpen-audio-anchor{position:relative;display:inline-flex;align-items:center;gap:4px}
-.bullpen-audio-gear{padding:5px 7px}
-.bullpen-audio-popover{position:absolute;left:0;bottom:calc(100% + 10px);width:min(310px,calc(100vw - 28px));z-index:45;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:#10171c;color:#e6eef5;box-shadow:0 16px 40px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:10px}
+.bullpen-settings-anchor{display:inline-flex}
+.bullpen-settings-popover{position:absolute;right:10px;bottom:calc(100% + 6px);width:min(350px,calc(100% - 20px));max-height:min(480px,calc(100dvh - 160px));max-height:min(480px,calc(100cqh - 86px));overflow:auto;overscroll-behavior:contain;z-index:45;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:#10171c;color:#e6eef5;box-shadow:0 16px 40px rgba(0,0,0,.55);display:flex;flex-direction:column;gap:10px}
+.bullpen-settings-sections,.bullpen-settings-tools{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.bullpen-settings-popover .bullpen-bar-btn[aria-pressed="true"]{color:#9bf2df;border-color:rgba(116,207,189,.53);background:rgba(116,207,189,.13)}
+.bullpen-shortcut-list{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center;font-size:.76rem}
+.bullpen-shortcut-list dd{margin:0;color:#bdc9d4}
+.bullpen-shortcut-list kbd{padding:2px 4px;border:1px solid rgba(255,255,255,.16);background:#0d1317;border-radius:4px}
 .bullpen-audio-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
 .bullpen-audio-pop-head strong{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;letter-spacing:.01em;color:#f3f7fa}
 .bullpen-audio-close{border:0;background:transparent;color:#8fa1b2;cursor:pointer;padding:2px;display:grid;place-items:center;border-radius:5px}
@@ -157,7 +165,7 @@
 .bullpen-bar-toast a{color:#fff;font-weight:700;text-decoration:underline}
 
 /* Voice-only idle floor */
-.bullpen-voice-floor{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 20px}
+.bullpen-voice-floor{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:18px;padding:24px 20px}
 .bullpen-voice-avatars{display:flex;flex-wrap:wrap;justify-content:center;gap:16px}
 .bullpen-avatar-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 20px;min-width:116px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);transition:border-color .15s,box-shadow .15s}
 .bullpen-avatar-card.is-speaking{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.2)}
@@ -166,7 +174,15 @@
 .bullpen-avatar-card span{font-size:.74rem;color:#94a3b8}
 .bullpen-voice-prompt{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;max-width:460px}
 .bullpen-voice-prompt p{margin:0;color:#94a3b8;font-size:.88rem;line-height:1.5}
-.bullpen-hotkey-hint{font-size:.72rem;color:#64748b}
+.bullpen-voice-overview{width:min(100%,560px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bullpen-voice-overview section{padding:12px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.1);min-width:0;color:#b9c5d0;font-size:.78rem}
+.bullpen-voice-overview p,.bullpen-voice-overview ul{margin:8px 0 0;padding:0}
+.bullpen-voice-overview ul{display:grid;gap:5px;list-style:none}
+.bullpen-voice-overview li{overflow-wrap:anywhere}
+.bullpen-voice-overview strong{color:#e8eef2}
+.bullpen-voice-overview time{display:block;margin-top:3px}
+.bullpen-brief-link{padding:0;border:0;background:none;color:#c4e6de;font:inherit;font-weight:650;display:inline-flex;align-items:center;gap:6px;text-align:left;cursor:pointer}
+.bullpen-brief-link:hover{text-decoration:underline}
 
 /* Sidebar */
 .bullpen-side{display:flex;flex-direction:column;min-height:0}
@@ -238,9 +254,6 @@
 @keyframes bullpen-enter{from{opacity:0}to{opacity:1}}
 @keyframes bullpen-pulse{0%,100%{opacity:1}50%{opacity:.82}}
 
-@media(max-width:1180px){
-  .bullpen-hide-md{display:none}
-}
 @media(max-width:850px){
   .bullpen-workspace{height:auto;min-height:100dvh;overflow:visible}
   .bullpen-room{overflow:visible}
@@ -251,6 +264,7 @@
   .bullpen-roster{order:3;width:100%;margin:0}
   .bullpen-dual-grid{grid-template-columns:1fr}
   .bullpen-level-form{grid-template-columns:1fr 1fr}
+  .bullpen-settings-sidebar{display:none}
 }
 @media(prefers-reduced-motion:reduce){
   .bullpen-room,.bullpen-redfolder-bar{animation:none}
@@ -261,6 +275,7 @@
   .bullpen-sidebar-left .bullpen-side{grid-column:1;grid-row:1}
   .bullpen-sidebar-left .bullpen-video{grid-column:2;grid-row:1}
   .bullpen-sidebar-left .bullpen-divider{left:calc(100% - 5px - (100% - 10px)*var(--bullpen-ratio,.74))}
+  .bullpen-room.is-theater .bullpen-sidebar-left .bullpen-video{grid-column:1}
 }
 
 .bullpen-workspace[hidden]{display:none}
@@ -268,7 +283,7 @@
 .bullpen-workspace.is-minimised .bullpen-room-site-header{display:none}
 .bullpen-room.is-minimised{position:fixed;right:18px;bottom:18px;width:min(420px,calc(100vw - 28px));height:290px;max-height:75dvh;z-index:1500;background:var(--tl-page);border:1px solid var(--tl-border);border-radius:12px;box-shadow:0 12px 50px #0005;padding:8px;gap:6px;animation:none}
 .bullpen-room.is-minimised .bullpen-room-head{padding:6px 8px;gap:6px;border-radius:7px}
-.bullpen-room.is-minimised .bullpen-clock,.bullpen-room.is-minimised .bullpen-roster,.bullpen-room.is-minimised .bullpen-move-sidebar,.bullpen-room.is-minimised .bullpen-theater-btn,.bullpen-room.is-minimised .bullpen-divider,.bullpen-room.is-minimised .bullpen-side,.bullpen-room.is-minimised .bullpen-redfolder-bar{display:none}
+.bullpen-room.is-minimised .bullpen-clock,.bullpen-room.is-minimised .bullpen-roster,.bullpen-room.is-minimised .bullpen-divider,.bullpen-room.is-minimised .bullpen-side,.bullpen-room.is-minimised .bullpen-redfolder-bar{display:none}
 .bullpen-room.is-minimised .bullpen-room-head h1{font-size:13px;letter-spacing:normal;line-height:1.3;margin:0}
 .bullpen-room.is-minimised .bullpen-room-head .button{padding:6px 9px;min-height:32px;font-size:11px}
 .bullpen-room.is-minimised .bullpen-split{display:block;min-height:0;height:100%;flex:1}

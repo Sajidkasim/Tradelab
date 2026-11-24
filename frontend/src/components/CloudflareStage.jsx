@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Maximize2, Minimize2, Mic, MicOff, MonitorUp, MonitorOff,
-  ZoomIn, ZoomOut, RotateCcw, Volume2, VolumeX, HeadphoneOff,
+  ZoomIn, ZoomOut, RotateCcw, Volume2, HeadphoneOff,
   Crop, Camera, Film, PictureInPicture2, Crosshair, Columns2,
-  Bell, BellOff, Tv2, AudioLines, Search, ShieldAlert,
-  SlidersHorizontal, Headphones, X,
+  Bell, BellOff, Tv2, Search, ShieldAlert,
+  Settings, Headphones, X,
 } from 'lucide-react';
 import { api } from '../api';
 import { useBullpen } from '../hooks/usePresence';
@@ -275,6 +275,10 @@ export default function CloudflareStage({
   minimised,
   theater,
   onToggleTheater,
+  sidebarLeft,
+  onToggleSidebar,
+  speakingMap,
+  deskOverview,
   peerVolumes = {},
   onSpeakingChange,
   isDisabled = false,
@@ -287,7 +291,9 @@ export default function CloudflareStage({
   const [pttActive, setPttActive] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [audioPrefs, setAudioPrefs] = useState(loadAudioPrefs);
-  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState('audio');
+  const audioMenuOpen = settingsOpen && settingsSection === 'audio' && !minimised;
   const [audioDevices, setAudioDevices] = useState({ inputs: [], outputs: [] });
   const [micLevel, setMicLevel] = useState(0); // 0..100 live input meter
   const [testingMic, setTestingMic] = useState(false);
@@ -327,7 +333,8 @@ export default function CloudflareStage({
   const micGainNodeRef = useRef(null);
   const previewStreamRef = useRef(null);   // local-only mic stream while testing/adjusting while muted
   const testAudioElRef = useRef(null);     // local loopback <audio> for "Test Mic"
-  const audioMenuRef = useRef(null);
+  const settingsRef = useRef(null);
+  const settingsButtonRef = useRef(null);
   const audioPrefsRef = useRef(audioPrefs);
   audioPrefsRef.current = audioPrefs;
   const micTransceiverRef = useRef(null);
@@ -356,7 +363,6 @@ export default function CloudflareStage({
   const clipChunksRef = useRef([]);
   const clipMimeRef = useRef('video/webm');
 
-  const noiseFilter = audioPrefs.noiseSuppression;
   const canSelectOutput = typeof HTMLMediaElement !== 'undefined' && typeof HTMLMediaElement.prototype.setSinkId === 'function';
 
   micOnRef.current = micOn;
@@ -646,29 +652,32 @@ export default function CloudflareStage({
     return () => md.removeEventListener('devicechange', refreshAudioDevices);
   }, [refreshAudioDevices]);
 
-  // Close Audio Settings popover on outside click or Escape
   useEffect(() => {
-    if (!audioMenuOpen) return;
-    void refreshAudioDevices();
-    const onDown = (event) => {
-      if (audioMenuRef.current && !audioMenuRef.current.contains(event.target)) {
-        setAudioMenuOpen(false);
-        setTestingMic(false);
-      }
-    };
-    const onKey = (event) => {
-      if (event.key === 'Escape') {
-        setAudioMenuOpen(false);
-        setTestingMic(false);
-      }
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
+    if (audioMenuOpen) void refreshAudioDevices();
   }, [audioMenuOpen, refreshAudioDevices]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    if (minimised) {
+      setSettingsOpen(false);
+      return;
+    }
+    const closeOutside = (event) => {
+      if (!settingsRef.current?.contains(event.target)) setSettingsOpen(false);
+    };
+    const closeWithEscape = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      setSettingsOpen(false);
+      settingsButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [settingsOpen, minimised]);
 
   const updateAudioPrefs = useCallback((patch) => {
     setAudioPrefs((prev) => {
@@ -829,10 +838,6 @@ export default function CloudflareStage({
     }
     showToast(`${label} ${nextVal ? 'ON' : 'OFF'}`);
   }, [showToast, updateAudioPrefs]);
-
-  const toggleNoiseFilter = useCallback(() => {
-    toggleAudioConstraint('noiseSuppression', 'Noise suppression');
-  }, [toggleAudioConstraint]);
 
   // Auto-recover mic if mobile OS muted/ended it while backgrounded
   useEffect(() => {
@@ -1346,7 +1351,7 @@ export default function CloudflareStage({
   useEffect(() => {
     if (minimised) return;
     const onKeyDown = (event) => {
-      if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey) return;
+      if (event.defaultPrevented || settingsOpen || isTypingTarget(event.target) || event.metaKey || event.ctrlKey) return;
       const key = event.key.toLowerCase();
       if (event.code === 'Space' && !event.repeat && status === 'live' && !isDisabled) {
         event.preventDefault();
@@ -1412,7 +1417,7 @@ export default function CloudflareStage({
     };
   }, [
     applyZoom, cropBox, cropMode, currentScreen, isDisabled, isDual, laserMode,
-    minimised, muteLocalMic, onToggleTheater, resetView, setMicEnabled, status,
+    minimised, muteLocalMic, onToggleTheater, resetView, setMicEnabled, settingsOpen, status,
     theater, toggleDeafen, toggleMic, zoom,
   ]);
 
@@ -1859,373 +1864,342 @@ export default function CloudflareStage({
           <div className="bullpen-voice-avatars">
             {(peers?.length ? peers : [{ name: access?.name || 'You' }]).map((peer) => {
               const isMe = peer.name === access?.name;
-              const activeSpeak = isMe && speaking;
+              const activeSpeak = isMe ? speaking : Boolean(speakingMap?.[peer.name]);
               return (
                 <div key={peer.name} className={`bullpen-avatar-card${activeSpeak ? ' is-speaking' : ''}`}>
                   <div className="bullpen-avatar-circle">{peer.name.slice(0, 2).toUpperCase()}</div>
                   <strong>{peer.name}</strong>
-                  <span>{peer.deafened ? 'Deafened' : isMe ? (micOn ? 'Mic live' : 'Muted') : (peer.micOn ? 'Mic live' : 'In room')}</span>
+                  <span>{activeSpeak ? 'Speaking' : (isMe ? deafened : peer.deafened) ? 'Deafened' : (isMe ? micOn : peer.micOn) ? 'Mic on' : 'Muted'}</span>
                 </div>
               );
             })}
           </div>
           {!minimised && (
-            <div className="bullpen-voice-prompt">
-              <p>{status === 'connecting' ? 'Connecting to Cloudflare Realtime…' : 'Voice channel is live. Share a TradingView screen to open the 4K chart stage.'}</p>
-              <button type="button" className="button primary" onClick={startScreenShare} disabled={status !== 'live' || isDisabled}>
-                <MonitorUp size={16} /> Share Screen ({shareQuality === 'crisp' ? '4K Crisp' : '30fps'})
-              </button>
-              <small className="bullpen-hotkey-hint">Hotkeys: M mute · Hold Space push-to-talk · D deafen · F theater · Hold Z loupe</small>
-            </div>
+            <>
+              <div className="bullpen-voice-prompt">
+                {status === 'live' ? (
+                  <button type="button" className="button primary" onClick={startScreenShare} disabled={isDisabled}>
+                    <MonitorUp size={16} /> Share screen
+                  </button>
+                ) : (status === 'connecting' || status === 'reconnecting') && (
+                  <p role="status">{status === 'connecting' ? 'Connecting to voice…' : 'Reconnecting to voice…'}</p>
+                )}
+              </div>
+              {deskOverview}
+            </>
           )}
         </div>
       )}
 
-      {/* Static slim bottom control bar — COMPLETELY OFF THE VIDEO CHART */}
-      <div className="bullpen-control-bar" role="toolbar" aria-label="Trading Floor stage controls">
-        {/* Left: Voice & Screen Share */}
+      <div className="bullpen-control-bar" role="group" aria-label="Trading Floor stage controls">
         <div className="bullpen-bar-group">
-          <div className="bullpen-audio-anchor" ref={audioMenuRef}>
-            <button
-              type="button"
-              className={`bullpen-bar-btn${micOn ? ' is-live' : ''}`}
-              onClick={toggleMic}
-              disabled={status !== 'live' || isDisabled}
-              aria-pressed={micOn}
-              title="Toggle Microphone (M) · Hold Space for Push-to-Talk"
-            >
-              {micOn ? <Mic size={14} /> : <MicOff size={14} />}
-              <span>{pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
-            </button>
-
-            {!minimised && (
-              <button
-                type="button"
-                className={`bullpen-bar-btn is-subtle bullpen-audio-gear${audioMenuOpen ? ' is-accent' : ''}`}
-                onClick={() => setAudioMenuOpen((v) => !v)}
-                aria-expanded={audioMenuOpen}
-                aria-label="Audio & mic settings"
-                title="Microphone, speaker, input volume & test"
-              >
-                <SlidersHorizontal size={13} />
-              </button>
-            )}
-
-            {audioMenuOpen && !minimised && (
-              <div className="bullpen-audio-popover" role="dialog" aria-label="Audio & mic settings">
-                <div className="bullpen-audio-pop-head">
-                  <strong><Mic size={13} /> Audio &amp; Mic Settings</strong>
-                  <button
-                    type="button"
-                    className="bullpen-audio-close"
-                    onClick={() => { setAudioMenuOpen(false); setTestingMic(false); }}
-                    aria-label="Close audio settings"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-
-                <label className="bullpen-audio-field">
-                  <span>Input Microphone</span>
-                  <select
-                    aria-label="Input microphone"
-                    value={audioPrefs.inputId}
-                    onChange={(e) => void switchInputDevice(e.target.value)}
-                  >
-                    <option value="">System Default</option>
-                    {audioDevices.inputs.map((dev, idx) => (
-                      <option key={dev.deviceId} value={dev.deviceId}>
-                        {dev.label || `Microphone ${idx + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {canSelectOutput && (
-                  <label className="bullpen-audio-field">
-                    <span><Headphones size={12} /> Output Speaker / Headset</span>
-                    <select
-                      aria-label="Output speaker"
-                      value={audioPrefs.outputId}
-                      onChange={(e) => {
-                        const nextId = e.target.value;
-                        updateAudioPrefs({ outputId: nextId });
-                        if (testAudioElRef.current?.setSinkId) {
-                          testAudioElRef.current.setSinkId(nextId || '').catch(() => {});
-                        }
-                        showToast('Switched output speaker');
-                      }}
-                    >
-                      <option value="">System Default</option>
-                      {audioDevices.outputs.map((dev, idx) => (
-                        <option key={dev.deviceId} value={dev.deviceId}>
-                          {dev.label || `Speaker ${idx + 1}`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                <div className="bullpen-audio-gain">
-                  <div className="bullpen-audio-gain-head">
-                    <span>Input Volume</span>
-                    <strong>{Math.round(audioPrefs.inputGain * 100)}%</strong>
-                  </div>
-                  <input
-                    type="range"
-                    aria-label="Microphone input volume"
-                    min="0"
-                    max="200"
-                    step="5"
-                    value={Math.round(audioPrefs.inputGain * 100)}
-                    onChange={(e) => updateAudioPrefs({ inputGain: Number(e.target.value) / 100 })}
-                  />
-                  <div className="bullpen-meter-wrap" aria-label="Live microphone input level">
-                    <div
-                      className={`bullpen-meter-fill${micLevel > 85 ? ' is-clip' : micLevel > 60 ? ' is-hot' : ''}`}
-                      style={{ width: `${micLevel}%` }}
-                    />
-                  </div>
-                  <div className="bullpen-audio-test-row">
-                    <small>{micOn ? 'Live mic active' : testingMic ? 'Testing locally (muted in room)' : 'Unmute or tap Test Mic to check level'}</small>
-                    <button
-                      type="button"
-                      className={`bullpen-bar-btn is-subtle${testingMic ? ' is-live' : ''}`}
-                      onClick={() => setTestingMic((v) => !v)}
-                    >
-                      {testingMic ? 'Stop Test' : 'Test Mic'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bullpen-audio-toggles" role="group" aria-label="Microphone processing">
-                  <button
-                    type="button"
-                    className={audioPrefs.noiseSuppression ? 'is-on' : ''}
-                    aria-pressed={audioPrefs.noiseSuppression}
-                    onClick={() => toggleAudioConstraint('noiseSuppression', 'Noise suppression')}
-                  >
-                    Noise Supp.
-                  </button>
-                  <button
-                    type="button"
-                    className={audioPrefs.echoCancellation ? 'is-on' : ''}
-                    aria-pressed={audioPrefs.echoCancellation}
-                    onClick={() => toggleAudioConstraint('echoCancellation', 'Echo cancellation')}
-                  >
-                    Echo Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={audioPrefs.autoGainControl ? 'is-on' : ''}
-                    aria-pressed={audioPrefs.autoGainControl}
-                    onClick={() => toggleAudioConstraint('autoGainControl', 'Auto gain')}
-                  >
-                    Auto Gain
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <button
             type="button"
-            className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}
-            onClick={toggleDeafen}
-            aria-pressed={deafened}
-            title="Deafen — mute mic and room audio (D)"
+            className={`bullpen-bar-btn${micOn ? ' is-live' : ''}`}
+            onClick={toggleMic}
+            disabled={status !== 'live' || isDisabled}
+            aria-pressed={micOn}
+            title="Toggle microphone (M) · Hold Space for push-to-talk"
           >
-            {deafened ? <HeadphoneOff size={14} /> : <Volume2 size={14} />}
-            <span>{deafened ? 'Deafened' : 'Audio'}</span>
+            {micOn ? <Mic size={14} /> : <MicOff size={14} />}
+            <span>{pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
           </button>
-
-          {!minimised && (
+          {(minimised || currentScreen || sharing) && (
             <button
               type="button"
-              className={`bullpen-bar-btn is-subtle${noiseFilter ? ' is-on' : ''}`}
-              onClick={toggleNoiseFilter}
-              aria-pressed={noiseFilter}
-              title={noiseFilter ? 'Noise suppression ON (click to disable)' : 'Noise suppression OFF'}
+              className={`bullpen-bar-btn${sharing ? ' is-sharing' : ''}`}
+              onClick={startScreenShare}
+              disabled={status !== 'live' || isDisabled}
+              aria-pressed={sharing}
             >
-              <AudioLines size={14} />
-              <span className="bullpen-hide-md">NR</span>
+              {sharing ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
+              <span>{sharing ? 'Stop sharing' : 'Share screen'}</span>
             </button>
           )}
-
-          <button
-            type="button"
-            className={`bullpen-bar-btn${sharing ? ' is-sharing' : ''}`}
-            onClick={startScreenShare}
-            disabled={status !== 'live' || isDisabled}
-            aria-pressed={sharing}
-            title="Share Screen"
-          >
-            {sharing ? <MonitorOff size={14} /> : <MonitorUp size={14} />}
-            <span>{sharing ? 'Stop' : 'Share'}</span>
-          </button>
-
+          {deafened && <button type="button" className="bullpen-bar-btn is-warn" onClick={toggleDeafen}>
+            <HeadphoneOff size={14} /> Restore audio
+          </button>}
+        </div>
+        <div className="bullpen-bar-group">
+          {!minimised && toast && <span className="bullpen-bar-toast" role="status">
+            {toast.text}{toast.link && <a href={toast.link}> Open ↗</a>}
+          </span>}
           {!minimised && (
-            <button
-              type="button"
-              className="bullpen-bar-btn is-subtle"
-              onClick={() => applyShareQualityLive(shareQuality === 'crisp' ? 'smooth' : 'crisp')}
-              title="Toggle share quality: 4K Crisp Charts (15fps) vs Smooth Motion (30fps)"
-            >
-              <span>{shareQuality === 'crisp' ? '4K·15' : 'HD·30'}</span>
-            </button>
+            <div className="bullpen-settings-anchor" ref={settingsRef}>
+              <button
+                type="button" ref={settingsButtonRef}
+                className={`bullpen-bar-btn${settingsOpen ? ' is-accent' : ''}`}
+                onClick={() => setSettingsOpen((value) => !value)}
+                aria-expanded={settingsOpen}
+              >
+                <Settings size={14} /> Settings
+              </button>
+              {settingsOpen && (
+                <div className="bullpen-settings-popover" role="dialog" aria-label="Trading Floor settings">
+                  <div className="bullpen-audio-pop-head">
+                    <strong>Trading Floor settings</strong>
+                    <button type="button" className="bullpen-audio-close" aria-label="Close settings"
+                      onClick={() => { setSettingsOpen(false); settingsButtonRef.current?.focus(); }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="bullpen-settings-sections" role="group" aria-label="Settings sections">
+                    {[
+                      ['audio', 'Audio'], ['display', 'Display'],
+                      ...(currentScreen ? [['chart', 'Chart tools']] : []),
+                      ['shortcuts', 'Shortcuts'],
+                    ].map(([id, label]) => (
+                      <button type="button" key={id} className="bullpen-bar-btn"
+                        aria-pressed={settingsSection === id || (id === 'display' && settingsSection === 'chart' && !currentScreen)}
+                        onClick={() => setSettingsSection(id)}>{label}</button>
+                    ))}
+                  </div>
+                  {settingsSection === 'audio' && <>
+                    <button type="button" className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}
+                      onClick={toggleDeafen} aria-pressed={deafened}>
+                      {deafened ? <HeadphoneOff size={14} /> : <Volume2 size={14} />} Deafen
+                    </button>
+                    <label className="bullpen-audio-field">
+                      <span>Microphone</span>
+                      <select
+                        aria-label="Input microphone"
+                        value={audioPrefs.inputId}
+                        onChange={(e) => void switchInputDevice(e.target.value)}
+                      >
+                        <option value="">System Default</option>
+                        {audioDevices.inputs.map((dev, idx) => (
+                          <option key={dev.deviceId} value={dev.deviceId}>
+                            {dev.label || `Microphone ${idx + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {canSelectOutput && (
+                      <label className="bullpen-audio-field">
+                        <span><Headphones size={12} /> Speaker or headset</span>
+                        <select
+                          aria-label="Output speaker"
+                          value={audioPrefs.outputId}
+                          onChange={(e) => {
+                            const nextId = e.target.value;
+                            updateAudioPrefs({ outputId: nextId });
+                            if (testAudioElRef.current?.setSinkId) {
+                              testAudioElRef.current.setSinkId(nextId || '').catch(() => {});
+                            }
+                            showToast('Switched output speaker');
+                          }}
+                        >
+                          <option value="">System Default</option>
+                          {audioDevices.outputs.map((dev, idx) => (
+                            <option key={dev.deviceId} value={dev.deviceId}>
+                              {dev.label || `Speaker ${idx + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
+                    <div className="bullpen-audio-gain">
+                      <div className="bullpen-audio-gain-head">
+                        <span>Input Volume</span>
+                        <strong>{Math.round(audioPrefs.inputGain * 100)}%</strong>
+                      </div>
+                      <input
+                        type="range"
+                        aria-label="Microphone input volume"
+                        min="0"
+                        max="200"
+                        step="5"
+                        value={Math.round(audioPrefs.inputGain * 100)}
+                        onChange={(e) => updateAudioPrefs({ inputGain: Number(e.target.value) / 100 })}
+                      />
+                      <div className="bullpen-meter-wrap" aria-label="Live microphone input level">
+                        <div
+                          className={`bullpen-meter-fill${micLevel > 85 ? ' is-clip' : micLevel > 60 ? ' is-hot' : ''}`}
+                          style={{ width: `${micLevel}%` }}
+                        />
+                      </div>
+                      <div className="bullpen-audio-test-row">
+                        <small>{micOn ? 'Live mic active' : testingMic ? 'Testing locally (muted in room)' : 'Unmute or tap Test Mic to check level'}</small>
+                        <button
+                          type="button"
+                          className={`bullpen-bar-btn is-subtle${testingMic ? ' is-live' : ''}`}
+                          onClick={() => setTestingMic((v) => !v)}
+                        >
+                          {testingMic ? 'Stop Test' : 'Test Mic'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bullpen-audio-toggles" role="group" aria-label="Microphone processing">
+                      <button
+                        type="button"
+                        className={audioPrefs.noiseSuppression ? 'is-on' : ''}
+                        aria-pressed={audioPrefs.noiseSuppression}
+                        onClick={() => toggleAudioConstraint('noiseSuppression', 'Noise suppression')}
+                      >
+                        Noise Supp.
+                      </button>
+                      <button
+                        type="button"
+                        className={audioPrefs.echoCancellation ? 'is-on' : ''}
+                        aria-pressed={audioPrefs.echoCancellation}
+                        onClick={() => toggleAudioConstraint('echoCancellation', 'Echo cancellation')}
+                      >
+                        Echo Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className={audioPrefs.autoGainControl ? 'is-on' : ''}
+                        aria-pressed={audioPrefs.autoGainControl}
+                        onClick={() => toggleAudioConstraint('autoGainControl', 'Auto gain')}
+                      >
+                        Auto Gain
+                      </button>
+                    </div>
+                  </>}
+                  {(settingsSection === 'display' || (settingsSection === 'chart' && !currentScreen)) && <>
+                    <label className="bullpen-audio-field">
+                      <span>Screen share quality</span>
+                      <select value={shareQuality} onChange={(event) => applyShareQualityLive(event.target.value)}>
+                        <option value="crisp">4K · 15 fps</option>
+                        <option value="smooth">1080p · 30 fps</option>
+                      </select>
+                    </label>
+                    <div className="bullpen-settings-tools">
+                      <button type="button" className="bullpen-bar-btn" onClick={onToggleTheater} aria-pressed={theater}>
+                        <Tv2 size={14} /> Theater mode
+                      </button>
+                      <button type="button" className="bullpen-bar-btn" onClick={toggleFullscreen}>
+                        {isFullscreen || pseudoFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        {isFullscreen || pseudoFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                      </button>
+                      <button type="button" className="bullpen-bar-btn bullpen-settings-sidebar" onClick={onToggleSidebar}>
+                        Move sidebar {sidebarLeft ? 'right' : 'left'}
+                      </button>
+                      <button type="button" className="bullpen-bar-btn" onClick={onToggleChimes} aria-pressed={chimesOn}>
+                        {chimesOn ? <Bell size={14} /> : <BellOff size={14} />} Desk chimes
+                      </button>
+                    </div>
+                  </>}
+                  {settingsSection === 'chart' && currentScreen && <div className="bullpen-settings-tools">
+                    <button
+                      type="button"
+                      className={`bullpen-bar-btn${laserMode ? ' is-accent' : ''}`}
+                      onClick={() => { setCropMode(false); setLaserMode((v) => !v); setSettingsOpen(false); }}
+                      disabled={isDisabled}
+                      aria-pressed={laserMode}
+                      title="Live Laser Pointer (L) — or hold Alt + drag anytime"
+                    >
+                      <Crosshair size={14} />
+                      <span>Laser</span>
+                    </button>
+
+                    {!isDual && (
+                      <>
+                        <div className="bullpen-bar-zoom" aria-label="Zoom controls">
+                          <button type="button" onClick={() => applyZoom(zoom - 0.25)} disabled={zoom <= 1} aria-label="Zoom out" title="Zoom out">
+                            <ZoomOut size={13} />
+                          </button>
+                          {ZOOM_PRESETS.map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              className={Math.abs(zoom - preset) < 0.05 ? 'is-active' : ''}
+                              onClick={() => applyZoom(preset)}
+                            >
+                              {preset}×
+                            </button>
+                          ))}
+                          <button type="button" onClick={() => applyZoom(zoom + 0.25)} disabled={zoom >= 3.5} aria-label="Zoom in" title="Zoom in">
+                            <ZoomIn size={13} />
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`bullpen-bar-btn${cropMode || cropBox ? ' is-accent' : ''}`}
+                          onClick={() => {
+                            setLaserMode(false);
+                            setSettingsOpen(false);
+                            if (cropBox && !cropMode) {
+                              setCropBox(null);
+                            } else {
+                              setCropMode((v) => !v);
+                            }
+                          }}
+                          aria-pressed={cropMode || Boolean(cropBox)}
+                          title={cropBox ? 'Clear chart crop' : 'Crop to Chart — drag a box around just the chart'}
+                        >
+                          <Crop size={14} />
+                          <span>{cropBox ? 'Uncrop' : cropMode ? 'Drag box…' : 'Crop'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`bullpen-bar-btn is-subtle${loupeOn ? ' is-accent' : ''}`}
+                          onClick={() => { setLoupeOn((v) => !v); setSettingsOpen(false); }}
+                          aria-pressed={loupeOn}
+                          title="Smart Magnifier Loupe (or hold Z while hovering chart)"
+                        >
+                          <Search size={13} />
+                          <span>Loupe</span>
+                        </button>
+
+                        {(zoom > 1 || cropBox) && (
+                          <button type="button" className="bullpen-bar-btn is-subtle" onClick={resetView} title="Reset zoom & crop (0)">
+                            <RotateCcw size={13} /> Reset view
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="bullpen-bar-btn is-subtle"
+                          onClick={snapToJournal}
+                          disabled={snapping}
+                          title="Snap frame straight into today’s Daily Journal"
+                        >
+                          <Camera size={14} />
+                          <span>{snapping ? 'Saving…' : 'Snap'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="bullpen-bar-btn is-subtle"
+                          onClick={downloadClip15s}
+                          disabled={!clipReady}
+                          title="Download rolling last 15 seconds of shared screen (.webm)"
+                        >
+                          <Film size={14} />
+                          <span>Clip 15s</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="bullpen-bar-btn is-subtle"
+                          onClick={() => { setSettingsOpen(false); togglePiP(); }}
+                          title="Pop out stage into floating Picture-in-Picture window"
+                        >
+                          <PictureInPicture2 size={14} /> Pop out
+                        </button>
+                      </>
+                    )}
+                  </div>}
+                  {settingsSection === 'shortcuts' && <dl className="bullpen-shortcut-list">
+                    <dt><kbd>M</kbd></dt><dd>Toggle microphone</dd>
+                    <dt><kbd>Hold Space</kbd></dt><dd>Push to talk</dd>
+                    <dt><kbd>D</kbd></dt><dd>Deafen</dd>
+                    <dt><kbd>F</kbd></dt><dd>Theater mode</dd>
+                    <dt><kbd>L</kbd></dt><dd>Laser pointer</dd>
+                    <dt><kbd>Hold Z</kbd></dt><dd>Magnifier</dd>
+                    <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>Zoom presets</dd>
+                    <dt><kbd>0</kbd></dt><dd>Reset chart view</dd>
+                  </dl>}
+                </div>
+              )}
+            </div>
           )}
         </div>
-
-        {/* Center: Viewing, Zoom, Crop, Laser & Loupe (when screen active) */}
-        {!minimised && currentScreen && (
-          <div className="bullpen-bar-group">
-            <button
-              type="button"
-              className={`bullpen-bar-btn${laserMode ? ' is-accent' : ''}`}
-              onClick={() => { setCropMode(false); setLaserMode((v) => !v); }}
-              disabled={isDisabled}
-              aria-pressed={laserMode}
-              title="Live Laser Pointer (L) — or hold Alt + drag anytime"
-            >
-              <Crosshair size={14} />
-              <span>Laser</span>
-            </button>
-
-            {!isDual && (
-              <>
-                <div className="bullpen-bar-zoom" aria-label="Zoom controls">
-                  <button type="button" onClick={() => applyZoom(zoom - 0.25)} disabled={zoom <= 1} aria-label="Zoom out" title="Zoom out">
-                    <ZoomOut size={13} />
-                  </button>
-                  {ZOOM_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      className={Math.abs(zoom - preset) < 0.05 ? 'is-active' : ''}
-                      onClick={() => applyZoom(preset)}
-                    >
-                      {preset}×
-                    </button>
-                  ))}
-                  <button type="button" onClick={() => applyZoom(zoom + 0.25)} disabled={zoom >= 3.5} aria-label="Zoom in" title="Zoom in">
-                    <ZoomIn size={13} />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  className={`bullpen-bar-btn${cropMode || cropBox ? ' is-accent' : ''}`}
-                  onClick={() => {
-                    setLaserMode(false);
-                    if (cropBox && !cropMode) {
-                      setCropBox(null);
-                    } else {
-                      setCropMode((v) => !v);
-                    }
-                  }}
-                  aria-pressed={cropMode || Boolean(cropBox)}
-                  title={cropBox ? 'Clear chart crop' : 'Crop to Chart — drag a box around just the chart'}
-                >
-                  <Crop size={14} />
-                  <span>{cropBox ? 'Uncrop' : cropMode ? 'Drag box…' : 'Crop'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`bullpen-bar-btn is-subtle${loupeOn ? ' is-accent' : ''}`}
-                  onClick={() => setLoupeOn((v) => !v)}
-                  aria-pressed={loupeOn}
-                  title="Smart Magnifier Loupe (or hold Z while hovering chart)"
-                >
-                  <Search size={13} />
-                  <span className="bullpen-hide-md">Loupe</span>
-                </button>
-
-                {(zoom > 1 || cropBox) && (
-                  <button type="button" className="bullpen-bar-btn is-subtle" onClick={resetView} title="Reset zoom & crop (0)">
-                    <RotateCcw size={13} />
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Right: Capture, Pop-Out, Theater, Fullscreen, Chimes */}
-        {!minimised && (
-          <div className="bullpen-bar-group">
-            {toast && (
-              <span className="bullpen-bar-toast" role="status">
-                {toast.text}
-                {toast.link && <a href={toast.link}> Open ↗</a>}
-              </span>
-            )}
-
-            {currentScreen && !isDual && (
-              <>
-                <button
-                  type="button"
-                  className="bullpen-bar-btn is-subtle"
-                  onClick={snapToJournal}
-                  disabled={snapping}
-                  title="Snap frame straight into today’s Daily Journal"
-                >
-                  <Camera size={14} />
-                  <span className="bullpen-hide-md">{snapping ? 'Saving…' : 'Snap'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="bullpen-bar-btn is-subtle"
-                  onClick={downloadClip15s}
-                  disabled={!clipReady}
-                  title="Download rolling last 15 seconds of shared screen (.webm)"
-                >
-                  <Film size={14} />
-                  <span className="bullpen-hide-md">Clip 15s</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="bullpen-bar-btn is-subtle"
-                  onClick={togglePiP}
-                  title="Pop out stage into floating Picture-in-Picture window"
-                >
-                  <PictureInPicture2 size={14} />
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
-              className={`bullpen-bar-btn is-subtle${theater ? ' is-accent' : ''}`}
-              onClick={onToggleTheater}
-              aria-pressed={theater}
-              title="Theater / Full-Bleed Mode (F)"
-            >
-              <Tv2 size={14} />
-            </button>
-
-            <button
-              type="button"
-              className="bullpen-bar-btn is-subtle"
-              onClick={toggleFullscreen}
-              title={isFullscreen || pseudoFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            >
-              {isFullscreen || pseudoFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-
-            <button
-              type="button"
-              className={`bullpen-bar-btn is-subtle${chimesOn ? ' is-on' : ''}`}
-              onClick={onToggleChimes}
-              aria-pressed={chimesOn}
-              title={chimesOn ? 'Desk audio chimes ON' : 'Desk audio chimes OFF'}
-            >
-              {chimesOn ? <Bell size={13} /> : <BellOff size={13} />}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

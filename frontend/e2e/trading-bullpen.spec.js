@@ -114,14 +114,21 @@ test(`private Bullpen works with ${desktopMode?'desktop-site tablet':'Android'} 
 });
 }
 
-test('Trading Floor Audio & Mic Settings popover switches devices, adjusts input gain, and persists filters', async ({page}) => {
+test('Trading Floor groups settings and replaces the desk overview while sharing', async ({page}) => {
   const token = 'e30.eyJleHAiOjQxMDI0NDQ4MDB9.fake';
+  await page.route('**/api/matrix/snapshot', route => route.fulfill({json: {snapshot: {calendar: [
+    {title: 'Upcoming test release', scheduled_at: new Date(Date.now() + 60 * 60_000).toISOString()},
+  ]}}}));
   await page.route('**/api/session', route => route.fulfill({json: {
     authenticated: true, auth_mode: 'google', csrf: 'test-csrf',
   }}));
   await page.route('**/api/bullpen**', route => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/macro-feed')) return route.fulfill({json: {items: [], stale: false}});
+    if (path.endsWith('/desk')) return route.fulfill({json: {levels: [
+      {id: 'level-1', symbol: 'NQ', price: '21000', label: 'Previous day high', status: 'watching'},
+    ]}});
+    if (path.includes('/tracks')) return route.fulfill({json: {}});
     if (path.endsWith('/sfu/sessions')) return route.fulfill({json: {sessionId: 'sfu-test-1', sessionDescription: {type: 'answer', sdp: 'v=0\r\n'}}});
     const join = new URL(route.request().url()).searchParams.has('join');
     return route.fulfill({json: {
@@ -158,15 +165,25 @@ test('Trading Floor Audio & Mic Settings popover switches devices, adjusts input
     ];
     navigator.mediaDevices.addEventListener = () => {};
     navigator.mediaDevices.removeEventListener = () => {};
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.getContext('2d').fillRect(0, 0, canvas.width, canvas.height);
+      return canvas.captureStream(5);
+    };
   });
 
   await page.goto('http://127.0.0.1:8119/learn');
   await page.getByRole('button', {name: 'Join Live Trading Floor'}).click();
-  const settingsBtn = page.getByRole('button', {name: 'Audio & mic settings', exact: true});
+  await expect(page.getByText('1 in room', {exact: true})).toBeVisible();
+  await expect(page.getByText('Previous day high', {exact: true})).toBeVisible();
+  await expect(page.getByText('Upcoming test release', {exact: true})).toBeVisible();
+  const controls = page.getByRole('group', {name: 'Trading Floor stage controls'});
+  await expect(controls.getByRole('button')).toHaveCount(2);
+  const settingsBtn = controls.getByRole('button', {name: 'Settings', exact: true});
   await expect(settingsBtn).toBeVisible();
   await settingsBtn.click();
 
-  const dialog = page.getByRole('dialog', {name: 'Audio & mic settings', exact: true});
+  const dialog = page.getByRole('dialog', {name: 'Trading Floor settings', exact: true});
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Input microphone', {exact: true}).selectOption('mic-usb');
   const gain = dialog.getByLabel('Microphone input volume', {exact: true});
@@ -182,6 +199,24 @@ test('Trading Floor Audio & Mic Settings popover switches devices, adjusts input
   expect(saved.inputGain).toBeCloseTo(1.4);
   expect(saved.autoGainControl).toBe(false);
 
+  await dialog.getByRole('button', {name: 'Display', exact: true}).click();
+  await dialog.getByLabel('Screen share quality').selectOption('smooth');
+  await expect(dialog.getByRole('button', {name: 'Theater mode'})).toBeVisible();
+  await dialog.getByRole('button', {name: 'Shortcuts', exact: true}).click();
+  await expect(dialog.getByText('Push to talk', {exact: true})).toBeVisible();
+  await page.setViewportSize({width:390,height:844});
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+  await expect(settingsBtn).toBeFocused();
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button', {name: 'Share screen', exact: true}).click();
+  await expect(controls.getByRole('button', {name: 'Stop sharing'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Pinned levels', exact: true})).toHaveCount(0);
+  await settingsBtn.click();
+  await dialog.getByRole('button', {name: 'Chart tools', exact: true}).click();
+  await dialog.getByRole('button', {name: 'Laser', exact: true}).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('Laser ON', {exact: true})).toBeVisible();
+  await controls.getByRole('button', {name: 'Stop sharing'}).click();
+  await expect(page.getByRole('button', {name: 'Pinned levels', exact: true})).toBeVisible();
 });

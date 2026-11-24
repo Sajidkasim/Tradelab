@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MessageSquare, CalendarClock, Layers, Send, AlertTriangle, Volume2,
-  MicOff, MonitorOff, Ban, UserCheck, CheckCircle2, Tv2, X,
+  MicOff, MonitorOff, Ban, UserCheck, CheckCircle2, Settings, X,
 } from 'lucide-react';
 import { Button, Notice } from '../components';
 import { REACTIONS, useBullpen } from '../hooks/usePresence';
@@ -219,21 +219,18 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
     return () => { active = false; clearInterval(timer); };
   }, []);
 
-  // Compute imminent red-folder catalyst (<= 5 min away or LIVE within 2 min after release)
-  const imminentRedFolder = useMemo(() => {
-    const events = calendar
-      .map((ev, idx) => {
-        const title = ev.title || ev.event || ev.name || 'US Release';
-        const ms = parseEventMs(ev);
-        return { id: ev.id || `${title}-${idx}`, title, ms, raw: ev.scheduled_at || ev.date || ev.time };
-      })
-      .filter((ev) => MARKET_MOVER.test(ev.title) && Number.isFinite(ev.ms))
-      .sort((a, b) => a.ms - b.ms);
-    return events.find((ev) => {
-      const diff = ev.ms - nowTick;
-      return diff <= 5 * 60_000 && diff >= -2 * 60_000;
-    }) || null;
-  }, [calendar, nowTick]);
+  const upcomingEvents = useMemo(() => calendar
+    .map((event, index) => {
+      const title = event.title || event.event || event.name || 'US Release';
+      return { id: event.id || `${title}-${index}`, title, ms: parseEventMs(event) };
+    })
+    .filter((event) => Number.isFinite(event.ms))
+    .sort((first, second) => first.ms - second.ms), [calendar]);
+
+  const nextEvent = upcomingEvents.find((event) => event.ms >= nowTick);
+  const imminentRedFolder = upcomingEvents.find(({title, ms}) =>
+    MARKET_MOVER.test(title) && ms - nowTick <= 5 * 60_000 && ms - nowTick >= -2 * 60_000);
+  const pinnedLevels = (desk.levels || []).filter((level) => level.status !== 'invalidated').slice(0, 3);
 
   // Tick every second only when near a red-folder event (otherwise every 15s)
   useEffect(() => {
@@ -360,7 +357,7 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
                 ? 'RED-FOLDER LIVE NOW'
                 : `RED-FOLDER IN ${formatMmSs(imminentRedFolder.ms - nowTick)}`}
             </strong>
-            <span>— {imminentRedFolder.title} ({formatEventTime(imminentRedFolder.ms, imminentRedFolder.raw)})</span>
+            <span>— {imminentRedFolder.title} ({formatEventTime(imminentRedFolder.ms)})</span>
           </div>
           <button
             type="button"
@@ -376,7 +373,7 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
       <header className="bullpen-room-head">
         <div className="bullpen-head-title">
           <h1>Trading Floor</h1>
-          {joined && <span className="bullpen-live">LIVE</span>}
+          {joined && <span className="bullpen-live bullpen-room-count">{roster.length} in room</span>}
           <span className="bullpen-clock">{clockLabel}</span>
         </div>
 
@@ -484,13 +481,18 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
         </div>
 
         <div className="bullpen-head-actions">
-          {!minimised && (
-            <Button className="bullpen-theater-btn" onClick={() => setTheater((v) => !v)} title="Theater / Full-Bleed Mode (F)">
-              <Tv2 size={13} /> {theater ? 'Exit Theater' : 'Theater'}
-            </Button>
+          {!minimised && !isCloudflare && (
+            <details className="bullpen-legacy-settings">
+              <summary className="button"><Settings size={14} /> Settings</summary>
+              <div className="bullpen-legacy-settings-options">
+                <Button onClick={() => setTheater((value) => !value)} aria-pressed={theater}>Theater mode</Button>
+                <Button className="bullpen-settings-sidebar" onClick={() => setSidebarLeft((value) => !value)}>
+                  Move sidebar {sidebarLeft ? 'right' : 'left'}
+                </Button>
+              </div>
+            </details>
           )}
           {onMinimise && <Button onClick={() => { if (minimised) onRestore(); else onMinimise(); }}>{minimised ? 'Restore' : 'Minimise'}</Button>}
-          <Button className="bullpen-move-sidebar" onClick={() => setSidebarLeft((value) => !value)}>Sidebar {sidebarLeft ? 'right' : 'left'}</Button>
           <Button onClick={onLeave}>Leave</Button>
         </div>
       </header>
@@ -506,6 +508,27 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
                 minimised={minimised}
                 theater={theater}
                 onToggleTheater={() => setTheater((v) => !v)}
+                sidebarLeft={sidebarLeft}
+                onToggleSidebar={() => setSidebarLeft((value) => !value)}
+                speakingMap={speakingMap}
+                deskOverview={<div className="bullpen-voice-overview" aria-label="Desk overview">
+                  <section>
+                    <button type="button" className="bullpen-brief-link" onClick={() => { setTheater(false); setTab('levels'); }}>
+                      <Layers size={15} /> Pinned levels
+                    </button>
+                    {pinnedLevels.length ? <ul>{pinnedLevels.map((level) =>
+                      <li key={level.id}><strong>{level.symbol} {level.price}</strong> <span>{level.label}</span></li>)}</ul>
+                      : <p>No levels pinned.</p>}
+                  </section>
+                  <section>
+                    <button type="button" className="bullpen-brief-link" onClick={() => { setTheater(false); setTab('news'); }}>
+                      <CalendarClock size={15} /> Next scheduled news
+                    </button>
+                    {nextEvent ? <p><strong>{nextEvent.title}</strong><time dateTime={new Date(nextEvent.ms).toISOString()}>
+                      {formatEventTime(nextEvent.ms)}
+                    </time></p> : <p>{macroLoading ? 'Loading calendar…' : 'No upcoming events.'}</p>}
+                  </section>
+                </div>}
                 peerVolumes={peerVolumes}
                 onSpeakingChange={handleSpeakingChange}
                 isDisabled={isDisabled}
@@ -555,7 +578,7 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
           {tab === 'chat' ? (
             <>
               <div className="bullpen-messages" role="log" aria-label="Team chat">
-                {!messages.length && <p className="bullpen-desk-muted">{joined ? 'No messages yet. Talk levels, catalysts, or execution.' : 'Connecting to the desk…'}</p>}
+                {!messages.length && <p className="bullpen-desk-muted">{joined ? 'No messages yet.' : 'Connecting to the desk…'}</p>}
                 {messages.map((item) => (
                   <article key={item.id}>
                     <strong>{item.name}</strong>
