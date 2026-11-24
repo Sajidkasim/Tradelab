@@ -3,22 +3,35 @@ const origin='http://127.0.0.1:8119';
 const day='2026-08-12';
 async function choose(card,label,value){await card.getByRole('combobox',{name:label,exact:true}).click();await card.getByRole('option',{name:value,exact:true}).click()}
 
-test('reopens and saves changes to an existing trade on a past journal day',async({page})=>{
+test('keeps trade actions in reach and saves changes to an existing trade',async({page})=>{
   await page.addInitScript(() => localStorage.setItem('primus_journal_autosave', 'false'));
   await page.goto(`${origin}/journal?day=2026-08-17`);
   await page.getByRole('button',{name:'Add trade',exact:true}).click();
   const card=page.getByRole('article',{name:'Journal trade 1',exact:true});
   const notes=card.getByRole('textbox',{name:'Trade notes',exact:true});
+  const actions=page.getByRole('group',{name:'Journal trade actions',exact:true});
   await notes.fill('Original notes');
-  await card.getByRole('button',{name:'Save trade',exact:true}).click();
+  await actions.getByRole('button',{name:'Save trade',exact:true}).click();
   await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
+  await expect(actions.getByRole('button',{name:'Save changes',exact:true})).toBeVisible();
   await page.reload();
 
   await card.getByRole('button',{name:/Edit trade/}).click();
   await expect(notes).toHaveValue('Original notes');
   await notes.fill('Amended notes');
   await card.getByRole('button',{name:'Loss',exact:true}).click();
-  await card.getByRole('button',{name:'Save trade',exact:true}).click();
+  const saveChanges=actions.getByRole('button',{name:'Save changes',exact:true});
+  for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:760});
+    await card.getByRole('combobox',{name:'Market',exact:true}).evaluate(field => field.scrollIntoView({block:'center'}));
+    await expect(saveChanges).toBeInViewport({ratio:1});
+    await expect(actions.getByRole('button',{name:'Add trade',exact:true})).toBeInViewport({ratio:1});
+    expect(await saveChanges.evaluate(button => {
+      const {x,y,width,height}=button.getBoundingClientRect();
+      return button.contains(document.elementFromPoint(x+width/2,y+height/2));
+    })).toBe(true);
+  }
+  await saveChanges.click();
   await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
   await page.reload();
 

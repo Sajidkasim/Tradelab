@@ -5,7 +5,7 @@
 .pj-workspace .pt-journal-layout{grid-template-columns:286px minmax(0,1fr);gap:28px}
 .pj-workspace .pt-journal-sidebar{display:block;position:sticky;top:24px;min-width:0}
 .pj-workspace .pt-day-editor{min-width:0;overflow:visible}
-.pj-workspace .pt-day-heading{position:sticky;top:0;background:var(--pt-white);z-index:6;border-radius:5px 5px 0 0;border-bottom:1px solid var(--pt-line);padding:23px 30px}
+.pj-workspace .pt-day-heading{position:static;background:var(--pt-white);border-radius:5px 5px 0 0;border-bottom:1px solid var(--pt-line);padding:23px 30px}
 .pj-workspace .pt-day-heading h2{font-size:27px}
 .pj-workspace .pt-save-state{font-size:12px}
 .pj-workspace .pt-calendar{padding:23px 0 18px}
@@ -58,7 +58,10 @@
 .pj-trade-state{font-size:11px;color:var(--pt-muted);white-space:nowrap}
 .pj-trade-state.linked{color:var(--pt-focus);padding:4px 8px;background:var(--pt-paper);border-radius:3px}
 .pj-trade-edit-label{color:var(--pt-focus);font-size:12px;font-weight:600;white-space:nowrap}
-.pj-trade-save{display:flex;justify-content:flex-end;margin-top:16px}
+.pj-trade-toolbar{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-top:16px;padding:8px 0 max(8px,env(safe-area-inset-bottom));border-top:1px solid var(--pt-line);background:var(--pt-white)}
+.pj-trade-toolbar-status{margin-inline-end:auto;font-size:12px;color:var(--pt-muted)}
+@media(max-width:768px){.pj-trade-toolbar{bottom:calc(56px + env(safe-area-inset-bottom,0px));padding-bottom:8px}}
+@media(max-width:650px){.pj-trade-toolbar{justify-content:flex-start;padding-inline-end:52px}.pj-trade-toolbar-status{width:100%}.pj-trade-toolbar .pt-btn{padding-inline:8px;font-size:12px}.pj-trade-toolbar .pt-btn svg{display:none}}
 .pj-trade-summary>svg{flex-shrink:0;transition:transform .15s}.pj-trade-card.is-open>.pj-trade-summary>svg{transform:rotate(180deg)}
 .pj-trade-body{border-top:1px solid var(--pt-line);padding:22px}
 .pj-trade-fields{display:grid;grid-template-columns:1fr 1fr;gap:18px 20px;margin-bottom:19px}

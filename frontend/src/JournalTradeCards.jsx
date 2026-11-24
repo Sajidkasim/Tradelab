@@ -75,7 +75,7 @@ function TradeMetrics({trade}) {
 
 export default function JournalTradeCards({
   entry, meta, palette, accounts, accountFilter, busy, expanded, setExpanded,
-  onChange, onSave, saving, onAdd, onDuplicate, onRemove, onUpload, onRemoveImage, onView,
+  onChange, onSave, saving, savedTrades, dirty, onAdd, onDuplicate, onRemove, onUpload, onRemoveImage, onView,
   onAddToLab, onLink, canUpload, freshTradeId, visionCloudEnabled, onVision, onProjection,
   presets = [], onSavePreset, onDeletePreset,
 }) {
@@ -86,6 +86,9 @@ export default function JournalTradeCards({
   const [savingPresetFor, setSavingPresetFor] = useState(null);
 
   const visibleTrades = entry.trades.filter(trade => tradeMatchesFilter(trade, accountFilter, accounts));
+  const activeTradeIndex = visibleTrades.findIndex(trade => trade.id === expanded);
+  const activeTrade = visibleTrades[activeTradeIndex];
+  const alreadySaved = activeTrade && savedTrades.some(trade => trade.id === activeTrade.id);
   const choices = meta?.strategies || [];
   const markets = Object.keys(meta?.instruments || {});
   const outcomes = [{value: 'win', label: 'Win'}, {value: 'loss', label: 'Loss'}, {value: 'breakeven', label: 'Break-even'}];
@@ -100,7 +103,7 @@ export default function JournalTradeCards({
   }
 
   return <section className="pj-trades" aria-label="Trades taken today">
-    <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{visibleTrades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone === 'Europe/London' ? 'UK time' : meta?.journal_preferences?.timezone === 'Etc/GMT+4' ? 'fixed UTC−4' : 'New York time'}.</p></div><button className="pt-btn pt-btn-dark" type="button" disabled={busy || entry.trades.length >= 30} onClick={onAdd}><Plus size={17}/> Add trade</button></div>
+    <div className="pj-trades-heading"><div><span className="pt-overline">THE TRADES</span><h3>Trades taken today <span>{visibleTrades.length}</span></h3><p>Keep the setup, decision and chart together. Times use {meta?.journal_preferences?.timezone === 'Europe/London' ? 'UK time' : meta?.journal_preferences?.timezone === 'Etc/GMT+4' ? 'fixed UTC−4' : 'New York time'}.</p></div></div>
     {!visibleTrades.length && <div className="pj-trades-empty"><FlaskConical size={24}/><div><strong>{accountFilter == null ? 'What did you trade?' : 'No trades for this filter'}</strong><p>{accountFilter == null ? 'Add the trades you took, or leave this empty for a no-trade day.' : 'Switch the Calendar account filter to Active accounts or All accounts to see other trades.'}</p></div></div>}
     <div className="pj-trade-list">{visibleTrades.map((trade, index) => {
       const open = expanded === trade.id;
@@ -220,13 +223,19 @@ export default function JournalTradeCards({
             <div>{trade.lab_trade_id ? <><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={() => onLink(trade)}>Change link</button></> : <><button type="button" className="pj-link" disabled={busy || multi} onClick={() => onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy || multi || !trade.symbol || !trade.direction || !trade.strategy.trim()} onClick={() => onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div>
           </div>
           <p className="pj-trade-help">{multi ? 'This card records a shared Journal entry. Select one account to link a single Strategy Lab trade.' : trade.lab_trade_id ? 'Edit journal notes here. Open Strategy Lab to update the linked trade’s setup and result.' : 'Add to Strategy Lab to include this trade in your strategy statistics.'}</p>
-          {onSave && <div className="pj-trade-save">
-            <button type="button" className="pt-btn pt-btn-dark" disabled={busy || saving} onClick={onSave}>
-              <Save size={16} aria-hidden="true"/> {saving ? 'Saving…' : 'Save trade'}
-            </button>
-          </div>}
         </div>}
       </article>;
     })}</div>
+    <div className="pj-trade-toolbar" role="group" aria-label="Journal trade actions">
+      {activeTrade && <span className="pj-trade-toolbar-status" role="status">
+        Trade {activeTradeIndex + 1}{saving ? ' · Saving…' : dirty ? ' · Unsaved changes' : alreadySaved ? ' · Saved' : ''}
+      </span>}
+      <button className={`pt-btn${activeTrade ? '' : ' pt-btn-dark'}`} type="button" disabled={busy || saving || entry.trades.length >= 30} onClick={onAdd}>
+        <Plus size={17} aria-hidden="true"/> Add trade
+      </button>
+      {activeTrade && <button type="button" className="pt-btn pt-btn-dark" disabled={busy || saving} onClick={onSave}>
+        <Save size={16} aria-hidden="true"/> {alreadySaved ? 'Save changes' : 'Save trade'}
+      </button>}
+    </div>
   </section>;
 }

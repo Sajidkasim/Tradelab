@@ -890,6 +890,8 @@ export default function JournalPage({theme = 'light'}) {
             onChange={editTrade}
             onSave={save}
             saving={busy || autoSaving}
+            savedTrades={rows.find(row => row.day === entry.day)?.trades || []}
+            dirty={dirty}
             onAdd={addTrade}
             onDuplicate={duplicateTrade}
             onRemove={removeTrade}
