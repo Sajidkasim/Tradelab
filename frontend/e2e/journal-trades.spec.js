@@ -3,6 +3,31 @@ const origin='http://127.0.0.1:8119';
 const day='2026-08-12';
 async function choose(card,label,value){await card.getByRole('combobox',{name:label,exact:true}).click();await card.getByRole('option',{name:value,exact:true}).click()}
 
+test('reopens and saves changes to an existing trade on a past journal day',async({page})=>{
+  await page.addInitScript(() => localStorage.setItem('primus_journal_autosave', 'false'));
+  await page.goto(`${origin}/journal?day=2026-08-17`);
+  await page.getByRole('button',{name:'Add trade',exact:true}).click();
+  const card=page.getByRole('article',{name:'Journal trade 1',exact:true});
+  const notes=card.getByRole('textbox',{name:'Trade notes',exact:true});
+  await notes.fill('Original notes');
+  await card.getByRole('button',{name:'Save trade',exact:true}).click();
+  await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
+  await page.reload();
+
+  await card.getByRole('button',{name:/Edit trade/}).click();
+  await expect(notes).toHaveValue('Original notes');
+  await notes.fill('Amended notes');
+  await card.getByRole('button',{name:'Loss',exact:true}).click();
+  await card.getByRole('button',{name:'Save trade',exact:true}).click();
+  await expect(page.getByText('Entry saved for this local preview.',{exact:true})).toBeVisible();
+  await page.reload();
+
+  await card.getByRole('button',{name:/Edit trade/}).click();
+  await expect(notes).toHaveValue('Amended notes');
+  await expect(card.getByRole('button',{name:'Loss',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('article',{name:/Journal trade/})).toHaveCount(1);
+});
+
 test('daily Journal saves trade cards and charts, marks the calendar, browses history and adds one linked Lab trade',async({page},info)=>{
   await page.goto(`${origin}/journal?day=${day}`);
   await expect(page.getByRole('heading',{name:'12 August 2026',exact:true})).toBeVisible();

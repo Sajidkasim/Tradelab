@@ -3,7 +3,7 @@ import AuraVisionUploader from './AuraVisionUploader';
 import {AccountSelector, tradeAccountIds, tradeMatchesFilter} from './JournalReview';
 import CustomTradeFields from './CustomTradeFields';
 import React, {useRef, useState} from 'react';
-import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical, Copy, BookmarkPlus, X} from 'lucide-react';
+import {Plus, ImagePlus, ArrowUpRight, Trash2, Download, ChevronDown, Link2, FlaskConical, Copy, BookmarkPlus, X, Save} from 'lucide-react';
 import {Select} from './components';
 import VocabularySelect from './VocabularySelect';
 import {money} from './format';
@@ -75,7 +75,7 @@ function TradeMetrics({trade}) {
 
 export default function JournalTradeCards({
   entry, meta, palette, accounts, accountFilter, busy, expanded, setExpanded,
-  onChange, onAdd, onDuplicate, onRemove, onUpload, onRemoveImage, onView,
+  onChange, onSave, saving, onAdd, onDuplicate, onRemove, onUpload, onRemoveImage, onView,
   onAddToLab, onLink, canUpload, freshTradeId, visionCloudEnabled, onVision, onProjection,
   presets = [], onSavePreset, onDeletePreset,
 }) {
@@ -120,6 +120,7 @@ export default function JournalTradeCards({
           {realised != null && <span className={`pj-r-pill ${realised > 0 ? 'win' : realised < 0 ? 'loss' : ''}`}>{realised > 0 ? '+' : ''}{realised.toFixed(2)}R</span>}
           {trade.outcome && trade.outcome !== 'not_recorded' && <span className={`pj-outcome-badge ${trade.outcome}`} style={{'--pj-outcome-tone': trade.outcome === 'win' ? palette?.good : trade.outcome === 'loss' ? palette?.critical : palette?.axis}}>{outcomes.find(item => item.value === trade.outcome)?.label}</span>}
           <span className={`pj-trade-state ${trade.lab_trade_id ? 'linked' : ''}`}>{trade.lab_trade_id ? 'In Strategy Lab' : `${entry.images.filter(i => i.trade_id === trade.id).length} charts`}</span>
+          <span className="pj-trade-edit-label">{open ? 'Collapse' : 'Edit trade'}</span>
           <ChevronDown size={18}/>
         </button>
         <TradeMetrics trade={trade}/>
@@ -218,7 +219,12 @@ export default function JournalTradeCards({
             <button type="button" className="pj-remove" disabled={busy} onClick={() => onRemove(trade.id)}><Trash2 size={15}/> Remove card</button>
             <div>{trade.lab_trade_id ? <><a className="pt-btn" href={`/lab?trade=${trade.lab_trade_id}#trades`}>Open in Lab <ArrowUpRight size={16}/></a><button type="button" className="pj-link" disabled={busy} onClick={() => onLink(trade)}>Change link</button></> : <><button type="button" className="pj-link" disabled={busy || multi} onClick={() => onLink(trade)}><Link2 size={15}/> Link existing trade</button><button type="button" className="pt-btn" disabled={busy || multi || !trade.symbol || !trade.direction || !trade.strategy.trim()} onClick={() => onAddToLab(trade)}><FlaskConical size={16}/> Add to Strategy Lab</button></>}</div>
           </div>
-          <p className="pj-trade-help">{multi ? 'This card records a shared Journal entry. Select one account to link a single Strategy Lab trade.' : trade.lab_trade_id ? 'Linked to your Lab record. Keep personal notes here; edit results and setup labels in the Lab.' : 'Save entry keeps this card in your Journal. Add to Strategy Lab carries your setup, risk and result across for you to check before saving to statistics.'}</p>
+          <p className="pj-trade-help">{multi ? 'This card records a shared Journal entry. Select one account to link a single Strategy Lab trade.' : trade.lab_trade_id ? 'Edit journal notes here. Open Strategy Lab to update the linked trade’s setup and result.' : 'Add to Strategy Lab to include this trade in your strategy statistics.'}</p>
+          {onSave && <div className="pj-trade-save">
+            <button type="button" className="pt-btn pt-btn-dark" disabled={busy || saving} onClick={onSave}>
+              <Save size={16} aria-hidden="true"/> {saving ? 'Saving…' : 'Save trade'}
+            </button>
+          </div>}
         </div>}
       </article>;
     })}</div>

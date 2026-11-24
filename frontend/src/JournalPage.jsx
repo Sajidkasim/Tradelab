@@ -328,6 +328,7 @@ export default function JournalPage({theme = 'light'}) {
   }
 
   async function save() {
+    if (busy || autoSaving) return;
     clearTimeout(autoSaveTimer.current);
     setBusy(true); setError('');
     try {
@@ -350,20 +351,24 @@ export default function JournalPage({theme = 'light'}) {
     );
     if (!hasContent) return;
     const snapshot = entry;
+    let currentSnapshot = true;
     autoSaveTimer.current = setTimeout(async () => {
       setAutoSaving(true);
       try {
         const saved = await api(`/journal/${snapshot.day}`, {method: 'PUT', body: buildBody(snapshot)});
         setRows(old => [...old.filter(item => item.day !== saved.day), normalize(saved)].sort((a, b) => b.day.localeCompare(a.day)));
         setEntry(curr => curr === snapshot ? normalize(saved) : curr);
-        setDirty(currDirty => currDirty && snapshot === entry ? false : currDirty);
+        if (currentSnapshot) setDirty(false);
       } catch {
         // Keep dirty state intact so user can manually retry Save.
       } finally {
         setAutoSaving(false);
       }
     }, 4000);
-    return () => clearTimeout(autoSaveTimer.current);
+    return () => {
+      currentSnapshot = false;
+      clearTimeout(autoSaveTimer.current);
+    };
   }, [entry, dirty, busy, autoSaveEnabled, identity?.authenticated, meta]);
 
   async function upload(file, tradeId = '') {
@@ -793,7 +798,7 @@ export default function JournalPage({theme = 'light'}) {
               <span className="pt-save-state" role="status">
                 {autoSaving ? 'Auto-saving…' : dirty ? 'Unsaved changes' : entry.updated_at ? <><Check size={15}/> Saved</> : 'A fresh page'}
               </span>
-              <button className="pt-btn pt-btn-dark" disabled={busy} onClick={save}><Save size={16}/>{busy ? 'Saving…' : 'Save entry'}</button>
+              <button className="pt-btn pt-btn-dark" disabled={busy || autoSaving} onClick={save}><Save size={16}/>{busy ? 'Saving…' : 'Save entry'}</button>
               <button className="pj-delete-entry" onClick={() => setDeleting(true)} disabled={busy || (!entry.updated_at && !dirty)} aria-label="Delete journal entry"><Trash2 size={17}/></button>
             </div>
           </div>
@@ -883,6 +888,8 @@ export default function JournalPage({theme = 'light'}) {
             expanded={expanded}
             setExpanded={setExpanded}
             onChange={editTrade}
+            onSave={save}
+            saving={busy || autoSaving}
             onAdd={addTrade}
             onDuplicate={duplicateTrade}
             onRemove={removeTrade}
@@ -915,7 +922,7 @@ export default function JournalPage({theme = 'light'}) {
                 <input type="checkbox" checked={autoSaveEnabled} onChange={e => toggleAutoSave(e.target.checked)}/>
                 <span>Auto-save</span>
               </label>
-              <button className="pt-btn pt-btn-dark" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save entry'} <Check size={16}/></button>
+              <button className="pt-btn pt-btn-dark" onClick={save} disabled={busy || autoSaving}>{busy ? 'Saving…' : 'Save entry'} <Check size={16}/></button>
             </div>
           </div>
         </section>
