@@ -8,7 +8,6 @@ import {
   PrimusSunbeams,
   PrimusMonolith,
 } from './components/PrimusAtmosphere';
-import DeskPerspectives, { DESK_MEMBERS } from './components/DeskPerspectives';
 
 describe('Primus living optical system components', () => {
   it('renders PrimusCompass reticle with exact dimensions and acid-lime needle', () => {
@@ -32,7 +31,7 @@ describe('Primus living optical system components', () => {
     expect(beams).toContain('primus-mist-horizon');
   });
 
-  it('renders PrimusMonolith with shape class and trader monogram', () => {
+  it('renders PrimusMonolith with shape class and trader monogram without dead arrow', () => {
     const html = renderToStaticMarkup(
       React.createElement(PrimusMonolith, { shape: 'bevel', initials: 'SA' }),
     );
@@ -40,19 +39,5 @@ describe('Primus living optical system components', () => {
     expect(html).toContain('pt-monogram');
     expect(html).toContain('SA');
     expect(html).not.toContain('↗');
-  });
-
-  it('renders DeskPerspectives with all 5 desk members, default Strategy lens, and live Bullpen badge', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(DeskPerspectives, { livePeople: ['Sajid'] }),
-    );
-    for (const member of DESK_MEMBERS) {
-      expect(html).toContain(`<h3>${member.name}</h3>`);
-    }
-    expect(html).toContain('ONE SESSION · FIVE LENSES');
-    expect(html).toContain('1M MSS VALIDATED');
-    expect(html).toContain('Stack all 5');
-    expect(html).toContain('Test your read');
-    expect(html).toContain('On the floor');
   });
 });

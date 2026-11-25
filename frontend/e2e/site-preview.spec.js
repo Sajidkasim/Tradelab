@@ -55,15 +55,6 @@ test('Primus home shows the actual five traders and responsive private-tool link
   await expect(page.getByText('02 / THE MARKET BRIEFING',{exact:true})).toBeVisible();
   await expect(page.getByText('03 / YOUR WORKSPACE',{exact:true})).toBeVisible();
   for(const name of ['Sajid Kasim','Safwaan Alad','Mubeen Patel','Mustafa Dal','Amir Patel'])await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();
-  await page.getByRole('tab',{name:/Safwaan Alad/}).click();
-  await expect(page.getByText('Which release set the session backdrop?',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Stack all 5',exact:true}).click();
-  await expect(page.getByText('Five minds. One aligned trade.',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Test your read',exact:true}).click();
-  await expect(page.getByText('PAUSED AT 09:33 NY',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Wait for break',exact:true}).click();
-  await expect(page.getByText('Sharp read — patience wins here.',{exact:true})).toBeVisible();
-  await page.getByRole('tab',{name:/Sajid Kasim/}).click();
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

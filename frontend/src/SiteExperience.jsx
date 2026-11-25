@@ -12,8 +12,7 @@ import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
 import PrimusCompass from './components/PrimusCompass';
-import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams } from './components/PrimusAtmosphere';
-import DeskPerspectives, { DESK_MEMBERS } from './components/DeskPerspectives';
+import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
 import './workspace-pages.css';
 import {useIdentity} from './WorkspacePages';
@@ -124,6 +123,14 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} theme={currentTheme} onToggleTheme={toggleTheme} />
   </>;
 }
+
+const traders = [
+  { firstName: 'Sajid', name: 'Sajid Kasim', initials: 'SK', shape: 'ovoid', role: 'Strategy', summary: 'Defines setup rules and confirmation triggers.' },
+  { firstName: 'Safwaan', name: 'Safwaan Alad', initials: 'SA', shape: 'bevel', role: 'Macro', summary: 'Tracks macro releases and market positioning.' },
+  { firstName: 'Mubeen', name: 'Mubeen Patel', initials: 'MP', shape: 'sphere', role: 'Data', summary: 'Tests sample follow-through and expectancy.' },
+  { firstName: 'Mustafa', name: 'Mustafa Dal', initials: 'MD', shape: 'pillar', role: 'Price Action', summary: 'Reads sweeps, absorption wicks, and entry candles.' },
+  { firstName: 'Amir', name: 'Amir Patel', initials: 'AP', shape: 'lens', role: 'Risk', summary: 'Sets invalidation, sizing, and stop discipline.' },
+];
 
 function BacktestingSeamPreview() {
   return (
@@ -309,6 +316,14 @@ function HomePage(){
   function handleHeroLeave() {
     if (heroWindowRef.current) heroWindowRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
   }
+  function handleCardMove(event) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const card = event.currentTarget;
+    const r = card.getBoundingClientRect();
+    card.style.setProperty('--card-mx', `${(((event.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    card.style.setProperty('--card-my', `${(((event.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+  }
+  const livePeople = new Set(bullpen?.people || []);
 
   return <div className="pt-site">
     <PrimusHeader/>
@@ -320,7 +335,7 @@ function HomePage(){
           <h1>Less noise.<br/>More <em>perspective.</em></h1>
           <p>A home for traders who study the market, question their process and learn from the trades behind them.</p>
           <div className="pt-hero-actions"><a className="pt-btn pt-btn-lime" href="/journal">Open your Journal <ArrowUpRight size={19}/></a></div>
-          <a className="pt-meet-link" href="#traders"><span className="pt-avatar-stack">{DESK_MEMBERS.slice(0,4).map(t=><span key={t.initials}>{t.initials}</span>)}</span><span>Meet the minds behind Primus <ArrowDownSmall/></span></a>
+          <a className="pt-meet-link" href="#traders"><span className="pt-avatar-stack">{traders.slice(0,4).map(t=><span key={t.initials}>{t.initials}</span>)}</span><span>Meet the minds behind Primus <ArrowDownSmall/></span></a>
         </div>
         <div className="pt-hero-study">
           <HeroStudy windowRef={heroWindowRef}/>
@@ -333,8 +348,22 @@ function HomePage(){
       <div className="pt-atmosphere-band">
         <PrimusSunbeams />
         <section className="pt-wrap pt-section pt-section-traders" id="traders">
-          <div className="pt-section-heading"><div><h2>Five minds.<br/><em>One direction.</em></h2></div><p>One shared desk, five lenses. Pick any member below to see how each reads the same NQ session.</p></div>
-          <DeskPerspectives livePeople={bullpen?.people || []} />
+          <div className="pt-section-heading"><div><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Different perspectives, one shared desk — and a process that stays your own.</p></div>
+          <div className="pt-traders">
+            {traders.map((t) => (
+              <article key={t.name} className="pt-trader" onMouseMove={handleCardMove}>
+                {livePeople.has(t.firstName) && (
+                  <span className="pt-trader-live">
+                    <span className="primus-live-dot" aria-hidden="true" /> On the floor
+                  </span>
+                )}
+                <PrimusMonolith shape={t.shape} initials={t.initials} />
+                <h3>{t.name}</h3>
+                <span className="pt-role">{t.role}</span>
+                <p>{t.summary}</p>
+              </article>
+            ))}
+          </div>
         </section>
       </div>
       <section className="pt-wrap pt-section" id="briefing">
