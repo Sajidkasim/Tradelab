@@ -432,3 +432,114 @@
   .mx-tour-next,
   .mx-tour-cta { min-height: 42px; }
 }
+
+/* Matrix-themed Market News & Economic Calendar (TradingView) */
+.mx-briefing-card {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mx-briefing-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--mx-border);
+  background: var(--mx-surface);
+}
+.mx-briefing-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--mx-border);
+  background: var(--mx-surface-2);
+}
+.mx-briefing-controls .mx-btn {
+  border-color: transparent;
+  background: transparent;
+  padding: 6px 12px;
+}
+.mx-briefing-controls .mx-btn.is-primary {
+  border-color: var(--mx-accent);
+  background: var(--mx-accent);
+}
+.mx-briefing-frame {
+  padding: 12px 16px 0;
+  background: var(--mx-surface-2);
+}
+.mx-market-widget {
+  position: relative;
+  min-height: 580px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mx-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mx-surface);
+}
+.mx-market-widget iframe {
+  border: 0;
+  width: 100%;
+  min-height: 540px;
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+.mx-widget-loading {
+  position: absolute;
+  inset: 0 0 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--mx-muted);
+  font-size: 12px;
+}
+.mx-widget-source {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 14px;
+  margin-top: auto;
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--mx-border);
+  background: var(--mx-surface-2);
+  color: var(--mx-accent) !important;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.mx-widget-source:hover {
+  text-decoration: underline;
+}
+.mx-briefing-note {
+  padding: 10px 16px 14px;
+  background: var(--mx-surface-2);
+  color: var(--mx-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .mx-briefing-header {
+    padding: 12px;
+  }
+  .mx-briefing-controls {
+    width: 100%;
+  }
+  .mx-briefing-controls .mx-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  .mx-briefing-frame {
+    padding: 10px 10px 0;
+  }
+  .mx-briefing-note {
+    padding: 10px 12px 12px;
+  }
+}

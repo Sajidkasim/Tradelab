@@ -51,9 +51,8 @@ test('Primus home shows the actual five traders and responsive private-tool link
   await page.route('https://s3.tradingview.com/**',route=>route.fulfill({contentType:'application/javascript',body:'document.body.dataset.widgetLoaded="yes";'}));
   await page.goto(origin);
   await expect(page.getByRole('heading',{name:'Less noise. More perspective.',exact:true})).toBeVisible();
-  expect(await page.locator('#briefing').evaluate(el=>el.compareDocumentPosition(document.querySelector('.pt-tools-section'))&Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
-  await expect(page.getByText('02 / THE MARKET BRIEFING',{exact:true})).toBeVisible();
-  await expect(page.getByText('03 / YOUR WORKSPACE',{exact:true})).toBeVisible();
+  expect(await page.locator('#traders').evaluate(el=>el.compareDocumentPosition(document.querySelector('.pt-tools-section'))&Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+  await expect(page.getByText('YOUR WORKSPACE',{exact:true})).toBeVisible();
   for(const name of ['Sajid Kasim','Safwaan Alad','Mubeen Patel','Mustafa Dal','Amir Patel'])await expect(page.getByRole('heading',{name,exact:true})).toBeVisible();
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
@@ -61,10 +60,15 @@ test('Primus home shows the actual five traders and responsive private-tool link
     if(width<521){await page.getByRole('button',{name:'Open navigation',exact:true}).click();await expect(page.getByRole('navigation',{name:'Primus navigation'})).toBeVisible();await page.getByRole('button',{name:'Close navigation',exact:true}).click()}
     await page.screenshot({path:info.outputPath(`primus-home-${width}.png`),fullPage:true});
   }
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('link',{name:'Market news & calendar',exact:true}).click();
+  await expect(page).toHaveURL(/\/matrix\?tab=briefing$/);
+  await expect(page.getByRole('heading',{name:'Market News & Economic Calendar',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Economic calendar',exact:true}).click();
   await expect(page.getByTitle('TradingView economic calendar')).toBeVisible();
   await expect(page.getByRole('link',{name:'Open full economic calendar on TradingView'})).toHaveAttribute('href','https://www.tradingview.com/economic-calendar/');
-  await page.setViewportSize({width:1440,height:1000});
+  await page.screenshot({path:info.outputPath('matrix-briefing-light.png'),fullPage:true});
+  await page.goto(origin);
   await page.getByRole('link',{name:'Open Strategy Lab',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
@@ -112,7 +116,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   expect(await page.locator('.pt-site').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(12, 15, 14)');
-  for(const selector of ['.pt-trader','.pt-section-heading>p','.pt-tool-journal','.pt-widget-source']){
+  for(const selector of ['.pt-trader','.pt-section-heading>p','.pt-tool-journal']){
     await expect.poll(()=>page.locator(selector).first().evaluate(el=>{
       const rgb=s=>(s.match(/[\d.]+/g)||[]).slice(0,3).map(Number);
       const lum=c=>c.map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
@@ -120,10 +124,13 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
       const a=lum(rgb(getComputedStyle(el).color)),b=lum(rgb(getComputedStyle(bg).backgroundColor));return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
     }),{message:`Dark contrast: ${selector}`}).toBeGreaterThanOrEqual(4.5);
   }
-  await page.getByRole('button',{name:'Economic calendar',exact:true}).click();
-  await expect(page.getByTitle('TradingView economic calendar')).toHaveAttribute('srcdoc',/"colorTheme":"dark"/);
   await page.setViewportSize({width:1440,height:1000});
   await page.screenshot({path:info.outputPath('home-dark.png'),fullPage:true});
+  await page.goto(`${origin}/matrix?tab=briefing`);
+  await page.getByRole('button',{name:'Economic calendar',exact:true}).click();
+  await expect(page.getByTitle('TradingView economic calendar')).toHaveAttribute('srcdoc',/"colorTheme":"dark"/);
+  await expect(page.getByTitle('TradingView economic calendar')).toHaveAttribute('srcdoc',/"isTransparent":true/);
+  await page.screenshot({path:info.outputPath('matrix-briefing-dark.png'),fullPage:true});
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');

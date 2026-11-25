@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity, ArrowDownRight, ArrowUpRight, BookOpen, Clock3, Gauge, Layers3, Minus,
   ShieldCheck, RefreshCw, Send, Copy, Check, CalendarClock, Flame,
-  BarChart3, AlertTriangle, Compass, Zap,
+  BarChart3, AlertTriangle, Compass, Zap, Newspaper,
 } from 'lucide-react';
 import { PrimusHeader, localSitePreview } from './SiteExperience';
 import PrimusCompass from './components/PrimusCompass';
 import { PrimusLightSeam } from './components/PrimusAtmosphere';
+import TradingViewWidget from './TradingViewWidget';
 import { api } from './api';
 import { matrixFreshness } from './matrixFreshness';
 import { useBullpen } from './hooks/usePresence';
@@ -302,7 +303,9 @@ const MATRIX_TOUR_STEPS = [
   },
 ];
 
-export default function MatrixPage() {
+const VALID_MATRIX_TABS = new Set(['overview', 'positioning', 'calendar', 'briefing']);
+
+export default function MatrixPage({ theme }) {
   const bullpen = useBullpen();
   const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState('loading');
@@ -312,11 +315,20 @@ export default function MatrixPage() {
   const [refreshingLive, setRefreshingLive] = useState(false);
   const [refreshNote, setRefreshNote] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('nq');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'positioning' | 'calendar'
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const param = new URLSearchParams(window.location.search).get('tab');
+      return VALID_MATRIX_TABS.has(param) ? param : 'overview';
+    } catch {
+      return 'overview';
+    }
+  }); // 'overview' | 'positioning' | 'calendar' | 'briefing'
+  const [briefingKind, setBriefingKind] = useState('news'); // 'news' | 'calendar'
   const [calFilter, setCalFilter] = useState('week'); // 'today' | 'week' | 'all'
   const [briefState, setBriefState] = useState(''); // '' | 'sent' | 'copied'
   const [journalState, setJournalState] = useState(''); // '' | 'saving' | 'saved' | 'error'
   const [showGuide, setShowGuide] = useState(false);
+  const resolvedTheme = theme || (typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 
   useEffect(() => {
     document.title = 'The Matrix — PrimusTrader';
@@ -648,6 +660,7 @@ export default function MatrixPage() {
               { id: 'overview', label: 'Overview & Bias' },
               { id: 'positioning', label: 'Positioning & Liquidity' },
               { id: 'calendar', label: 'Catalyst Calendar', count: allCalendarRows.length },
+              { id: 'briefing', label: 'Market News & Calendar' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1107,6 +1120,49 @@ export default function MatrixPage() {
                 <a className="mx-link" href="https://www.bea.gov/news/schedule" target="_blank" rel="noopener noreferrer">BEA · GDP &amp; PCE ↗</a>
                 <a className="mx-link" href="https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" target="_blank" rel="noopener noreferrer">Federal Reserve · FOMC ↗</a>
               </div>
+            </section>
+          )}
+
+          {/* TAB 4: Market News & Calendar (TradingView, Matrix-themed) */}
+          {activeTab === 'briefing' && (
+            <section className="mx-card mx-briefing-card" role="tabpanel" aria-label="Market news and economic calendar">
+              <header className="mx-briefing-header">
+                <div className="tw:flex tw:items-center tw:gap-2">
+                  <Newspaper size={16} className="mx-pos" aria-hidden="true" />
+                  <div>
+                    <h2 className="tw:text-sm tw:font-semibold">Market News &amp; Economic Calendar</h2>
+                    <p className="tw:text-xs mx-muted">Live market headlines and scheduled US, UK &amp; EU economic releases via TradingView</p>
+                  </div>
+                </div>
+                <div className="mx-briefing-controls" role="group" aria-label="Market briefing">
+                  {[
+                    ['news', 'Market news'],
+                    ['calendar', 'Economic calendar'],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`mx-btn ${briefingKind === id ? 'is-primary' : ''}`}
+                      aria-pressed={briefingKind === id}
+                      onClick={() => setBriefingKind(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </header>
+              <div className="mx-briefing-frame">
+                <TradingViewWidget
+                  key={`${briefingKind}-${resolvedTheme}`}
+                  kind={briefingKind}
+                  theme={resolvedTheme}
+                  variant="matrix"
+                  height={540}
+                />
+              </div>
+              <p className="mx-briefing-note">
+                Check event times in the calendar. Headlines and market data are provided by TradingView and may be delayed.
+              </p>
             </section>
           )}
 

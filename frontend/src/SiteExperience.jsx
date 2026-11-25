@@ -10,7 +10,6 @@ import PrimusSignIn from './PrimusSignIn';
 import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
-import TradingViewWidget from './TradingViewWidget';
 import PrimusCompass from './components/PrimusCompass';
 import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
@@ -280,9 +279,7 @@ function HeroStudy({ windowRef }){
 }
 
 function HomePage(){
-  const {theme} = useContext(SiteThemeContext);
   const bullpen = useBullpen();
-  const [marketTab,setMarketTab]=useState('news');
   const heroRef = useRef(null);
   const heroWindowRef = useRef(null);
   useEffect(()=>{
@@ -343,7 +340,7 @@ function HomePage(){
         </div>
       </section>
       <PrimusLightSeam />
-      <div className="pt-clock-strip"><div className="pt-wrap"><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><a href="#briefing">Your market briefing <ChevronDown size={14}/></a></div></div>
+      <div className="pt-clock-strip"><div className="pt-wrap"><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><a href="/matrix?tab=briefing">Market news &amp; calendar <ArrowUpRight size={13}/></a></div></div>
       <WorkspaceResume/>
       <div className="pt-atmosphere-band">
         <PrimusSunbeams />
@@ -366,12 +363,8 @@ function HomePage(){
           </div>
         </section>
       </div>
-      <section className="pt-wrap pt-section" id="briefing">
-        <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">02</span><span className="pt-overline">02 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>
-        <div className="pt-briefing"><div className="pt-briefing-sidebar"><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><div className="pt-widget-frame"><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div></div>
-      </section>
       <section className="pt-tools-section"><div className="pt-wrap pt-section">
-        <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">03</span><span className="pt-overline">03 / YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Backtesting lets you practise the setup in replay.</p></div>
+        <div className="pt-section-heading"><div><span className="pt-overline">YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Backtesting lets you practise the setup in replay.</p></div>
         <div className="pt-tools">
           <a className="pt-tool pt-tool-journal" href="/journal"><div className="pt-tool-top"><NotebookPen size={24}/><span>THE DAILY PRACTICE</span><ArrowUpRight/></div><h3>Your trades have<br/>a story. <em>Keep it.</em></h3><p>Plan your session. Add your screenshots. Write down the lesson while it’s still fresh.</p><div className="pt-paper-preview"><span>SESSION NOTES / A PREVIEW</span><strong>What did the market teach you?</strong><div className="pt-paper-line"><span aria-hidden="true">Wait for the level. Then the reaction.</span></div><div className="pt-paper-rule"/><span className="pt-paper-tag">Plan → Trade → Reflect <NotebookPen size={12}/></span></div><span className="pt-tool-bottom">Open Journal <ArrowRight size={18}/></span></a>
           <a className="pt-tool pt-tool-lab" href="/lab"><PrimusTopoField variant="card" /><div className="pt-tool-top"><FlaskConical size={24}/><span>THE RESEARCH PROCESS</span><ArrowUpRight/></div><h3>An idea is a start.<br/><em>Test the setup.</em></h3><p>Explore strategies, levels and confirmations. Let your own recorded results shape the questions.</p><div className="pt-lab-preview"><span>STRATEGY → LEVEL → CONFIRMATION</span><MarketDrawing/><div className="pt-preview-tags" aria-hidden="true"><span>Key level</span><span>Confirmation</span><span>Review</span></div></div><span className="pt-tool-bottom">Enter Strategy Lab <ArrowRight size={18}/></span></a>
@@ -389,5 +382,5 @@ function ArrowDownSmall(){return <ChevronDown size={13}/>}
 export default function SiteExperience({ pathname = location.pathname } = {}){
   const [theme,setTheme]=useState(()=>localStorage.getItem('primus-theme')==='dark'?'dark':'light');
   useEffect(()=>{document.documentElement.dataset.theme=theme;delete document.documentElement.dataset.appearance;localStorage.setItem('primus-theme',theme)},[theme]);
-  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{pathname==='/signin'?<PrimusSignIn/>:['/learn','/mindset','/matrix'].includes(pathname)?<Suspense fallback={pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{pathname==='/learn'?<LearnPage/>:pathname==='/matrix'?<MatrixPage/>:<MindsetPage/>}</Suspense>:pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:pathname.startsWith('/journal')?<Suspense fallback={<div className="loading-screen">Opening your Journal…</div>}><JournalPage theme={theme}/></Suspense>:<HomePage/>}</SiteThemeContext.Provider>;
+  return <SiteThemeContext.Provider value={{theme,toggle:()=>setTheme(value=>value==='dark'?'light':'dark')}}>{pathname==='/signin'?<PrimusSignIn/>:['/learn','/mindset','/matrix'].includes(pathname)?<Suspense fallback={pathname==='/matrix'?<MatrixLoading/>:<div className="loading-screen">Opening your workspace…</div>}>{pathname==='/learn'?<LearnPage/>:pathname==='/matrix'?<MatrixPage theme={theme}/>:<MindsetPage/>}</Suspense>:pathname==='/backtesting'?<Suspense fallback={<div className="loading-screen">Loading chart…</div>}><BacktestingPage theme={theme} onThemeToggle={()=>setTheme(value=>value==='dark'?'light':'dark')}/></Suspense>:pathname.startsWith('/journal')?<Suspense fallback={<div className="loading-screen">Opening your Journal…</div>}><JournalPage theme={theme}/></Suspense>:<HomePage/>}</SiteThemeContext.Provider>;
 }
