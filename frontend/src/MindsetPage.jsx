@@ -578,8 +578,17 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
       soundMode={soundMode}
       onSoundMode={changeSoundMode}
     />
+    {state && (
+      <nav className="mw-section-ribbon" aria-label="Mindset sections">
+        <a href="#mw-prep-section">Checklist &amp; Aura</a>
+        <a href="#mw-brief-title">Primax &amp; Mirror</a>
+        <a href="#daily-habits">Daily Habits</a>
+        <a href="#mw-anchor-section">Anchor &amp; Library</a>
+        <a href="#mw-brain-section">3D Brain</a>
+      </nav>
+    )}
     {state && <ReadinessStrip state={state} onChange={save} onTiltReset={() => {setOpenStep(null); setTiltResetOpen(true);}}/>}
-    {state && <div className="mw-prep-grid">
+    {state && <div id="mw-prep-section" className="mw-prep-grid">
       <CompoundEdge/>
       <RoutineChecklist key={state.day} state={state} status={saveStatus} onSave={save}
         onEdit={changes => setState(current => ({...current, ...changes}))}/>
@@ -618,12 +627,14 @@ export default function MindsetPage() {
       : <WarmUpHero soundMode="off" onSoundMode={() => {}}/>}
     {error && <Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity && !error && <p role="status">Checking your private workspace…</p>}
-    <div className="mw-board-grid">
+    <div id="mw-anchor-section" className="mw-board-grid">
       {identity?.authenticated
         ? <VisionBoard imagesEnabled={identity.images_enabled} onPinnedChange={goal => setGoalSelection({identity, goal})}/>
         : identity && <SignInPanel identity={identity} path="/mindset" reload={reload} title="Sign in for your morning prep and vision board"/>}
       <ResourceLibrary section="mindset" identity={identity}/>
     </div>
-    <Suspense fallback={<p role="status">Opening Brain Explorer…</p>}><BrainExplorer/></Suspense>
+    <div id="mw-brain-section">
+      <Suspense fallback={<p role="status">Opening Brain Explorer…</p>}><BrainExplorer/></Suspense>
+    </div>
   </WorkspacePage>;
 }

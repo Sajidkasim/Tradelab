@@ -11,6 +11,7 @@ import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
 import PrimusCompass from './components/PrimusCompass';
+import WorkspaceRail from './components/WorkspaceRail';
 import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
 import './workspace-pages.css';
@@ -79,7 +80,9 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     catch { location.assign('/lab'); }
   }
 
+  const replayEnabled = Boolean(localSitePreview() || document.querySelector('meta[name="primus-replay-enabled"]'));
   const showMobileDock = active !== 'home' && active !== 'backtesting';
+  const showDesktopRail = active !== 'home';
 
   return <>
     <header className={`pt-header ${actions ? 'has-tools' : ''}`}>
@@ -90,7 +93,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
         <a className="pt-nav-primary" href="/lab" aria-current={active === 'lab' ? 'page' : undefined}>Strategy Lab</a>
         <hr className="pt-mobile-nav-divider" />
         <a href="/mindset" aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
-        {(localSitePreview() || document.querySelector('meta[name="primus-replay-enabled"]')) && <a href="/backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
+        {replayEnabled && <a href="/backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
         <a href="/learn" aria-current={active === 'learn' ? 'page' : undefined}>
           Learn {Boolean(bullpen?.people.length) && <span className="bullpen-live"><span className="primus-live-dot" aria-hidden="true" /> LIVE · {bullpen.people.length}</span>}
         </a>
@@ -108,6 +111,16 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
         </div>
       )}
     </header>
+    {showDesktopRail && (
+      <WorkspaceRail
+        active={active}
+        replayEnabled={replayEnabled}
+        bullpenCount={bullpen?.people?.length || 0}
+        theme={currentTheme}
+        onToggleTheme={toggleTheme}
+        onOpenCommand={() => setCmdOpen(true)}
+      />
+    )}
     <LearningTrail />
     {showMobileDock && (
       <nav className="primus-mobile-dock" aria-label="Mobile workspace bar">

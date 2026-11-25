@@ -1,0 +1,783 @@
+/* ============================================================================
+   PRIMUS STUDIO ARCHITECTURE — Unified Across All Pages
+   Preserves Primus Signature Obsidian Dark (#0c0f0e / #131816 / #c8f169) &
+   Editorial Paper Light (#f7f7f2 / #ffffff / #101513) while upgrading spatial
+   rhythm, slim desktop workspace rail, de-boxed Strategy Lab Filter Studio &
+   institutional KPI ledger, Mindset Desk cadence, Journal/Matrix/Learn polish,
+   and crisp focus/press physics on every control.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------------------
+   1. UNIVERSAL FOCUS RINGS, BUTTON PHYSICS & ARCHITECTURAL MOTION
+   --------------------------------------------------------------------------- */
+:root body :is(
+  button,
+  a,
+  summary,
+  [role="tab"],
+  [role="button"],
+  input,
+  select,
+  textarea
+):focus-visible {
+  outline: 2px solid var(--primus-accent-text);
+  outline-offset: 2px;
+}
+:root[data-theme="dark"] body :is(
+  button,
+  a,
+  summary,
+  [role="tab"],
+  [role="button"],
+  input,
+  select,
+  textarea
+):focus-visible {
+  outline-color: var(--primus-accent);
+}
+
+:root body :is(
+  .button,
+  .mx-btn,
+  .lab-filter-toggle,
+  .lab-strategy-pill,
+  .mw-section-ribbon a,
+  .learn-hub-jumps a,
+  .primus-rail-item
+):active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@keyframes primus-studio-lift {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Subtle diagonal tick backdrop (inspired by institutional matte desks) */
+.primus-ticks-surface {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+   2. SLIM 58px FLOATING DESKTOP WORKSPACE RAIL (Every Workspace Page)
+   --------------------------------------------------------------------------- */
+.primus-rail {
+  display: none;
+}
+
+@media (min-width: 1240px) {
+  .primus-rail {
+    position: fixed;
+    top: 70px;
+    left: 0;
+    bottom: 0;
+    width: 60px;
+    z-index: 34;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 0 20px;
+    background: var(--primus-surface);
+    border-right: 1px solid var(--primus-border);
+    transition: background-color 220ms ease, border-color 220ms ease;
+  }
+
+  :root[data-theme="dark"] .primus-rail {
+    background: #0d1110;
+    border-right-color: var(--primus-rail-border);
+  }
+
+  /* Keep full-screen Backtesting replay charts and active Bullpen calls 100% edge-to-edge */
+  body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .primus-rail {
+    display: none;
+  }
+
+  .primus-rail-group,
+  .primus-rail-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .primus-rail-footer {
+    padding-top: 12px;
+    border-top: 1px solid var(--primus-border);
+  }
+
+  .primus-rail-item {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--primus-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+  }
+
+  .primus-rail-item:hover {
+    color: var(--primus-ink);
+    background: var(--primus-surface-2);
+    border-color: var(--primus-border);
+  }
+
+  .primus-rail-item.is-active {
+    color: var(--primus-ink);
+    background: var(--primus-surface-2);
+    border-color: var(--primus-border-strong);
+  }
+
+  :root[data-theme="dark"] .primus-rail-item.is-active {
+    color: var(--primus-accent);
+  }
+
+  .primus-rail-item.is-active::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    width: 3px;
+    height: 20px;
+    border-radius: 0 4px 4px 0;
+    background: var(--primus-accent-text);
+  }
+
+  :root[data-theme="dark"] .primus-rail-item.is-active::before {
+    background: var(--primus-accent);
+    box-shadow: 0 0 10px rgba(200, 241, 105, 0.35);
+  }
+
+  .primus-rail-live-dot {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--primus-pos);
+    box-shadow: 0 0 0 2px var(--primus-surface);
+  }
+
+  :root[data-theme="dark"] .primus-rail-live-dot {
+    box-shadow: 0 0 0 2px #0d1110;
+  }
+
+  .primus-rail-tip {
+    position: absolute;
+    left: 50px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: var(--primus-surface);
+    border: 1px solid var(--primus-border-strong);
+    color: var(--primus-ink);
+    font-family: var(--primus-font-sans);
+    font-size: 12px;
+    font-weight: 550;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 150ms ease, transform 150ms ease;
+    box-shadow: var(--primus-shadow-lift);
+    z-index: 60;
+  }
+
+  .primus-rail-item:hover .primus-rail-tip,
+  .primus-rail-item:focus-visible .primus-rail-tip {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Gentle breathing offset on workspace shells when desktop rail is active */
+  body:has(.primus-rail):not(:has(.bt-layout)) .pt-lab .main-shell,
+  body:has(.primus-rail):not(:has(.bt-layout)) .workspace-page .wp-main,
+  body:has(.primus-rail):not(:has(.bt-layout)) .pj-workspace,
+  body:has(.primus-rail):not(:has(.bt-layout)) .matrix-terminal,
+  body:has(.primus-rail):not(:has(.bt-layout)) .bt-session-site .bt-sessions-page {
+    padding-left: 60px;
+    box-sizing: border-box;
+  }
+
+  body:has(.primus-rail) .pt-lab .content {
+    width: min(1320px, calc(100% - 64px));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   3. STRATEGY LAB (/lab) — De-Boxed Filter Studio + Institutional KPI Ledger
+   --------------------------------------------------------------------------- */
+.lab-studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lab-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--primus-border-strong);
+  background: var(--primus-surface);
+  color: var(--primus-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 140ms ease;
+}
+
+.lab-filter-toggle:hover {
+  border-color: var(--primus-accent-text);
+  background: var(--primus-surface-2);
+}
+
+:root[data-theme="dark"] .lab-filter-toggle:hover {
+  border-color: var(--primus-accent);
+}
+
+.lab-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+
+/* Whisper-quiet Quick Strategy Pill Ribbon */
+.lab-strategy-ribbon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--primus-border);
+}
+
+.lab-strategy-pill {
+  padding: 6px 13px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--primus-border);
+  background: transparent;
+  color: var(--primus-ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, transform 130ms ease;
+}
+
+.lab-strategy-pill:hover {
+  border-color: var(--primus-border-strong);
+  color: var(--primus-ink);
+  background: var(--primus-surface-2);
+}
+
+.lab-strategy-pill.is-active {
+  background: var(--primus-rail);
+  border-color: var(--primus-rail);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+:root[data-theme="dark"] .lab-strategy-pill.is-active {
+  background: var(--primus-accent);
+  border-color: var(--primus-accent);
+  color: var(--primus-accent-ink);
+}
+
+/* Collapsible Focus Canvas Grid */
+.results-grid.lab-grid.is-filters-collapsed {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+/* De-boxed Architectural Explorer Sidebar */
+:root .pt-lab .lab-grid .card,
+:root .pt-lab .lab-grid .stat,
+:root .pt-lab .lab-grid .history-card,
+:root .pt-lab .lab-grid .explorer,
+:root .pt-lab .journal-card,
+:root .pt-lab .modal,
+:root .pt-lab .notice {
+  border-radius: 14px;
+}
+
+:root .pt-lab .lab-grid .explorer {
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  padding: 18px 18px 20px;
+}
+
+:root[data-theme="dark"] .pt-lab .lab-grid .explorer {
+  background: rgba(19, 24, 22, 0.78);
+  border-color: var(--primus-border);
+}
+
+:root .pt-lab #results > .toolbar .segments {
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+}
+
+:root .pt-lab #results > .toolbar .segments button {
+  border-radius: 999px;
+  padding: 7px 16px;
+  min-height: 34px;
+  font-size: 12.5px;
+  font-weight: 550;
+}
+
+:root .pt-lab .lab-grid .explorer .segments {
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--primus-surface-2);
+  border: 1px solid var(--primus-border);
+}
+
+:root .pt-lab .lab-grid .explorer .segments button {
+  border-radius: 999px;
+  min-height: 30px;
+}
+
+:root .pt-lab .lab-grid .explorer .checks label {
+  border-radius: 999px;
+  padding: 5px 11px;
+  min-height: 30px;
+  border-color: var(--primus-border);
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+:root .pt-lab .lab-grid .explorer .checks label.checked {
+  background: var(--primus-accent-soft);
+  border-color: var(--primus-accent-text);
+  color: var(--primus-ink);
+}
+
+:root[data-theme="dark"] .pt-lab .lab-grid .explorer .checks label.checked {
+  border-color: var(--primus-accent);
+  color: var(--primus-accent);
+}
+
+:root .pt-lab .lab-grid .explorer .disclosure {
+  border-top: 1px solid var(--primus-border);
+  padding-top: 12px;
+}
+
+/* History Card — Subtle Institutional Matte Surface with Diagonal Tick Sheen */
+:root .pt-lab .lab-grid .history-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  padding: 24px 24px 16px;
+}
+
+:root .pt-lab .lab-grid .history-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 34L34 22' stroke='%238a9790' stroke-opacity='0.11' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: radial-gradient(ellipse 68% 54% at 88% 12%, black 5%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 68% 54% at 88% 12%, black 5%, transparent 72%);
+}
+
+:root .pt-lab .lab-grid .history-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+:root .pt-lab .history-source {
+  border-radius: 999px;
+  padding: 4px 11px;
+  background: var(--primus-surface-2);
+  border: 1px solid var(--primus-border);
+  color: var(--primus-ink-2);
+  font-weight: 550;
+}
+
+/* Refined Headline Stats Strip (Zero Chunky Boxes) */
+:root .pt-lab .lab-grid .stats {
+  gap: 12px;
+}
+
+:root .pt-lab .lab-grid .stat {
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  padding: 18px 20px;
+  transition: border-color 180ms ease;
+}
+
+:root .pt-lab .lab-grid .stat:hover {
+  border-color: var(--primus-border-strong);
+}
+
+:root .pt-lab .lab-grid .stat:first-child {
+  background: var(--primus-surface);
+}
+
+:root .pt-lab .lab-grid .stat strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+/* AlphaLedger-Inspired Key Performance Metrics Institutional Ledger */
+.lab-kpi-ledger {
+  margin-top: 14px;
+  padding: 20px 22px;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  border-radius: 14px;
+  transition: border-color 180ms ease, opacity 180ms ease;
+}
+
+.lab-kpi-ledger.updating {
+  opacity: 0.65;
+}
+
+.lab-kpi-ledger:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.lab-kpi-ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--primus-border);
+}
+
+.lab-kpi-ledger-head h3 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--primus-ink);
+}
+
+.lab-kpi-ledger-sub {
+  font-family: var(--primus-font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--primus-muted);
+}
+
+.lab-kpi-ledger-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 28px;
+}
+
+.lab-ledger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  transition: background-color 150ms ease;
+}
+
+.lab-ledger-row:hover {
+  background: var(--primus-surface-2);
+}
+
+.lab-ledger-row > span {
+  font-size: 13px;
+  color: var(--primus-ink-2);
+}
+
+.lab-val-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 64px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-family: var(--primus-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--primus-surface-2);
+  color: var(--primus-ink);
+}
+
+.lab-val-chip.is-pos {
+  background: var(--primus-pos-bg);
+  color: var(--primus-pos);
+}
+
+.lab-val-chip.is-neg {
+  background: var(--primus-neg-bg);
+  color: var(--primus-neg);
+}
+
+@media (max-width: 680px) {
+  .lab-kpi-ledger-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+/* Filter chips & Trades review toolbar refined to matte pills */
+:root .pt-lab .active-filters button,
+:root .pt-lab .filter-chip {
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+:root .pt-lab .trade-review-toolbar .segments,
+:root .pt-lab .trade-review-toolbar .segments button,
+:root .pt-lab .review-pill {
+  border-radius: 999px;
+}
+
+:root .pt-lab .trade-table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+:root .pt-lab .trade-table tbody tr:hover {
+  background: var(--primus-surface-2);
+}
+
+/* ---------------------------------------------------------------------------
+   4. MINDSET DESK (/mindset) — Calm Editorial Rhythm & Hairline Mirror Ledger
+   --------------------------------------------------------------------------- */
+.mw-section-ribbon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0 12px;
+  border-bottom: 1px solid var(--primus-border);
+}
+
+.mw-section-ribbon a {
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--primus-border);
+  background: var(--primus-surface);
+  color: var(--primus-ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+.mw-section-ribbon a:hover {
+  border-color: var(--primus-border-strong);
+  color: var(--primus-ink);
+  background: var(--primus-surface-2);
+}
+
+:root[data-theme="dark"] .mw-section-ribbon a:hover {
+  border-color: var(--primus-accent);
+  color: var(--primus-accent);
+}
+
+.mw-hero {
+  border-radius: 18px;
+  border-color: var(--primus-border);
+  background: var(--primus-surface);
+}
+
+:root[data-theme="dark"] .mw-hero {
+  background: linear-gradient(145deg, #151c19 0%, #101513 100%);
+  border-color: var(--primus-border);
+}
+
+.mw-hero-preview {
+  border-radius: 14px;
+  border-color: var(--primus-border);
+  background: var(--primus-surface-2);
+  box-shadow: var(--primus-shadow-card);
+}
+
+.mw-preview-options button {
+  border-radius: 999px;
+  font-weight: 550;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.mw-readiness-strip {
+  border-radius: 14px;
+  border-color: var(--primus-border);
+  background: var(--primus-surface);
+}
+
+.mw-card.wp-panel {
+  border-radius: 16px;
+  border-color: var(--primus-border);
+}
+
+.mw-checklist label {
+  border-radius: 11px;
+  border-color: transparent;
+  background: var(--primus-surface-2);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.mw-checklist label:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.mw-mirror-box {
+  border-radius: 12px;
+  border-color: var(--primus-border);
+  background: var(--primus-surface-2);
+  transition: border-color 160ms ease;
+}
+
+.mw-mirror-box:hover {
+  border-color: var(--primus-border-strong);
+}
+
+/* ---------------------------------------------------------------------------
+   5. DAILY JOURNAL (/journal) — Calm Matte Surfaces & Tactile Mode Switch
+   --------------------------------------------------------------------------- */
+.pj-view-switch {
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.pj-view-switch [role="tab"] {
+  border-radius: 999px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.pj-voice-btn {
+  border-radius: 999px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.pj-trade-card {
+  border-radius: 12px;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.pj-trade-card:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.pt-day-editor {
+  border-radius: 16px;
+}
+
+/* ---------------------------------------------------------------------------
+   6. THE MATRIX (/matrix) — Institutional Obsidian Polish
+   --------------------------------------------------------------------------- */
+.mx-card {
+  border-radius: 16px;
+  border-color: var(--primus-border);
+}
+
+.mx-card:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.mx-decision-strip {
+  position: relative;
+  overflow: hidden;
+}
+
+.mx-decision-strip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.48;
+  background-image: url("data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 34L34 22' stroke='%238a9790' stroke-opacity='0.11' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: radial-gradient(ellipse 64% 80% at 82% 50%, black 10%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 64% 80% at 82% 50%, black 10%, transparent 78%);
+}
+
+.mx-decision-strip > * {
+  position: relative;
+  z-index: 1;
+}
+
+.mx-tabs {
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.mx-tabs button[role="tab"] {
+  border-radius: 999px;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+/* ---------------------------------------------------------------------------
+   7. LEARN & BULLPEN (/learn) + BACKTESTING HUB (/backtesting)
+   --------------------------------------------------------------------------- */
+.learn-bullpen-hero {
+  border-radius: 18px;
+}
+
+.learn-hub-jumps a {
+  border-radius: 999px;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.learn-next-card,
+.wp-panel,
+.wp-resource,
+.wp-goal {
+  border-radius: 14px;
+}
+
+.learn-next-card:hover {
+  border-color: var(--primus-border-strong);
+  transform: translateY(-2px);
+}
+
+/* Backtesting Session Hub cards (never touches @luxalgo/vela chart canvas or drawing tools) */
+.bt-session-card {
+  border-radius: 14px;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.bt-session-card:hover {
+  border-color: var(--primus-border-strong);
+}
+
+/* ---------------------------------------------------------------------------
+   8. REDUCED MOTION COMPLIANCE
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .primus-rail-item,
+  .primus-rail-tip,
+  .lab-filter-toggle,
+  .lab-strategy-pill,
+  .learn-next-card,
+  .bt-session-card,
+  .pj-trade-card {
+    transition: none !important;
+    transform: none !important;
+  }
+}

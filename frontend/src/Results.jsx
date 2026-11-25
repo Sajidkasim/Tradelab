@@ -1,6 +1,6 @@
 import { useJournalClock } from "./JournalClock";
 import React, { useEffect, useState } from "react";
-import { RotateCcw, ArrowUpRight } from "lucide-react";
+import { RotateCcw, ArrowUpRight, SlidersHorizontal } from "lucide-react";
 import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import CustomTradeFields from "./CustomTradeFields";
@@ -65,7 +65,8 @@ export default function Results({
   const { timezone: journalZone, clockName } = useJournalClock();
   const [setupFilters, setFilters] = useState(initial),
     [detail, setDetail] = useState(false),
-    [comparison, setComparison] = useState("setup_name");
+    [comparison, setComparison] = useState("setup_name"),
+    [filtersOpen, setFiltersOpen] = useState(true);
   const [data, setData] = useState(null),
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
@@ -78,6 +79,12 @@ export default function Results({
     }),
     [setupFilters, scope, meta.custom_trade_fields],
   );
+  const activeFilterCount = React.useMemo(() => {
+    const keys = ["strategy", "direction", "level", "timeframe", "entry_timeframe", "target_rr", "weekday", "news", "condition", "window", "symbol", "start", "end"];
+    const base = keys.filter((key) => filters[key] !== initial[key]).length;
+    const custom = Object.values(filters.custom_fields || {}).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+    return base + filters.confirmations.length + custom;
+  }, [filters]);
   useEffect(() => {
     setFilters((current) => {
       const next = { ...current };
@@ -168,6 +175,7 @@ export default function Results({
       ...(meta.result_options?.[field] || []),
     ]),
   ];
+  const quickStrategies = (meta.strategies || []).slice(0, 6);
   return (
     <>
       <div className="lab-section-heading">
@@ -175,7 +183,7 @@ export default function Results({
           <h2 className="section-heading">Results</h2>
         </div>
       </div>
-      <div className="toolbar">
+      <div className="toolbar lab-studio-toolbar">
         <Segments
           values={[
             "All",
@@ -186,9 +194,46 @@ export default function Results({
           onChange={setScope}
           label="Data source"
         />
+        <button
+          type="button"
+          className={`lab-filter-toggle${filtersOpen ? " is-open" : ""}`}
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          <span>{filtersOpen ? "Hide filters" : "Show filters"}</span>
+          {activeFilterCount > 0 && (
+            <span className="lab-filter-count" aria-label={`${activeFilterCount} active filters`}>
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
-      <div className="results-grid exploring lab-grid">
-        <aside className="explorer card">
+      {quickStrategies.length > 0 && (
+        <div className="lab-strategy-ribbon" role="group" aria-label="Quick strategy switch">
+          <button
+            type="button"
+            className={`lab-strategy-pill${filters.strategy === "All strategies" ? " is-active" : ""}`}
+            aria-pressed={filters.strategy === "All strategies"}
+            onClick={() => change("strategy", "All strategies")}
+          >
+            All setups
+          </button>
+          {quickStrategies.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`lab-strategy-pill${filters.strategy === name ? " is-active" : ""}`}
+              aria-pressed={filters.strategy === name}
+              onClick={() => change("strategy", name)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={`results-grid exploring lab-grid${filtersOpen ? "" : " is-filters-collapsed"}`}>
+        <aside className="explorer card" hidden={!filtersOpen}>
           <div className="section-title">
             <div>
               <h2>Explore a strategy</h2>
@@ -556,6 +601,66 @@ function ResultSample({
           caption="Closed trades"
         />
       </div>
+      {s && s.trades > 0 && (
+        <div className={`card lab-kpi-ledger ${busy ? "updating" : ""}`} aria-label="Key performance metrics">
+          <div className="lab-kpi-ledger-head">
+            <h3>Key performance metrics</h3>
+            <span className="lab-kpi-ledger-sub">
+              {s.wins}W · {s.losses}L · {s.scratches}BE
+            </span>
+          </div>
+          <div className="lab-kpi-ledger-grid">
+            <div className="lab-ledger-row">
+              <span>Profit factor</span>
+              <strong className={`lab-val-chip ${s.profit_factor >= 1.5 ? "is-pos" : s.profit_factor != null && s.profit_factor < 1 ? "is-neg" : ""}`}>
+                {s.profit_factor != null ? number(s.profit_factor) : "—"}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Max drawdown</span>
+              <strong className={`lab-val-chip ${s.max_drawdown !== 0 ? "is-neg" : ""}`}>
+                {s.max_drawdown > 0 ? money(-s.max_drawdown) : money(s.max_drawdown)}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Expectancy / trade</span>
+              <strong className={`lab-val-chip ${s.expectancy > 0 ? "is-pos" : s.expectancy < 0 ? "is-neg" : ""}`}>
+                {s.expectancy != null ? money(s.expectancy) : "—"}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Payoff ratio</span>
+              <strong className={`lab-val-chip ${s.payoff_ratio >= 1.5 ? "is-pos" : ""}`}>
+                {s.payoff_ratio != null ? `${number(s.payoff_ratio)}×` : "—"}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Sharpe ratio</span>
+              <strong className={`lab-val-chip ${s.sharpe >= 1.5 ? "is-pos" : s.sharpe != null && s.sharpe < 0 ? "is-neg" : ""}`}>
+                {s.sharpe != null ? number(s.sharpe) : "—"}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Sortino ratio</span>
+              <strong className={`lab-val-chip ${s.sortino >= 1.5 ? "is-pos" : s.sortino != null && s.sortino < 0 ? "is-neg" : ""}`}>
+                {s.sortino != null ? number(s.sortino) : "—"}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>95% Win-rate CI</span>
+              <strong className="lab-val-chip">
+                {percent(s.win_rate_ci[0])}–{percent(s.win_rate_ci[1])}
+              </strong>
+            </div>
+            <div className="lab-ledger-row">
+              <span>Best / worst streak</span>
+              <strong className="lab-val-chip">
+                +{s.longest_win_streak}W / −{s.longest_loss_streak}L
+              </strong>
+            </div>
+          </div>
+        </div>
+      )}
       <details className="r-explainer">
         <summary>What does Average R mean?</summary>
         <p>
