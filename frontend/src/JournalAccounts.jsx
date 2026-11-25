@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Flame, Plus, RotateCcw, Wallet } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Flame, Plus, RotateCcw, Wallet } from 'lucide-react';
 import { api } from './api';
 import { Button, Field, Modal, Notice } from './components';
 
@@ -132,6 +132,7 @@ export default function JournalAccounts({ accounts, setAccounts }) {
   const passedAccounts = all.filter(a => a.status === 'passed');
   const blownAccounts = all.filter(a => a.status === 'blown');
   const visibleAccounts = all.filter(account => (account.status || 'active') === statusFilter);
+  const activeCapital = activeAccounts.reduce((s, a) => s + Number(a.starting_balance || 0), 0);
   const totalFees = all.reduce((sum, a) => sum + Number(a.fee_paid || 0), 0);
   const totalPayouts = all.reduce((sum, a) => sum + Number(a.payouts_total || 0), 0);
   const netRoi = totalPayouts - totalFees;
@@ -140,17 +141,23 @@ export default function JournalAccounts({ accounts, setAccounts }) {
   return <details className="pj-accounts">
     <summary>
       <span className="pj-accounts-summary-main">
-        <Wallet size={16} aria-hidden="true"/>
+        <span className="pj-acct-icon" aria-hidden="true"><Wallet size={15}/></span>
         <strong>Accounts</strong>
         {accounts && <span className="pj-acct-pill active">{activeAccounts.length} active</span>}
         {passedAccounts.length > 0 && <span className="pj-acct-pill passed">{passedAccounts.length} passed</span>}
         {blownAccounts.length > 0 && <span className="pj-acct-pill blown">{blownAccounts.length} blown</span>}
       </span>
-      {accounts && (totalFees > 0 || totalPayouts > 0) && (
-        <span className={`pj-acct-roi ${netRoi < 0 ? 'loss' : 'gain'}`}>
-          Prop ROI {fmtSigned(netRoi)}
-        </span>
-      )}
+      <span className="pj-accounts-summary-right">
+        {accounts && activeCapital > 0 && (
+          <span className="pj-acct-capital">{size.format(activeCapital)} capital</span>
+        )}
+        {accounts && (totalFees > 0 || totalPayouts > 0) && (
+          <span className={`pj-acct-roi ${netRoi < 0 ? 'loss' : 'gain'}`}>
+            Prop ROI {fmtSigned(netRoi)}
+          </span>
+        )}
+        <ChevronDown size={16} className="pj-acct-chevron" aria-hidden="true"/>
+      </span>
     </summary>
     <div className="pj-accounts-body">
       {accounts === null && (error
@@ -175,7 +182,7 @@ export default function JournalAccounts({ accounts, setAccounts }) {
 
         {hasLedger && (
           <div className="pj-prop-ledger" aria-label="Prop firm ledger">
-            <div><span>Active capital</span><strong>{size.format(activeAccounts.reduce((s, a) => s + Number(a.starting_balance || 0), 0))}</strong></div>
+            <div><span>Active capital</span><strong>{size.format(activeCapital)}</strong></div>
             <div><span>Eval &amp; activation fees</span><strong>{size.format(totalFees)}</strong></div>
             <div><span>Total payouts</span><strong>{size.format(totalPayouts)}</strong></div>
             <div><span>Net prop ROI</span><strong className={netRoi < 0 ? 'loss' : netRoi > 0 ? 'gain' : ''}>{fmtSigned(netRoi)}</strong></div>
@@ -192,6 +199,7 @@ export default function JournalAccounts({ accounts, setAccounts }) {
             return <div className={`pj-account-row is-${st}`} key={account.id}>
               <div className="pj-account-meta">
                 <div className="pj-account-title">
+                  <span className={`pj-acct-dot is-${st}`} aria-hidden="true"/>
                   <strong>{account.name}</strong>
                   {account.firm && <span className="pj-acct-firm">{account.firm}</span>}
                 </div>
@@ -202,20 +210,20 @@ export default function JournalAccounts({ accounts, setAccounts }) {
                   {account.closed_at && ` · ${st === 'passed' ? 'Passed' : 'Blown'} ${account.closed_at}`}
                 </small>
               </div>
-              <div className="settings-actions">
+              <div className="settings-actions pj-account-actions">
                 {st === 'active' && account.account_type === 'Eval' && (
                   <Button disabled={busy} onClick={() => quickStatus(account, 'passed')} aria-label={`Mark ${account.name} passed`}>
-                    <CheckCircle2 size={14}/> Passed
+                    <CheckCircle2 size={13}/> Passed
                   </Button>
                 )}
                 {st === 'active' && (
                   <Button disabled={busy} onClick={() => quickStatus(account, 'blown')} aria-label={`Mark ${account.name} blown`}>
-                    <Flame size={14}/> Blown
+                    <Flame size={13}/> Blown
                   </Button>
                 )}
                 {st !== 'active' && (
                   <Button disabled={busy} onClick={() => quickStatus(account, 'active')} aria-label={`Reactivate ${account.name}`}>
-                    <RotateCcw size={14}/> Reactivate
+                    <RotateCcw size={13}/> Reactivate
                   </Button>
                 )}
                 <Button disabled={busy} onClick={() => setDraft({

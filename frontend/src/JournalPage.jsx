@@ -706,33 +706,6 @@ export default function JournalPage({theme = 'light'}) {
         </div>
       </div>
 
-      {accounts && (
-        <section className="pj-kpi-strip" aria-label="Active journal overview">
-          <div className="pj-kpi-card">
-            <span className="pj-kpi-label">Active balance</span>
-            <strong>{currencyFmt.format(cockpitStats.activeBalance)}</strong>
-            <small>{cockpitStats.activeCount} active{cockpitStats.blownCount > 0 ? ` · ${cockpitStats.blownCount} blown excluded` : ''}</small>
-          </div>
-          <div className="pj-kpi-card">
-            <span className="pj-kpi-label">{monthDate.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'})} P&amp;L</span>
-            <strong className={cockpitStats.hasMonthPnl ? (cockpitStats.monthPnl < 0 ? 'loss' : cockpitStats.monthPnl > 0 ? 'gain' : '') : ''}>
-              {cockpitStats.hasMonthPnl ? money(cockpitStats.monthPnl) : '—'}
-            </strong>
-            <small>{monthRows.length} saved {monthRows.length === 1 ? 'day' : 'days'} this month</small>
-          </div>
-          <div className="pj-kpi-card">
-            <span className="pj-kpi-label">Plan followed</span>
-            <strong>{cockpitStats.planPct !== null ? `${cockpitStats.planPct}%` : '—'}</strong>
-            <small>{cockpitStats.taggedPlanCount ? `Across ${cockpitStats.taggedPlanCount} tagged sessions` : 'Tag sessions below to track'}</small>
-          </div>
-          <div className="pj-kpi-card">
-            <span className="pj-kpi-label">Journal archive</span>
-            <strong>{rows.length} {rows.length === 1 ? 'day' : 'days'}</strong>
-            <small>{entry.trades.length} {entry.trades.length === 1 ? 'trade' : 'trades'} on {dayDate(day).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'})}</small>
-          </div>
-        </section>
-      )}
-
       <JournalAccounts key={journalRevision} accounts={accounts} setAccounts={setAccounts}/>
 
       {journalView === 'log' && (
@@ -1036,6 +1009,32 @@ export default function JournalPage({theme = 'light'}) {
 
       {journalView === 'performance' && (
         <div className="pj-performance-pane" role="tabpanel" id="journal-panel-performance" aria-labelledby="journal-tab-performance">
+          {accounts && (
+            <section className="pj-kpi-strip" aria-label="Active journal overview">
+              <div className="pj-kpi-card">
+                <span className="pj-kpi-label">Active balance</span>
+                <strong>{currencyFmt.format(cockpitStats.activeBalance)}</strong>
+                <small>{cockpitStats.activeCount} active{cockpitStats.blownCount > 0 ? ` · ${cockpitStats.blownCount} blown excluded` : ''}</small>
+              </div>
+              <div className="pj-kpi-card">
+                <span className="pj-kpi-label">{monthDate.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'})} P&amp;L</span>
+                <strong className={cockpitStats.hasMonthPnl ? (cockpitStats.monthPnl < 0 ? 'loss' : cockpitStats.monthPnl > 0 ? 'gain' : '') : ''}>
+                  {cockpitStats.hasMonthPnl ? money(cockpitStats.monthPnl) : '—'}
+                </strong>
+                <small>{monthRows.length} saved {monthRows.length === 1 ? 'day' : 'days'} this month</small>
+              </div>
+              <div className="pj-kpi-card">
+                <span className="pj-kpi-label">Plan followed</span>
+                <strong>{cockpitStats.planPct !== null ? `${cockpitStats.planPct}%` : '—'}</strong>
+                <small>{cockpitStats.taggedPlanCount ? `Across ${cockpitStats.taggedPlanCount} tagged sessions` : 'Tag sessions to track'}</small>
+              </div>
+              <div className="pj-kpi-card">
+                <span className="pj-kpi-label">Journal archive</span>
+                <strong>{rows.length} {rows.length === 1 ? 'day' : 'days'}</strong>
+                <small>{entry.trades.length} {entry.trades.length === 1 ? 'trade' : 'trades'} on {dayDate(day).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'})}</small>
+              </div>
+            </section>
+          )}
           <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme} onAskPrimax={triggerPrimaxDebrief}/>
         </div>
       )}
