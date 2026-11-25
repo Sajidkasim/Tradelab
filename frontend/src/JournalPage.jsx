@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  ArrowDown, ArrowUpRight, BookOpen, CalendarDays, Check, Circle, ChevronLeft, ChevronRight,
+  ArrowUpRight, BarChart3, BookOpen, CalendarDays, Check, Circle, ChevronLeft, ChevronRight,
   Download, ListChecks, Maximize2, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, X, Link2,
 } from 'lucide-react';
 import {api, setCsrf} from './api';
@@ -212,6 +212,19 @@ export default function JournalPage({theme = 'light'}) {
   const [resettingJournal, setResettingJournal] = useState(false);
   const [journalRevision, setJournalRevision] = useState(0);
   const [focusSheet, setFocusSheet] = useState(null);
+  const [journalView, setJournalView] = useState(() =>
+    new URLSearchParams(location.search).get('view') === 'performance' ? 'performance' : 'log'
+  );
+
+  function switchJournalView(nextView) {
+    setJournalView(nextView);
+    try {
+      const url = new URL(location.href);
+      if (nextView === 'performance') url.searchParams.set('view', 'performance');
+      else url.searchParams.delete('view');
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch {}
+  }
 
   const parsedFilter = parseAccountFilter(selection);
   const account = parsedFilter.accountId != null
@@ -669,9 +682,28 @@ export default function JournalPage({theme = 'light'}) {
           <p>Your session, your trades and the story behind them. All in one place.</p>
         </div>
         <div className="pj-heading-actions">
-          <button type="button" className="pt-btn pj-jump-equity" onClick={() => document.getElementById('pj-equity-title')?.scrollIntoView({behavior: 'smooth'})}>
-            Equity &amp; insights <ArrowDown size={14}/>
-          </button>
+          <div className="pj-view-switch" role="tablist" aria-label="Journal views">
+            <button
+              type="button"
+              role="tab"
+              id="journal-tab-log"
+              aria-controls="journal-panel-log"
+              aria-selected={journalView === 'log'}
+              onClick={() => switchJournalView('log')}
+            >
+              <NotebookPen size={14} aria-hidden="true"/> Daily Log
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="journal-tab-performance"
+              aria-controls="journal-panel-performance"
+              aria-selected={journalView === 'performance'}
+              onClick={() => switchJournalView('performance')}
+            >
+              <BarChart3 size={14} aria-hidden="true"/> Performance
+            </button>
+          </div>
         </div>
       </div>
 
@@ -704,7 +736,8 @@ export default function JournalPage({theme = 'light'}) {
 
       <JournalAccounts key={journalRevision} accounts={accounts} setAccounts={setAccounts}/>
 
-      <div className="pt-journal-layout">
+      {journalView === 'log' && (
+      <div className="pt-journal-layout" role="tabpanel" id="journal-panel-log" aria-labelledby="journal-tab-log">
         <aside className="pt-journal-sidebar" aria-label="Journal calendar and history">
           <div className="pj-sidebar-actions">
             <button type="button" className="pj-sidebar-action" aria-current={day === today ? 'date' : undefined}
@@ -1002,8 +1035,13 @@ export default function JournalPage({theme = 'light'}) {
           </div>
         </section>
       </div>
+      )}
 
-      <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme} onAskPrimax={triggerPrimaxDebrief}/>
+      {journalView === 'performance' && (
+        <div className="pj-performance-pane" role="tabpanel" id="journal-panel-performance" aria-labelledby="journal-tab-performance">
+          <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme} onAskPrimax={triggerPrimaxDebrief}/>
+        </div>
+      )}
     </main>
 
     {resettingJournal && <JournalReset onClose={() => setResettingJournal(false)} onReset={journalReset}/>}

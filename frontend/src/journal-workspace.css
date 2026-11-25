@@ -395,7 +395,47 @@
 
 /* ---- Journal Redesign: Active Cockpit, Lifecycle Accounts, Search, Insights, Voice ---- */
 .pj-heading-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.pj-jump-equity { display:inline-flex; align-items:center; gap:6px; font-size:12px; min-height:36px; padding:6px 12px; }
+.pj-view-switch {
+  display:inline-flex;
+  align-items:center;
+  padding:4px;
+  gap:4px;
+  border-radius:10px;
+  border:1px solid var(--primus-border-strong, var(--pt-line));
+  background:var(--primus-surface, var(--pt-white));
+  box-shadow:var(--primus-shadow-card, none);
+}
+.pj-view-switch button {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:36px;
+  padding:7px 14px;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  color:var(--primus-muted, var(--pt-muted));
+  font:inherit;
+  font-size:12.5px;
+  font-weight:600;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:background 150ms ease, color 150ms ease;
+}
+.pj-view-switch button:hover {
+  color:var(--primus-ink, var(--pt-ink));
+}
+.pj-view-switch button[aria-selected="true"] {
+  background:var(--primus-rail, #101513);
+  color:#f4f5f0;
+}
+:root[data-theme="dark"] .pj-view-switch button[aria-selected="true"] {
+  background:var(--primus-accent, #c8f169);
+  color:var(--primus-accent-ink, #0f1411);
+}
+.pj-performance-pane .pj-equity-card {
+  margin-top:0;
+}
 
 .pj-kpi-strip {
   display:grid;

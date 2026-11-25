@@ -43,6 +43,7 @@ test('Journal accounts, plan chips and equity use saved entries', async ({page})
   await page.getByLabel('Calendar account').selectOption(String(account.id));
   await expect(page.getByRole('article', {name:'Journal trade 2', exact:true})).toHaveCount(0);
   await expect(daily).toContainText('$125');
+  await page.getByRole('tab', {name:'Performance', exact:true}).click();
   const equity = page.getByRole('region', {name:'Journal equity curve'});
   await expect(equity).toContainText('Total P&L +$100');
   await equity.getByRole('group', {name:'Equity curve account'}).getByRole('button', {name:account.name, exact:true}).click();
@@ -54,6 +55,7 @@ test('Journal accounts, plan chips and equity use saved entries', async ({page})
   });
   expect(empty.ok()).toBeTruthy();
   await page.reload();
+  await expect(page.getByRole('tab', {name:'Performance', exact:true})).toHaveAttribute('aria-selected', 'true');
   await equity.getByRole('button', {name:'Empty account', exact:true}).click();
   await expect(equity).toContainText('No recorded Journal trade results');
   await page.setViewportSize({width:390,height:844});
@@ -127,6 +129,7 @@ test('Journal equity curve defaults to active accounts and excludes blown accoun
   expect(saved.ok()).toBeTruthy();
 
   await page.reload();
+  await page.getByRole('tab', {name: 'Performance', exact: true}).click();
   const equity = page.getByRole('region', {name: 'Journal equity curve'});
   // Default Active scope excludes Blown Eval 99 from chips and P&L
   await expect(equity.getByRole('group', {name: 'Equity curve account'}).getByRole('button', {name: 'Blown Eval 99', exact: true})).toHaveCount(0);
@@ -137,7 +140,8 @@ test('Journal equity curve defaults to active accounts and excludes blown accoun
   await equity.getByRole('group', {name: 'Equity scope'}).getByRole('button', {name: /Blown/}).click();
   await expect(equity).toContainText('-$2,500');
 
-  // Sidebar search locates the saved entry by keyword
+  // Switch back to Daily Log and confirm sidebar search locates the saved entry by keyword
+  await page.getByRole('tab', {name: 'Daily Log', exact: true}).click();
   await page.getByLabel('Search journal entries').fill('London low sweep');
   await expect(page.getByRole('button', {name: 'Edit entry 22 September 2026', exact: true})).toBeVisible();
   await page.getByLabel('Clear search and filters').click();
