@@ -75,6 +75,11 @@
 .bullpen-cf-stage{container-type:size;position:relative;flex:1;min-height:0;display:flex;flex-direction:column;background:radial-gradient(circle at 50% 30%,rgba(52,211,153,.05),transparent 60%),#090d10;color:#e8eef2;overflow:hidden}
 .bullpen-cf-stage.is-pseudo-fs{position:fixed;inset:0;width:100vw;height:100dvh;z-index:2500;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 .bullpen-mod-banner{display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 12px;background:rgba(239,68,68,.18);border-bottom:1px solid rgba(248,113,113,.4);color:#fecaca;font-size:.76rem;font-weight:600;flex-shrink:0}
+.bullpen-reconnect-banner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 12px;background:rgba(245,158,11,.16);border-bottom:1px solid rgba(251,191,36,.42);color:#fef3c7;font-size:.78rem;font-weight:500;flex-shrink:0}
+.bullpen-reconnect-banner>span{display:inline-flex;align-items:center;gap:7px}
+.bullpen-reconnect-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 12px;border-radius:7px;border:1px solid #c8f169;background:#c8f169;color:#0e1411;font:inherit;font-size:.76rem;font-weight:700;cursor:pointer}
+.bullpen-reconnect-btn:hover:not(:disabled){background:#dbf88f}
+.bullpen-reconnect-btn:disabled{opacity:.6;cursor:wait}
 
 /* Slim top strip outside the video frame */
 .bullpen-stage-topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;background:#0e1418;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;flex-wrap:wrap}

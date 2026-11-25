@@ -9,6 +9,14 @@ import {
 import { api } from '../api';
 import { useBullpen } from '../hooks/usePresence';
 import { playDeskChime } from '../utils/deskChimes';
+import {
+  canInstantUnmute,
+  drawBullpenPiPCard,
+  isAppleMobile,
+  isTrackUsable,
+  shouldBypassAudioProcessing,
+  supportsVideoPiP,
+} from '../utils/bullpenAudio';
 
 const ZOOM_PRESETS = [1, 1.5, 2];
 const AUDIO_PREFS_KEY = 'primus_floor_audio_v1';
@@ -287,6 +295,9 @@ export default function CloudflareStage({
   const { access, peers, laserEvent, moderationEvent, patchPresenceMeta, send } = useBullpen();
   const [status, setStatus] = useState('connecting');
   const [micOn, setMicOn] = useState(false);
+  const [micConnecting, setMicConnecting] = useState(false);
+  const [micNeedsReconnect, setMicNeedsReconnect] = useState(false);
+  const [pipActive, setPipActive] = useState(false);
   const [pttActive, setPttActive] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [audioPrefs, setAudioPrefs] = useState(loadAudioPrefs);
@@ -327,10 +338,14 @@ export default function CloudflareStage({
   const localMetaRef = useRef({ tracks: [] });
   const micStreamRef = useRef(null);       // processed (or raw) stream sent to SFU
   const rawMicStreamRef = useRef(null);    // raw getUserMedia stream for constraints/cleanup
-  const micAudioCtxRef = useRef(null);     // Web Audio context for live input GainNode
+  const micAudioCtxRef = useRef(null);     // Web Audio context for live input GainNode (only when gain != 100% on desktop)
   const micGainNodeRef = useRef(null);
+  const micPrepPromiseRef = useRef(null);  // in-flight pre-warm promise so Unmute never duplicates getUserMedia
   const previewStreamRef = useRef(null);   // local-only mic stream while testing/adjusting while muted
   const testAudioElRef = useRef(null);     // local loopback <audio> for "Test Mic"
+  const pipCanvasRef = useRef(null);       // offscreen canvas for voice-floor PiP keep-alive
+  const pipVideoRef = useRef(null);        // hidden <video> hosting voice-floor PiP stream
+  const pipStreamRef = useRef(null);
   const settingsRef = useRef(null);
   const settingsButtonRef = useRef(null);
   const audioPrefsRef = useRef(audioPrefs);
@@ -350,6 +365,7 @@ export default function CloudflareStage({
   const lastLaserSentRef = useRef(0);
   const joinedFiredRef = useRef(false);
   const micOnRef = useRef(false);
+  const micNeedsReconnectRef = useRef(false);
   const deafenedRef = useRef(false);
   const pttWasMutedRef = useRef(false);
   const prevRemoteScreenCountRef = useRef(0);
@@ -361,9 +377,11 @@ export default function CloudflareStage({
   const clipChunksRef = useRef([]);
   const clipMimeRef = useRef('video/webm');
 
+  const isIos = useMemo(() => isAppleMobile(), []);
   const canSelectOutput = typeof HTMLMediaElement !== 'undefined' && typeof HTMLMediaElement.prototype.setSinkId === 'function';
 
   micOnRef.current = micOn;
+  micNeedsReconnectRef.current = micNeedsReconnect;
   deafenedRef.current = deafened;
 
   const showToast = useCallback((text, link = null) => {
@@ -481,9 +499,13 @@ export default function CloudflareStage({
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       rawMicStreamRef.current?.getTracks().forEach((t) => t.stop());
       previewStreamRef.current?.getTracks().forEach((t) => t.stop());
+      pipStreamRef.current?.getTracks().forEach((t) => t.stop());
+      pipStreamRef.current = null;
       micAudioCtxRef.current?.close?.().catch(() => {});
       micAudioCtxRef.current = null;
       micGainNodeRef.current = null;
+      micTransceiverRef.current = null;
+      micPrepPromiseRef.current = null;
       screenStreamRef.current?.getTracks().forEach((t) => t.stop());
       pc.close();
       pcRef.current = null;
@@ -613,6 +635,9 @@ export default function CloudflareStage({
     micAudioCtxRef.current?.close?.().catch(() => {});
     micAudioCtxRef.current = null;
     micGainNodeRef.current = null;
+    if (shouldBypassAudioProcessing({ inputGain: gainValue, isIos })) {
+      return rawStream;
+    }
     try {
       const Ctor = window.AudioContext || window.webkitAudioContext;
       if (Ctor) {
@@ -630,7 +655,7 @@ export default function CloudflareStage({
       }
     } catch {}
     return rawStream;
-  }, []);
+  }, [isIos]);
 
   const refreshAudioDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -688,18 +713,159 @@ export default function CloudflareStage({
     });
   }, []);
 
-  // Apply live input gain change to active GainNode
+  // Dynamically switch between raw zero-latency track (100% / iOS) and Web Audio GainNode (desktop != 100%)
   useEffect(() => {
+    const bypass = shouldBypassAudioProcessing({ inputGain: audioPrefs.inputGain, isIos });
     if (micGainNodeRef.current) {
-      micGainNodeRef.current.gain.value = clamp(audioPrefs.inputGain, 0, 2);
+      if (bypass) {
+        const rawStream = rawMicStreamRef.current;
+        const rawTrack = rawStream?.getAudioTracks()[0];
+        micAudioCtxRef.current?.close?.().catch(() => {});
+        micAudioCtxRef.current = null;
+        micGainNodeRef.current = null;
+        if (rawStream && rawTrack) {
+          rawTrack.enabled = micOnRef.current;
+          micStreamRef.current = rawStream;
+          micTransceiverRef.current?.sender?.replaceTrack(rawTrack).catch(() => {});
+        }
+      } else {
+        micGainNodeRef.current.gain.value = clamp(audioPrefs.inputGain, 0, 2);
+      }
+      return;
     }
-  }, [audioPrefs.inputGain]);
+    if (!bypass && rawMicStreamRef.current && micTransceiverRef.current?.sender) {
+      const processed = buildProcessedMicStream(rawMicStreamRef.current, audioPrefs.inputGain);
+      const outTrack = processed.getAudioTracks()[0];
+      if (outTrack) {
+        outTrack.enabled = micOnRef.current;
+        micStreamRef.current = processed;
+        micTransceiverRef.current.sender.replaceTrack(outTrack).catch(() => {});
+      }
+    }
+  }, [audioPrefs.inputGain, buildProcessedMicStream, isIos]);
+
+  const attachRawMicListeners = useCallback((rawTrack) => {
+    if (!rawTrack) return;
+    rawTrack.onmute = () => {
+      if (rawMicStreamRef.current?.getAudioTracks()[0] !== rawTrack) return;
+      if (micOnRef.current) {
+        setMicNeedsReconnect(true);
+        setSpeaking(false);
+        onSpeakingChange?.(access?.name, false);
+        syncPresence({ micOn: false });
+      }
+    };
+    rawTrack.onunmute = () => {
+      if (rawMicStreamRef.current?.getAudioTracks()[0] !== rawTrack) return;
+      if (rawTrack.readyState === 'live') {
+        setMicNeedsReconnect(false);
+        rawTrack.enabled = micOnRef.current;
+        const outTrack = micStreamRef.current?.getAudioTracks()[0];
+        if (outTrack && outTrack !== rawTrack) outTrack.enabled = micOnRef.current;
+        syncPresence({ micOn: micOnRef.current });
+      }
+    };
+    rawTrack.onended = () => {
+      if (rawMicStreamRef.current?.getAudioTracks()[0] !== rawTrack) return;
+      if (micOnRef.current) {
+        micOnRef.current = false;
+        setMicOn(false);
+        setMicNeedsReconnect(true);
+        setSpeaking(false);
+        onSpeakingChange?.(access?.name, false);
+        syncPresence({ micOn: false });
+      }
+    };
+  }, [access?.name, onSpeakingChange, syncPresence]);
+
+  const publishMicTrack = useCallback(async (rawStream, startEnabled) => {
+    const prevRaw = rawMicStreamRef.current;
+    const rawTrack = rawStream.getAudioTracks()[0];
+    if (rawTrack) rawTrack.enabled = startEnabled;
+    rawMicStreamRef.current = rawStream;
+    attachRawMicListeners(rawTrack);
+    if (prevRaw && prevRaw !== rawStream) {
+      prevRaw.getTracks().forEach((t) => { t.onmute = null; t.onunmute = null; t.onended = null; t.stop(); });
+    }
+    const processedStream = buildProcessedMicStream(rawStream, audioPrefsRef.current.inputGain);
+    const outTrack = processedStream.getAudioTracks()[0];
+    if (outTrack) outTrack.enabled = startEnabled;
+    micStreamRef.current = processedStream;
+    void refreshAudioDevices();
+
+    await enqueue(async () => {
+      const pc = pcRef.current;
+      const sid = sessionIdRef.current;
+      if (!pc || !sid || !outTrack) return;
+      if (micTransceiverRef.current?.sender) {
+        await micTransceiverRef.current.sender.replaceTrack(outTrack);
+        return;
+      }
+      const transceiver = pc.addTransceiver(outTrack, { direction: 'sendonly' });
+      micTransceiverRef.current = transceiver;
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      const trackName = `audio-${crypto.randomUUID().slice(0, 8)}`;
+      const res = await api(`/bullpen/sfu/sessions/${sid}/tracks`, {
+        method: 'POST',
+        body: {
+          sessionDescription: { type: 'offer', sdp: offer.sdp },
+          tracks: [{ location: 'local', mid: transceiver.mid, trackName }],
+        },
+      });
+      if (res.sessionDescription) {
+        await pc.setRemoteDescription(new RTCSessionDescription(res.sessionDescription));
+      }
+      localMetaRef.current = {
+        tracks: [
+          ...localMetaRef.current.tracks.filter((t) => t.kind !== 'audio'),
+          { trackName, kind: 'audio' },
+        ],
+      };
+    });
+  }, [attachRawMicListeners, buildProcessedMicStream, enqueue, refreshAudioDevices]);
+
+  // Pre-publish muted microphone on room join (Discord/Zoom pattern) so first Unmute is instant (~20ms)
+  const prewarmMutedMic = useCallback(async () => {
+    if (micTransceiverRef.current || micPrepPromiseRef.current || isDisabled) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const task = (async () => {
+      try {
+        if (navigator.permissions?.query) {
+          try {
+            const perm = await navigator.permissions.query({ name: 'microphone' });
+            if (perm?.state === 'denied') return;
+          } catch {}
+        }
+        const rawStream = await acquireRawMic(audioPrefsRef.current);
+        if (!pcRef.current || !sessionIdRef.current) {
+          rawStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        await publishMicTrack(rawStream, micOnRef.current);
+        syncPresence({ micOn: micOnRef.current });
+      } catch {
+        // User dismissed mic prompt or no mic attached — keep listening quietly; Unmute will retry explicitly.
+      } finally {
+        if (micPrepPromiseRef.current === task) micPrepPromiseRef.current = null;
+      }
+    })();
+    micPrepPromiseRef.current = task;
+    return task;
+  }, [acquireRawMic, isDisabled, publishMicTrack, syncPresence]);
+
+  useEffect(() => {
+    if (status === 'live' && !isDisabled) {
+      void prewarmMutedMic();
+    }
+  }, [status, isDisabled, prewarmMutedMic]);
 
   const muteLocalMic = useCallback(() => {
     micStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
     rawMicStreamRef.current?.getAudioTracks().forEach((t) => { t.enabled = false; });
     micOnRef.current = false;
     setMicOn(false);
+    setMicNeedsReconnect(false);
     setSpeaking(false);
     onSpeakingChange?.(access?.name, false);
     syncPresence({ micOn: false });
@@ -719,10 +885,16 @@ export default function CloudflareStage({
       deafenedRef.current = false;
       setDeafened(false);
     }
+    setMicNeedsReconnect(false);
     try {
+      if (micPrepPromiseRef.current) {
+        setMicConnecting(true);
+        await micPrepPromiseRef.current;
+        setMicConnecting(false);
+      }
       const existingRaw = rawMicStreamRef.current?.getAudioTracks()[0];
       const existingOut = micStreamRef.current?.getAudioTracks()[0];
-      if (existingRaw && existingRaw.readyState === 'live' && existingOut && existingOut.readyState === 'live' && micTransceiverRef.current) {
+      if (canInstantUnmute({ rawTrack: existingRaw, outTrack: existingOut, hasTransceiver: Boolean(micTransceiverRef.current) })) {
         existingRaw.enabled = true;
         existingOut.enabled = true;
         if (micAudioCtxRef.current?.state === 'suspended') {
@@ -733,76 +905,35 @@ export default function CloudflareStage({
         syncPresence({ micOn: true, deafened: false });
         return;
       }
-      const prefs = audioPrefsRef.current;
-      const rawStream = await acquireRawMic(prefs);
-      rawMicStreamRef.current?.getTracks().forEach((t) => t.stop());
-      rawMicStreamRef.current = rawStream;
-      const processedStream = buildProcessedMicStream(rawStream, prefs.inputGain);
-      const track = processedStream.getAudioTracks()[0];
-      micStreamRef.current = processedStream;
-      void refreshAudioDevices();
-
-      await enqueue(async () => {
-        const pc = pcRef.current;
-        const sid = sessionIdRef.current;
-        if (!pc || !sid) return;
-        if (micTransceiverRef.current?.sender) {
-          await micTransceiverRef.current.sender.replaceTrack(track);
-          return;
-        }
-        const transceiver = pc.addTransceiver(track, { direction: 'sendonly' });
-        micTransceiverRef.current = transceiver;
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        const trackName = `audio-${crypto.randomUUID().slice(0, 8)}`;
-        const res = await api(`/bullpen/sfu/sessions/${sid}/tracks`, {
-          method: 'POST',
-          body: {
-            sessionDescription: { type: 'offer', sdp: offer.sdp },
-            tracks: [{ location: 'local', mid: transceiver.mid, trackName }],
-          },
-        });
-        if (res.sessionDescription) {
-          await pc.setRemoteDescription(new RTCSessionDescription(res.sessionDescription));
-        }
-        localMetaRef.current = {
-          tracks: [
-            ...localMetaRef.current.tracks.filter((t) => t.kind !== 'audio'),
-            { trackName, kind: 'audio' },
-          ],
-        };
-      });
+      setMicConnecting(true);
+      const rawStream = await acquireRawMic(audioPrefsRef.current);
+      await publishMicTrack(rawStream, true);
       micOnRef.current = true;
       setMicOn(true);
       syncPresence({ micOn: true, deafened: false });
     } catch (err) {
       onError?.(err?.message || 'Microphone access was blocked. Allow microphone permission in your browser.');
+    } finally {
+      setMicConnecting(false);
     }
-  }, [acquireRawMic, buildProcessedMicStream, enqueue, isDisabled, muteLocalMic, onError, refreshAudioDevices, showToast, syncPresence]);
+  }, [acquireRawMic, isDisabled, muteLocalMic, onError, publishMicTrack, showToast, syncPresence]);
 
   // Live-switch microphone device without dropping the SFU call
   const switchInputDevice = useCallback(async (deviceId) => {
     const nextPrefs = { ...audioPrefsRef.current, inputId: deviceId };
+    audioPrefsRef.current = nextPrefs;
     updateAudioPrefs({ inputId: deviceId });
     if (!micTransceiverRef.current?.sender && !rawMicStreamRef.current) return;
     try {
       const wasEnabled = micOnRef.current;
       const rawStream = await acquireRawMic(nextPrefs);
-      rawStream.getAudioTracks().forEach((t) => { t.enabled = wasEnabled; });
-      const processedStream = buildProcessedMicStream(rawStream, nextPrefs.inputGain);
-      const nextTrack = processedStream.getAudioTracks()[0];
-      if (nextTrack) nextTrack.enabled = wasEnabled;
-      rawMicStreamRef.current?.getTracks().forEach((t) => t.stop());
-      rawMicStreamRef.current = rawStream;
-      micStreamRef.current = processedStream;
-      if (micTransceiverRef.current?.sender && nextTrack) {
-        await micTransceiverRef.current.sender.replaceTrack(nextTrack);
-      }
+      await publishMicTrack(rawStream, wasEnabled);
+      setMicNeedsReconnect(false);
       showToast('Switched microphone');
     } catch (err) {
       showToast(err?.message || 'Could not switch microphone');
     }
-  }, [acquireRawMic, buildProcessedMicStream, showToast, updateAudioPrefs]);
+  }, [acquireRawMic, publishMicTrack, showToast, updateAudioPrefs]);
 
   const toggleMic = useCallback(() => {
     void setMicEnabled(!micOnRef.current);
@@ -840,26 +971,63 @@ export default function CloudflareStage({
     showToast(`${label} ${nextVal ? 'ON' : 'OFF'}`);
   }, [showToast, updateAudioPrefs]);
 
-  // Auto-recover mic if mobile OS muted/ended it while backgrounded
+  // Auto-recover mic & remote audio when returning from mobile background; show 1-tap banner if iOS requires a tap
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState !== 'visible' || !micOnRef.current || isDisabled) return;
-      const track = rawMicStreamRef.current?.getAudioTracks()[0];
-      if (!track || track.readyState !== 'live' || track.muted) {
-        const prefs = audioPrefsRef.current;
-        acquireRawMic(prefs).then((fresh) => {
-          rawMicStreamRef.current?.getTracks().forEach((t) => t.stop());
-          rawMicStreamRef.current = fresh;
-          const processed = buildProcessedMicStream(fresh, prefs.inputGain);
-          const nextTrack = processed.getAudioTracks()[0];
-          micStreamRef.current = processed;
-          micTransceiverRef.current?.sender?.replaceTrack(nextTrack).catch(() => {});
-        }).catch(() => {});
+      if (document.visibilityState !== 'visible') return;
+      if (micAudioCtxRef.current?.state === 'suspended') {
+        micAudioCtxRef.current.resume().catch(() => {});
       }
+      stageRef.current?.querySelectorAll('audio').forEach((el) => {
+        if (el.srcObject && el.paused && !el.muted) el.play?.().catch(() => {});
+      });
+      if ((!micOnRef.current && !micNeedsReconnectRef.current) || isDisabled) return;
+      const track = rawMicStreamRef.current?.getAudioTracks()[0];
+      if (isTrackUsable(track)) {
+        setMicNeedsReconnect(false);
+        return;
+      }
+      acquireRawMic(audioPrefsRef.current)
+        .then(async (fresh) => {
+          await publishMicTrack(fresh, true);
+          micOnRef.current = true;
+          setMicOn(true);
+          setMicNeedsReconnect(false);
+          syncPresence({ micOn: true });
+          showToast('Mic reconnected');
+        })
+        .catch(() => {
+          // iOS Safari frequently blocks getUserMedia inside visibilitychange without a user gesture.
+          micOnRef.current = false;
+          setMicOn(false);
+          setMicNeedsReconnect(true);
+          syncPresence({ micOn: false });
+        });
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [acquireRawMic, buildProcessedMicStream, isDisabled]);
+  }, [acquireRawMic, isDisabled, publishMicTrack, showToast, syncPresence]);
+
+  // Register Media Session metadata so iOS / desktop OS recognizes the active Bullpen audio session
+  useEffect(() => {
+    if (status !== 'live' || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    try {
+      const count = peers?.length || 1;
+      if (typeof window.MediaMetadata === 'function') {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: 'Primus Trading Floor',
+          artist: `${count} ${count === 1 ? 'trader' : 'traders'} on the floor`,
+          album: 'PrimusTrader Bullpen',
+        });
+      }
+      navigator.mediaSession.playbackState = deafened ? 'paused' : 'playing';
+    } catch {}
+    return () => {
+      try {
+        navigator.mediaSession.playbackState = 'none';
+      } catch {}
+    };
+  }, [status, peers?.length, deafened]);
 
   // Speaking level detector for local mic glow + top bar ring
   useEffect(() => {
@@ -1631,21 +1799,78 @@ export default function CloudflareStage({
     showToast('Saved last 15s clip (.webm)');
   };
 
-  // Picture-in-Picture Pop-Out Window
+  // Keep voice-floor PiP canvas refreshed with current roster & mic status
+  useEffect(() => {
+    const canvas = pipCanvasRef.current;
+    if (!canvas) return;
+    drawBullpenPiPCard(canvas, {
+      count: peers?.length || 1,
+      micOn,
+      deafened,
+      micNeedsReconnect,
+    });
+  }, [peers?.length, micOn, deafened, micNeedsReconnect, pipActive]);
+
+  // Picture-in-Picture Pop-Out Window (shared screen OR voice-floor keep-alive card for iOS/mobile)
   const togglePiP = async () => {
-    const vid = videoRef.current;
-    if (!vid || !document.pictureInPictureEnabled) {
+    const screenVid = currentScreen ? videoRef.current : null;
+    const voiceVid = pipVideoRef.current;
+
+    // Exit if already active via standard or Safari PiP
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        setPipActive(false);
+        return;
+      }
+      if (screenVid?.webkitPresentationMode === 'picture-in-picture' && screenVid.webkitSetPresentationMode) {
+        screenVid.webkitSetPresentationMode('inline');
+        setPipActive(false);
+        return;
+      }
+      if (voiceVid?.webkitPresentationMode === 'picture-in-picture' && voiceVid.webkitSetPresentationMode) {
+        voiceVid.webkitSetPresentationMode('inline');
+        setPipActive(false);
+        return;
+      }
+    } catch {}
+
+    let target = screenVid;
+    if (!target) {
+      const canvas = pipCanvasRef.current;
+      if (!canvas || !voiceVid || typeof canvas.captureStream !== 'function') {
+        showToast('Picture-in-Picture is not supported in this browser.');
+        return;
+      }
+      drawBullpenPiPCard(canvas, {
+        count: peers?.length || 1,
+        micOn,
+        deafened,
+        micNeedsReconnect,
+      });
+      if (!pipStreamRef.current) {
+        pipStreamRef.current = canvas.captureStream(1);
+        voiceVid.srcObject = pipStreamRef.current;
+      }
+      try {
+        await voiceVid.play();
+      } catch {}
+      target = voiceVid;
+    }
+
+    if (!supportsVideoPiP(target)) {
       showToast('Picture-in-Picture is not supported in this browser.');
       return;
     }
     try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await vid.requestPictureInPicture();
+      if (typeof target.requestPictureInPicture === 'function' && document.pictureInPictureEnabled) {
+        await target.requestPictureInPicture();
+      } else if (typeof target.webkitSetPresentationMode === 'function') {
+        target.webkitSetPresentationMode('picture-in-picture');
       }
+      setPipActive(true);
     } catch {
-      showToast('Could not open pop-out window.');
+      showToast('Could not open Picture-in-Picture window.');
     }
   };
 
@@ -1753,10 +1978,33 @@ export default function CloudflareStage({
         />
       ))}
       <audio ref={testAudioElRef} autoPlay playsInline style={{ display: 'none' }} />
+      <canvas ref={pipCanvasRef} width={320} height={180} style={{ display: 'none' }} aria-hidden="true" />
+      <video
+        ref={pipVideoRef}
+        playsInline
+        muted
+        onLeavePictureInPicture={() => setPipActive(false)}
+        style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        aria-hidden="true"
+      />
 
       {isDisabled && !minimised && (
         <div className="bullpen-mod-banner" role="alert">
           <ShieldAlert size={14} /> Moderator has disabled your mic, screen share, laser pointer, and chat.
+        </div>
+      )}
+
+      {micNeedsReconnect && !isDisabled && !minimised && (
+        <div className="bullpen-reconnect-banner" role="alert">
+          <span><MicOff size={14} aria-hidden="true" /> Microphone paused by your device while backgrounded.</span>
+          <button
+            type="button"
+            className="bullpen-reconnect-btn"
+            onClick={() => void setMicEnabled(true)}
+            disabled={micConnecting}
+          >
+            <Mic size={13} aria-hidden="true" /> {micConnecting ? 'Reconnecting…' : 'Tap to reconnect mic'}
+          </button>
         </div>
       )}
 
@@ -1916,16 +2164,28 @@ export default function CloudflareStage({
         <div className="bullpen-bar-group">
           <button
             type="button"
-            className={`bullpen-bar-btn${micOn ? ' is-live' : ''}`}
+            className={`bullpen-bar-btn${micOn ? ' is-live' : micNeedsReconnect ? ' is-warn' : ''}`}
             onClick={toggleMic}
-            disabled={status !== 'live' || isDisabled}
+            disabled={status !== 'live' || isDisabled || micConnecting}
             aria-pressed={micOn}
             title="Toggle microphone (M) · Hold Space for push-to-talk"
           >
             {micOn ? <Mic size={14} /> : <MicOff size={14} />}
-            <span>{pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
+            <span>{micConnecting ? 'Connecting…' : micNeedsReconnect ? 'Reconnect mic' : pttActive ? 'PTT' : micOn ? 'Mute' : 'Unmute'}</span>
           </button>
           {(minimised || currentScreen || sharing) && shareControls()}
+          {!minimised && status === 'live' && (
+            <button
+              type="button"
+              className={`bullpen-bar-btn${pipActive ? ' is-accent' : ''}`}
+              onClick={togglePiP}
+              aria-pressed={pipActive}
+              title="Pop out floating Picture-in-Picture to keep Bullpen alive while switching apps"
+            >
+              <PictureInPicture2 size={14} aria-hidden="true" />
+              <span>{pipActive ? 'PiP active' : 'Keep alive'}</span>
+            </button>
+          )}
           {deafened && <button type="button" className="bullpen-bar-btn is-warn" onClick={toggleDeafen}>
             <HeadphoneOff size={14} /> Restore audio
           </button>}
@@ -2021,7 +2281,7 @@ export default function CloudflareStage({
                     <div className="bullpen-audio-gain">
                       <div className="bullpen-audio-gain-head">
                         <span>Input Volume</span>
-                        <strong>{Math.round(audioPrefs.inputGain * 100)}%</strong>
+                        <strong>{isIos ? 'System' : `${Math.round(audioPrefs.inputGain * 100)}%`}</strong>
                       </div>
                       <input
                         type="range"
@@ -2029,7 +2289,8 @@ export default function CloudflareStage({
                         min="0"
                         max="200"
                         step="5"
-                        value={Math.round(audioPrefs.inputGain * 100)}
+                        disabled={isIos}
+                        value={isIos ? 100 : Math.round(audioPrefs.inputGain * 100)}
                         onChange={(e) => updateAudioPrefs({ inputGain: Number(e.target.value) / 100 })}
                       />
                       <div className="bullpen-meter-wrap" aria-label="Live microphone input level">
