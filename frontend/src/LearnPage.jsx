@@ -7,6 +7,7 @@ import SetupGallery from './SetupGallery';
 import SpotlightTour from './SpotlightTour';
 import { Button, Notice } from './components';
 import { PrimusTopoField } from './components/PrimusAtmosphere';
+import PushAlertToggle from './components/PushAlertToggle';
 import { useBullpen } from './hooks/usePresence';
 
 const LEARN_TOUR_STEPS = [
@@ -76,6 +77,7 @@ export default function LearnPage() {
             <Button variant="primary" busy={busy} disabled={!access.configured || !bullpen.connected} onClick={() => join()}>
               <Radio size={17} /> {isRoomActive ? 'Restore Live Trading Floor' : 'Join Live Trading Floor'}
             </Button>
+            <PushAlertToggle />
             {access.configured && !bullpen.connected && <p role="status">Connecting private chat…</p>}
           </div>
           {access.configured && access.provider !== 'cloudflare' && !isRoomActive && (

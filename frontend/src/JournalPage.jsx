@@ -21,6 +21,7 @@ import JournalReplayImports from './JournalReplay';
 import JournalReset from './JournalReset';
 import JournalRules from './JournalRules';
 import JournalAccounts from './JournalAccounts';
+import {createVoiceRecorder, formatVoiceDuration, voiceExtensionForMime} from './voiceCapture';
 import {
   AccountSelector, JournalEquity, filterAccountsByScope, parseAccountFilter,
   recordedTotal, scopedAccountResults, tradeAccountIds, tradeMatchesFilter,
@@ -91,6 +92,7 @@ function JournalPrep({day}) {
 function VoiceDictationButton({cloudEnabled, disabled, onTranscript, onError}) {
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const speechRef = useRef(null);
@@ -103,6 +105,18 @@ function VoiceDictationButton({cloudEnabled, disabled, onTranscript, onError}) {
     try { recorderRef.current?.stop(); } catch {}
     try { speechRef.current?.stop(); } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!recording) {
+      setElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [recording]);
 
   if (!supported) return null;
 
@@ -123,18 +137,20 @@ function VoiceDictationButton({cloudEnabled, disabled, onTranscript, onError}) {
     if (canRecordCloud) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-        const recorder = new MediaRecorder(stream);
+        const recorder = createVoiceRecorder(stream);
         chunksRef.current = [];
         recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
         recorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, {type: recorder.mimeType || 'audio/webm'});
+          const mimeType = recorder.mimeType || 'audio/webm';
+          const ext = voiceExtensionForMime(mimeType);
+          const blob = new Blob(chunksRef.current, {type: mimeType});
           chunksRef.current = [];
           if (!blob.size) return;
           setTranscribing(true);
           try {
             const form = new FormData();
-            form.append('file', blob, 'voice-note.webm');
+            form.append('file', blob, `voice-note.${ext}`);
             const res = await api('/journal/transcribe', {method: 'POST', body: form});
             if (res?.text) onTranscript(res.text);
           } catch (err) {
@@ -184,10 +200,10 @@ function VoiceDictationButton({cloudEnabled, disabled, onTranscript, onError}) {
     disabled={disabled || transcribing}
     aria-pressed={recording}
     onClick={toggle}
-    title={canRecordCloud ? 'Dictate with Cloudflare Whisper' : 'Dictate with browser speech-to-text'}
+    title={canRecordCloud ? 'Dictate with Whisper AI' : 'Dictate with browser speech-to-text'}
   >
     {recording ? <MicOff size={14}/> : <Mic size={14}/>}
-    <span>{transcribing ? 'Transcribing…' : recording ? 'Stop dictating' : 'Dictate'}</span>
+    <span>{transcribing ? 'Transcribing…' : recording ? `${formatVoiceDuration(elapsed)} · Stop` : 'Dictate'}</span>
   </button>;
 }
 

@@ -21,6 +21,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .bullpen_feed import MacroFeed
 from .mail_delivery import send_gmail
+from . import webpush
 
 TOPIC = "primus:bullpen:v1"
 ALERT_TOPIC = "primus:bullpen:alerts:v1"
@@ -66,6 +67,58 @@ def _alert_mail_credentials():
     if sender and password:
         return "gmail", sender, password
     return None
+
+
+def _discord_webhook_url() -> str | None:
+    url = os.getenv("BULLPEN_DISCORD_WEBHOOK_URL", "").strip()
+    if url.startswith(("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")):
+        return url
+    return None
+
+
+def _telegram_credentials() -> tuple[str, str] | None:
+    token = os.getenv("BULLPEN_TELEGRAM_BOT_TOKEN", "").strip()
+    chat_id = os.getenv("BULLPEN_TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return None
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]{20,80}", token):
+        return None
+    if not re.fullmatch(r"(?:-?\d{5,20}|@[A-Za-z0-9_]{4,64})", chat_id):
+        return None
+    return token, chat_id
+
+
+def _send_chat_webhook_alerts(title: str, body: str, link: str = "") -> None:
+    """Deliver instant team alerts to configured Discord and/or Telegram webhooks."""
+    logger = logging.getLogger(__name__)
+    discord_url = _discord_webhook_url()
+    if discord_url:
+        content = f"**{title}**\n{body}" + (f"\n{link}" if link else "")
+        try:
+            resp = httpx.post(
+                discord_url,
+                json={"content": content[:1900], "username": "PrimusTrader Desk"},
+                timeout=5,
+                follow_redirects=False,
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as error:
+            logger.warning("Bullpen Discord alert failed error_type=%s", type(error).__name__)
+
+    telegram = _telegram_credentials()
+    if telegram:
+        token, chat_id = telegram
+        text = f"{title}\n{body}" + (f"\n{link}" if link else "")
+        try:
+            resp = httpx.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": text[:3900], "disable_web_page_preview": True},
+                timeout=5,
+                follow_redirects=False,
+            )
+            resp.raise_for_status()
+        except httpx.HTTPError as error:
+            logger.warning("Bullpen Telegram alert failed error_type=%s", type(error).__name__)
 
 
 def _send_live_alert(provider, sender, secret, recipients, name):
@@ -126,18 +179,42 @@ def mount(app, config, workspace, check_write):
         configured_emails = os.getenv("BULLPEN_TEAM_EMAILS", "").casefold().split(",")
         recipients = sorted({address for value in configured_emails
                              if (address := value.strip()) != email and _team_name(address)})
-        if not credentials or not recipients:
+        mail_ready = bool(credentials and recipients)
+        webhook_ready = bool(_discord_webhook_url() or _telegram_credentials())
+        push_ready = bool(webpush.vapid_credentials())
+        if not (mail_ready or webhook_ready or push_ready):
             return {"queued": False}
         with alert_lock:
             now = time.monotonic()
             if now - last_alert.get(name, float("-inf")) < 900:
                 return {"queued": False}
             last_alert[name] = now
-        background_tasks.add_task(_send_live_alert, *credentials, recipients, name)
+        if mail_ready:
+            background_tasks.add_task(_send_live_alert, *credentials, recipients, name)
+        join_url = f"{config.public_url.rstrip('/')}/learn"
+        if webhook_ready:
+            background_tasks.add_task(
+                _send_chat_webhook_alerts,
+                f"🔴 {name} is live in the Bullpen",
+                f"{name} just opened the Primus Trading Floor.",
+                join_url,
+            )
+        if push_ready:
+            background_tasks.add_task(
+                webpush.send_push_to_members,
+                app,
+                {
+                    "title": f"🔴 {name} is live in the Bullpen",
+                    "body": "Tap to join the Primus Trading Floor.",
+                    "url": "/learn",
+                    "tag": "primus-bullpen-live",
+                },
+                exclude_key=member["key"],
+            )
         return {"queued": True}
 
     @app.post("/api/tv-webhook")
-    async def tradingview_webhook(request: Request):
+    async def tradingview_webhook(request: Request, background_tasks: BackgroundTasks):
         secret = os.getenv("BULLPEN_TV_WEBHOOK_SECRET", "")
         service_key = os.getenv("BULLPEN_TV_SUPABASE_KEY", "")
         if os.getenv("BULLPEN_ENABLED") != "1" or len(secret) < 32 or not service_key or not config.supabase_url:
@@ -157,6 +234,7 @@ def mount(app, config, workspace, check_write):
         message = payload.get("text")
         if not isinstance(message, str) or not 1 <= len(message.strip()) <= 400:
             raise HTTPException(422, "Alert text must contain 1 to 400 characters.")
+        clean_text = message.strip()
         try:
             async with httpx.AsyncClient(timeout=2) as client:
                 response = await client.post(
@@ -164,11 +242,29 @@ def mount(app, config, workspace, check_write):
                     headers={"apikey": service_key, "Authorization": f"Bearer {service_key}"},
                     json={"messages": [{"topic": ALERT_TOPIC, "event": "alert", "private": True,
                                         "payload": {"name": "System", "id": str(uuid4()),
-                                                    "text": message.strip()}}]},
+                                                    "text": clean_text}}]},
                 )
                 response.raise_for_status()
         except httpx.HTTPError:
             raise HTTPException(502, "Could not publish the TradingView alert.") from None
+        if _discord_webhook_url() or _telegram_credentials():
+            background_tasks.add_task(
+                _send_chat_webhook_alerts,
+                "📈 TradingView Alert",
+                clean_text,
+                f"{config.public_url.rstrip('/')}/learn",
+            )
+        if webpush.vapid_credentials():
+            background_tasks.add_task(
+                webpush.send_push_to_members,
+                app,
+                {
+                    "title": "📈 TradingView Alert",
+                    "body": clean_text,
+                    "url": "/learn",
+                    "tag": "primus-tv-alert",
+                },
+            )
         return {"published": True}
 
     def _require_team(request: Request, *, write: bool = False):

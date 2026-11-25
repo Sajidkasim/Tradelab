@@ -245,7 +245,12 @@ def mount(app, config, workspace, check_write, db):
         if len(content) > daily_journal.MAX_AUDIO_UPLOAD:
             raise HTTPException(413, "Keep voice recordings smaller than 8 MB.")
         try:
-            text = await run_in_threadpool(daily_journal.transcribe_audio, content)
+            text = await run_in_threadpool(
+                daily_journal.transcribe_audio,
+                content,
+                filename=file.filename or "voice-note.webm",
+                content_type=file.content_type or "audio/webm",
+            )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
         except RuntimeError as exc:

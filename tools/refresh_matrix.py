@@ -1172,6 +1172,160 @@ def recompute_scores(snapshot):
         intraday["impliedMove"] = implied_move
 
 
+FISCAL_TGA_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts/operating_cash_balance"
+FISCAL_AUCTIONS_URL = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/upcoming_auctions"
+
+
+def fetch_treasury_tga():
+    """Fetch Daily Treasury General Account (TGA) Closing Balance from US Treasury Fiscal Data (zero API key)."""
+    response = requests.get(
+        FISCAL_TGA_URL,
+        params={
+            "filter": "account_type:eq:Treasury General Account (TGA) Closing Balance",
+            "sort": "-record_date",
+            "page[size]": "15",
+        },
+        headers=HTTP_HEADERS,
+        timeout=12,
+    )
+    if not response.ok:
+        raise ValueError(f"Treasury TGA HTTP {response.status_code}")
+    rows = response.json().get("data") or []
+    series = []
+    for row in rows:
+        raw = row.get("open_today_bal")
+        rec_date = str(row.get("record_date") or "")[:10]
+        if not rec_date or raw in (None, "", "null"):
+            continue
+        try:
+            # Fiscal Data reports DTS balances in $ millions; convert to $ billions.
+            val_b = float(raw) / 1000.0
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(val_b):
+            series.append((rec_date, round(val_b, 2)))
+    if not series:
+        raise ValueError("No Treasury TGA observations returned")
+    # series is newest-first
+    latest_date, latest_b = series[0]
+    ref_idx = min(5, len(series) - 1)
+    delta_5d = round(latest_b - series[ref_idx][1], 1) if ref_idx > 0 else 0.0
+    # TGA falling = Treasury injecting cash into markets (liquidity tailwind for risk/NQ)
+    impulse = "Liquidity Tailwind" if delta_5d <= -10 else "Liquidity Drain" if delta_5d >= 10 else "Neutral Flow"
+    direction = "down" if delta_5d < 0 else "up" if delta_5d > 0 else "flat"
+    spark = _spark([v for _, v in reversed(series)], limit=15)
+    return {
+        "asOf": latest_date,
+        "balanceB": round(latest_b, 1),
+        "value": f"${latest_b:,.1f}B",
+        "delta5dB": delta_5d,
+        "change": f"{delta_5d:+.1f}B 5d",
+        "direction": direction,
+        "impulse": impulse,
+        "detail": f"US Treasury DTS · {latest_date} · {impulse}",
+        "spark": spark,
+    }
+
+
+def fetch_treasury_auctions():
+    """Fetch upcoming US Treasury Note & Bond auctions (13:00 ET NQ movers) from Fiscal Data API."""
+    today_ny = datetime.now(NY).date().isoformat()
+    response = requests.get(
+        FISCAL_AUCTIONS_URL,
+        params={
+            "filter": "security_type:in:(Note,Bond)",
+            "sort": "issue_date",
+            "page[size]": "20",
+        },
+        headers=HTTP_HEADERS,
+        timeout=12,
+    )
+    if not response.ok:
+        raise ValueError(f"Treasury Auctions HTTP {response.status_code}")
+    rows = response.json().get("data") or []
+    auctions = []
+    seen = set()
+    for row in rows:
+        sec_type = str(row.get("security_type") or "").strip()
+        sec_term = str(row.get("security_term") or "").strip()
+        auction_date = str(row.get("record_date") or row.get("issue_date") or "")[:10]
+        if not sec_term or not auction_date or auction_date < today_ny:
+            continue
+        key = f"{auction_date}:{sec_term}"
+        if key in seen:
+            continue
+        seen.add(key)
+        raw_amt = row.get("offering_amt")
+        amount_label = ""
+        try:
+            amt = float(raw_amt)
+            if math.isfinite(amt) and amt > 0:
+                amount_label = f"${amt / 1e9:.0f}B" if amt >= 1e9 else f"${amt:,.0f}M"
+        except (TypeError, ValueError):
+            pass
+        is_key_tenor = any(tag in sec_term for tag in ("10-Year", "20-Year", "30-Year"))
+        auctions.append({
+            "date": auction_date,
+            "timeEt": "13:00 ET",
+            "term": sec_term,
+            "type": sec_type,
+            "amount": amount_label,
+            "highImpact": is_key_tenor,
+            "title": f"US {sec_term} Treasury {sec_type} Auction",
+        })
+    auctions.sort(key=lambda item: (item["date"], item["term"]))
+    return auctions[:8]
+
+
+def refresh_treasury(snapshot):
+    """Refresh US Treasury TGA cash balance and upcoming Note/Bond auctions (zero API key)."""
+    treasury = dict(snapshot.get("treasury") or {})
+    changed = False
+    try:
+        treasury["tga"] = fetch_treasury_tga()
+        changed = True
+    except Exception:
+        pass
+    try:
+        auctions = fetch_treasury_auctions()
+        treasury["auctions"] = auctions
+        changed = True
+        # Replace prior US Treasury auction rows and merge upcoming 10Y/20Y/30Y auctions cleanly
+        cal = [ev for ev in (snapshot.get("calendar") or []) if ev.get("source") != "US Treasury"]
+        existing_keys = {(str(ev.get("date", ""))[:10], str(ev.get("event", "")).lower()) for ev in cal}
+        for item in auctions:
+            if not item.get("highImpact"):
+                continue
+            title = item["title"]
+            event_label = f"{title} ({item['amount']})" if item.get("amount") else title
+            if (item["date"], title.lower()) in existing_keys or (item["date"], event_label.lower()) in existing_keys:
+                continue
+            try:
+                dt_et = datetime.strptime(f"{item['date']} 13:00", "%Y-%m-%d %H:%M").replace(tzinfo=NY)
+                iso_utc = dt_et.astimezone(timezone.utc).isoformat()
+            except ValueError:
+                iso_utc = item["date"]
+            cal.append({
+                "date": iso_utc,
+                "event": event_label,
+                "actual": None,
+                "estimate": item.get("amount") or None,
+                "unit": "",
+                "tier1": False,
+                "surprise": None,
+                "nqImpact": "watch",
+                "source": "US Treasury",
+            })
+            existing_keys.add((item["date"], event_label.lower()))
+        snapshot["calendar"] = cal
+    except Exception:
+        pass
+    if changed:
+        treasury["asOf"] = datetime.now(timezone.utc).isoformat()
+        snapshot["treasury"] = treasury
+    return changed
+
+
 def refresh_snapshot(snapshot, source="all"):
     """Run one or all refresh stages against a snapshot dict and recompute all scores."""
     changed = False
@@ -1187,6 +1341,8 @@ def refresh_snapshot(snapshot, source="all"):
             snapshot["calendar"] = cal
             snapshot["calendarAsOf"] = datetime.now(timezone.utc).isoformat()
             changed = True
+    if source in ("all", "treasury", "fred"):
+        changed = refresh_treasury(snapshot) or changed
     if changed:
         recompute_scores(snapshot)
         snapshot["asOf"] = datetime.now(timezone.utc).isoformat()
@@ -1195,7 +1351,7 @@ def refresh_snapshot(snapshot, source="all"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("source", choices=("all", "fred", "cot", "markets", "calendar"))
+    parser.add_argument("source", choices=("all", "fred", "cot", "markets", "calendar", "treasury"))
     source = parser.parse_args().source
     database_url = os.getenv("MATRIX_DB_URL")
     if database_url:

@@ -12,6 +12,7 @@ import {money} from './format';
 import PrepProgress from './PrepProgress';
 import CompoundEdge from './CompoundEdge';
 import {FocusSoundscape} from './mindsetAudio';
+import {createVoiceRecorder, formatVoiceDuration, voiceExtensionForMime} from './voiceCapture';
 import {PrimusTopoField} from './components/PrimusAtmosphere';
 import './mindset-warmup.css';
 
@@ -150,6 +151,7 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
   const [mirror, setMirror] = useState(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const speechRef = useRef(null);
@@ -169,6 +171,18 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
       try { speechRef.current?.stop(); } catch {}
     };
   }, []);
+
+  useEffect(() => {
+    if (!recording) {
+      setElapsed(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [recording]);
 
   async function runBrief() {
     setLoadingBrief(true);
@@ -194,18 +208,20 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
     if (canCloudVoice) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-        const recorder = new MediaRecorder(stream);
+        const recorder = createVoiceRecorder(stream);
         chunksRef.current = [];
         recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
         recorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
-          const blob = new Blob(chunksRef.current, {type: recorder.mimeType || 'audio/webm'});
+          const mimeType = recorder.mimeType || 'audio/webm';
+          const ext = voiceExtensionForMime(mimeType);
+          const blob = new Blob(chunksRef.current, {type: mimeType});
           chunksRef.current = [];
           if (!blob.size) return;
           setTranscribing(true);
           try {
             const form = new FormData();
-            form.append('file', blob, 'checkin.webm');
+            form.append('file', blob, `checkin.${ext}`);
             const res = await api('/journal/transcribe', {method: 'POST', body: form});
             if (res?.text) setNote(prev => (prev ? `${prev} ${res.text}` : res.text).slice(0, 600));
           } catch (err) {
@@ -264,7 +280,7 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
             disabled={transcribing || loadingBrief} aria-pressed={recording} onClick={toggleVoice}
             title="Voice check-in">
             {recording ? <MicOff size={14}/> : <Mic size={14}/>}
-            <span>{transcribing ? 'Transcribing…' : recording ? 'Stop' : 'Voice'}</span>
+            <span>{transcribing ? 'Transcribing…' : recording ? `${formatVoiceDuration(elapsed)} · Stop` : 'Voice'}</span>
           </button>
         )}
         <Button type="button" variant="primary" busy={loadingBrief} onClick={runBrief}>

@@ -173,6 +173,24 @@ const DEMO_SNAPSHOT = {
     { date: new Date(Date.now() + 3 * 3600_000).toISOString(), event: 'US Initial Jobless Claims', actual: null, estimate: '218K', unit: '', tier1: false, surprise: null, nqImpact: 'watch', source: 'FMP' },
     { date: new Date(Date.now() + 27 * 3600_000).toISOString(), event: 'US Core PCE Price Index YoY', actual: null, estimate: '2.7%', unit: '%', tier1: true, surprise: null, nqImpact: 'watch', source: 'BEA' },
   ],
+  treasury: {
+    asOf: new Date().toISOString(),
+    tga: {
+      asOf: new Date().toISOString().slice(0, 10),
+      balanceB: 786.4,
+      value: '$786.4B',
+      delta5dB: -18.2,
+      change: '-18.2B 5d',
+      direction: 'down',
+      impulse: 'Liquidity Tailwind',
+      detail: 'US Treasury DTS · Falling TGA injects liquidity into risk assets',
+      spark: [812.0, 809.4, 804.6, 798.1, 792.5, 786.4],
+    },
+    auctions: [
+      { date: new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10), timeEt: '13:00 ET', term: '10-Year', type: 'Note', amount: '$42B', highImpact: true, title: 'US 10-Year Treasury Note Auction' },
+      { date: new Date(Date.now() + 3 * 86400_000).toISOString().slice(0, 10), timeEt: '13:00 ET', term: '30-Year', type: 'Bond', amount: '$25B', highImpact: true, title: 'US 30-Year Treasury Bond Auction' },
+    ],
+  },
 };
 
 const SIZING_META = {
@@ -1043,6 +1061,74 @@ export default function MatrixPage({ theme }) {
                   </div>
                 </section>
               </div>
+
+              {/* US Treasury Fiscal Data: Daily TGA Balance & Upcoming 13:00 ET Bond Auctions (zero API key) */}
+              <section className="mx-card tw:lg:col-span-12" aria-label="US Treasury TGA and bond auctions">
+                <header className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:px-4 tw:py-3">
+                  <div className="tw:flex tw:items-center tw:gap-2">
+                    <Flame size={16} className="mx-pos" aria-hidden="true" />
+                    <div>
+                      <h2 className="tw:text-sm tw:font-semibold">US Treasury TGA Cash &amp; Bond Auctions</h2>
+                      <p className="tw:text-xs mx-muted">Daily Treasury General Account liquidity flow &amp; 13:00 ET Note/Bond auction watch</p>
+                    </div>
+                  </div>
+                  {data?.treasury?.tga?.asOf && (
+                    <span className={`tw:text-[11px] ${number} mx-muted`}>DTS {data.treasury.tga.asOf}</span>
+                  )}
+                </header>
+                <div className="tw:grid tw:gap-3 tw:p-4 tw:lg:grid-cols-12">
+                  <div className="mx-subcard tw:p-3.5 tw:lg:col-span-5">
+                    <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
+                      <span className="tw:text-[11px] tw:uppercase tw:tracking-wider mx-muted">Treasury General Account (TGA)</span>
+                      {data?.treasury?.tga?.impulse && (
+                        <span className={`mx-badge ${data.treasury.tga.delta5dB <= -10 ? 'is-pos' : data.treasury.tga.delta5dB >= 10 ? 'is-neg' : ''} tw:text-[10px]`}>
+                          {data.treasury.tga.impulse}
+                        </span>
+                      )}
+                    </div>
+                    {data?.treasury?.tga ? (
+                      <>
+                        <div className="tw:mt-2 tw:flex tw:items-end tw:justify-between tw:gap-3">
+                          <div>
+                            <strong className={`tw:text-xl mx-ink ${number}`}>{data.treasury.tga.value}</strong>
+                            <div className={`tw:mt-0.5 tw:text-xs ${number} ${data.treasury.tga.delta5dB < 0 ? 'mx-pos' : data.treasury.tga.delta5dB > 0 ? 'mx-neg' : 'mx-muted'}`}>
+                              {data.treasury.tga.change}
+                            </div>
+                          </div>
+                          <Sparkline data={data.treasury.tga.spark} width={110} height={28} />
+                        </div>
+                        <p className="tw:mt-2 tw:text-[11px] mx-muted">
+                          Falling TGA injects cash into bank reserves (tailwind for NQ); rising TGA drains liquidity.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="tw:mt-2 tw:text-xs mx-muted">Click Refresh Now to pull daily US Treasury Fiscal Data.</p>
+                    )}
+                  </div>
+                  <div className="mx-subcard tw:p-3.5 tw:lg:col-span-7">
+                    <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
+                      <span className="tw:text-[11px] tw:uppercase tw:tracking-wider mx-muted">Upcoming US Note &amp; Bond Auctions</span>
+                      <span className="tw:text-[11px] mx-muted">13:00 ET yield / NQ volatility window</span>
+                    </div>
+                    {data?.treasury?.auctions?.length ? (
+                      <ul className="tw:mt-2 tw:list-none tw:p-0 tw:text-xs">
+                        {data.treasury.auctions.slice(0, 5).map((item) => (
+                          <li key={`${item.date}-${item.term}`} className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:border-b mx-divider tw:py-2 last:tw:border-b-0">
+                            <div className="tw:flex tw:items-center tw:gap-2">
+                              {item.highImpact && <span className="mx-badge is-warn tw:px-1.5 tw:py-0 tw:text-[10px]">WATCH</span>}
+                              <strong className="mx-ink">{item.term} {item.type}</strong>
+                              {item.amount && <span className={`${number} mx-muted`}>{item.amount}</span>}
+                            </div>
+                            <span className={`${number} mx-muted`}>{item.date} · {item.timeEt || '13:00 ET'}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="tw:mt-2 tw:text-xs mx-muted">No upcoming US Note or Bond auctions announced yet.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 

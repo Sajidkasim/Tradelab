@@ -489,6 +489,27 @@ def equity_and_insights(database, scope='active', account_id=None):
     }
 
 
+GROQ_WHISPER_MODEL = 'whisper-large-v3-turbo'
+GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions'
+TRADING_WHISPER_PROMPT = (
+    'NQ, MNQ, ES, GC, XAUUSD, EURUSD, GBPUSD, QQQ, FVG, MSS, BOS, '
+    'London low, NY open, VWAP, liquidity sweep, CPI, FOMC, PCE, NFP, 1R, 2R, breakeven, drawdown.'
+)
+_AUDIO_MIME_BY_EXT = {
+    '.webm': 'audio/webm',
+    '.mp4': 'audio/mp4',
+    '.m4a': 'audio/mp4',
+    '.ogg': 'audio/ogg',
+    '.wav': 'audio/wav',
+    '.mp3': 'audio/mpeg',
+}
+
+
+def _groq_whisper_key():
+    import os
+    return os.getenv('GROQ_API_KEY', '').strip() or None
+
+
 def _whisper_creds():
     import os
     account_id = os.getenv('COACH_CLOUDFLARE_ACCOUNT_ID', '').strip()
@@ -499,22 +520,64 @@ def _whisper_creds():
 
 
 def voice_transcribe_enabled():
-    return _whisper_creds() is not None
+    return bool(_groq_whisper_key() or _whisper_creds())
 
 
-def transcribe_audio(content: bytes) -> str:
-    """Transcribe a short voice journal clip via Cloudflare Workers AI Whisper."""
+def _safe_audio_meta(filename: str | None, content_type: str | None) -> tuple[str, str]:
+    raw_type = (content_type or '').split(';', 1)[0].strip().lower()
+    raw_ext = Path(filename or '').suffix.lower()
+    if raw_ext in _AUDIO_MIME_BY_EXT:
+        ext = raw_ext
+    elif 'mp4' in raw_type or 'm4a' in raw_type or 'aac' in raw_type:
+        ext = '.mp4'
+    elif 'ogg' in raw_type:
+        ext = '.ogg'
+    elif 'wav' in raw_type:
+        ext = '.wav'
+    elif 'mpeg' in raw_type or 'mp3' in raw_type:
+        ext = '.mp3'
+    else:
+        ext = '.webm'
+    mime = _AUDIO_MIME_BY_EXT[ext]
+    return f'voice-note{ext}', mime
+
+
+def _transcribe_via_groq(content: bytes, api_key: str, *, filename: str, content_type: str) -> str:
     import os
     import requests
 
-    if not content:
-        raise ValueError('No audio was recorded. Try speaking for at least a second.')
-    if len(content) > MAX_AUDIO_UPLOAD:
-        raise ValueError('Recording is too large. Keep voice clips under 8 MB.')
-    creds = _whisper_creds()
-    if not creds:
-        raise RuntimeError('Voice transcription requires Cloudflare Workers AI credentials.')
-    account_id, token = creds
+    model = os.getenv('GROQ_WHISPER_MODEL', '').strip() or GROQ_WHISPER_MODEL
+    safe_name, safe_mime = _safe_audio_meta(filename, content_type)
+    try:
+        response = requests.post(
+            GROQ_TRANSCRIBE_URL,
+            headers={'Authorization': f'Bearer {api_key}'},
+            files={'file': (safe_name, content, safe_mime)},
+            data={
+                'model': model,
+                'language': 'en',
+                'prompt': TRADING_WHISPER_PROMPT,
+                'response_format': 'json',
+            },
+            timeout=(5, 25),
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError('Voice transcription is temporarily unreachable.') from exc
+    if not response.ok:
+        raise RuntimeError('Voice transcription failed. Try again in a moment.')
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError('Voice transcription returned an unreadable response.') from exc
+    text = (payload.get('text') if isinstance(payload, dict) else '') or ''
+    return ' '.join(str(text).split())
+
+
+def _transcribe_via_cloudflare(content: bytes, account_id: str, token: str) -> str:
+    import os
+    import requests
+
     model = os.getenv('COACH_CLOUDFLARE_WHISPER_MODEL', '').strip() or WHISPER_MODEL
     try:
         response = requests.post(
@@ -535,3 +598,23 @@ def transcribe_audio(content: bytes) -> str:
     result = payload.get('result', payload) if isinstance(payload, dict) else {}
     text = (result.get('text') if isinstance(result, dict) else '') or ''
     return ' '.join(str(text).split())
+
+
+def transcribe_audio(content: bytes, *, filename: str = 'voice-note.webm', content_type: str = 'audio/webm') -> str:
+    """Transcribe a short voice journal clip via Groq Whisper (fast path) or Cloudflare Workers AI."""
+    if not content:
+        raise ValueError('No audio was recorded. Try speaking for at least a second.')
+    if len(content) > MAX_AUDIO_UPLOAD:
+        raise ValueError('Recording is too large. Keep voice clips under 8 MB.')
+    groq_key = _groq_whisper_key()
+    cf_creds = _whisper_creds()
+    if not groq_key and not cf_creds:
+        raise RuntimeError('Voice transcription requires Groq or Cloudflare Workers AI credentials.')
+    if groq_key:
+        try:
+            return _transcribe_via_groq(content, groq_key, filename=filename, content_type=content_type)
+        except RuntimeError:
+            if not cf_creds:
+                raise
+    account_id, token = cf_creds
+    return _transcribe_via_cloudflare(content, account_id, token)

@@ -183,9 +183,10 @@ def create_app(config: Settings | None = None):
         # A single owner; neither request bodies nor cookies can select a trader.
         return {'key': 'owner', 'name': 'My lab', 'slot': 0}
 
-    from . import bullpen, chart_vision
+    from . import bullpen, chart_vision, webpush
     chart_vision.mount(app, workspace)
     bullpen.mount(app, config, workspace, check_write)
+    webpush.mount(app, config, workspace)
 
     # Expose dependency to tests, never an impersonation route.
     app.state.workspace_dependency = workspace
@@ -756,6 +757,17 @@ def create_app(config: Settings | None = None):
         if not manifest.is_file():
             raise HTTPException(404)
         return FileResponse(manifest, media_type="application/manifest+json")
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker():
+        sw = config.assets / "sw.js"
+        if not sw.is_file():
+            raise HTTPException(404)
+        return FileResponse(
+            sw,
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+        )
 
     @app.get("/{path:path}")
     def frontend(path: str):

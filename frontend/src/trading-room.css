@@ -303,3 +303,10 @@
 .bullpen-android summary{cursor:pointer}
 .bullpen-android-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
 .bullpen-android p{flex-basis:100%}
+.bullpen-push-controls{display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px}
+.bullpen-push-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 13px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#e6eef0;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.bullpen-push-btn:hover:not(:disabled){border-color:rgba(200,241,105,.55);background:rgba(200,241,105,.12)}
+.bullpen-push-btn.is-on{border-color:rgba(52,211,153,.55);background:rgba(52,211,153,.16);color:#a7f3d0}
+.bullpen-push-test{min-height:38px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.16);background:transparent;color:#cbd5e1;font:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
+.bullpen-push-test:hover:not(:disabled){border-color:#c8f169;color:#e6fbab}
+.bullpen-push-hint,.bullpen-push-note{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:#9eb5a8}
