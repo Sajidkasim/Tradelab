@@ -268,9 +268,10 @@
   .bullpen-video{height:max(340px,56dvh)}
   .bullpen-side{height:390px}
   .bullpen-roster{order:3;width:100%;margin:0}
+  .bullpen-view-options,.bullpen-person-popover{left:0;right:auto;max-width:calc(100vw - 28px)}
   .bullpen-dual-grid{grid-template-columns:1fr}
   .bullpen-level-form{grid-template-columns:1fr 1fr}
-  .bullpen-view-sidebar{display:none}
+  .bullpen-view-options .bullpen-view-sidebar{display:none}
 }
 @media(prefers-reduced-motion:reduce){
   .bullpen-room,.bullpen-redfolder-bar{animation:none}

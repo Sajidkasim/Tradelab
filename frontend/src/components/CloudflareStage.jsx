@@ -1799,7 +1799,7 @@ export default function CloudflareStage({
     showToast('Saved last 15s clip (.webm)');
   };
 
-  // Keep voice-floor PiP canvas refreshed with current roster & mic status
+  // Pre-warm and refresh the voice-floor PiP canvas + hidden <video> so PiP metadata is ready before first click
   useEffect(() => {
     const canvas = pipCanvasRef.current;
     if (!canvas) return;
@@ -1809,7 +1809,22 @@ export default function CloudflareStage({
       deafened,
       micNeedsReconnect,
     });
-  }, [peers?.length, micOn, deafened, micNeedsReconnect, pipActive]);
+    if (status === 'live' && !pipStreamRef.current && pipVideoRef.current && typeof canvas.captureStream === 'function') {
+      try {
+        const stream = canvas.captureStream(1);
+        pipStreamRef.current = stream;
+        pipVideoRef.current.srcObject = stream;
+        // Re-paint once after captureStream starts so Safari/Chrome emit frame #1 immediately
+        drawBullpenPiPCard(canvas, {
+          count: peers?.length || 1,
+          micOn,
+          deafened,
+          micNeedsReconnect,
+        });
+        pipVideoRef.current.play?.().catch(() => {});
+      } catch {}
+    }
+  }, [status, peers?.length, micOn, deafened, micNeedsReconnect, pipActive]);
 
   // Picture-in-Picture Pop-Out Window (shared screen OR voice-floor keep-alive card for iOS/mobile)
   const togglePiP = async () => {
@@ -1842,19 +1857,29 @@ export default function CloudflareStage({
         showToast('Picture-in-Picture is not supported in this browser.');
         return;
       }
+      if (!pipStreamRef.current) {
+        pipStreamRef.current = canvas.captureStream(1);
+        voiceVid.srcObject = pipStreamRef.current;
+      }
       drawBullpenPiPCard(canvas, {
         count: peers?.length || 1,
         micOn,
         deafened,
         micNeedsReconnect,
       });
-      if (!pipStreamRef.current) {
-        pipStreamRef.current = canvas.captureStream(1);
-        voiceVid.srcObject = pipStreamRef.current;
+      if (voiceVid.paused) {
+        try { await voiceVid.play(); } catch {}
       }
-      try {
-        await voiceVid.play();
-      } catch {}
+      if (voiceVid.readyState < 1) {
+        await new Promise((resolve) => {
+          const done = () => {
+            voiceVid.removeEventListener('loadedmetadata', done);
+            resolve();
+          };
+          voiceVid.addEventListener('loadedmetadata', done, { once: true });
+          setTimeout(done, 400);
+        });
+      }
       target = voiceVid;
     }
 
@@ -1978,7 +2003,13 @@ export default function CloudflareStage({
         />
       ))}
       <audio ref={testAudioElRef} autoPlay playsInline style={{ display: 'none' }} />
-      <canvas ref={pipCanvasRef} width={320} height={180} style={{ display: 'none' }} aria-hidden="true" />
+      <canvas
+        ref={pipCanvasRef}
+        width={320}
+        height={180}
+        style={{ position: 'fixed', left: -9999, top: 0, width: 320, height: 180, pointerEvents: 'none' }}
+        aria-hidden="true"
+      />
       <video
         ref={pipVideoRef}
         playsInline
