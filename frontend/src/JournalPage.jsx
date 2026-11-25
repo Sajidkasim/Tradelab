@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   ArrowUpRight, BarChart3, BookOpen, CalendarDays, Check, Circle, ChevronLeft, ChevronRight,
-  Download, ListChecks, Maximize2, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, X, Link2,
+  Download, ListChecks, Maximize2, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, Wallet, X, Link2,
 } from 'lucide-react';
 import {api, setCsrf} from './api';
 import {WorkspaceEntrance} from './PrimusSignIn';
@@ -212,19 +212,29 @@ export default function JournalPage({theme = 'light'}) {
   const [resettingJournal, setResettingJournal] = useState(false);
   const [journalRevision, setJournalRevision] = useState(0);
   const [focusSheet, setFocusSheet] = useState(null);
-  const [journalView, setJournalView] = useState(() =>
-    new URLSearchParams(location.search).get('view') === 'performance' ? 'performance' : 'log'
-  );
+  const [journalView, setJournalView] = useState(() => {
+    const view = new URLSearchParams(location.search).get('view');
+    return view === 'performance' || view === 'accounts' ? view : 'log';
+  });
 
   function switchJournalView(nextView) {
     setJournalView(nextView);
     try {
       const url = new URL(location.href);
-      if (nextView === 'performance') url.searchParams.set('view', 'performance');
+      if (nextView === 'performance' || nextView === 'accounts') url.searchParams.set('view', nextView);
       else url.searchParams.delete('view');
       history.replaceState(null, '', url.pathname + url.search + url.hash);
     } catch {}
   }
+
+  useEffect(() => {
+    if (!identity?.authenticated) return;
+    const controller = new AbortController();
+    api('/journal-accounts', {signal: controller.signal})
+      .then(setAccounts)
+      .catch(() => {});
+    return () => controller.abort();
+  }, [identity?.authenticated, journalRevision]);
 
   const parsedFilter = parseAccountFilter(selection);
   const account = parsedFilter.accountId != null
@@ -702,11 +712,19 @@ export default function JournalPage({theme = 'light'}) {
             >
               <BarChart3 size={14} aria-hidden="true"/> Performance
             </button>
+            <button
+              type="button"
+              role="tab"
+              id="journal-tab-accounts"
+              aria-controls="journal-panel-accounts"
+              aria-selected={journalView === 'accounts'}
+              onClick={() => switchJournalView('accounts')}
+            >
+              <Wallet size={14} aria-hidden="true"/> Accounts
+            </button>
           </div>
         </div>
       </div>
-
-      <JournalAccounts key={journalRevision} accounts={accounts} setAccounts={setAccounts}/>
 
       {journalView === 'log' && (
       <div className="pt-journal-layout" role="tabpanel" id="journal-panel-log" aria-labelledby="journal-tab-log">
@@ -1036,6 +1054,12 @@ export default function JournalPage({theme = 'light'}) {
             </section>
           )}
           <JournalEquity rows={rows} accounts={accounts} palette={meta.palette} theme={theme} onAskPrimax={triggerPrimaxDebrief}/>
+        </div>
+      )}
+
+      {journalView === 'accounts' && (
+        <div className="pj-accounts-pane" role="tabpanel" id="journal-panel-accounts" aria-labelledby="journal-tab-accounts">
+          <JournalAccounts key={journalRevision} accounts={accounts} setAccounts={setAccounts} standalone/>
         </div>
       )}
     </main>

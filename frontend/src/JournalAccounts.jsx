@@ -21,7 +21,7 @@ function fmtSigned(value) {
   return num > 0 ? `+${abs}` : num < 0 ? `-${abs}` : abs;
 }
 
-export default function JournalAccounts({ accounts, setAccounts }) {
+export default function JournalAccounts({ accounts, setAccounts, standalone = false }) {
   const [statusFilter, setStatusFilter] = useState('active');
   const [draft, setDraft] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -36,10 +36,11 @@ export default function JournalAccounts({ accounts, setAccounts }) {
   }
 
   useEffect(() => {
+    if (accounts !== null) return;
     const controller = new AbortController();
     load(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [accounts === null]);
 
   function close() {
     if (busy) return;
@@ -138,27 +139,31 @@ export default function JournalAccounts({ accounts, setAccounts }) {
   const netRoi = totalPayouts - totalFees;
   const hasLedger = totalFees > 0 || totalPayouts > 0 || blownAccounts.length > 0 || passedAccounts.length > 0;
 
-  return <details className="pj-accounts">
-    <summary>
-      <span className="pj-accounts-summary-main">
-        <span className="pj-acct-icon" aria-hidden="true"><Wallet size={15}/></span>
-        <strong>Accounts</strong>
-        {accounts && <span className="pj-acct-pill active">{activeAccounts.length} active</span>}
-        {passedAccounts.length > 0 && <span className="pj-acct-pill passed">{passedAccounts.length} passed</span>}
-        {blownAccounts.length > 0 && <span className="pj-acct-pill blown">{blownAccounts.length} blown</span>}
-      </span>
-      <span className="pj-accounts-summary-right">
-        {accounts && activeCapital > 0 && (
-          <span className="pj-acct-capital">{size.format(activeCapital)} capital</span>
-        )}
-        {accounts && (totalFees > 0 || totalPayouts > 0) && (
-          <span className={`pj-acct-roi ${netRoi < 0 ? 'loss' : 'gain'}`}>
-            Prop ROI {fmtSigned(netRoi)}
-          </span>
-        )}
-        <ChevronDown size={16} className="pj-acct-chevron" aria-hidden="true"/>
-      </span>
-    </summary>
+  const headerContent = <>
+    <span className="pj-accounts-summary-main">
+      <span className="pj-acct-icon" aria-hidden="true"><Wallet size={15}/></span>
+      <strong>Accounts</strong>
+      {accounts && <span className="pj-acct-pill active">{activeAccounts.length} active</span>}
+      {passedAccounts.length > 0 && <span className="pj-acct-pill passed">{passedAccounts.length} passed</span>}
+      {blownAccounts.length > 0 && <span className="pj-acct-pill blown">{blownAccounts.length} blown</span>}
+    </span>
+    <span className="pj-accounts-summary-right">
+      {accounts && activeCapital > 0 && (
+        <span className="pj-acct-capital">{size.format(activeCapital)} capital</span>
+      )}
+      {accounts && (totalFees > 0 || totalPayouts > 0) && (
+        <span className={`pj-acct-roi ${netRoi < 0 ? 'loss' : 'gain'}`}>
+          Prop ROI {fmtSigned(netRoi)}
+        </span>
+      )}
+      {!standalone && <ChevronDown size={16} className="pj-acct-chevron" aria-hidden="true"/>}
+    </span>
+  </>;
+
+  const Wrapper = standalone ? 'section' : 'details';
+
+  return <Wrapper className={`pj-accounts ${standalone ? 'is-standalone' : ''}`.trim()} aria-label={standalone ? 'Trading accounts' : undefined}>
+    {standalone ? <header className="pj-accounts-header">{headerContent}</header> : <summary>{headerContent}</summary>}
     <div className="pj-accounts-body">
       {accounts === null && (error
         ? <><Notice error>{error}</Notice><Button onClick={() => load()}>Retry</Button></>
@@ -273,5 +278,5 @@ export default function JournalAccounts({ accounts, setAccounts }) {
       {error && <Notice error>{error}</Notice>}
       <div className="settings-actions"><Button busy={busy} onClick={remove}>Delete account</Button><Button type="button" disabled={busy} onClick={close}>Cancel</Button></div>
     </Modal>}
-  </details>;
+  </Wrapper>;
 }

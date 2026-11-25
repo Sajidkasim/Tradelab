@@ -181,7 +181,7 @@ test('navigation order and Journal account management', async ({page}) => {
   const nav = page.getByRole('navigation', {name: 'Primus navigation'});
   await expect(nav.getByRole('link')).toHaveText(['Journal', 'Strategy Lab', 'Mindset', 'Backtesting', 'Learn', 'The Matrix']);
   await expect(nav.getByRole('button', {name: /glossary/i})).toHaveCount(0);
-  await page.locator('.pj-accounts > summary').click();
+  await page.getByRole('tab', {name: 'Accounts', exact: true}).click();
   await page.getByRole('button', {name: 'Add account', exact: true}).click();
   const form = page.getByRole('dialog', {name: 'Add account'});
   await form.getByLabel('Account name').fill('Browser evaluation');
