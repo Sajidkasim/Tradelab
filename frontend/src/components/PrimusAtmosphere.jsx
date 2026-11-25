@@ -81,10 +81,7 @@ export function PrimusMonolith({ shape = 'ovoid', initials }) {
         <span className="pt-monolith-specular" />
       </div>
       <span className="pt-monolith-mist" aria-hidden="true" />
-      <div className="pt-monogram">
-        {initials}
-        <span>↗</span>
-      </div>
+      <div className="pt-monogram">{initials}</div>
     </div>
   );
 }

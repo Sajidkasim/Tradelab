@@ -49,6 +49,7 @@ test('Journal delays Plotly until its results chart is approached',async({page})
  await page.goto(origin+'/journal');
  await expect(page.getByRole('region',{name:'Daily journal editor'})).toBeVisible();
  expect(plotly).toEqual([]);
+ await page.getByRole('tab',{name:'Performance',exact:true}).click();
  await page.locator('.chart').first().scrollIntoViewIfNeeded();
  await expect.poll(()=>plotly.length).toBe(1);
 });

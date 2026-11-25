@@ -12,7 +12,8 @@ import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
 import TradingViewWidget from './TradingViewWidget';
 import PrimusCompass from './components/PrimusCompass';
-import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
+import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams } from './components/PrimusAtmosphere';
+import DeskPerspectives, { DESK_MEMBERS } from './components/DeskPerspectives';
 import './site-preview.css';
 import './workspace-pages.css';
 import {useIdentity} from './WorkspacePages';
@@ -123,14 +124,6 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} theme={currentTheme} onToggleTheme={toggleTheme} />
   </>;
 }
-
-const traders = [
-  {name:'Sajid Kasim', initials:'SK', shape:'ovoid', role:'Strategy & Research', alias:'The Strategist', focus:'The idea. The setup. The evidence.'},
-  {name:'Safwaan Alad', initials:'SA', shape:'bevel', role:'Macro Research', alias:'The Navigator', focus:'The bigger picture behind the move.'},
-  {name:'Mubeen Patel', initials:'MP', shape:'sphere', role:'Data & Analysis', alias:'The Analyst', focus:'Turning observations into questions.'},
-  {name:'Mustafa Dal', initials:'MD', shape:'pillar', role:'Price Action Research', alias:'The Tape Reader', focus:'Reading the detail in every session.'},
-  {name:'Amir Patel', initials:'AP', shape:'lens', role:'Risk & Process', alias:'The Risk Keeper', focus:'A considered process, every time.'},
-];
 
 function BacktestingSeamPreview() {
   return (
@@ -281,6 +274,7 @@ function HeroStudy({ windowRef }){
 
 function HomePage(){
   const {theme} = useContext(SiteThemeContext);
+  const bullpen = useBullpen();
   const [marketTab,setMarketTab]=useState('news');
   const heroRef = useRef(null);
   const heroWindowRef = useRef(null);
@@ -315,13 +309,6 @@ function HomePage(){
   function handleHeroLeave() {
     if (heroWindowRef.current) heroWindowRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
   }
-  function handleCardMove(event) {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const card = event.currentTarget;
-    const r = card.getBoundingClientRect();
-    card.style.setProperty('--card-mx', `${(((event.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
-    card.style.setProperty('--card-my', `${(((event.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
-  }
 
   return <div className="pt-site">
     <PrimusHeader/>
@@ -333,7 +320,7 @@ function HomePage(){
           <h1>Less noise.<br/>More <em>perspective.</em></h1>
           <p>A home for traders who study the market, question their process and learn from the trades behind them.</p>
           <div className="pt-hero-actions"><a className="pt-btn pt-btn-lime" href="/journal">Open your Journal <ArrowUpRight size={19}/></a></div>
-          <a className="pt-meet-link" href="#traders"><span className="pt-avatar-stack">{traders.slice(0,4).map(t=><span key={t.initials}>{t.initials}</span>)}</span><span>Meet the minds behind Primus <ArrowDownSmall/></span></a>
+          <a className="pt-meet-link" href="#traders"><span className="pt-avatar-stack">{DESK_MEMBERS.slice(0,4).map(t=><span key={t.initials}>{t.initials}</span>)}</span><span>Meet the minds behind Primus <ArrowDownSmall/></span></a>
         </div>
         <div className="pt-hero-study">
           <HeroStudy windowRef={heroWindowRef}/>
@@ -345,9 +332,9 @@ function HomePage(){
       <WorkspaceResume/>
       <div className="pt-atmosphere-band">
         <PrimusSunbeams />
-        <section className="pt-wrap pt-section" id="traders">
-          <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">01</span><span className="pt-overline">01 / THE PEOPLE</span><h2>Five minds.<br/><em>One direction.</em></h2></div><p>Primus starts with the people at the desk. Different perspectives, a shared place to study and a process that stays your own.</p></div>
-          <div className="pt-traders">{traders.map((t,i)=><article key={t.name} className="pt-trader" onMouseMove={handleCardMove}><div className="pt-profile-mark"><span>0{i+1}</span><PrimusCompass size={17}/></div><PrimusMonolith shape={t.shape} initials={t.initials}/><span className="pt-alias">{t.alias}</span><h3>{t.name}</h3><span className="pt-role">{t.role}</span><p>{t.focus}</p></article>)}</div>
+        <section className="pt-wrap pt-section pt-section-traders" id="traders">
+          <div className="pt-section-heading"><div><h2>Five minds.<br/><em>One direction.</em></h2></div><p>One shared desk, five lenses. Pick any member below to see how each reads the same NQ session.</p></div>
+          <DeskPerspectives livePeople={bullpen?.people || []} />
         </section>
       </div>
       <section className="pt-wrap pt-section" id="briefing">
