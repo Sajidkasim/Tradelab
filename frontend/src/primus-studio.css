@@ -1,14 +1,13 @@
 /* ============================================================================
    PRIMUS STUDIO ARCHITECTURE — Unified Across All Pages
    Preserves Primus Signature Obsidian Dark (#0c0f0e / #131816 / #c8f169) &
-   Editorial Paper Light (#f7f7f2 / #ffffff / #101513) while upgrading spatial
-   rhythm, slim desktop workspace rail, de-boxed Strategy Lab Filter Studio &
-   institutional KPI ledger, Mindset Desk cadence, Journal/Matrix/Learn polish,
-   and crisp focus/press physics on every control.
+   Editorial Paper Light (#f7f7f2 / #ffffff / #101513) while delivering the
+   true 2x2 architectural Strategy Lab, slide-over Filter Studio drawer,
+   live R-distribution histogram, 2x2 Mindset Desk, and unified control craft.
    ============================================================================ */
 
 /* ---------------------------------------------------------------------------
-   1. UNIVERSAL FOCUS RINGS, BUTTON PHYSICS & ARCHITECTURAL MOTION
+   1. UNIVERSAL FOCUS RINGS & TACTILE PRESS PHYSICS
    --------------------------------------------------------------------------- */
 :root body :is(
   button,
@@ -41,76 +40,47 @@
   .mx-btn,
   .lab-filter-toggle,
   .lab-strategy-pill,
-  .mw-section-ribbon a,
-  .learn-hub-jumps a,
-  .primus-rail-item
+  .sl-dock-btn,
+  .sl-edge-pill,
+  .mw-step-tile
 ):active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-@keyframes primus-studio-lift {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Subtle diagonal tick backdrop (inspired by institutional matte desks) */
-.primus-ticks-surface {
-  position: relative;
-  overflow: hidden;
+  transform: scale(0.985);
 }
 
 /* ---------------------------------------------------------------------------
-   2. SLIM 58px FLOATING DESKTOP WORKSPACE RAIL (Every Workspace Page)
+   2. FLOATING CONTEXTUAL PAGE DOCK (Strategy Lab & Mindset — >= 1420px only)
    --------------------------------------------------------------------------- */
-.primus-rail {
+.sl-page-dock {
   display: none;
 }
 
-@media (min-width: 1240px) {
-  .primus-rail {
+@media (min-width: 1360px) {
+  .sl-page-dock {
     position: fixed;
-    top: 70px;
-    left: 0;
-    bottom: 0;
-    width: 60px;
-    z-index: 34;
+    top: 108px;
+    left: 14px;
+    z-index: 32;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 18px 0 20px;
+    gap: 6px;
+    padding: 8px 6px;
+    border-radius: 16px;
     background: var(--primus-surface);
-    border-right: 1px solid var(--primus-border);
-    transition: background-color 220ms ease, border-color 220ms ease;
+    border: 1px solid var(--primus-border-strong);
+    box-shadow: var(--primus-shadow-lift);
   }
 
-  :root[data-theme="dark"] .primus-rail {
-    background: #0d1110;
-    border-right-color: var(--primus-rail-border);
+  body:has(.sl-page-dock) .pt-lab .content,
+  body:has(.sl-page-dock) .mw-page .wp-main {
+    width: min(1240px, calc(100% - 156px));
+    margin-inline: auto;
   }
 
-  /* Keep full-screen Backtesting replay charts and active Bullpen calls 100% edge-to-edge */
-  body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .primus-rail {
-    display: none;
-  }
-
-  .primus-rail-group,
-  .primus-rail-footer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .primus-rail-footer {
-    padding-top: 12px;
-    border-top: 1px solid var(--primus-border);
-  }
-
-  .primus-rail-item {
+  .sl-dock-btn {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 11px;
     border: 1px solid transparent;
     background: transparent;
@@ -118,44 +88,42 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    text-decoration: none;
     cursor: pointer;
     padding: 0;
-    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, transform 140ms ease;
   }
 
-  .primus-rail-item:hover {
+  .sl-dock-btn:hover:not(:disabled) {
     color: var(--primus-ink);
     background: var(--primus-surface-2);
     border-color: var(--primus-border);
   }
 
-  .primus-rail-item.is-active {
+  .sl-dock-btn.is-active {
     color: var(--primus-ink);
     background: var(--primus-surface-2);
     border-color: var(--primus-border-strong);
   }
 
-  :root[data-theme="dark"] .primus-rail-item.is-active {
+  :root[data-theme="dark"] .sl-dock-btn.is-active {
     color: var(--primus-accent);
   }
 
-  .primus-rail-item.is-active::before {
+  .sl-dock-btn.is-active::before {
     content: "";
     position: absolute;
-    left: -10px;
+    left: -7px;
     width: 3px;
-    height: 20px;
+    height: 18px;
     border-radius: 0 4px 4px 0;
     background: var(--primus-accent-text);
   }
 
-  :root[data-theme="dark"] .primus-rail-item.is-active::before {
+  :root[data-theme="dark"] .sl-dock-btn.is-active::before {
     background: var(--primus-accent);
-    box-shadow: 0 0 10px rgba(200, 241, 105, 0.35);
   }
 
-  .primus-rail-live-dot {
+  .sl-dock-dot {
     position: absolute;
     top: 7px;
     right: 7px;
@@ -163,25 +131,18 @@
     height: 7px;
     border-radius: 999px;
     background: var(--primus-pos);
-    box-shadow: 0 0 0 2px var(--primus-surface);
   }
 
-  :root[data-theme="dark"] .primus-rail-live-dot {
-    box-shadow: 0 0 0 2px #0d1110;
-  }
-
-  .primus-rail-tip {
+  .sl-dock-tip {
     position: absolute;
-    left: 50px;
+    left: 48px;
     padding: 5px 10px;
     border-radius: 8px;
     background: var(--primus-surface);
     border: 1px solid var(--primus-border-strong);
     color: var(--primus-ink);
-    font-family: var(--primus-font-sans);
     font-size: 12px;
     font-weight: 550;
-    letter-spacing: -0.01em;
     white-space: nowrap;
     pointer-events: none;
     opacity: 0;
@@ -191,29 +152,15 @@
     z-index: 60;
   }
 
-  .primus-rail-item:hover .primus-rail-tip,
-  .primus-rail-item:focus-visible .primus-rail-tip {
+  .sl-dock-btn:hover .sl-dock-tip,
+  .sl-dock-btn:focus-visible .sl-dock-tip {
     opacity: 1;
     transform: translateX(0);
-  }
-
-  /* Gentle breathing offset on workspace shells when desktop rail is active */
-  body:has(.primus-rail):not(:has(.bt-layout)) .pt-lab .main-shell,
-  body:has(.primus-rail):not(:has(.bt-layout)) .workspace-page .wp-main,
-  body:has(.primus-rail):not(:has(.bt-layout)) .pj-workspace,
-  body:has(.primus-rail):not(:has(.bt-layout)) .matrix-terminal,
-  body:has(.primus-rail):not(:has(.bt-layout)) .bt-session-site .bt-sessions-page {
-    padding-left: 60px;
-    box-sizing: border-box;
-  }
-
-  body:has(.primus-rail) .pt-lab .content {
-    width: min(1320px, calc(100% - 64px));
   }
 }
 
 /* ---------------------------------------------------------------------------
-   3. STRATEGY LAB (/lab) — De-Boxed Filter Studio + Institutional KPI Ledger
+   3. STRATEGY LAB (/lab) — TRUE 2x2 ARCHITECTURAL CANVAS + SLIDE-OVER DRAWER
    --------------------------------------------------------------------------- */
 .lab-studio-toolbar {
   display: flex;
@@ -221,6 +168,54 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.sl-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sl-status-pill,
+.mw-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--primus-surface-2);
+  color: var(--primus-ink-2);
+  border: 1px solid var(--primus-border);
+}
+
+.sl-status-pill > i,
+.mw-status-pill > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.sl-status-pill.is-pos,
+.mw-status-pill.is-pos {
+  background: var(--primus-pos-bg);
+  color: var(--primus-pos);
+  border-color: var(--primus-pos-border);
+}
+
+.sl-status-pill.is-neg {
+  background: var(--primus-neg-bg);
+  color: var(--primus-neg);
+  border-color: var(--primus-neg-border);
+}
+
+.mw-status-pill.is-warn {
+  background: var(--primus-warn-bg);
+  color: var(--primus-warn);
+  border-color: var(--primus-warn-border);
 }
 
 .lab-filter-toggle {
@@ -240,12 +235,14 @@
   transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 140ms ease;
 }
 
-.lab-filter-toggle:hover {
+.lab-filter-toggle:hover,
+.lab-filter-toggle.is-open {
   border-color: var(--primus-accent-text);
   background: var(--primus-surface-2);
 }
 
-:root[data-theme="dark"] .lab-filter-toggle:hover {
+:root[data-theme="dark"] .lab-filter-toggle:hover,
+:root[data-theme="dark"] .lab-filter-toggle.is-open {
   border-color: var(--primus-accent);
 }
 
@@ -260,23 +257,29 @@
   font-size: 11px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  background: var(--primus-surface-2);
+  color: var(--primus-ink);
+}
+
+.lab-filter-toggle.is-open .lab-filter-count,
+:root[data-theme="dark"] .lab-filter-count {
   background: var(--primus-accent);
   color: var(--primus-accent-ink);
 }
 
-/* Whisper-quiet Quick Strategy Pill Ribbon */
+/* Quick Strategy Pill Ribbon */
 .lab-strategy-ribbon {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 7px;
-  margin: 12px 0 18px;
+  margin: 12px 0 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--primus-border);
 }
 
 .lab-strategy-pill {
-  padding: 6px 13px;
+  padding: 6px 14px;
   min-height: 32px;
   border-radius: 999px;
   border: 1px solid var(--primus-border);
@@ -308,31 +311,104 @@
   color: var(--primus-accent-ink);
 }
 
-/* Collapsible Focus Canvas Grid */
-.results-grid.lab-grid.is-filters-collapsed {
+/* Full-Width Strategy Lab Grid when Filter Studio is Slide-Over */
+.results-grid.lab-grid.is-full-canvas {
+  display: block !important;
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
-/* De-boxed Architectural Explorer Sidebar */
+/* Floating Right-Hand Slide-Over Filter Studio Drawer */
+.sl-drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 11, 10, 0.56);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  z-index: 60;
+}
+
+.sl-drawer-scrim.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+:root .pt-lab .sl-filter-drawer.explorer {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  bottom: 14px;
+  width: min(410px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  margin: 0;
+  padding: 20px 20px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 18px;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border-strong);
+  box-shadow: var(--primus-shadow-float);
+  transform: translateX(calc(100% + 40px));
+  visibility: hidden;
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 300ms ease;
+  z-index: 70;
+}
+
+:root .pt-lab .sl-filter-drawer.explorer.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.sl-drawer-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--primus-muted);
+}
+
+.sl-drawer-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sl-drawer-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 22px -20px 0;
+  padding: 14px 20px;
+  background: var(--primus-surface-2);
+  border-top: 1px solid var(--primus-border);
+  z-index: 4;
+}
+
+.sl-drawer-reset {
+  border: 0;
+  background: transparent;
+  color: var(--primus-muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
+  padding: 6px 4px;
+}
+
+.sl-drawer-reset:hover {
+  color: var(--primus-ink);
+}
+
+/* Unified 14px Matte Radius across Strategy Lab Cards */
 :root .pt-lab .lab-grid .card,
-:root .pt-lab .lab-grid .stat,
 :root .pt-lab .lab-grid .history-card,
-:root .pt-lab .lab-grid .explorer,
 :root .pt-lab .journal-card,
 :root .pt-lab .modal,
 :root .pt-lab .notice {
   border-radius: 14px;
-}
-
-:root .pt-lab .lab-grid .explorer {
-  background: var(--primus-surface);
-  border: 1px solid var(--primus-border);
-  padding: 18px 18px 20px;
-}
-
-:root[data-theme="dark"] .pt-lab .lab-grid .explorer {
-  background: rgba(19, 24, 22, 0.78);
-  border-color: var(--primus-border);
 }
 
 :root .pt-lab #results > .toolbar .segments {
@@ -350,19 +426,19 @@
   font-weight: 550;
 }
 
-:root .pt-lab .lab-grid .explorer .segments {
+:root .pt-lab .explorer .segments {
   border-radius: 999px;
   padding: 3px;
   background: var(--primus-surface-2);
   border: 1px solid var(--primus-border);
 }
 
-:root .pt-lab .lab-grid .explorer .segments button {
+:root .pt-lab .explorer .segments button {
   border-radius: 999px;
   min-height: 30px;
 }
 
-:root .pt-lab .lab-grid .explorer .checks label {
+:root .pt-lab .explorer .checks label {
   border-radius: 999px;
   padding: 5px 11px;
   min-height: 30px;
@@ -370,145 +446,261 @@
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
-:root .pt-lab .lab-grid .explorer .checks label.checked {
+:root .pt-lab .explorer .checks label.checked {
   background: var(--primus-accent-soft);
   border-color: var(--primus-accent-text);
   color: var(--primus-ink);
 }
 
-:root[data-theme="dark"] .pt-lab .lab-grid .explorer .checks label.checked {
+:root[data-theme="dark"] .pt-lab .explorer .checks label.checked {
   border-color: var(--primus-accent);
   color: var(--primus-accent);
 }
 
-:root .pt-lab .lab-grid .explorer .disclosure {
-  border-top: 1px solid var(--primus-border);
-  padding-top: 12px;
+/* ROW 1: 12-Col Architectural Grid — Edge Verdict (5) + Key Performance Metrics (7) */
+.sl-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 20px;
 }
 
-/* History Card — Subtle Institutional Matte Surface with Diagonal Tick Sheen */
-:root .pt-lab .lab-grid .history-card {
+.sl-hero-card {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+  min-height: 264px;
   background: var(--primus-surface);
   border: 1px solid var(--primus-border);
-  padding: 24px 24px 16px;
+  border-radius: 16px;
+  transition: border-color 180ms ease, opacity 180ms ease;
 }
 
-:root .pt-lab .lab-grid .history-card::before {
+.sl-hero-card:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.sl-hero-card::before,
+.mw-protocol-card::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.55;
-  background-image: url("data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 34L34 22' stroke='%238a9790' stroke-opacity='0.11' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E");
-  mask-image: radial-gradient(ellipse 68% 54% at 88% 12%, black 5%, transparent 72%);
-  -webkit-mask-image: radial-gradient(ellipse 68% 54% at 88% 12%, black 5%, transparent 72%);
+  opacity: 0.72;
+  background-image: url("data:image/svg+xml,%3Csvg width='56' height='56' viewBox='0 0 56 56' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 34L34 22' stroke='%238a9790' stroke-opacity='0.14' stroke-width='1.15' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: radial-gradient(ellipse 72% 72% at 76% 42%, black 12%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 72% 72% at 76% 42%, black 12%, transparent 78%);
 }
 
-:root .pt-lab .lab-grid .history-card > * {
+.sl-hero-card > *,
+.mw-protocol-card > * {
   position: relative;
   z-index: 1;
 }
 
-:root .pt-lab .history-source {
-  border-radius: 999px;
-  padding: 4px 11px;
-  background: var(--primus-surface-2);
-  border: 1px solid var(--primus-border);
-  color: var(--primus-ink-2);
-  font-weight: 550;
-}
-
-/* Refined Headline Stats Strip (Zero Chunky Boxes) */
-:root .pt-lab .lab-grid .stats {
+.sl-hero-top,
+.mw-protocol-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
 }
 
-:root .pt-lab .lab-grid .stat {
-  background: var(--primus-surface);
-  border: 1px solid var(--primus-border);
-  padding: 18px 20px;
-  transition: border-color 180ms ease;
+.sl-edge-pill,
+.mw-score-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--primus-border-strong);
+  background: var(--primus-surface-2);
+  color: var(--primus-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-:root .pt-lab .lab-grid .stat:hover {
-  border-color: var(--primus-border-strong);
+.sl-edge-pill:hover {
+  border-color: var(--primus-accent-text);
 }
 
-:root .pt-lab .lab-grid .stat:first-child {
-  background: var(--primus-surface);
+:root[data-theme="dark"] .sl-edge-pill:hover {
+  border-color: var(--primus-accent);
 }
 
-:root .pt-lab .lab-grid .stat strong {
-  font-variant-numeric: tabular-nums;
+.sl-hero-aside,
+.mw-protocol-aside {
+  text-align: right;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--primus-muted);
+}
+
+.sl-hero-body,
+.mw-protocol-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sl-hero-eyebrow,
+.mw-protocol-eyebrow {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--primus-muted);
+}
+
+.sl-hero-headline,
+.mw-protocol-headline {
+  margin: 0;
+  font-size: clamp(21px, 2.2vw, 26px);
+  font-weight: 500;
+  line-height: 1.18;
   letter-spacing: -0.03em;
+  color: var(--primus-ink);
 }
 
-/* AlphaLedger-Inspired Key Performance Metrics Institutional Ledger */
+.sl-hero-headline em,
+.mw-protocol-headline em {
+  font-family: var(--primus-font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.sl-hero-figures {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--primus-border);
+}
+
+.sl-hero-figures span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--primus-muted);
+}
+
+.sl-hero-figures strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.sl-hero-figures-right {
+  text-align: right;
+}
+
+.sl-hero-figures-right strong {
+  font-size: 20px;
+}
+
+.sl-hero-empty-cta {
+  padding-top: 10px;
+  border-top: 1px solid var(--primus-border);
+}
+
+/* Top Right: Institutional Key Performance Metrics Ledger */
+.sl-metrics-card,
 .lab-kpi-ledger {
-  margin-top: 14px;
-  padding: 20px 22px;
+  margin-top: 0;
+  padding: 22px 24px;
   background: var(--primus-surface);
   border: 1px solid var(--primus-border);
-  border-radius: 14px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
   transition: border-color 180ms ease, opacity 180ms ease;
 }
 
-.lab-kpi-ledger.updating {
-  opacity: 0.65;
-}
-
-.lab-kpi-ledger:hover {
+.sl-metrics-card:hover {
   border-color: var(--primus-border-strong);
 }
 
-.lab-kpi-ledger-head {
+.lab-kpi-ledger.updating,
+.sl-hero-card.updating,
+.sl-dist-card.updating {
+  opacity: 0.65;
+}
+
+.lab-kpi-ledger-head,
+.mw-ledger-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--primus-border);
 }
 
-.lab-kpi-ledger-head h3 {
+.lab-kpi-ledger-head h3,
+.mw-ledger-head h2 {
   margin: 0;
-  font-size: 14.5px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--primus-ink);
 }
 
-.lab-kpi-ledger-sub {
-  font-family: var(--primus-font-mono);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+.sl-ledger-link,
+.mw-ledger-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
   color: var(--primus-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 150ms ease;
 }
 
-.lab-kpi-ledger-grid {
+.sl-ledger-link:hover,
+.mw-ledger-link:hover {
+  color: var(--primus-ink);
+}
+
+.lab-kpi-ledger-grid,
+.mw-ledger-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 28px;
+  gap: 3px 26px;
 }
 
-.lab-ledger-row {
+.lab-ledger-row,
+.mw-ledger-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 7px 8px;
+  gap: 10px;
+  padding: 7px 6px;
   border-radius: 8px;
   transition: background-color 150ms ease;
 }
 
-.lab-ledger-row:hover {
+.lab-ledger-row:hover,
+.mw-ledger-row:hover {
   background: var(--primus-surface-2);
 }
 
-.lab-ledger-row > span {
+.lab-ledger-row > span,
+.mw-ledger-row > span {
   font-size: 13px;
   color: var(--primus-ink-2);
 }
@@ -538,20 +730,259 @@
   color: var(--primus-neg);
 }
 
-@media (max-width: 680px) {
-  .lab-kpi-ledger-grid {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
+.sl-metrics-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--primus-border);
+  background: transparent !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-radius: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
 }
 
-/* Filter chips & Trades review toolbar refined to matte pills */
-:root .pt-lab .active-filters button,
-:root .pt-lab .filter-chip {
-  border-radius: 999px;
+.sl-metrics-foot small {
+  font-size: 11.5px;
+  color: var(--primus-muted);
+}
+
+/* Section Caption between Row 1 and Row 2 */
+.sl-analytics-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 2px 12px;
   font-size: 12px;
+  color: var(--primus-muted);
 }
 
+/* ROW 2: 50/50 Return Distribution + Cumulative Equity Curve */
+.sl-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.sl-dist-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 24px 18px;
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  border-radius: 14px;
+  transition: border-color 180ms ease;
+}
+
+.sl-dist-card:hover {
+  border-color: var(--primus-border-strong);
+}
+
+.sl-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sl-card-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--primus-ink);
+}
+
+.sl-card-head p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--primus-muted);
+}
+
+.sl-dist-stage {
+  position: relative;
+  width: 100%;
+  min-height: 228px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sl-dist-svg {
+  width: 100%;
+  height: 228px;
+  overflow: visible;
+}
+
+.sl-dist-grid {
+  stroke: var(--primus-border);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+.sl-dist-axis {
+  fill: var(--primus-muted);
+  font-size: 10.5px;
+  font-family: var(--primus-font-mono);
+}
+
+.sl-dist-bar {
+  fill: var(--primus-surface-3);
+  cursor: pointer;
+  transition: fill 180ms ease, opacity 180ms ease;
+}
+
+:root[data-theme="dark"] .sl-dist-bar {
+  fill: rgba(255, 255, 255, 0.15);
+}
+
+.sl-dist-bar.is-peak {
+  fill: rgba(14, 138, 95, 0.42);
+}
+
+:root[data-theme="dark"] .sl-dist-bar.is-peak {
+  fill: rgba(200, 241, 105, 0.44);
+}
+
+.sl-dist-bar.is-hover {
+  fill: var(--primus-accent-text);
+}
+
+:root[data-theme="dark"] .sl-dist-bar.is-hover {
+  fill: var(--primus-accent);
+}
+
+.sl-dist-curve {
+  stroke: var(--primus-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.82;
+}
+
+:root[data-theme="dark"] .sl-dist-curve {
+  stroke: #dce9c4;
+}
+
+.sl-dist-mean {
+  stroke: var(--primus-accent-text);
+  stroke-width: 1.4;
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+}
+
+:root[data-theme="dark"] .sl-dist-mean {
+  stroke: var(--primus-accent);
+}
+
+.sl-dist-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--primus-surface-2);
+  border: 1px solid var(--primus-border-strong);
+  color: var(--primus-ink);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.sl-dist-empty-note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sl-dist-empty-note span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--primus-surface-2);
+  border: 1px solid var(--primus-border);
+  font-size: 12px;
+  color: var(--primus-muted);
+}
+
+/* History Card — Matches Exact Matte Dark Surface & 14px Radius */
+:root .pt-lab .lab-grid .history-card {
+  background: var(--primus-surface);
+  border: 1px solid var(--primus-border);
+  border-radius: 14px;
+  padding: 22px 24px 16px;
+}
+
+:root .pt-lab .lab-grid .history-card .section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+:root .pt-lab .lab-grid .history-card h2 {
+  font-family: var(--primus-font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+:root .pt-lab .lab-grid .history-card .section-title p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--primus-muted);
+}
+
+:root .pt-lab .history-source {
+  border-radius: 999px;
+  padding: 4px 11px;
+  background: var(--primus-surface-2);
+  border: 1px solid var(--primus-border);
+  color: var(--primus-ink-2);
+  font-size: 11.5px !important;
+  font-weight: 550;
+}
+
+.sl-detail-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.sl-breakdown-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.sl-breakdown-head h3 {
+  margin: 0 0 4px;
+  font-size: 15.5px;
+  font-weight: 600;
+}
+
+:root .pt-lab .active-filters button,
+:root .pt-lab .filter-chip,
 :root .pt-lab .trade-review-toolbar .segments,
 :root .pt-lab .trade-review-toolbar .segments button,
 :root .pt-lab .review-pill {
@@ -566,69 +997,212 @@
   background: var(--primus-surface-2);
 }
 
+@media (max-width: 1020px) {
+  .sl-top-grid,
+  .sl-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .lab-kpi-ledger-grid,
+  .mw-ledger-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 /* ---------------------------------------------------------------------------
-   4. MINDSET DESK (/mindset) — Calm Editorial Rhythm & Hairline Mirror Ledger
+   4. MINDSET DESK (/mindset) — TRUE 2x2 MORNING DESK ARCHITECTURE
    --------------------------------------------------------------------------- */
-.mw-section-ribbon {
+.mw-page .wp-main {
+  gap: 22px;
+  padding-block: 34px 72px;
+}
+
+.mw-studio-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.mw-studio-heading-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.mw-studio-header h1 {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 550;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.mw-studio-header h1 em {
+  font-family: var(--primus-font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.mw-studio-subtitle {
+  margin: 6px 0 0 !important;
+  font-size: 13px;
+  color: var(--primus-muted);
+}
+
+.mw-studio-subtitle strong {
+  color: var(--primus-ink-2);
+  font-weight: 550;
+}
+
+.mw-studio-controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 6px 0 12px;
-  border-bottom: 1px solid var(--primus-border);
 }
 
-.mw-section-ribbon a {
-  padding: 6px 13px;
-  border-radius: 999px;
-  border: 1px solid var(--primus-border);
-  background: var(--primus-surface);
-  color: var(--primus-ink-2);
+.mw-studio-controls .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px !important;
+  min-height: 36px;
+  padding: 6px 14px;
   font-size: 12.5px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
 }
 
-.mw-section-ribbon a:hover {
-  border-color: var(--primus-border-strong);
-  color: var(--primus-ink);
-  background: var(--primus-surface-2);
+/* Whisper-quiet inline readiness strip (zero clunky outer box) */
+.mw-readiness-inline {
+  padding: 10px 0 14px;
+  border-bottom: 1px solid var(--primus-border);
+  display: grid;
+  gap: 12px;
 }
 
-:root[data-theme="dark"] .mw-section-ribbon a:hover {
-  border-color: var(--primus-accent);
-  color: var(--primus-accent);
+.mw-readiness-inline .mw-readiness-groups {
+  justify-content: flex-start;
+  gap: 12px 18px;
 }
 
-.mw-hero {
-  border-radius: 18px;
-  border-color: var(--primus-border);
-  background: var(--primus-surface);
-}
-
-:root[data-theme="dark"] .mw-hero {
-  background: linear-gradient(145deg, #151c19 0%, #101513 100%);
-  border-color: var(--primus-border);
-}
-
-.mw-hero-preview {
-  border-radius: 14px;
-  border-color: var(--primus-border);
-  background: var(--primus-surface-2);
-  box-shadow: var(--primus-shadow-card);
-}
-
-.mw-preview-options button {
-  border-radius: 999px;
+.mw-readiness-inline .mw-readiness-label {
+  min-width: auto;
+  font-size: 11.5px;
+  text-transform: none;
+  letter-spacing: 0;
   font-weight: 550;
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
-.mw-readiness-strip {
-  border-radius: 14px;
-  border-color: var(--primus-border);
-  background: var(--primus-surface);
+.mw-readiness-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--primus-border-strong);
+}
+
+.mw-readiness-inline .mw-journal-link {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--primus-muted);
+  padding: 4px 8px;
+}
+
+.mw-readiness-inline .mw-journal-link:hover {
+  color: var(--primus-ink);
+}
+
+/* ROW 1: Pre-Market Protocol Spotlight (5) + Mindset & Journal Mirror Ledger (7) */
+.mw-desk-top {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.mw-protocol-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 24px !important;
+  border-radius: 16px !important;
+  border-color: var(--primus-border) !important;
+  background: var(--primus-surface) !important;
+}
+
+.mw-step-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--primus-border);
+}
+
+.mw-step-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--primus-border);
+  background: var(--primus-surface-2);
+  color: var(--primus-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 140ms ease;
+}
+
+.mw-step-tile:hover:not(:disabled) {
+  border-color: var(--primus-accent-text);
+}
+
+:root[data-theme="dark"] .mw-step-tile:hover:not(:disabled) {
+  border-color: var(--primus-accent);
+}
+
+.mw-step-tile strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mw-step-tile span {
+  font-size: 11px;
+  color: var(--primus-muted);
+}
+
+.mw-step-tile span.is-done {
+  color: var(--primus-pos);
+  font-weight: 600;
+}
+
+.mw-mirror-ledger {
+  padding: 22px 24px !important;
+  border-radius: 16px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px;
+}
+
+.mw-ledger-empty {
+  margin: auto 0 0 !important;
+  padding-top: 10px;
+  border-top: 1px solid var(--primus-border);
+  font-size: 12px;
+  color: var(--primus-muted);
+}
+
+.mw-ledger-empty a {
+  color: var(--primus-ink);
+  font-weight: 600;
 }
 
 .mw-card.wp-panel {
@@ -636,69 +1210,92 @@
   border-color: var(--primus-border);
 }
 
+.mw-card .mw-card-title h2 {
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
 .mw-checklist label {
   border-radius: 11px;
   border-color: transparent;
   background: var(--primus-surface-2);
-  transition: background-color 150ms ease, border-color 150ms ease;
+  padding: 11px 13px;
+  transition: background-color 150ms ease, border-color 150ms ease, opacity 160ms ease;
 }
 
 .mw-checklist label:hover {
   border-color: var(--primus-border-strong);
 }
 
-.mw-mirror-box {
-  border-radius: 12px;
-  border-color: var(--primus-border);
-  background: var(--primus-surface-2);
-  transition: border-color 160ms ease;
+.mw-checklist label.is-checked {
+  opacity: 0.72;
 }
 
-.mw-mirror-box:hover {
-  border-color: var(--primus-border-strong);
+.mw-checklist label.is-checked strong {
+  text-decoration: line-through;
+}
+
+.mw-prep-grid,
+.mw-intel-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 980px) {
+  .mw-desk-top,
+  .mw-prep-grid,
+  .mw-intel-grid {
+    grid-template-columns: 1fr;
+  }
+  .mw-readiness-sep {
+    display: none;
+  }
+  .mw-readiness-inline .mw-journal-link {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .mw-step-tiles {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------------------------------------------------------------------------
-   5. DAILY JOURNAL (/journal) — Calm Matte Surfaces & Tactile Mode Switch
+   5. DAILY JOURNAL (/journal), MATRIX (/matrix), LEARN & BACKTESTING POLISH
    --------------------------------------------------------------------------- */
-.pj-view-switch {
+.pj-view-switch,
+.mx-tabs {
   border-radius: 999px;
   padding: 3px;
 }
 
-.pj-view-switch [role="tab"] {
+.pj-view-switch [role="tab"],
+.mx-tabs button[role="tab"] {
   border-radius: 999px;
-  transition: background-color 160ms ease, color 160ms ease;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
-.pj-voice-btn {
+.pj-voice-btn,
+.learn-hub-jumps a {
   border-radius: 999px;
   transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
 
-.pj-trade-card {
-  border-radius: 12px;
-  transition: border-color 160ms ease, background-color 160ms ease;
+.pj-trade-card,
+.wp-panel,
+.wp-resource,
+.wp-goal,
+.learn-next-card,
+.bt-session-card {
+  border-radius: 14px;
 }
 
-.pj-trade-card:hover {
-  border-color: var(--primus-border-strong);
-}
-
-.pt-day-editor {
+.pt-day-editor,
+.mx-card,
+.learn-bullpen-hero {
   border-radius: 16px;
-}
-
-/* ---------------------------------------------------------------------------
-   6. THE MATRIX (/matrix) — Institutional Obsidian Polish
-   --------------------------------------------------------------------------- */
-.mx-card {
-  border-radius: 16px;
-  border-color: var(--primus-border);
-}
-
-.mx-card:hover {
-  border-color: var(--primus-border-strong);
 }
 
 .mx-decision-strip {
@@ -722,58 +1319,28 @@
   z-index: 1;
 }
 
-.mx-tabs {
-  border-radius: 999px;
-  padding: 3px;
-}
-
-.mx-tabs button[role="tab"] {
-  border-radius: 999px;
-  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
-}
-
-/* ---------------------------------------------------------------------------
-   7. LEARN & BULLPEN (/learn) + BACKTESTING HUB (/backtesting)
-   --------------------------------------------------------------------------- */
-.learn-bullpen-hero {
-  border-radius: 18px;
-}
-
-.learn-hub-jumps a {
-  border-radius: 999px;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
-}
-
-.learn-next-card,
-.wp-panel,
-.wp-resource,
-.wp-goal {
-  border-radius: 14px;
-}
-
-.learn-next-card:hover {
-  border-color: var(--primus-border-strong);
-  transform: translateY(-2px);
-}
-
-/* Backtesting Session Hub cards (never touches @luxalgo/vela chart canvas or drawing tools) */
-.bt-session-card {
-  border-radius: 14px;
-  transition: border-color 180ms ease, transform 180ms ease;
-}
-
+.mx-card:hover,
+.pj-trade-card:hover,
+.learn-next-card:hover,
 .bt-session-card:hover {
   border-color: var(--primus-border-strong);
 }
 
+.learn-next-card:hover {
+  transform: translateY(-2px);
+}
+
 /* ---------------------------------------------------------------------------
-   8. REDUCED MOTION COMPLIANCE
+   6. REDUCED MOTION COMPLIANCE
    --------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  .primus-rail-item,
-  .primus-rail-tip,
+  .sl-dock-btn,
+  .sl-dock-tip,
+  .sl-filter-drawer,
+  .sl-drawer-scrim,
   .lab-filter-toggle,
   .lab-strategy-pill,
+  .mw-step-tile,
   .learn-next-card,
   .bt-session-card,
   .pj-trade-card {

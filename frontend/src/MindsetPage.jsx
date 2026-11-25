@@ -1,6 +1,6 @@
 import React, {lazy, Suspense, useEffect, useRef, useState} from 'react';
 import {
-  AlertTriangle, ArrowUpRight, Check, Headphones, Mic, MicOff,
+  ArrowUpRight, Brain, Check, CheckSquare, Headphones, Home, Mic, MicOff,
   Play, Plus, ShieldAlert, Sparkles, Wind,
 } from 'lucide-react';
 import {WorkspacePage, useIdentity, SignInPanel} from './WorkspacePages';
@@ -19,9 +19,9 @@ import './mindset-warmup.css';
 const BrainExplorer = lazy(() => import('./BrainExplorer'));
 const MindsetWarmUp = lazy(() => import('./MindsetWarmUp'));
 const PREVIEW_STEPS = [
-  {name: 'Breathwork', time: '2 min', text: 'Choose a rhythm and follow the breath.'},
-  {name: 'Focus Games', time: '1 min', text: 'Recall a pattern or spot a matching symbol.'},
-  {name: 'Affirmation', time: 'At your pace', text: 'Settle on the rule you’ll take into the session.'},
+  {name: 'Breathwork', time: '2 min · Box', text: 'Choose a rhythm and follow the breath.'},
+  {name: 'Focus Games', time: '1 min · Grid', text: 'Recall a pattern or spot a matching symbol.'},
+  {name: 'Affirmation', time: 'Session rule', text: 'Settle on the rule you’ll take into the session.'},
 ];
 const ENERGY_OPTIONS = [
   {value: 'rested', label: 'Rested'},
@@ -40,41 +40,42 @@ const STARTER_HABITS = [
   '20m walk or workout',
 ];
 
-function WarmUpHero({state, highScore, onStart, onTiltReset, soundMode, onSoundMode}) {
-  const [preview, setPreview] = useState(0);
-  const step = PREVIEW_STEPS[preview];
-  return <section className="mw-hero" aria-labelledby="warm-up-title">
-    <PrimusTopoField variant="card"/>
-    <div className="mw-hero-content">
-      <h1 id="warm-up-title"><span>Pre-Market</span>{' '}<span>Warm-Up</span></h1>
-      <p>Take about five minutes to reset, sharpen your focus and choose a rule for the session.</p>
-      {state && (
-        <div className="mw-hero-cta">
-          <Button type="button" variant="primary" onClick={() => onStart(0)}>
-            <Play size={15} aria-hidden="true"/> {state.completed ? 'Run Warm-Up again' : 'Start Warm-Up'}
-          </Button>
-          <Button type="button" onClick={onTiltReset}>
-            <Wind size={15} aria-hidden="true"/> 60s Tilt Reset
-          </Button>
-          <a className="mw-journal-link" href="/journal">
-            Open Today’s Journal <ArrowUpRight size={14} aria-hidden="true"/>
-          </a>
+function StudioHeader({state, onStart, onTiltReset, soundMode, onSoundMode}) {
+  const energy = state?.energy || '';
+  const headspace = state?.headspace || '';
+  const tilted = headspace === 'emotional' || headspace === 'distracted' || energy === 'fumes';
+  const items = state?.items || [];
+  const checked = items.filter(({id}) => state?.checklist?.includes(id)).length;
+  const ready = items.length > 0 && checked === items.length;
+
+  return (
+    <header className="mw-studio-header" aria-labelledby="warm-up-title">
+      <div className="mw-studio-title-group">
+        <div className="mw-studio-heading-row">
+          <h1 id="warm-up-title">Pre-Market <em>Warm-Up</em></h1>
+          {state && (
+            <span className={`mw-status-pill ${tilted ? 'is-warn' : state.completed || ready ? 'is-pos' : ''}`}>
+              <i aria-hidden="true"/>
+              {state.completed
+                ? 'Warm-Up Complete'
+                : tilted
+                  ? 'Tilt Caution'
+                  : ready
+                    ? 'Calm · Ready'
+                    : 'Calm · In Prep'}
+            </span>
+          )}
         </div>
-      )}
-      {state?.affirmation && (
-        <div className="mw-session-rule">
-          <span>Today’s rule</span>
-          <strong>“{state.affirmation}”</strong>
-        </div>
-      )}
-      <div className="mw-hero-status">
-        <span className="mw-pill"><strong>Today's High Score</strong><span>{state?.team_eligible
-          ? highScore?.leader ? `${highScore.leader.score} / ${highScore.leader.max_score} · ${highScore.leader.name}`
-            : highScore?.failed ? 'Unavailable' : highScore ? 'No scores yet' : 'Loading…'
-          : 'Bullpen team only'}</span></span>
-        {state?.completed && <span className="mw-pill mw-complete">Warm-Up Complete</span>}
+        <p className="mw-studio-subtitle">
+          {state?.affirmation
+            ? <>Today’s rule: <strong>“{state.affirmation}”</strong></>
+            : 'Take five minutes to settle focus, check your state, and lock one rule before NY open.'}
+        </p>
+      </div>
+
+      <div className="mw-studio-controls">
         <div className="mw-audio-bar" role="group" aria-label="Focus soundscape">
-          <Headphones size={14} aria-hidden="true"/>
+          <Headphones size={13} aria-hidden="true"/>
           {[
             ['off', 'Audio off'],
             ['brown', 'Brown noise'],
@@ -85,21 +86,19 @@ function WarmUpHero({state, highScore, onStart, onTiltReset, soundMode, onSoundM
             </button>
           ))}
         </div>
+        {state && (
+          <>
+            <Button type="button" onClick={onTiltReset}>
+              <Wind size={14} aria-hidden="true"/> 60s Tilt Reset
+            </Button>
+            <Button type="button" variant="primary" onClick={() => onStart(0)}>
+              <Play size={14} aria-hidden="true"/> {state.completed ? 'Run Warm-Up again' : 'Start Warm-Up'}
+            </Button>
+          </>
+        )}
       </div>
-    </div>
-    <div className="mw-hero-preview">
-      <div className="mw-preview-options" role="group" aria-label="Open a warm-up step">
-        {PREVIEW_STEPS.map(({name}, index) => <button key={name} type="button" aria-pressed={index === preview}
-          disabled={!state} aria-haspopup="dialog" onClick={() => {setPreview(index); onStart(index);}}>{name}</button>)}
-      </div>
-      <div key={step.name} className={`mw-preview-scene mw-preview-scene-${preview}`} aria-hidden="true">
-        {preview === 0 ? [.32, .5, .7, .93, .7, .5, .32].map((height, index) => <i key={index} style={{'--preview-height': height, '--preview-delay': `${index * .12}s`}}/>)
-          : preview === 1 ? Array.from({length: 16}, (_, index) => <i key={index} className={[1, 6, 8, 15].includes(index) ? 'lit' : undefined}/>)
-          : <span>Wait for confirmation.</span>}
-      </div>
-      <div className="mw-preview-caption" aria-live="polite"><span>{step.text}</span><strong>{step.time}</strong></div>
-    </div>
-  </section>;
+    </header>
+  );
 }
 
 function ReadinessStrip({state, onChange, onTiltReset}) {
@@ -107,48 +106,180 @@ function ReadinessStrip({state, onChange, onTiltReset}) {
   const headspace = state.headspace || '';
   const tilted = headspace === 'emotional' || headspace === 'distracted' || energy === 'fumes';
 
-  return <section className={`wp-panel mw-readiness-strip ${tilted ? 'is-caution' : ''}`} aria-label="Pre-market readiness check">
-    <div className="mw-readiness-groups">
-      <div className="mw-readiness-group">
-        <span className="mw-readiness-label">Energy</span>
-        <div role="group" aria-label="Energy level">
-          {ENERGY_OPTIONS.map(opt => (
-            <button key={opt.value} type="button" aria-pressed={energy === opt.value}
-              onClick={() => onChange({...state, energy: energy === opt.value ? '' : opt.value})}>
-              {opt.label}
-            </button>
-          ))}
+  return (
+    <section className={`mw-readiness-inline ${tilted ? 'is-caution' : ''}`} aria-label="Pre-market readiness check">
+      <div className="mw-readiness-groups">
+        <div className="mw-readiness-group">
+          <span className="mw-readiness-label">Energy</span>
+          <div role="group" aria-label="Energy level">
+            {ENERGY_OPTIONS.map(opt => (
+              <button key={opt.value} type="button" aria-pressed={energy === opt.value}
+                onClick={() => onChange({...state, energy: energy === opt.value ? '' : opt.value})}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="mw-readiness-group">
-        <span className="mw-readiness-label">Headspace</span>
-        <div role="group" aria-label="Current headspace">
-          {HEADSPACE_OPTIONS.map(opt => (
-            <button key={opt.value} type="button" aria-pressed={headspace === opt.value}
-              className={opt.value === 'emotional' ? 'tone-warn' : ''}
-              onClick={() => onChange({...state, headspace: headspace === opt.value ? '' : opt.value})}>
-              {opt.label}
-            </button>
-          ))}
+        <span className="mw-readiness-sep" aria-hidden="true"/>
+        <div className="mw-readiness-group">
+          <span className="mw-readiness-label">Headspace</span>
+          <div role="group" aria-label="Current headspace">
+            {HEADSPACE_OPTIONS.map(opt => (
+              <button key={opt.value} type="button" aria-pressed={headspace === opt.value}
+                className={opt.value === 'emotional' ? 'tone-warn' : ''}
+                onClick={() => onChange({...state, headspace: headspace === opt.value ? '' : opt.value})}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
+        <a className="mw-journal-link" href="/journal">
+          Open Today’s Journal <ArrowUpRight size={13} aria-hidden="true"/>
+        </a>
       </div>
-    </div>
-    {tilted && (
-      <div className="mw-tilt-guard" role="note">
-        <ShieldAlert size={16} aria-hidden="true"/>
-        <span>Elevated tilt risk — consider cutting size or running a 60s reset before NY open.</span>
-        <button type="button" onClick={onTiltReset}>Run 60s Reset</button>
-      </div>
-    )}
-  </section>;
+      {tilted && (
+        <div className="mw-tilt-guard" role="note">
+          <ShieldAlert size={16} aria-hidden="true"/>
+          <span>Elevated tilt risk — consider cutting size or running a 60s reset before NY open.</span>
+          <button type="button" onClick={onTiltReset}>Run 60s Reset</button>
+        </div>
+      )}
+    </section>
+  );
 }
 
-function MorningBriefAndMirror({voiceCloudEnabled, state}) {
+function ProtocolSpotlightCard({state, highScore, onStart}) {
+  const scoreLabel = state?.team_eligible
+    ? highScore?.leader
+      ? `Team High Score · ${highScore.leader.score}/${highScore.leader.max_score} · ${highScore.leader.name}`
+      : highScore?.failed
+        ? 'High Score · Unavailable'
+        : highScore
+          ? 'Today’s High Score · No scores yet'
+          : 'Today’s High Score · Loading…'
+    : 'Today’s High Score · Bullpen team only';
+
+  return (
+    <section className="wp-panel mw-protocol-card" aria-label="Pre-market protocol">
+      <PrimusTopoField variant="card"/>
+      <div className="mw-protocol-top">
+        <span className="mw-score-chip">
+          <span>{scoreLabel}</span>
+          <ArrowUpRight size={12} aria-hidden="true"/>
+        </span>
+        <span className="mw-protocol-aside">5 min before<br/>NY Open</span>
+      </div>
+
+      <div className="mw-protocol-body">
+        <span className="mw-protocol-eyebrow">PRE-MARKET PROTOCOL</span>
+        <h2 className="mw-protocol-headline">
+          Settle the nervous system, lock one <em>non-negotiable</em> rule.
+        </h2>
+
+        <div className="mw-step-tiles" role="group" aria-label="Open a warm-up step">
+          {PREVIEW_STEPS.map(({name, time}, index) => (
+            <button
+              key={name}
+              type="button"
+              className="mw-step-tile"
+              aria-label={name}
+              disabled={!state}
+              aria-haspopup="dialog"
+              onClick={() => onStart(index)}
+            >
+              <strong>{name}</strong>
+              <span className={index === 2 && state?.completed ? 'is-done' : ''}>
+                {index === 2 && state?.completed ? 'Locked ✓' : time}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MirrorLedgerCard({mirror, state}) {
+  const items = state?.items || [];
+  const checked = items.filter(({id}) => state?.checklist?.includes(id)).length;
+  const hasMirror = Boolean(mirror && mirror.total_journal_days > 0);
+
+  return (
+    <section className="wp-panel mw-mirror-ledger" aria-labelledby="mw-mirror-title">
+      <div className="mw-ledger-head">
+        <h2 id="mw-mirror-title">Mindset &amp; Journal Mirror</h2>
+        <a href="#daily-habits" className="mw-ledger-link">Daily Habits ›</a>
+      </div>
+
+      <div className="mw-ledger-grid">
+        <div className="mw-ledger-row">
+          <span>With Morning Prep</span>
+          <strong className={`lab-val-chip ${hasMirror && mirror.prepped.plan_pct >= 60 ? 'is-pos' : ''}`}>
+            {hasMirror
+              ? (mirror.prepped.plan_pct != null ? `${mirror.prepped.plan_pct}% on-plan` : `${mirror.prepped.days}d logged`)
+              : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Prepped Net P&amp;L</span>
+          <strong className={`lab-val-chip ${hasMirror && mirror.prepped.pnl_days > 0 ? (mirror.prepped.net_pnl > 0 ? 'is-pos' : mirror.prepped.net_pnl < 0 ? 'is-neg' : '') : ''}`}>
+            {hasMirror && mirror.prepped.pnl_days > 0 ? money(mirror.prepped.net_pnl) : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Skipped Prep</span>
+          <strong className="lab-val-chip">
+            {hasMirror
+              ? (mirror.unprepped.plan_pct != null ? `${mirror.unprepped.plan_pct}% on-plan` : `${mirror.unprepped.days}d logged`)
+              : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Unprepped Net P&amp;L</span>
+          <strong className={`lab-val-chip ${hasMirror && mirror.unprepped.pnl_days > 0 ? (mirror.unprepped.net_pnl > 0 ? 'is-pos' : mirror.unprepped.net_pnl < 0 ? 'is-neg' : '') : ''}`}>
+            {hasMirror && mirror.unprepped.pnl_days > 0 ? money(mirror.unprepped.net_pnl) : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Focused / Patient</span>
+          <strong className={`lab-val-chip ${hasMirror && mirror.calm.days > 0 ? (mirror.calm.net_pnl > 0 ? 'is-pos' : mirror.calm.net_pnl < 0 ? 'is-neg' : '') : ''}`}>
+            {hasMirror && mirror.calm.days > 0 ? money(mirror.calm.net_pnl) : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Distracted / Tilted</span>
+          <strong className={`lab-val-chip ${hasMirror && mirror.tilted.days > 0 ? (mirror.tilted.net_pnl > 0 ? 'is-pos' : mirror.tilted.net_pnl < 0 ? 'is-neg' : '') : ''}`}>
+            {hasMirror && mirror.tilted.days > 0 ? money(mirror.tilted.net_pnl) : '—'}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Pre-Session Checks</span>
+          <strong className={`lab-val-chip ${items.length > 0 && checked === items.length ? 'is-pos' : ''}`}>
+            {checked} / {items.length}
+          </strong>
+        </div>
+        <div className="mw-ledger-row">
+          <span>Warm-Up Status</span>
+          <strong className={`lab-val-chip ${state?.completed ? 'is-pos' : ''}`}>
+            {state?.completed ? 'Complete ✓' : 'Pending'}
+          </strong>
+        </div>
+      </div>
+
+      {!hasMirror && (
+        <p className="mw-ledger-empty">
+          Log sessions in your <a href="/journal">Daily Journal</a> alongside morning prep to populate your live prep-vs-P&amp;L mirror.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function MorningBriefCard({voiceCloudEnabled, state}) {
   const [note, setNote] = useState('');
   const [brief, setBrief] = useState(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [briefError, setBriefError] = useState('');
-  const [mirror, setMirror] = useState(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -160,16 +291,9 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
   const canCloudVoice = voiceCloudEnabled && typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== 'undefined';
   const voiceSupported = canCloudVoice || Boolean(SpeechCtor);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    api('/mindset/mirror', {signal: controller.signal})
-      .then(data => { if (!controller.signal.aborted) setMirror(data); })
-      .catch(() => {});
-    return () => {
-      controller.abort();
-      try { recorderRef.current?.stop(); } catch {}
-      try { speechRef.current?.stop(); } catch {}
-    };
+  useEffect(() => () => {
+    try { recorderRef.current?.stop(); } catch {}
+    try { speechRef.current?.stop(); } catch {}
   }, []);
 
   useEffect(() => {
@@ -258,7 +382,7 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
     }
   }
 
-  return <div className="mw-intel-grid">
+  return (
     <section className="wp-panel mw-card mw-brief-card" aria-labelledby="mw-brief-title">
       <div className="mw-card-title">
         <h2 id="mw-brief-title">Morning Primax Brief</h2>
@@ -307,52 +431,7 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
         </div>
       )}
     </section>
-
-    <section className="wp-panel mw-card mw-mirror-card" aria-labelledby="mw-mirror-title">
-      <div className="mw-card-title">
-        <h2 id="mw-mirror-title">Prep vs. Performance</h2>
-        <span className="mw-intel-tag">Your Journal data</span>
-      </div>
-      {!mirror || mirror.total_journal_days === 0 ? (
-        <p className="mw-muted-copy">Log a few sessions in your <a href="/journal">Daily Journal</a> alongside your morning prep to see how preparation impacts your plan adherence and P&amp;L.</p>
-      ) : (
-        <div className="mw-mirror-grid">
-          <div className="mw-mirror-box is-good">
-            <span className="mw-mirror-label">With Morning Prep</span>
-            <strong>{mirror.prepped.plan_pct != null ? `${mirror.prepped.plan_pct}% on-plan` : `${mirror.prepped.days}d logged`}</strong>
-            <small>
-              {mirror.prepped.pnl_days > 0
-                ? `${mirror.prepped.win_pct}% green · ${money(mirror.prepped.net_pnl)}`
-                : `${mirror.prepped.days} prepped ${mirror.prepped.days === 1 ? 'day' : 'days'}`}
-            </small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Skipped Prep</span>
-            <strong>{mirror.unprepped.plan_pct != null ? `${mirror.unprepped.plan_pct}% on-plan` : `${mirror.unprepped.days}d logged`}</strong>
-            <small>
-              {mirror.unprepped.pnl_days > 0
-                ? `${mirror.unprepped.win_pct}% green · ${money(mirror.unprepped.net_pnl)}`
-                : `${mirror.unprepped.days} unprepped ${mirror.unprepped.days === 1 ? 'day' : 'days'}`}
-            </small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Focused / Patient</span>
-            <strong className={mirror.calm.net_pnl > 0 ? 'gain' : mirror.calm.net_pnl < 0 ? 'loss' : ''}>
-              {mirror.calm.days > 0 ? money(mirror.calm.net_pnl) : '—'}
-            </strong>
-            <small>{mirror.calm.days} calm {mirror.calm.days === 1 ? 'session' : 'sessions'}</small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Distracted / Frustrated</span>
-            <strong className={mirror.tilted.net_pnl > 0 ? 'gain' : mirror.tilted.net_pnl < 0 ? 'loss' : ''}>
-              {mirror.tilted.days > 0 ? money(mirror.tilted.net_pnl) : '—'}
-            </strong>
-            <small>{mirror.tilted.days} tilted {mirror.tilted.days === 1 ? 'session' : 'sessions'}</small>
-          </div>
-        </div>
-      )}
-    </section>
-  </div>;
+  );
 }
 
 function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabled = false}) {
@@ -378,7 +457,10 @@ function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabl
     onEdit({items: items.filter(item => item.id !== id), checklist: state.checklist.filter(value => value !== id)});
   }
   return <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby={heading}>
-    <h2 id={heading}>{habits ? 'Daily Habit Tracker' : 'Pre-Session Checklist'}</h2>
+    <div className="mw-card-title">
+      <h2 id={heading}>{habits ? 'Daily Habit Tracker' : 'Pre-Session Checklist'}</h2>
+      <span className={`lab-val-chip ${ready ? 'is-pos' : ''}`}>{checked} / {items.length}</span>
+    </div>
     <PrepProgress checked={checked} total={items.length} label={habits ? 'Habit progress' : undefined}
       accessibleLabel={habits ? 'Daily habit progress' : undefined}/>
     <div className="mw-checklist">
@@ -386,7 +468,7 @@ function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabl
         <input aria-label={`${habits ? 'Habit' : 'Checklist item'} ${index + 1}`} maxLength={120} required value={label}
           onChange={e => onEdit({items: items.map(item => item.id === id ? {...item, label: e.target.value} : item)})}/>
         <Button type="button" aria-label={`Remove ${name} ${index + 1}`} onClick={() => remove(id)}>Remove</Button>
-      </div> : <label key={id}>
+      </div> : <label key={id} className={state.checklist.includes(id) ? 'is-checked' : ''}>
         <input type="checkbox" disabled={disabled} checked={state.checklist.includes(id)} onChange={e => toggleCheck(id, e.target.checked)}/>
         <strong>{label}</strong>
       </label>)}
@@ -475,6 +557,7 @@ function HabitTracker() {
 function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   const [state, setState] = useState(null);
   const [highScore, setHighScore] = useState(null);
+  const [mirror, setMirror] = useState(null);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [openStep, setOpenStep] = useState(null);
@@ -489,6 +572,14 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   useEffect(() => {
     soundscape.current = new FocusSoundscape();
     return () => { soundscape.current?.stop(); };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api('/mindset/mirror', {signal: controller.signal})
+      .then(data => { if (!controller.signal.aborted) setMirror(data); })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   function changeSoundMode(next) {
@@ -553,7 +644,6 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     writer.current = request;
     setSaveStatus('saving');
     try {
-      // Send writes in order so a quick series of toggles cannot save a stale snapshot last.
       while (queuedPrep.current && !request.signal.aborted) {
         const {day, energy, headspace, checklist, items} = queuedPrep.current;
         queuedPrep.current = null;
@@ -570,31 +660,67 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   }
 
   return <>
-    <WarmUpHero
+    <aside className="sl-page-dock" aria-label="Mindset quick views">
+      <button type="button" className="sl-dock-btn is-active" aria-label="Morning Desk"
+        onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+        <Home size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Morning Desk</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Open Warm-Up Drills" disabled={!state}
+        onClick={() => {setTiltResetOpen(false); setOpenStep(0);}}>
+        <Play size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Warm-Up &amp; Drills</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Jump to Brief and Habits"
+        onClick={() => document.getElementById('mw-brief-title')?.scrollIntoView({behavior: 'smooth'})}>
+        <CheckSquare size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Brief &amp; Habits</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Jump to Vision and Brain"
+        onClick={() => document.getElementById('mw-anchor-section')?.scrollIntoView({behavior: 'smooth'})}>
+        <Brain size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Anchor &amp; Brain</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Quick 60s Tilt Reset" disabled={!state}
+        onClick={() => {setOpenStep(null); setTiltResetOpen(true);}}>
+        <Wind size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">60s Tilt Reset</span>
+      </button>
+    </aside>
+
+    <StudioHeader
       state={state}
-      highScore={highScore}
       onStart={step => {setTiltResetOpen(false); setOpenStep(step);}}
       onTiltReset={() => {setOpenStep(null); setTiltResetOpen(true);}}
       soundMode={soundMode}
       onSoundMode={changeSoundMode}
     />
-    {state && (
-      <nav className="mw-section-ribbon" aria-label="Mindset sections">
-        <a href="#mw-prep-section">Checklist &amp; Aura</a>
-        <a href="#mw-brief-title">Primax &amp; Mirror</a>
-        <a href="#daily-habits">Daily Habits</a>
-        <a href="#mw-anchor-section">Anchor &amp; Library</a>
-        <a href="#mw-brain-section">3D Brain</a>
-      </nav>
-    )}
+
     {state && <ReadinessStrip state={state} onChange={save} onTiltReset={() => {setOpenStep(null); setTiltResetOpen(true);}}/>}
+
+    {/* ROW 1: 2-Column Protocol Spotlight + Mindset & Journal Mirror Ledger */}
+    <div className="mw-desk-top">
+      <ProtocolSpotlightCard
+        state={state}
+        highScore={highScore}
+        onStart={step => {setTiltResetOpen(false); setOpenStep(step);}}
+      />
+      <MirrorLedgerCard mirror={mirror} state={state}/>
+    </div>
+
+    {/* ROW 2: Pre-Session Checklist + Compound Edge / Aura */}
     {state && <div id="mw-prep-section" className="mw-prep-grid">
-      <CompoundEdge/>
       <RoutineChecklist key={state.day} state={state} status={saveStatus} onSave={save}
         onEdit={changes => setState(current => ({...current, ...changes}))}/>
+      <CompoundEdge/>
     </div>}
-    {state && <MorningBriefAndMirror voiceCloudEnabled={voiceCloudEnabled} state={state}/>}
-    <HabitTracker/>
+
+    {/* ROW 3: Morning Primax Brief + Daily Habit Tracker */}
+    {state && <div className="mw-intel-grid">
+      <MorningBriefCard voiceCloudEnabled={voiceCloudEnabled} state={state}/>
+      <HabitTracker/>
+    </div>}
+
     {!state && !error && <p role="status">Loading morning prep…</p>}
     {error && <Notice error>{error}{!state && <Button onClick={load}>Retry morning prep</Button>}</Notice>}
     {(openStep !== null || tiltResetOpen) && state && <Suspense fallback={<p role="status">Opening warm-up…</p>}>
@@ -624,7 +750,13 @@ export default function MindsetPage() {
   return <WorkspacePage active="mindset" title="Mindset" hideHeading className="mw-page">
     {identity?.authenticated
       ? <PrivateWarmUp pinnedGoal={pinnedGoal} voiceCloudEnabled={Boolean(identity.voice_journal_enabled)}/>
-      : <WarmUpHero soundMode="off" onSoundMode={() => {}}/>}
+      : <>
+          <StudioHeader soundMode="off" onSoundMode={() => {}}/>
+          <div className="mw-desk-top">
+            <ProtocolSpotlightCard onStart={() => {}}/>
+            <MirrorLedgerCard/>
+          </div>
+        </>}
     {error && <Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity && !error && <p role="status">Checking your private workspace…</p>}
     <div id="mw-anchor-section" className="mw-board-grid">

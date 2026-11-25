@@ -216,6 +216,7 @@ class Workspaces:
         import json
         response = {"stats": clean(stats), "fixed_rr": clean(fixed_rr.summary(matched)), "sample": scope, "collection_count": len(metrics.closed(base)),
                     "r_count": int(closed["r_multiple"].notna().sum()) if not closed.empty else 0,
+                    "distribution": clean(metrics.return_distribution(matched)),
                     "chart": json.loads(chart.to_json()) if chart else None,
                     "chart_latest": clean({"time": equity["time"].iloc[-1].isoformat(), "equity": equity["equity"].iloc[-1]}) if not equity.empty else None}
         if filters.detail:

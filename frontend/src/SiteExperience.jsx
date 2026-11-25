@@ -11,7 +11,6 @@ import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
 import { api, setCsrf } from './api';
 import PrimusCompass from './components/PrimusCompass';
-import WorkspaceRail from './components/WorkspaceRail';
 import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
 import './workspace-pages.css';
@@ -82,7 +81,6 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
 
   const replayEnabled = Boolean(localSitePreview() || document.querySelector('meta[name="primus-replay-enabled"]'));
   const showMobileDock = active !== 'home' && active !== 'backtesting';
-  const showDesktopRail = active !== 'home';
 
   return <>
     <header className={`pt-header ${actions ? 'has-tools' : ''}`}>
@@ -111,16 +109,6 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
         </div>
       )}
     </header>
-    {showDesktopRail && (
-      <WorkspaceRail
-        active={active}
-        replayEnabled={replayEnabled}
-        bullpenCount={bullpen?.people?.length || 0}
-        theme={currentTheme}
-        onToggleTheme={toggleTheme}
-        onOpenCommand={() => setCmdOpen(true)}
-      />
-    )}
     <LearningTrail />
     {showMobileDock && (
       <nav className="primus-mobile-dock" aria-label="Mobile workspace bar">

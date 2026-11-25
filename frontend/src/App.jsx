@@ -315,6 +315,7 @@ export default function App() {
                     onTrades={() => navigate("trades")}
                     filterEditor={filterEditor}
                     onCloseFilterEditor={() => setFilterEditor(false)}
+                    tourOpen={tourOpen}
                   />
                 </section>
                 <section id="trades" aria-label="Trades">
