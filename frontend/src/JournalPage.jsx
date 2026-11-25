@@ -1,12 +1,13 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
-  ArrowDown, ArrowUpRight, CalendarDays, Check, Circle, ChevronLeft, ChevronRight,
-  Download, ListChecks, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, X, Link2,
+  ArrowDown, ArrowUpRight, BookOpen, CalendarDays, Check, Circle, ChevronLeft, ChevronRight,
+  Download, ListChecks, Maximize2, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, X, Link2,
 } from 'lucide-react';
 import {api, setCsrf} from './api';
 import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader, localSitePreview} from './SiteExperience';
 import {PrimusSunbeams} from './components/PrimusAtmosphere';
+import JournalFocusSheet from './components/JournalFocusSheet';
 import {Modal, Select} from './components';
 import {JournalClock} from './JournalClock';
 import TradeForm from './TradeForm';
@@ -210,6 +211,7 @@ export default function JournalPage({theme = 'light'}) {
   const [deleting, setDeleting] = useState(false), [trash, setTrash] = useState(null), [undoId, setUndoId] = useState(null);
   const [resettingJournal, setResettingJournal] = useState(false);
   const [journalRevision, setJournalRevision] = useState(0);
+  const [focusSheet, setFocusSheet] = useState(null);
 
   const parsedFilter = parseAccountFilter(selection);
   const account = parsedFilter.accountId != null
@@ -220,6 +222,7 @@ export default function JournalPage({theme = 'light'}) {
   const labDismissal = useTradeDismissal(() => setLabDraft(null));
   const viewer = useRef();
   const entryHeading = useRef(null);
+  const focusTrigger = useRef(null);
   const visionEdits = useRef(new Map());
   const autoSaveTimer = useRef(null);
 
@@ -838,7 +841,27 @@ export default function JournalPage({theme = 'light'}) {
           </div>
 
           <div className="pt-writing-area" role="tabpanel" id={`panel-${section}`} aria-labelledby={`tab-${section}`}>
-            <span className="pt-overline">SESSION NOTES</span>
+            <div className="pj-writing-head">
+              <span className="pt-overline">SESSION NOTES</span>
+              <div className="pj-writing-expand-group">
+                <button
+                  type="button"
+                  className="pj-focus-trigger"
+                  onClick={(e) => { focusTrigger.current = e.currentTarget; setFocusSheet({mode: 'read', scope: 'all'}); }}
+                  title="Read all three session sections in full-screen view"
+                >
+                  <BookOpen size={13} aria-hidden="true"/> Read all
+                </button>
+                <button
+                  type="button"
+                  className="pj-focus-trigger"
+                  onClick={(e) => { focusTrigger.current = e.currentTarget; setFocusSheet({mode: 'write', scope: section}); }}
+                  title="Expand writing view"
+                >
+                  <Maximize2 size={13} aria-hidden="true"/> Expand
+                </button>
+              </div>
+            </div>
             <h3>{current.title}</h3>
             <p>{current.hint}</p>
             <textarea aria-label={current.label} value={entry[section]} maxLength={section === 'notes' ? 20000 : 12000} placeholder={current.placeholder} onChange={e => edit(section, e.target.value)} disabled={busy}/>
@@ -855,6 +878,37 @@ export default function JournalPage({theme = 'light'}) {
               </div>
             </div>
           </div>
+
+          <JournalFocusSheet
+            open={Boolean(focusSheet)}
+            initialMode={focusSheet?.mode || 'read'}
+            initialScope={focusSheet?.scope || 'all'}
+            dayLabel={niceDay(day)}
+            dayOverline={day === today ? 'TODAY' : dayDate(day).toLocaleDateString('en-GB', {weekday: 'long'}).toUpperCase()}
+            dayPnlLabel={dayResult?.net_pnl != null ? `Day P&L ${money(dayResult.net_pnl)}` : ''}
+            dayPnlOutcome={dayResult?.outcome || ''}
+            entry={entry}
+            sections={sections}
+            activeSection={section}
+            onSelectSection={setSection}
+            onEdit={edit}
+            onSave={save}
+            onClose={() => {
+              setFocusSheet(null);
+              requestAnimationFrame(() => focusTrigger.current?.focus());
+            }}
+            busy={busy}
+            autoSaving={autoSaving}
+            dirty={dirty}
+            dictationNode={
+              <VoiceDictationButton
+                cloudEnabled={Boolean(identity?.voice_journal_enabled)}
+                disabled={busy}
+                onTranscript={appendTranscript}
+                onError={msg => setError(msg)}
+              />
+            }
+          />
 
           <div className="pj-session-checks pj-session-checks-3">
             <div className="pt-mindset pj-plan-field">
