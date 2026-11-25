@@ -96,7 +96,7 @@ test("risk review and saved setups preserve existing experiment data without tes
     ).toBeFocused();
     await dialog.getByLabel("Original risk ($)", { exact: true }).fill("100");
     await dialog
-      .getByLabel("I have checked the confirmations for this trade")
+      .getByLabel("Confirmations reviewed")
       .check();
     await dialog
       .getByRole("button", { name: "Save & next", exact: true })
@@ -112,7 +112,7 @@ test("risk review and saved setups preserve existing experiment data without tes
       })
       .check();
     await dialog
-      .getByLabel("I have checked the confirmations for this trade")
+      .getByLabel("Confirmations reviewed")
       .check();
     await dialog
       .getByRole("button", { name: "Save changes", exact: true })

@@ -286,7 +286,7 @@ export default function TradeForm({
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
         />
-        I have checked the confirmations for this trade
+        Confirmations reviewed
       </label>
       <small className="muted">
         Unchecked confirmations mean “not recorded” until you review them.
@@ -295,10 +295,7 @@ export default function TradeForm({
         <div className="review-risk-section stack">
           <div>
             <h3>Original risk & realised R</h3>
-            <p className="muted">
-              Use the dollars you actually risked at entry. A planned target
-              ratio cannot fill this in.
-            </p>
+            {trade.stop_price == null && <p className="muted">Enter the amount risked at entry.</p>}
           </div>
           {trade.stop_price != null ? (
             <p>

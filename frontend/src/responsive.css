@@ -3,7 +3,7 @@
 .field input, .field select, .field textarea { max-width: 100%; }
 .trade-table { font-size: 13px; }
 .trade-table td { overflow-wrap: anywhere; }
-.table-caption, .side-label, .review-prompt p, .lab-grid .stat small, .lab-grid .chart-card .history-hint, .history-footer, .history-source, .update-state, .lab-summary-label, .lab-source-note, .results-caption { font-size: 11px; }
+.table-caption, .side-label, .lab-grid .stat small, .lab-grid .chart-card .history-hint, .history-footer, .history-source, .update-state, .lab-summary-label, .lab-source-note, .results-caption { font-size: 11px; }
 .lab-grid .stat > span { font-size: 12px; }
 .lab-grid .stat strong { font-size: clamp(26px, 2.4vw, 34px); overflow-wrap: anywhere; }
 .history-headline strong { font-size: clamp(30px, 3vw, 38px); overflow-wrap: anywhere; }
@@ -72,9 +72,6 @@
   .history-footer { flex-wrap: wrap; gap: 6px; }
   .modal .segments { max-width: 100%; flex-wrap: wrap; width: 100%; }
   .modal .segments button { white-space: normal; }
-  .review-prompt { flex-wrap: wrap; padding: 14px; }
-  .review-prompt > div { flex-basis: calc(100% - 40px); }
-  .review-prompt .button { margin-left: auto; }
   .login-password-control input { font-size: 16px; }
 }
 @media (max-width: 420px) {

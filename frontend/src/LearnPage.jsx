@@ -54,9 +54,8 @@ export default function LearnPage() {
   return (
     <WorkspacePage
       active="learn"
-      kicker="THE PRIMUS DESK HUB"
       title="Learn"
-      intro="Take an idea from understanding to practice. Start with the basics, study team playbooks and setups, and jump straight onto the live desk."
+      intro="Study the foundations, browse team setups, or join the Bullpen."
     >
       {access && (
         <section className="wp-panel bullpen-entry learn-bullpen-hero">
@@ -124,8 +123,7 @@ export default function LearnPage() {
 
       <section data-learn-tour="workflow" className="wp-panel learn-next-grid" aria-label="Continue to workspace">
         <div className="learn-next-head">
-          <span className="pt-overline">CONNECTED WORKSPACE</span>
-          <h2>Bring the lesson to your own process.</h2>
+          <h2>Put it into practice</h2>
         </div>
         <div className="learn-next-cards">
           <a className="learn-next-card" href="/backtesting">

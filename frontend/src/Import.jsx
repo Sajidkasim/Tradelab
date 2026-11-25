@@ -205,10 +205,6 @@ export default function Import({ meta, refresh, onBack, toast, settingsRequested
           aria-label="Choose a trade export"
           onChange={(e) => choose(e.target.files[0])}
         />
-        <p className="muted">
-          Your Lab strategies, levels, timeframes and confirmations are recognised
-          automatically. Preview your trades before saving.
-        </p>
         <details className="disclosure"><summary>Why might a tag need review?</summary><div><p>Most tags match your Lab choices automatically. We only ask when a name is unfamiliar or could mean two things.</p><p><strong>Key level timeframe</strong> is the chart where you found the level. <strong>Entry timeframe</strong> is the chart where you entered the trade. If both use 15m, use separate tags: <strong>Key level timeframe: 15m</strong> and <strong>Entry timeframe: 15m</strong>. A CSV containing only “15m” cannot tell us which you meant.</p><p>Choose a meaning once in Import settings; we remember it for future imports. You can also keep a tag as a note without using it in Results.</p></div></details>
         <Select
           label="Include break-even trades?"

@@ -11,7 +11,7 @@ export function useIdentity(){
 }
 export function WorkspacePage({active,kicker,title,intro,children,heroAside,hideHeading=false,className=""}){
  useEffect(()=>{document.title=`${title} — PrimusTrader`},[title]);
- return <div className={`pt-site workspace-page ${className}`}><PrimusHeader active={active}/><main className="pt-wrap wp-main">{!hideHeading&&<div className={heroAside?"ce-hero-layout":undefined}><header className="wp-heading"><span className="pt-overline">{kicker}</span><h1>{title}</h1><p>{intro}</p></header>{heroAside}</div>}{children}</main></div>;
+ return <div className={`pt-site workspace-page ${className}`}><PrimusHeader active={active}/><main className="pt-wrap wp-main">{!hideHeading&&<div className={heroAside?"ce-hero-layout":undefined}><header className="wp-heading">{kicker && <span className="pt-overline">{kicker}</span>}<h1>{title}</h1><p>{intro}</p></header>{heroAside}</div>}{children}</main></div>;
 }
 export function SignInPanel({identity,path,reload,title='Your space stays private'}){
  const [password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');

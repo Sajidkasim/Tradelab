@@ -59,7 +59,7 @@ test("manual entry, setup exploration and combined or separate source results", 
   await dialog.getByLabel("SMT", { exact: true }).check();
   await dialog.getByLabel("CISD", { exact: true }).check();
   await dialog
-    .getByLabel("I have checked the confirmations for this trade")
+    .getByLabel("Confirmations reviewed")
     .check();
   await dialog
     .getByLabel("Entry time · New York", { exact: true })
@@ -82,7 +82,7 @@ test("manual entry, setup exploration and combined or separate source results", 
   await dialog.getByLabel("Net result ($)", { exact: true }).fill("-50");
   await dialog.getByLabel("Original risk ($)", { exact: true }).fill("50");
   await dialog
-    .getByLabel("I have checked the confirmations for this trade")
+    .getByLabel("Confirmations reviewed")
     .check();
   await dialog.getByRole("button", { name: "Save & log next" }).click();
   await expectValue(dialog.getByLabel("Net result ($)", { exact: true }), "");
@@ -175,12 +175,8 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     .click();
   await expect(page).toHaveURL(/#trades$/);
 
-  await page.getByRole("button", { name: /To finish/ }).click();
+  await page.getByRole("button", { name: "Review next", exact: true }).click();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
-  await page
-    .getByRole("button", { name: /Edit trade/ })
-    .first()
-    .click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Strategy", { exact: true }).fill("Replay setup");
   await pick(dialog.getByLabel("Entry timeframe", { exact: true }), "15s");
@@ -190,7 +186,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     })
     .check();
   await dialog
-    .getByLabel("I have checked the confirmations for this trade")
+    .getByLabel("Confirmations reviewed")
     .check();
   await dialog.getByRole("button", { name: "Save & next" }).click();
   await expectValue(dialog.getByLabel("Strategy", { exact: true }), "");
@@ -209,7 +205,7 @@ test("FX Replay preview, confirm, edit and save next, duplicate re-import", asyn
     })
     .check();
   await dialog
-    .getByLabel("I have checked the confirmations for this trade")
+    .getByLabel("Confirmations reviewed")
     .check();
   await dialog.getByRole("button", { name: "Save & next" }).click();
   await expect(dialog).not.toBeVisible();

@@ -86,20 +86,11 @@ export default function LearnFoundations({ identity }) {
         aria-labelledby="learn-start-title"
       >
         <header className="learn-intro">
-          <span className="pt-overline">START HERE / THE FOUNDATIONS</span>
-          <h2 id="learn-start-title">
-            Understand it.
-            <br />
-            <em>Then put it to the test.</em>
-          </h2>
-          <p>
-            Four short starting points. Follow the path, or choose the part you
-            want to understand today.
-          </p>
+          <h2 id="learn-start-title">Foundations</h2>
         </header>
         <p className="wp-footnote">
           {identity?.authenticated
-            ? `Your place is saved privately · ${progress.completed.length} of 4 guides complete`
+            ? `${progress.completed.length} of ${STARTER_GUIDES.length} complete`
             : "Sign in to remember your place across visits."}
         </p>
         {saveError && <p role="alert">Could not save progress: {saveError}</p>}
@@ -150,9 +141,7 @@ export default function LearnFoundations({ identity }) {
                   : "Mark guide complete"}
               </button>
             </div>
-            <p className="wp-footnote" role="status">
-              {saved ? "Progress saved privately." : "Completion is optional."}
-            </p>
+            <p className="wp-footnote" role="status">{saved ? "Progress saved privately." : ""}</p>
             <a className="button" href={`${guide.link}?lesson=${guide.id}`}>
               {guide.action}
               <ArrowUpRight size={15} />

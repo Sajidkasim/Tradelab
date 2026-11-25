@@ -65,7 +65,7 @@ test('Primus home shows the actual five traders and responsive private-tool link
   await expect(page.getByTitle('TradingView economic calendar')).toBeVisible();
   await expect(page.getByRole('link',{name:'Open full economic calendar on TradingView'})).toHaveAttribute('href','https://www.tradingview.com/economic-calendar/');
   await page.setViewportSize({width:1440,height:1000});
-  await page.getByRole('link',{name:'Explore the Lab',exact:true}).click();
+  await page.getByRole('link',{name:'Open Strategy Lab',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();

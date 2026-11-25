@@ -66,7 +66,6 @@
 .pt-lab #trades>.page-heading h2{font-size:27px;letter-spacing:-1px;font-weight:500}
 :root .pt-lab .trade-review-toolbar .segments,
 :root .pt-lab .trade-review-toolbar .segments button,
-:root .pt-lab .review-prompt,
 :root .pt-lab .review-pill{border-radius:3px}
 :root .pt-lab .journal-card{border-radius:5px}
 :root .pt-lab .journal-card>.section-title{padding-block:23px}

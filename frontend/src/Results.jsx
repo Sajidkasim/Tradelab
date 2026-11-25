@@ -303,7 +303,6 @@ export default function Results({
             {meta.lab_settings.timezone === "Etc/GMT+4"
               ? "fixed UTC−4"
               : meta.lab_settings.timezone === "Europe/London" ? "UK time" : "New York time"}
-            . No day tag needed.
           </small>
           <details className="disclosure">
             <summary>Session, news & market</summary>
@@ -353,10 +352,9 @@ export default function Results({
                 value={filters.symbol}
                 onChange={(e) => change("symbol", e.target.value)}
               />
-              <small>
-                Markets appear from your saved trades, including imports. Log
-                ES, gold or another symbol and it will appear here.
-              </small>
+              {!meta.result_options?.symbols?.length && (
+                <small>Markets appear after you save or import trades.</small>
+              )}
               <small className="muted">
                 Not recorded means a trade has not been labelled. Edit these
                 options in My lab → Lab settings.
@@ -588,11 +586,6 @@ function ResultSample({
             win-rate interval: {percent(s.win_rate_ci[0])}–
             {percent(s.win_rate_ci[1])}.
           </p>
-          <div className="goal">
-            <span>{data.collection_count} / 1,000 trades collected</span>
-            <progress value={data.collection_count} max="1000" />
-            <small>A collection goal, not a guarantee of an edge.</small>
-          </div>
           <div className="table-wrap">
             <table>
               <thead>

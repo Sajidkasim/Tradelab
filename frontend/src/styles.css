@@ -641,20 +641,10 @@ svg {
   color: var(--tl-ink2);
   margin-bottom: 20px;
 }
-.goal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 25px;
-  font-size: 11px;
-}
 progress {
   width: 100%;
   height: 5px;
   accent-color: var(--tl-accent);
-}
-.goal small {
-  color: var(--tl-muted);
 }
 .table-wrap {
   position: relative;
@@ -2246,10 +2236,6 @@ td strong {
   margin-bottom: 18px;
   flex-wrap: wrap;
 }
-.trade-review-toolbar > p {
-  font-size: 11px;
-  color: var(--tl-ink2);
-}
 .trade-review-toolbar .segments {
   border-radius: 20px;
 }
@@ -2267,33 +2253,6 @@ td strong {
 }
 #trades .trade-table td {
   padding: 14px 18px;
-}
-.review-prompt {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 16px 24px;
-  background: var(--lab-tint);
-  border-top: 1px solid var(--tl-border);
-}
-.review-prompt > svg {
-  color: var(--lab-accent);
-}
-.review-prompt > div {
-  flex: 1;
-}
-.review-prompt strong {
-  font-size: 12px;
-  font-weight: 550;
-}
-.review-prompt p {
-  color: var(--tl-ink2);
-  font-size: 10px;
-  margin-top: 4px;
-}
-.review-prompt .button {
-  font-size: 11px;
-  flex-shrink: 0;
 }
 .menu-panel > .menu-danger {
   border-top: 1px solid var(--tl-border);
@@ -2319,13 +2278,6 @@ td strong {
   font-size: 12px;
 }
 @media (max-width: 700px) {
-  .review-prompt {
-    padding: 16px;
-    flex-wrap: wrap;
-  }
-  .review-prompt .button {
-    margin-left: 33px;
-  }
   #trades .trade-table td {
     padding: 12px;
   }

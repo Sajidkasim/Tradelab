@@ -284,9 +284,7 @@ export default function App() {
               >
                 <div className="journal-intro">
                   <div>
-                    <span className="eyebrow">{sitePreview() ? "THE RESEARCH PROCESS" : "PRIMUSLAB"}</span>
                     <h1>{sitePreview() ? <>Strategy <em>Lab.</em></> : "Strategy Lab"}</h1>
-                    <p>Find the setups worth repeating.</p>
                   </div>
                 </div>
                 <div className="research-toolbar">

@@ -35,9 +35,9 @@ const narrative = trade => Object.fromEntries(['id', 'symbol', 'direction', 'str
 const visionFields = {asset: 'symbol', direction: 'direction', entry_timeframe: 'entry_timeframe', key_level: 'level', level_timeframe: 'timeframe'};
 const currencyFmt = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
 const sections = [
-  {id: 'plan', label: 'Before the session', title: 'What’s the plan?', hint: 'Your market view, the levels you’re watching and the setups you want to take.', placeholder: 'My plan for this session…'},
-  {id: 'notes', label: 'During the session', title: 'What happened?', hint: 'Record what you noticed and the decisions you made. Add individual trades below.', placeholder: 'What I saw and how I responded…'},
-  {id: 'lesson', label: 'After the session', title: 'How did the session go?', hint: 'What worked, what didn’t, and what you want to change. Keep it in your own words.', placeholder: 'Looking back at today’s session…'},
+  {id: 'plan', label: 'Before the session', title: 'What’s the plan?', placeholder: 'My plan for this session…'},
+  {id: 'notes', label: 'During the session', title: 'What happened?', placeholder: 'What I saw and how I responded…'},
+  {id: 'lesson', label: 'After the session', title: 'How did the session go?', placeholder: 'Looking back at today’s session…'},
 ];
 
 function JournalPrep({day}) {
@@ -677,7 +677,6 @@ export default function JournalPage({theme = 'light'}) {
     <main className="pt-wrap pt-journal-main">
       <div className="pt-journal-heading">
         <div>
-          <span className="pt-overline">THE DAILY PRACTICE</span>
           <h1>Pause. Put it <em>on paper.</em></h1>
           <p>Your session, your trades and the story behind them. All in one place.</p>
         </div>
@@ -896,10 +895,8 @@ export default function JournalPage({theme = 'light'}) {
               </div>
             </div>
             <h3>{current.title}</h3>
-            <p>{current.hint}</p>
             <textarea aria-label={current.label} value={entry[section]} maxLength={section === 'notes' ? 20000 : 12000} placeholder={current.placeholder} onChange={e => edit(section, e.target.value)} disabled={busy}/>
             <div className="pt-writing-footer">
-              <span>{section === 'lesson' ? 'Your review of the whole session. Trade-by-trade details go below.' : 'A few lines are enough. You can come back to this later.'}</span>
               <div className="pj-writing-tools">
                 <VoiceDictationButton
                   cloudEnabled={Boolean(identity?.voice_journal_enabled)}

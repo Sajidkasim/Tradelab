@@ -330,10 +330,9 @@ function HomePage(){
         <PrimusTopoField variant="hero" />
         <div className="pt-hero-spotlight" aria-hidden="true" />
         <div className="pt-hero-copy">
-          <div className="pt-overline"><span className="pt-status-dot"/> INDEPENDENT MINDS. A SHARED PURSUIT.</div>
           <h1>Less noise.<br/>More <em>perspective.</em></h1>
           <p>A home for traders who study the market, question their process and learn from the trades behind them.</p>
-          <div className="pt-hero-actions"><a className="pt-btn pt-btn-lime" href="/journal">Open your Journal <ArrowUpRight size={19}/></a><a className="pt-text-link" href="/lab">Explore the Lab <ArrowRight size={17}/></a></div>
+          <div className="pt-hero-actions"><a className="pt-btn pt-btn-lime" href="/journal">Open your Journal <ArrowUpRight size={19}/></a></div>
           <a className="pt-meet-link" href="#traders"><span className="pt-avatar-stack">{traders.slice(0,4).map(t=><span key={t.initials}>{t.initials}</span>)}</span><span>Meet the minds behind Primus <ArrowDownSmall/></span></a>
         </div>
         <div className="pt-hero-study">
@@ -342,7 +341,7 @@ function HomePage(){
         </div>
       </section>
       <PrimusLightSeam />
-      <div className="pt-clock-strip"><div className="pt-wrap"><span><span className="primus-live-dot" aria-hidden="true" style={{ marginRight: '8px', verticalAlign: 'middle' }} />THE WORLD DOESN’T TRADE IN ONE TIME ZONE.</span><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><a href="#briefing">Your market briefing <ChevronDown size={14}/></a></div></div>
+      <div className="pt-clock-strip"><div className="pt-wrap"><span>LONDON <b>{clock.toLocaleTimeString('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><span>NEW YORK <b>{clock.toLocaleTimeString('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',second:'2-digit'})}</b></span><a href="#briefing">Your market briefing <ChevronDown size={14}/></a></div></div>
       <WorkspaceResume/>
       <div className="pt-atmosphere-band">
         <PrimusSunbeams />
@@ -353,7 +352,7 @@ function HomePage(){
       </div>
       <section className="pt-wrap pt-section" id="briefing">
         <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">02</span><span className="pt-overline">02 / THE MARKET BRIEFING</span><h2>Know the <em>backdrop.</em></h2></div><p>Market headlines and scheduled economic releases, provided by TradingView. Context before the session.</p></div>
-        <div className="pt-briefing"><div className="pt-briefing-sidebar"><span className="pt-overline">AT YOUR DESK</span><h3>One less tab<br/>to keep open.</h3><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><div className="pt-widget-frame"><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div></div>
+        <div className="pt-briefing"><div className="pt-briefing-sidebar"><div className="pt-briefing-tabs" role="group" aria-label="Market briefing">{[['news','Market news'],['calendar','Economic calendar']].map(([id,label])=><button key={id} aria-pressed={marketTab===id} onClick={()=>setMarketTab(id)}>{label}<ArrowUpRight size={17}/></button>)}</div><p>Check event times in the calendar. Headlines and market data may be delayed.</p></div><div className="pt-widget-frame"><TradingViewWidget key={`${marketTab}-${theme}`} kind={marketTab} theme={theme}/></div></div>
       </section>
       <section className="pt-tools-section"><div className="pt-wrap pt-section">
         <div className="pt-section-heading"><div><span className="pt-section-number" aria-hidden="true">03</span><span className="pt-overline">03 / YOUR WORKSPACE</span><h2>A place for the data.<br/>And the <em>decisions.</em></h2></div><p>The Lab asks what works. The Journal gives you room to understand what happened. Backtesting lets you practise the setup in replay.</p></div>

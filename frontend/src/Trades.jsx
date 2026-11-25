@@ -6,7 +6,6 @@ import {
   Upload,
   ArrowUpRight,
   Download,
-  ClipboardCheck,
 } from "lucide-react";
 import { api } from "./api";
 import {
@@ -106,6 +105,24 @@ export default function Trades({
   const trade = typeof opened === "number"
     ? queue.find((item) => item.id === opened) || (linkedTrade?.id === opened ? linkedTrade : null)
     : null;
+  async function reviewNext() {
+    setBusy(true);
+    try {
+      const nextQuery = new URLSearchParams({scope, pending: true, page: 0, size: PAGE_SIZE});
+      const {items} = await api(`/trades/page?${nextQuery}`);
+      const next = items[0];
+      setPending(true);
+      setPage(0);
+      setSelected([]);
+      setFocusField(null);
+      setLinkedTrade(next || null);
+      setOpened(next?.id ?? null);
+    } catch (failure) {
+      setPageError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function saved(updated, next) {
     setFocusField(null);
     await refresh();
@@ -175,12 +192,15 @@ export default function Trades({
             setSelected([]);
           }}
         />
-        <p>Open a trade to see exactly what needs checking.</p>
+        {pendingCount > 0 && (
+          <Button onClick={reviewNext} busy={busy}>
+            Review next <ArrowUpRight size={14} />
+          </Button>
+        )}
       </div>
       <div className="card journal-card">
         <div className="section-title">
           <div>
-            <h2>{pending ? "Trades to finish" : "Your trades"}</h2>
             <p>
               {total} trades ·{" "}
               {scope === "All"
@@ -213,27 +233,6 @@ export default function Trades({
             </button>
           </Menu>
         </div>
-        {pendingCount > 0 && (
-          <div className="review-prompt">
-            <ClipboardCheck size={20} />
-            <div>
-              <strong>{pendingCount} trades to review</strong>
-              <p>
-                Check the missing fields shown on each trade. Original risk can
-                be recorded or marked unavailable.
-              </p>
-            </div>
-            <Button
-              onClick={() => {
-                setPending(true);
-                setPage(0);
-                setOpened(unfinished[0].id);
-              }}
-            >
-              Review next <ArrowUpRight size={14} />
-            </Button>
-          </div>
-        )}
         {pageError && <Notice error>{pageError} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></Notice>}
         {!current && !pageError ? <p role="status">Loading trades…</p> : queue.length ? (
           <>

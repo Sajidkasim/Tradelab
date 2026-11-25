@@ -35,8 +35,7 @@
 .pj-workspace .pt-writing-area{padding-top:27px;padding-bottom:25px}
 .pj-workspace .pt-writing-area>textarea{min-height:165px;font-size:15px;line-height:32px;margin-top:14px}
 .pj-workspace .pt-writing-area>p{font-size:14px;max-width:650px}
-.pj-workspace .pt-writing-footer{font-size:11px;line-height:1.6;gap:20px}
-.pj-workspace .pt-writing-footer>span:first-child{max-width:80%}
+.pj-workspace .pt-writing-footer{justify-content:flex-end;font-size:11px;line-height:1.6;gap:20px}
 .pj-trades{border-top:1px solid var(--pt-line);padding:28px 30px 30px;background:var(--pt-white)}
 .pj-trades-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:23px}
 .pj-trades-heading .pt-overline{font-size:9px;color:var(--pt-focus)}
