@@ -42,7 +42,7 @@ function WarmUpHero({state, checkpoint, onStart, onTiltReset, soundMode, onSound
   return <section className="mw-pre-market" aria-labelledby="warm-up-title">
     <div className="mw-launch">
       <div className="mw-launch-heading">
-        <h1 id="warm-up-title" tabIndex={-1}>Pre-market</h1>
+        <h2 id="warm-up-title" tabIndex={-1}>Pre-market</h2>
         {state && <div className="mw-utilities">
           <button type="button" onClick={onTiltReset} aria-haspopup="dialog">
             <Wind size={16} aria-hidden="true"/> 60s Reset
@@ -615,6 +615,12 @@ export default function MindsetPage() {
   const [goalSelection, setGoalSelection] = useState(null);
   const pinnedGoal = goalSelection?.identity === identity ? goalSelection.goal : null;
   return <WorkspacePage active="mindset" title="Mindset" hideHeading className="mw-page">
+    <header className="mw-page-heading">
+      <div>
+        <h1>Settle in. Trade clear.</h1>
+        <p>Your pre-market routine, daily habits, and mental edge. All in one place.</p>
+      </div>
+    </header>
     {identity?.authenticated
       ? <PrivateWarmUp pinnedGoal={pinnedGoal} voiceCloudEnabled={Boolean(identity.voice_journal_enabled)}/>
       : <WarmUpHero/>}
