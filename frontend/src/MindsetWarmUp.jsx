@@ -1,9 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Volume2, VolumeX} from 'lucide-react';
+import {Pin, Volume2, VolumeX} from 'lucide-react';
 import {Button, Modal, Notice, Segments} from './components';
 import {api} from './api';
 import AffirmationPicker, {affirmations} from './MindsetAffirmations';
 import {playBreathCue} from './mindsetAudio';
+import './mindset-exercise.css';
 
 const BREATH_MS = 120000;
 const TILT_RESET_MS = 60000;
@@ -90,7 +91,7 @@ function Breathwork({onNext, tiltReset = false, onClose}) {
   const [paused, setPaused] = useState(null);
   const left = paused ?? remaining;
   const finished = left === 0;
-  const {phases, use, name} = RHYTHMS[rhythm];
+  const {phases, use} = RHYTHMS[rhythm];
   let elapsed = ((durationMs - left) / 1000) % phases.reduce((total, phase) => total + phase[1], 0);
   const active = phases.find(([, seconds]) => {
     if (elapsed < seconds) return true;
@@ -111,8 +112,16 @@ function Breathwork({onNext, tiltReset = false, onClose}) {
     }
   }, [soundOn, cuePhase]);
 
-  return <section className="mw-step">
-    <h3>{tiltReset ? '60-Second Tilt Reset' : 'Breathwork'}</h3>
+  return <section className="mw-step mw-breathwork">
+    {!tiltReset && <h3>Breathwork</h3>}
+    <div className="mw-breath-stage" style={{'--breath-level':level}}>
+      <div className="mw-breath-ring" aria-hidden="true"/>
+      <div className="mw-breath-label">
+        <strong role="status">{finished ? 'Complete' : paused != null ? 'Paused' : phase}</strong>
+        <span aria-label="Breathwork time remaining">{clock(left)}</span>
+      </div>
+      <progress aria-label="Breathwork progress" max={durationMs} value={durationMs - left}/>
+    </div>
     <div className="mw-breath-toolbar">
       <label className="mw-rhythm">Breathing technique
         <select aria-describedby="mw-breath-purpose" value={rhythm} onChange={e => {
@@ -126,22 +135,15 @@ function Breathwork({onNext, tiltReset = false, onClose}) {
           if (next) { lastCuePhase.current = cuePhase; playBreathCue(phase); }
         }}>
         {soundOn ? <Volume2 size={15}/> : <VolumeX size={15}/>}
-        <span>{soundOn ? 'Chimes on' : 'Audio chimes'}</span>
+        <span>Chimes</span>
       </button>
     </div>
     <div className="mw-breath-guide">
-      <strong>{name}</strong>
       <p id="mw-breath-purpose">{use}</p>
-      <div className="mw-breath-counts">{phases.map(([label, duration], index) =>
-        <span key={index}>{label} <b>{duration}s</b></span>)}</div>
-    </div>
-    <div className="mw-breath-stage" style={{'--breath-level':level}}>
-      <div className="mw-breath-wave" aria-hidden="true">{[.55,.7,.86,1,.86,.7,.55].map((height, index) =>
-        <span key={index} style={{'--wave-height':height}} />)}</div>
-      <div className="mw-breath-label">
-        <strong role="status">{finished ? 'Complete' : paused != null ? 'Paused' : phase}</strong>
-        <span aria-label="Breathwork time remaining">{clock(left)}</span>
-      </div>
+      <div className="mw-breath-counts">{phases.map((item, index) =>
+        <span key={index} data-active={item === active && !finished && paused == null}>
+          {item[0]} <b>{item[1]}s</b>
+        </span>)}</div>
     </div>
     <div className="mw-step-actions">
       {!finished&&<Button onClick={() => {
@@ -149,11 +151,11 @@ function Breathwork({onNext, tiltReset = false, onClose}) {
         else {setDeadline(Date.now() + paused); setPaused(null);}
       }}>{paused == null ? 'Pause' : 'Resume'}</Button>}
       {tiltReset ? (
-        <Button variant="primary" onClick={() => onClose?.()}>
-          {finished ? 'Reset complete — back to desk' : 'Done early'}
+        <Button variant={finished ? 'primary' : undefined} onClick={() => onClose?.()}>
+          {finished ? 'Back to Mindset' : 'Done early'}
         </Button>
       ) : (
-        <Button variant="primary" busy={creditPending} onClick={proceed}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
+        <Button variant={finished ? 'primary' : undefined} busy={creditPending} onClick={proceed}>{finished ? 'Next: Focus Games' : 'Skip to Focus Games'}</Button>
       )}
     </div>
     {creditError && <Notice error>{creditError}</Notice>}
@@ -204,7 +206,7 @@ function SearchRound({round, onAnswer}) {
   </>;
 }
 
-function FocusGames({day, onContinue, onSkip}) {
+function FocusGames({day, highScore, onContinue, onSkip}) {
   const [mode, setMode] = useState('memory');
   const [levels, setLevels] = useState({memory:'easy', search:'easy'});
   const difficulty = levels[mode];
@@ -270,6 +272,9 @@ function FocusGames({day, onContinue, onSkip}) {
     {!attempt && <Segments label="Focus game" value={mode} disabled={busy} onChange={setMode}
       values={[{value:'memory', label:'Pattern Match'}, {value:'search', label:'Visual Search'}]}/>}
     <h3>{gameName}</h3>
+    {!attempt && highScore?.leader && <p className="mw-drill-leader">
+      Today’s high score <strong>{highScore.leader.score}/{highScore.leader.max_score} · {highScore.leader.name}</strong>
+    </p>}
     {!attempt && <>
       <label className="mw-difficulty">
         <span data-current={difficulty === 'easy'}>Easy</span>
@@ -299,15 +304,25 @@ function FocusGames({day, onContinue, onSkip}) {
   </section>;
 }
 
-export default function MindsetWarmUp({day, initialStep=0, tiltReset=false, pinnedGoal, savedAffirmation, onClose, onScore, onComplete}) {
-  const [step, setStep] = useState(tiltReset ? 0 : initialStep);
-  const [attemptId, setAttemptId] = useState(null);
-  const [confirmedScore, setConfirmedScore] = useState(null);
-  const [affirmation, setAffirmation] = useState(affirmations.includes(savedAffirmation) ? savedAffirmation : affirmations[0]);
+export default function MindsetWarmUp({
+  day, initialStep=0, tiltReset=false, pinnedGoal, savedAffirmation, highScore,
+  checkpoint, onCheckpoint, onClose, onScore, onComplete,
+}) {
+  const [step, setStep] = useState(tiltReset ? 0 : checkpoint?.step ?? initialStep);
+  const [attemptId, setAttemptId] = useState(checkpoint?.attemptId ?? null);
+  const [confirmedScore, setConfirmedScore] = useState(checkpoint?.confirmedScore ?? null);
+  const [affirmation, setAffirmation] = useState(
+    checkpoint?.affirmation ?? (affirmations.includes(savedAffirmation) ? savedAffirmation : affirmations[0])
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const controller = useRef(null);
   useEffect(() => () => controller.current?.abort(), []);
+
+  function close() {
+    if (!tiltReset) onCheckpoint?.({step, attemptId, confirmedScore, affirmation});
+    onClose();
+  }
 
   async function complete(selected) {
     const abort = new AbortController();
@@ -317,19 +332,30 @@ export default function MindsetWarmUp({day, initialStep=0, tiltReset=false, pinn
       const state = await api('/mindset/complete', {method:'POST', body:{attempt_id:attemptId, day, ...(selected === undefined ? {} : {affirmation:selected})}, signal:abort.signal});
       if (!abort.signal.aborted) onComplete(state);
     } catch (e) {
-      if (!abort.signal.aborted) {setError(e.message); setBusy(false);}
+      if (!abort.signal.aborted) {
+        if (attemptId && e.status === 409 && e.message.startsWith('This drill has expired.')) {
+          setAttemptId(null);
+          setConfirmedScore(null);
+          setError('This drill has expired. You can still complete the warm-up.');
+        } else {
+          setError(e.message);
+        }
+        setBusy(false);
+      }
     }
   }
 
-  return <Modal title={tiltReset ? '60s Tilt Reset' : 'Pre-Market Warm-Up'} className="mw-modal" onClose={onClose}>
-    {pinnedGoal && <aside className="mw-pinned-goal"><span>Your Anchor</span><strong>{pinnedGoal.title}</strong></aside>}
+  return <Modal title={tiltReset ? '60s Tilt Reset' : 'Pre-Market Warm-Up'} className="mw-modal mw-exercise" onClose={close}>
     {!tiltReset && <ol className="mw-steps" aria-label="Warm-up steps">
-      {STEPS.map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}>
-        <span>0{index + 1}</span> {label}
+      {STEPS.map((label, index) => <li key={label} data-past={index < step} aria-current={index === step ? 'step' : undefined}>
+        {label}
       </li>)}
     </ol>}
-    {step === 0&&<Breathwork tiltReset={tiltReset} onClose={onClose} onNext={() => setStep(1)}/>}
-    {step === 1&&<FocusGames day={day} onSkip={() => setStep(2)} onContinue={(id, score) => {setAttemptId(id); setConfirmedScore(score); setStep(2); onScore();}}/>}
+    {!tiltReset && pinnedGoal && <aside className="mw-pinned-goal">
+      <Pin size={15} aria-hidden="true"/><span>Your Anchor</span><strong>{pinnedGoal.title}</strong>
+    </aside>}
+    {step === 0&&<Breathwork tiltReset={tiltReset} onClose={close} onNext={() => setStep(1)}/>}
+    {step === 1&&<FocusGames day={day} highScore={highScore} onSkip={() => setStep(2)} onContinue={(id, score) => {setAttemptId(id); setConfirmedScore(score); setStep(2); onScore();}}/>}
     {step === 2&&<section className="mw-step mw-affirmation">
       <h3>Affirmation &amp; Lock-In</h3>
       {confirmedScore&&<p>Drill score · {confirmedScore.score} / {confirmedScore.max_score}</p>}

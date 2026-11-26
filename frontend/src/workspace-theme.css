@@ -34,7 +34,6 @@
   --pt-focus:var(--desk-focus);
   font-family:var(--desk-font);
 }
-.mw-page .mw-hero h1,
 .pj-workspace .pt-journal-heading h1,
 .bt-session-site .bt-sessions-heading h1 {
   font-family:var(--desk-font);

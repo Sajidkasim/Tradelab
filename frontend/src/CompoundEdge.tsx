@@ -34,8 +34,13 @@ export function useHabitSummary() {
   useEffect(() => {
     const controller = new AbortController();
     let pending = false;
+    let queued = false;
     async function refresh() {
-      if (document.hidden || pending) return;
+      if (document.hidden || controller.signal.aborted) return;
+      if (pending) {
+        queued = true;
+        return;
+      }
       pending = true;
       try {
         const summary = await api("/compound-edge", { signal: controller.signal });
@@ -44,37 +49,47 @@ export function useHabitSummary() {
         if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : "Couldn’t refresh your routine.");
       } finally {
         pending = false;
+        if (queued) {
+          queued = false;
+          void refresh();
+        }
       }
     }
     refresh();
     const timer = setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
     window.addEventListener("primus:habits-saved", refresh);
+    window.addEventListener("primus:prep-saved", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       controller.abort();
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
       window.removeEventListener("primus:habits-saved", refresh);
+      window.removeEventListener("primus:prep-saved", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
   return { data, setData, error, loading: !data && !error };
 }
 
+function PillarTasks({ index, data, onJump }: { index: number; data: HabitSummary; onJump: (href: string) => void }) {
+  return <ul>{actions[index].map(([key, title, link, href]) => <li key={key}>
+    {data.tasks[key] ? <Check className={`ce-tone-${ringPillars[index].color}`} size={16} aria-hidden="true" /> : <Circle size={14} aria-hidden="true" />}
+    <span><span className="ce-sr">{data.tasks[key] ? "Complete: " : "To do: "}</span>{title}</span>
+    <a href={href} onClick={(event) => {
+      if (!href.startsWith("#")) return;
+      event.preventDefault();
+      onJump(href);
+    }}>{link}<ArrowUpRight size={12} aria-hidden="true" /></a>
+  </li>)}</ul>;
+}
+
 function PillarCards({ data, onJump }: { data: HabitSummary; onJump: (href: string) => void }) {
   return <div className="ce-action-grid grid gap-3">
     {ringPillars.map(({ name, cap, color }, i) => <section className="ce-panel ce-action" key={name}>
       <div className="ce-action-heading"><h3 className={`ce-tone-${color}`}>{name}</h3><span>{data.pillars[i]} / {cap}</span></div>
-      <ul>{actions[i].map(([key, title, link, href]) => <li key={key}>
-        {data.tasks[key] ? <Check className={`ce-tone-${color}`} size={16} aria-hidden="true" /> : <Circle size={14} aria-hidden="true" />}
-        <span><span className="ce-sr">{data.tasks[key] ? "Complete: " : "To do: "}</span>{title}</span>
-        <a href={href} onClick={(event) => {
-          if (!href.startsWith("#")) return;
-          event.preventDefault();
-          onJump(href);
-        }}>{link}<ArrowUpRight size={12} aria-hidden="true" /></a>
-      </li>)}</ul>
+      <PillarTasks index={i} data={data} onJump={onJump} />
     </section>)}
   </div>;
 }
@@ -108,13 +123,17 @@ function description(day: Day) {
   return `${day.date} · ${day.off ? "Rest day or market closure · " : ""}${day.score}/100 · ${detail}`;
 }
 
+function dayTier(day: Day) {
+  return day.off ? "rest" : day.score === 100 ? "full" : day.score >= 50 ? "kept" : day.score > 0 ? "partial" : "empty";
+}
+
 export function YearlyCompoundGrid({ days }: { days: Day[] }) {
   const [active, setActive] = useState<number | null>(null);
   const [cursor, setCursor] = useState<number | null>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const focused = Math.min(cursor ?? days.length - 1, days.length - 1);
   const offset = days.length ? (new Date(`${days[0].date}T00:00:00Z`).getUTCDay() + 6) % 7 : 0;
-  return <section className="ce-panel" aria-label="Routine history">
+  return <section className="ce-panel" aria-label="Routine history" tabIndex={-1} data-ce-history>
     <h3>Your routine history</h3>
     {days.length < 2 ? <div className="ce-grid-scroll">
       <div className="ce-grid ce-ghost-grid" role="img" aria-label="Preview of the 365-day routine grid">
@@ -125,9 +144,8 @@ export function YearlyCompoundGrid({ days }: { days: Day[] }) {
         <div className="ce-grid" aria-label="Daily routine history">
           {Array.from({ length: offset }, (_, i) => <span aria-hidden="true" key={`space-${i}`} />)}
           {days.map((day, i) => {
-            const tier = day.off ? "rest" : day.score === 100 ? "full" : day.score >= 50 ? "kept" : day.score > 0 ? "partial" : "empty";
             return <button key={day.date} ref={node => { buttons.current[i] = node; }} type="button"
-              className={`ce-square ce-${tier}`} aria-label={description(day)} tabIndex={focused === i ? 0 : -1}
+              className={`ce-square ce-${dayTier(day)}`} aria-label={description(day)} tabIndex={focused === i ? 0 : -1}
               onFocus={() => { setCursor(i); setActive(i); }} onBlur={() => setActive(null)}
               onPointerEnter={() => setActive(i)} onPointerLeave={() => setActive(null)}
               onClick={() => setActive(i)} onKeyDown={event => {
@@ -179,11 +197,12 @@ function RestDaySettings({ days, onSaved }: { days: number[]; onSaved: (data: Ha
   </details>;
 }
 
-function EdgeDrawer({ data, onSaved, onClose, onJump }: {
+function EdgeDrawer({ data, onSaved, onClose, onJump, showHistory }: {
   data: HabitSummary | null;
   onSaved: (value: HabitSummary) => void;
   onClose: () => void;
   onJump: (href: string) => void;
+  showHistory: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const title = useId();
@@ -192,11 +211,12 @@ function EdgeDrawer({ data, onSaved, onClose, onJump }: {
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     node.showModal();
+    if (showHistory) node.querySelector<HTMLElement>("[data-ce-history]")?.focus();
     return () => {
       node.close();
       document.body.style.overflow = overflow;
     };
-  }, []);
+  }, [showHistory]);
   return <dialog ref={dialog} className="ce-drawer" aria-labelledby={title}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onKeyDown={event => {
@@ -247,8 +267,11 @@ function EdgeDrawer({ data, onSaved, onClose, onJump }: {
 
 export default function CompoundEdge() {
   const { data, setData, error, loading } = useHabitSummary();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<"aura" | "history" | null>(null);
+  const [pillar, setPillar] = useState<number | null>(0);
   const trigger = useRef<HTMLButtonElement>(null);
+  const historyTrigger = useRef<HTMLButtonElement>(null);
+  const pillarDetailsId = useId();
   const ringDescription = ringPillars.map(({ name, cap }, i) =>
     `${name} ${Math.round(100 * (data?.pillars[i] ?? 0) / cap)}% complete`).join(", ");
   const complete = ringPillars.filter(({ cap }, i) => data?.pillars[i] === cap).length;
@@ -256,7 +279,7 @@ export default function CompoundEdge() {
     complete === 3 ? "You showed up today" : !data?.score ? "" :
       complete === 0 ? "Your routine is underway" : `${complete} of 3 pillars done today`;
   function close(href?: string) {
-    setOpen(false);
+    setOpen(null);
     requestAnimationFrame(() => {
       const target = href && document.getElementById(href.slice(1));
       if (target) {
@@ -264,49 +287,72 @@ export default function CompoundEdge() {
         target.focus();
         target.scrollIntoView({ block: "center" });
       } else {
-        trigger.current?.focus();
+        (open === "history" ? historyTrigger : trigger).current?.focus();
       }
     });
   }
   const pillars = data?.pillars ?? emptyScores;
+  const recordedDays = new Map(data?.days.slice(-7).map(day => [day.date, day]));
+  const week = data ? Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${data.today}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - (6 - index));
+    const key = date.toISOString().slice(0, 10);
+    const day = recordedDays.get(key);
+    return {
+      key,
+      label: weekdays[(date.getUTCDay() + 6) % 7],
+      title: day ? description(day) : `${key} · No routine data`,
+      tier: day ? dayTier(day) : "untracked",
+    };
+  }) : [];
   return <section aria-label="Aura" className="ce-widget">
     <header className="ce-widget-heading">
-      <div>
-        <h2>YOUR AURA</h2>
-        <p>TRACK YOUR 1% DAILY EDGE.</p>
-      </div>
+      <h2>Your Aura</h2>
       {data && (
         <span className="ce-streak-badge" aria-label={`Current streak ${data.current_streak} days`}>
-          <strong>{data.current_streak}d</strong> streak
+          <strong>{data.current_streak}</strong>{data.current_streak === 1 ? " day" : " days"} streak
         </span>
       )}
     </header>
-    <button ref={trigger} type="button" className={`ce-trigger ${complete === 3 ? "ce-celebrate" : ""}`}
-      aria-label={message ? `Open Aura. ${message}` : "Open Aura"} aria-description={ringDescription} aria-haspopup="dialog" aria-expanded={open}
-      onClick={() => setOpen(true)}>
-      <div className="ce-trigger-body">
+    <div className="ce-summary">
+      <button ref={trigger} type="button" className={`ce-trigger ${complete === 3 ? "ce-celebrate" : ""}`}
+        aria-label={message ? `Open Aura. ${message}` : "Open Aura"} aria-description={ringDescription}
+        aria-haspopup="dialog" aria-expanded={open === "aura"} onClick={() => setOpen("aura")}>
         <TradingRings scores={pillars} />
-        <div className="ce-mini-pillars" aria-hidden="true">
-          {ringPillars.map(({ name, cap, color }, i) => {
-            const val = pillars[i] ?? 0;
-            const pct = Math.min(100, Math.round((val / cap) * 100));
-            return <div key={name} className="ce-mini-pillar">
-              <div className="ce-mini-pillar-row">
-                <span className={`ce-tone-${color}`}>{name}</span>
-                <span>{val}/{cap}</span>
-              </div>
-              <div className="ce-mini-track">
-                <span className={`ce-mini-fill ce-fill-${color}`} style={{ width: `${pct}%` }} />
-              </div>
-            </div>;
-          })}
-        </div>
+        <span className="ce-widget-status">{message || "View details"}</span>
+      </button>
+      <div className="ce-mini-pillars">
+        {ringPillars.map(({ name, cap, color }, i) => {
+          const value = pillars[i];
+          return <button key={name} type="button" className="ce-mini-pillar" disabled={!data}
+            aria-expanded={data ? pillar === i : undefined} aria-controls={pillarDetailsId}
+            onClick={() => setPillar(current => current === i ? null : i)}>
+            <span className="ce-mini-pillar-row">
+              <span>{name}</span><span>{data ? `${value}/${cap}` : "—"}</span>
+            </span>
+            <span className="ce-mini-track" aria-hidden="true">
+              <span className={`ce-mini-fill ce-fill-${color}`} style={{ width: `${100 * value / cap}%` }} />
+            </span>
+          </button>;
+        })}
       </div>
-      <div className="ce-trigger-footer">
-        <span className="ce-widget-status">{message || (data ? `${data.days_kept} days kept this year` : "")}</span>
+    </div>
+    <div className="ce-pillar-details ce-action" id={pillarDetailsId} hidden={pillar === null || !data}>
+      {data && pillar !== null && <PillarTasks index={pillar} data={data} onJump={close} />}
+    </div>
+    {data && <button ref={historyTrigger} type="button" className="ce-week" aria-haspopup="dialog"
+      aria-expanded={open === "history"} aria-label="Open 365-day routine history" onClick={() => setOpen("history")}>
+      <span className="ce-week-heading">
+        <span>Last 7 days</span>
         <span className="ce-open-hint">365-day grid <ArrowUpRight size={13} aria-hidden="true" /></span>
-      </div>
-    </button>
-    {open && <EdgeDrawer data={data} onSaved={setData} onClose={() => close()} onJump={close} />}
+      </span>
+      <span className="ce-week-days" aria-hidden="true">
+        {week.map(day => <span key={day.key} className="ce-week-day" title={day.title}
+          data-today={day.key === data.today || undefined}>
+          <span className={`ce-square ce-${day.tier}`} />{day.label}
+        </span>)}
+      </span>
+    </button>}
+    {open && <EdgeDrawer data={data} onSaved={setData} onClose={() => close()} onJump={close} showHistory={open === "history"} />}
   </section>;
 }

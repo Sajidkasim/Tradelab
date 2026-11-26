@@ -1003,33 +1003,6 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Mindset: etched topo contour depth on Pre-Market Warm-Up hero & optical breath lens */
-.mw-hero {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-.mw-hero > :not(.primus-topo-field) {
-  position: relative;
-  z-index: 1;
-}
-.mw-hero::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 12%;
-  right: 12%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(200, 241, 105, 0.62), rgba(52, 211, 153, 0.32), transparent);
-  z-index: 2;
-  pointer-events: none;
-}
-.mw-hero .primus-topo-field > svg {
-  color: rgba(34, 88, 60, 0.09);
-}
-:root[data-theme="dark"] .mw-hero .primus-topo-field > svg {
-  color: rgba(200, 241, 105, 0.11);
-}
 .wp-breath-orb {
   position: relative;
   overflow: hidden;

@@ -29,7 +29,7 @@ test('Mindset private goals persist with uploaded images',async({page})=>{
  await expect(page.getByRole('button',{name:'Add your first goal'})).toBeVisible();
 });
 test('new navigation and pages remain readable on a phone and in dark mode',async({page},info)=>{
- await page.setViewportSize({width:390,height:844});await page.goto(origin+'/learn');await page.getByRole('button',{name:'Open navigation',exact:true}).click();const nav=page.getByRole('navigation',{name:'Primus navigation'});await expect(nav.getByRole('link',{name:/^Learn(?: Beta)?$/})).toHaveAttribute('aria-current','page');await nav.getByRole('link',{name:'Mindset',exact:true}).click();await expect(page.getByRole('heading',{name:'Pre-Market Warm-Up',exact:true})).toBeVisible();await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+ await page.setViewportSize({width:390,height:844});await page.goto(origin+'/learn');await page.getByRole('button',{name:'Open navigation',exact:true}).click();const nav=page.getByRole('navigation',{name:'Primus navigation'});await expect(nav.getByRole('link',{name:/^Learn(?: Beta)?$/})).toHaveAttribute('aria-current','page');await nav.getByRole('link',{name:'Mindset',exact:true}).click();await expect(page.getByRole('heading',{name:'Pre-market',exact:true})).toBeVisible();await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:info.outputPath('mindset-phone-dark.png'),fullPage:true});
 });
 

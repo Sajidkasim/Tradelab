@@ -505,7 +505,8 @@ def mount(app, config, workspace):
                 prepped_days.add(d)
 
         def bucket():
-            return {'days': 0, 'pnl_days': 0, 'wins': 0, 'net_pnl': 0.0, 'plan_tagged': 0, 'plan_yes': 0}
+            return {'days': 0, 'pnl_days': 0, 'wins': 0, 'net_pnl': 0.0, 'plan_tagged': 0, 'plan_yes': 0,
+                    'recent_days': []}
 
         prepped = bucket()
         unprepped = bucket()
@@ -518,6 +519,8 @@ def mount(app, config, workspace):
                 continue
             target = prepped if day_key in prepped_days else unprepped
             target['days'] += 1
+            if len(target['recent_days']) < 5:
+                target['recent_days'].append(day_key)
             pf = row.get('plan_followed')
             if pf in ('Yes', 'Partly', 'No'):
                 target['plan_tagged'] += 1
@@ -542,6 +545,8 @@ def mount(app, config, workspace):
             return {
                 'days': b['days'],
                 'pnl_days': b['pnl_days'],
+                'plan_tagged': b['plan_tagged'],
+                'recent_days': b['recent_days'],
                 'net_pnl': b['net_pnl'],
                 'win_pct': round((b['wins'] / b['pnl_days']) * 100) if b['pnl_days'] else None,
                 'plan_pct': round((b['plan_yes'] / b['plan_tagged']) * 100) if b['plan_tagged'] else None,

@@ -324,8 +324,10 @@ def test_mindset_mirror_and_morning_brief_stay_private_and_data_grounded(draft, 
 
     mirror = client.get('/api/mindset/mirror').json()
     assert mirror['total_journal_days'] == 2
-    assert mirror['prepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': 500.0, 'win_pct': 100, 'plan_pct': 100}
-    assert mirror['unprepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': -300.0, 'win_pct': 0, 'plan_pct': 0}
+    assert mirror['prepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': 500.0, 'win_pct': 100, 'plan_pct': 100,
+                                 'plan_tagged': 1, 'recent_days': ['2026-11-12']}
+    assert mirror['unprepped'] == {'days': 1, 'pnl_days': 1, 'net_pnl': -300.0, 'win_pct': 0, 'plan_pct': 0,
+                                   'plan_tagged': 1, 'recent_days': ['2026-11-11']}
     assert mirror['calm'] == {'days': 1, 'net_pnl': 500.0}
     assert mirror['tilted'] == {'days': 1, 'net_pnl': -300.0}
 

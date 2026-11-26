@@ -1,7 +1,7 @@
 import React, {lazy, Suspense, useEffect, useRef, useState} from 'react';
 import {
-  AlertTriangle, ArrowUpRight, Check, Headphones, Mic, MicOff,
-  Play, Plus, ShieldAlert, Sparkles, Wind,
+  ArrowUpRight, Check, ChevronDown, Headphones, Mic, MicOff,
+  Play, Plus, Wind,
 } from 'lucide-react';
 import {WorkspacePage, useIdentity, SignInPanel} from './WorkspacePages';
 import ResourceLibrary from './ResourceLibrary';
@@ -13,16 +13,11 @@ import PrepProgress from './PrepProgress';
 import CompoundEdge from './CompoundEdge';
 import {FocusSoundscape} from './mindsetAudio';
 import {createVoiceRecorder, formatVoiceDuration, voiceExtensionForMime} from './voiceCapture';
-import {PrimusTopoField} from './components/PrimusAtmosphere';
 import './mindset-warmup.css';
 
 const BrainExplorer = lazy(() => import('./BrainExplorer'));
 const MindsetWarmUp = lazy(() => import('./MindsetWarmUp'));
-const PREVIEW_STEPS = [
-  {name: 'Breathwork', time: '2 min', text: 'Choose a rhythm and follow the breath.'},
-  {name: 'Focus Games', time: '1 min', text: 'Recall a pattern or spot a matching symbol.'},
-  {name: 'Affirmation', time: 'At your pace', text: 'Settle on the rule you’ll take into the session.'},
-];
+const WARM_UP_STEPS = ['Breathwork', 'Focus Games', 'Affirmation'];
 const ENERGY_OPTIONS = [
   {value: 'rested', label: 'Rested'},
   {value: 'tired', label: 'Tired'},
@@ -40,115 +35,109 @@ const STARTER_HABITS = [
   '20m walk or workout',
 ];
 
-function WarmUpHero({state, highScore, onStart, onTiltReset, soundMode, onSoundMode}) {
-  const [preview, setPreview] = useState(0);
-  const step = PREVIEW_STEPS[preview];
-  return <section className="mw-hero" aria-labelledby="warm-up-title">
-    <PrimusTopoField variant="card"/>
-    <div className="mw-hero-content">
-      <h1 id="warm-up-title"><span>Pre-Market</span>{' '}<span>Warm-Up</span></h1>
-      <p>Take about five minutes to reset, sharpen your focus and choose a rule for the session.</p>
-      {state && (
-        <div className="mw-hero-cta">
-          <Button type="button" variant="primary" onClick={() => onStart(0)}>
-            <Play size={15} aria-hidden="true"/> {state.completed ? 'Run Warm-Up again' : 'Start Warm-Up'}
-          </Button>
-          <Button type="button" onClick={onTiltReset}>
-            <Wind size={15} aria-hidden="true"/> 60s Tilt Reset
-          </Button>
-          <a className="mw-journal-link" href="/journal">
-            Open Today’s Journal <ArrowUpRight size={14} aria-hidden="true"/>
-          </a>
-        </div>
-      )}
-      {state?.affirmation && (
-        <div className="mw-session-rule">
-          <span>Today’s rule</span>
-          <strong>“{state.affirmation}”</strong>
-        </div>
-      )}
-      <div className="mw-hero-status">
-        <span className="mw-pill"><strong>Today's High Score</strong><span>{state?.team_eligible
-          ? highScore?.leader ? `${highScore.leader.score} / ${highScore.leader.max_score} · ${highScore.leader.name}`
-            : highScore?.failed ? 'Unavailable' : highScore ? 'No scores yet' : 'Loading…'
-          : 'Bullpen team only'}</span></span>
-        {state?.completed && <span className="mw-pill mw-complete">Warm-Up Complete</span>}
-        <div className="mw-audio-bar" role="group" aria-label="Focus soundscape">
-          <Headphones size={14} aria-hidden="true"/>
-          {[
-            ['off', 'Audio off'],
-            ['brown', 'Brown noise'],
-            ['binaural', 'Focus hum'],
-          ].map(([mode, label]) => (
-            <button key={mode} type="button" aria-pressed={soundMode === mode} onClick={() => onSoundMode(mode)}>
-              {label}
-            </button>
-          ))}
-        </div>
+function WarmUpHero({state, checkpoint, onStart, onTiltReset, soundMode, onSoundMode, checkIn, children}) {
+  const completed = state?.completed && !checkpoint;
+  return <section className="mw-pre-market" aria-labelledby="warm-up-title">
+    <div className="mw-launch">
+      <div className="mw-launch-heading">
+        <h1 id="warm-up-title" tabIndex={-1}>Pre-market</h1>
+        {state && <div className="mw-utilities">
+          <button type="button" onClick={onTiltReset} aria-haspopup="dialog">
+            <Wind size={16} aria-hidden="true"/> 60s Reset
+          </button>
+          <details className="mw-sound">
+            <summary aria-label="Focus audio" title="Focus audio">
+              <Headphones size={17} aria-hidden="true"/>
+              {soundMode !== 'off' && <span className="mw-sound-active" aria-hidden="true"/>}
+            </summary>
+            <div className="mw-sound-options" role="group" aria-label="Focus soundscape">
+              {Object.entries({off: 'Audio off', brown: 'Brown noise', binaural: 'Focus hum'}).map(([mode, label]) =>
+                <button key={mode} type="button" aria-pressed={soundMode === mode} onClick={event => {
+                  onSoundMode(mode);
+                  const disclosure = event.currentTarget.closest('details');
+                  disclosure.open = false;
+                  disclosure.querySelector('summary').focus();
+                }}>{label}</button>)}
+            </div>
+          </details>
+        </div>}
       </div>
+      {state && <>
+        <div className="mw-launch-actions">
+          {completed
+            ? <a className="mw-launch-primary" href="/journal">Open today’s Journal <ArrowUpRight size={16} aria-hidden="true"/></a>
+            : <button className="mw-launch-primary" type="button" aria-haspopup="dialog" onClick={() => onStart()}>
+                <Play size={16} aria-hidden="true"/> {checkpoint ? 'Resume Warm-Up' : 'Start Warm-Up'}
+              </button>}
+          <span className="mw-launch-status" role="status">
+            {completed ? <><Check size={15} aria-hidden="true"/> Warm-Up Complete</> : checkpoint ? WARM_UP_STEPS[checkpoint.step] : 'About 5 min'}
+          </span>
+        </div>
+        {state.affirmation && <div className="mw-session-focus"><span>Today’s rule</span><strong>{state.affirmation}</strong></div>}
+        <div className="mw-step-links" role="group" aria-label="Open a warm-up step">
+          {WARM_UP_STEPS.map((name, index) =>
+            <button key={name} type="button" aria-haspopup="dialog" onClick={() => onStart(index)}>
+              {name}<ArrowUpRight size={13} aria-hidden="true"/>
+            </button>)}
+        </div>
+      </>}
+      {checkIn}
     </div>
-    <div className="mw-hero-preview">
-      <div className="mw-preview-options" role="group" aria-label="Open a warm-up step">
-        {PREVIEW_STEPS.map(({name}, index) => <button key={name} type="button" aria-pressed={index === preview}
-          disabled={!state} aria-haspopup="dialog" onClick={() => {setPreview(index); onStart(index);}}>{name}</button>)}
-      </div>
-      <div key={step.name} className={`mw-preview-scene mw-preview-scene-${preview}`} aria-hidden="true">
-        {preview === 0 ? [.32, .5, .7, .93, .7, .5, .32].map((height, index) => <i key={index} style={{'--preview-height': height, '--preview-delay': `${index * .12}s`}}/>)
-          : preview === 1 ? Array.from({length: 16}, (_, index) => <i key={index} className={[1, 6, 8, 15].includes(index) ? 'lit' : undefined}/>)
-          : <span>Wait for confirmation.</span>}
-      </div>
-      <div className="mw-preview-caption" aria-live="polite"><span>{step.text}</span><strong>{step.time}</strong></div>
-    </div>
+    {children && <div className="mw-prep-controls">{children}</div>}
   </section>;
 }
 
-function ReadinessStrip({state, onChange, onTiltReset}) {
+function ReadinessStrip({state, onChange, status}) {
   const energy = state.energy || '';
   const headspace = state.headspace || '';
   const tilted = headspace === 'emotional' || headspace === 'distracted' || energy === 'fumes';
 
-  return <section className={`wp-panel mw-readiness-strip ${tilted ? 'is-caution' : ''}`} aria-label="Pre-market readiness check">
-    <div className="mw-readiness-groups">
-      <div className="mw-readiness-group">
-        <span className="mw-readiness-label">Energy</span>
-        <div role="group" aria-label="Energy level">
-          {ENERGY_OPTIONS.map(opt => (
-            <button key={opt.value} type="button" aria-pressed={energy === opt.value}
-              onClick={() => onChange({...state, energy: energy === opt.value ? '' : opt.value})}>
-              {opt.label}
-            </button>
-          ))}
+  const selected = [ENERGY_OPTIONS.find(option => option.value === energy)?.label,
+    HEADSPACE_OPTIONS.find(option => option.value === headspace)?.label].filter(Boolean);
+
+  return <details className="mw-check-in">
+    <summary>Check in <span>{selected.join(' · ')}</span><ChevronDown size={16} aria-hidden="true"/></summary>
+    <div className="mw-readiness-strip">
+      <div className="mw-readiness-groups">
+        <div className="mw-readiness-group">
+          <span className="mw-readiness-label">Energy</span>
+          <div role="group" aria-label="Energy level">
+            {ENERGY_OPTIONS.map(opt => (
+              <button key={opt.value} type="button" aria-pressed={energy === opt.value}
+                onClick={() => onChange({...state, energy: energy === opt.value ? '' : opt.value})}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mw-readiness-group">
+          <span className="mw-readiness-label">Headspace</span>
+          <div role="group" aria-label="Current headspace">
+            {HEADSPACE_OPTIONS.map(opt => (
+              <button key={opt.value} type="button" aria-pressed={headspace === opt.value}
+                className={opt.value === 'emotional' ? 'tone-warn' : ''}
+                onClick={() => onChange({...state, headspace: headspace === opt.value ? '' : opt.value})}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="mw-readiness-group">
-        <span className="mw-readiness-label">Headspace</span>
-        <div role="group" aria-label="Current headspace">
-          {HEADSPACE_OPTIONS.map(opt => (
-            <button key={opt.value} type="button" aria-pressed={headspace === opt.value}
-              className={opt.value === 'emotional' ? 'tone-warn' : ''}
-              onClick={() => onChange({...state, headspace: headspace === opt.value ? '' : opt.value})}>
-              {opt.label}
-            </button>
-          ))}
+      {tilted && (
+        <div className="mw-tilt-guard" role="note">
+          <span>Elevated tilt risk</span>
         </div>
-      </div>
+      )}
+      {status === 'failed' && <p role="alert">Check-in could not be saved. <Button onClick={() => onChange(state)}>Retry</Button></p>}
     </div>
-    {tilted && (
-      <div className="mw-tilt-guard" role="note">
-        <ShieldAlert size={16} aria-hidden="true"/>
-        <span>Elevated tilt risk — consider cutting size or running a 60s reset before NY open.</span>
-        <button type="button" onClick={onTiltReset}>Run 60s Reset</button>
-      </div>
-    )}
-  </section>;
+  </details>;
 }
 
-function MorningBriefAndMirror({voiceCloudEnabled, state}) {
+function MorningBrief({voiceCloudEnabled}) {
   const [note, setNote] = useState('');
   const [brief, setBrief] = useState(null);
   const [loadingBrief, setLoadingBrief] = useState(false);
   const [briefError, setBriefError] = useState('');
-  const [mirror, setMirror] = useState(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -160,16 +149,9 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
   const canCloudVoice = voiceCloudEnabled && typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== 'undefined';
   const voiceSupported = canCloudVoice || Boolean(SpeechCtor);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    api('/mindset/mirror', {signal: controller.signal})
-      .then(data => { if (!controller.signal.aborted) setMirror(data); })
-      .catch(() => {});
-    return () => {
-      controller.abort();
-      try { recorderRef.current?.stop(); } catch {}
-      try { speechRef.current?.stop(); } catch {}
-    };
+  useEffect(() => () => {
+    try { recorderRef.current?.stop(); } catch {}
+    try { speechRef.current?.stop(); } catch {}
   }, []);
 
   useEffect(() => {
@@ -258,13 +240,8 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
     }
   }
 
-  return <div className="mw-intel-grid">
-    <section className="wp-panel mw-card mw-brief-card" aria-labelledby="mw-brief-title">
-      <div className="mw-card-title">
-        <h2 id="mw-brief-title">Morning Primax Brief</h2>
-        <span className="mw-intel-tag"><Sparkles size={13} aria-hidden="true"/> Personalised</span>
-      </div>
-      <p className="mw-muted-copy">Combines your recent Journal lessons, headspace ({state?.headspace || 'not set'}), and recalled sessions into a 3-point mental game plan.</p>
+  return <section className="wp-panel mw-card mw-brief-card" aria-labelledby="mw-brief-title">
+      <h2 id="mw-brief-title">Morning Primax Brief</h2>
       <div className="mw-brief-compose">
         <input
           type="text"
@@ -306,53 +283,60 @@ function MorningBriefAndMirror({voiceCloudEnabled, state}) {
           )}
         </div>
       )}
-    </section>
+  </section>;
+}
 
-    <section className="wp-panel mw-card mw-mirror-card" aria-labelledby="mw-mirror-title">
-      <div className="mw-card-title">
-        <h2 id="mw-mirror-title">Prep vs. Performance</h2>
-        <span className="mw-intel-tag">Your Journal data</span>
+function PrepPerformance() {
+  const [mirror, setMirror] = useState(null);
+  const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let pending;
+    function load() {
+      pending?.abort();
+      pending = new AbortController();
+      const signal = pending.signal;
+      api('/mindset/mirror', {signal}).then(data => {
+        if (!signal.aborted) {setMirror(data); setError('');}
+      }).catch(failure => {
+        if (!signal.aborted) setError(failure.message);
+      });
+    }
+    load();
+    window.addEventListener('primus:prep-saved', load, {signal: controller.signal});
+    return () => {controller.abort(); pending?.abort();};
+  }, [retry]);
+
+  const cohorts = mirror && [['Prep recorded', mirror.prepped], ['No prep recorded', mirror.unprepped]];
+  return <section className="wp-panel mw-card mw-performance" aria-labelledby="mw-mirror-title">
+    <h2 id="mw-mirror-title">Prep performance</h2>
+    {error && <Notice error>{error} <Button onClick={() => {setError(''); setRetry(value => value + 1);}}>Retry</Button></Notice>}
+    {!mirror && !error && <p role="status">Loading Journal data…</p>}
+    {mirror?.total_journal_days === 0 && <p className="mw-muted-copy">Log sessions in your <a href="/journal">Journal</a> to compare your prep days.</p>}
+    {mirror?.total_journal_days > 0 && <>
+      <div className="mw-comparison">
+        {cohorts.map(([name, stats]) => <div key={name}>
+          <span>{name}</span>
+          <strong>{stats.plan_pct == null ? '—' : `${stats.plan_pct}%`}</strong>
+          <small>{stats.plan_pct == null ? 'No plan ratings' : `On-plan · ${stats.plan_tagged} rated`} · {stats.days} {stats.days === 1 ? 'session' : 'sessions'}</small>
+        </div>)}
       </div>
-      {!mirror || mirror.total_journal_days === 0 ? (
-        <p className="mw-muted-copy">Log a few sessions in your <a href="/journal">Daily Journal</a> alongside your morning prep to see how preparation impacts your plan adherence and P&amp;L.</p>
-      ) : (
-        <div className="mw-mirror-grid">
-          <div className="mw-mirror-box is-good">
-            <span className="mw-mirror-label">With Morning Prep</span>
-            <strong>{mirror.prepped.plan_pct != null ? `${mirror.prepped.plan_pct}% on-plan` : `${mirror.prepped.days}d logged`}</strong>
-            <small>
-              {mirror.prepped.pnl_days > 0
-                ? `${mirror.prepped.win_pct}% green · ${money(mirror.prepped.net_pnl)}`
-                : `${mirror.prepped.days} prepped ${mirror.prepped.days === 1 ? 'day' : 'days'}`}
-            </small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Skipped Prep</span>
-            <strong>{mirror.unprepped.plan_pct != null ? `${mirror.unprepped.plan_pct}% on-plan` : `${mirror.unprepped.days}d logged`}</strong>
-            <small>
-              {mirror.unprepped.pnl_days > 0
-                ? `${mirror.unprepped.win_pct}% green · ${money(mirror.unprepped.net_pnl)}`
-                : `${mirror.unprepped.days} unprepped ${mirror.unprepped.days === 1 ? 'day' : 'days'}`}
-            </small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Focused / Patient</span>
-            <strong className={mirror.calm.net_pnl > 0 ? 'gain' : mirror.calm.net_pnl < 0 ? 'loss' : ''}>
-              {mirror.calm.days > 0 ? money(mirror.calm.net_pnl) : '—'}
-            </strong>
-            <small>{mirror.calm.days} calm {mirror.calm.days === 1 ? 'session' : 'sessions'}</small>
-          </div>
-          <div className="mw-mirror-box">
-            <span className="mw-mirror-label">Distracted / Frustrated</span>
-            <strong className={mirror.tilted.net_pnl > 0 ? 'gain' : mirror.tilted.net_pnl < 0 ? 'loss' : ''}>
-              {mirror.tilted.days > 0 ? money(mirror.tilted.net_pnl) : '—'}
-            </strong>
-            <small>{mirror.tilted.days} tilted {mirror.tilted.days === 1 ? 'session' : 'sessions'}</small>
-          </div>
-        </div>
-      )}
-    </section>
-  </div>;
+      <details className="mw-breakdown">
+        <summary>View breakdown <ChevronDown size={16} aria-hidden="true"/></summary>
+        <dl aria-label="Net P&L">
+          {[...cohorts, ['Focused / Patient', mirror.calm], ['Distracted / Frustrated', mirror.tilted]].map(([name, stats]) =>
+            <div key={name}><dt>{name}</dt><dd>{(stats.pnl_days ?? stats.days) > 0 ? money(stats.net_pnl) : '—'}
+              {stats.win_pct != null && <small> · {stats.win_pct}% green</small>}</dd></div>)}
+        </dl>
+        {cohorts.map(([name, stats]) => stats.recent_days?.length > 0 && <div className="mw-mirror-entries" key={name}>
+          <strong>Recent sessions · {name.toLowerCase()}</strong>
+          <div>{stats.recent_days.map(day => <a key={day} href={`/journal?day=${encodeURIComponent(day)}`}>{day}</a>)}</div>
+        </div>)}
+      </details>
+    </>}
+  </section>;
 }
 
 function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabled = false}) {
@@ -477,8 +461,8 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   const [highScore, setHighScore] = useState(null);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
-  const [openStep, setOpenStep] = useState(null);
-  const [tiltResetOpen, setTiltResetOpen] = useState(false);
+  const [launch, setLaunch] = useState(null);
+  const [checkpoint, setCheckpoint] = useState(null);
   const [soundMode, setSoundMode] = useState('off');
   const soundscape = useRef(null);
   const reader = useRef(null);
@@ -520,7 +504,7 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     writer.current?.abort();
     writer.current = null;
     queuedPrep.current = null;
-    setState(null); setOpenStep(null); setTiltResetOpen(false); setError(''); setSaveStatus('');
+    setState(null); setLaunch(null); setCheckpoint(null); setError(''); setSaveStatus('');
     const abort = new AbortController();
     reader.current = abort;
     try {
@@ -559,7 +543,10 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
         queuedPrep.current = null;
         try {
           await api('/mindset/warmup', {method: 'PUT', body: {day, energy, headspace, checklist, items}, signal: request.signal});
-          if (!request.signal.aborted && !queuedPrep.current) setSaveStatus('saved');
+          if (!request.signal.aborted && !queuedPrep.current) {
+            setSaveStatus('saved');
+            window.dispatchEvent(new Event('primus:prep-saved'));
+          }
         } catch {
           if (!request.signal.aborted && !queuedPrep.current) setSaveStatus('failed');
         }
@@ -572,36 +559,43 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   return <>
     <WarmUpHero
       state={state}
-      highScore={highScore}
-      onStart={step => {setTiltResetOpen(false); setOpenStep(step);}}
-      onTiltReset={() => {setOpenStep(null); setTiltResetOpen(true);}}
+      checkpoint={checkpoint}
+      onStart={step => setLaunch({step: step ?? checkpoint?.step ?? 0, checkpoint: step == null ? checkpoint : null})}
+      onTiltReset={() => setLaunch({tiltReset: true, step: 0})}
       soundMode={soundMode}
       onSoundMode={changeSoundMode}
-    />
-    {state && <ReadinessStrip state={state} onChange={save} onTiltReset={() => {setOpenStep(null); setTiltResetOpen(true);}}/>}
-    {state && <div className="mw-prep-grid">
-      <CompoundEdge/>
-      <RoutineChecklist key={state.day} state={state} status={saveStatus} onSave={save}
-        onEdit={changes => setState(current => ({...current, ...changes}))}/>
-    </div>}
-    {state && <MorningBriefAndMirror voiceCloudEnabled={voiceCloudEnabled} state={state}/>}
-    <HabitTracker/>
+      checkIn={state && <ReadinessStrip key={state.day} state={state} onChange={save} status={saveStatus}/>}
+    >
+      {state && <RoutineChecklist key={state.day} state={state} status={saveStatus} onSave={save}
+        onEdit={changes => setState(current => ({...current, ...changes}))}/>}
+    </WarmUpHero>
+    {state && <>
+      <div className="mw-prep-grid">
+        <CompoundEdge/>
+        <div className="mw-insights"><PrepPerformance/><MorningBrief voiceCloudEnabled={voiceCloudEnabled}/></div>
+      </div>
+      <HabitTracker/>
+    </>}
     {!state && !error && <p role="status">Loading morning prep…</p>}
     {error && <Notice error>{error}{!state && <Button onClick={load}>Retry morning prep</Button>}</Notice>}
-    {(openStep !== null || tiltResetOpen) && state && <Suspense fallback={<p role="status">Opening warm-up…</p>}>
+    {launch && state && <Suspense fallback={<p role="status">Opening warm-up…</p>}>
       <MindsetWarmUp
-        key={tiltResetOpen ? 'tilt-reset' : `step-${openStep}`}
-        initialStep={openStep ?? 0}
-        tiltReset={tiltResetOpen}
+        key={launch.tiltReset ? 'tilt-reset' : `step-${launch.step}`}
+        initialStep={launch.step}
+        checkpoint={launch.checkpoint}
+        onCheckpoint={setCheckpoint}
+        highScore={state.team_eligible ? highScore : null}
+        tiltReset={launch.tiltReset}
         pinnedGoal={pinnedGoal}
         day={state.day}
         savedAffirmation={state.affirmation}
-        onClose={() => {setOpenStep(null); setTiltResetOpen(false);}}
+        onClose={() => setLaunch(null)}
         onScore={() => loadScore(state)}
         onComplete={value => {
           setState(current => ({...current, completed: value.completed, affirmation: value.affirmation ?? current.affirmation}));
-          setOpenStep(null);
-          setTiltResetOpen(false);
+          setLaunch(null);
+          setCheckpoint(null);
+          window.dispatchEvent(new Event('primus:prep-saved'));
         }}
       />
     </Suspense>}
@@ -615,7 +609,7 @@ export default function MindsetPage() {
   return <WorkspacePage active="mindset" title="Mindset" hideHeading className="mw-page">
     {identity?.authenticated
       ? <PrivateWarmUp pinnedGoal={pinnedGoal} voiceCloudEnabled={Boolean(identity.voice_journal_enabled)}/>
-      : <WarmUpHero soundMode="off" onSoundMode={() => {}}/>}
+      : <WarmUpHero/>}
     {error && <Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity && !error && <p role="status">Checking your private workspace…</p>}
     <div className="mw-board-grid">

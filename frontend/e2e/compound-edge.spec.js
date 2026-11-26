@@ -18,9 +18,22 @@ test("Aura shows private routine progress in the Mindset", async ({ page }) => {
   await expect(page.locator(".ce-drawer")).toHaveCount(0);
   await expect(card.locator(".ce-ring-progress")).toHaveCount(2);
   await expect(card.getByRole("img", { name: "Execute: 50% complete" })).toBeVisible();
+  const aura = page.getByRole("region", { name: "Aura" });
+  const execute = aura.getByRole("button", { name: /Execute/ });
+  await expect(aura.getByRole("link", { name: "Open checklist" })).toBeVisible();
+  await execute.click();
+  await expect(execute).toHaveAttribute("aria-expanded", "true");
+  await expect(aura.getByRole("link", { name: "Open plan check" })).toHaveAttribute("href", "/journal#journal-plan-followed");
+  await expect(aura.getByRole("link", { name: "Open checklist" })).toHaveCount(0);
+  const history = aura.getByRole("button", { name: "Open 365-day routine history" });
+  await expect(history.locator(".ce-week-day")).toHaveCount(7);
+  await history.click();
+  const drawer = page.getByRole("dialog", { name: "Aura" });
+  await expect(drawer.getByRole("region", { name: "Routine history" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(history).toBeFocused();
   await card.focus();
   await card.press("Enter");
-  const drawer = page.getByRole("dialog", { name: "Aura" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Open checklist" })).toBeVisible();
   await expect(drawer.getByRole("tooltip")).toHaveCount(0);
@@ -33,7 +46,7 @@ test("Aura shows private routine progress in the Mindset", async ({ page }) => {
   await expect(card).toBeFocused();
   await card.click();
   await drawer.getByRole("link", { name: "Open checklist" }).click();
-  await expect(page.getByRole("heading", { name: "Pre-Session Checklist" })).toBeFocused();
+  await expect(page.locator("#prep-checklist")).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

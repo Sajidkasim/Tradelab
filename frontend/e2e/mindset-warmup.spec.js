@@ -93,7 +93,7 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
   await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   const dialog = await warmup(page);
-  expect(await dialog.locator('.mw-breath-wave span').first().evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
+  expect(await dialog.locator('.mw-breath-ring').evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
   await page.clock.fastForward(120100);
   await dialog.getByRole('button',{name:'Next: Focus Games'}).click();
   await dialog.getByRole('button',{name:'Start 60-second drill'}).click();
@@ -225,14 +225,15 @@ test('floating Primax bubble stays on Journal only and stays hidden on other wor
 
 test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits work cleanly', async ({page}) => {
   await page.goto(`${origin}/mindset`);
-  await expect(page.getByRole('button', {name: /Start Warm-Up|Run Warm-Up again/})).toBeVisible();
+  await expect(page.getByRole('region', {name: 'Pre-market', exact: true})).toBeVisible();
+  await page.getByText(/^Check in/).click();
 
   // Selecting Emotional triggers the Tilt Guard banner and launches 60s Tilt Reset
   await page.getByRole('group', {name: 'Current headspace'}).getByRole('button', {name: 'Emotional', exact: true}).click();
   await expect(page.getByText(/Elevated tilt risk/)).toBeVisible();
-  await page.getByRole('button', {name: 'Run 60s Reset', exact: true}).click();
+  await page.getByRole('button', {name: '60s Reset', exact: true}).click();
   const resetDialog = page.getByRole('dialog', {name: '60s Tilt Reset'});
-  await expect(resetDialog.getByRole('heading', {name: '60-Second Tilt Reset'})).toBeVisible();
+  await expect(resetDialog.getByRole('heading', {name: '60s Tilt Reset', exact: true})).toBeVisible();
   await resetDialog.getByRole('button', {name: 'Done early', exact: true}).click();
   await expect(resetDialog).toHaveCount(0);
 
@@ -243,5 +244,44 @@ test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits wor
 
   // Mobile overflow check
   await page.setViewportSize({width: 390, height: 844});
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('Pre-market resumes an exercise and keeps prep performance details tucked away', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844});
+  await page.route('**/api/mindset/warmup', async route => {
+    const response = await route.fetch();
+    await route.fulfill({response, json: {...await response.json(), completed: false}});
+  });
+  await page.route('**/api/mindset/mirror', route => route.fulfill({json: {
+    total_journal_days: 3,
+    prepped: {days: 2, plan_pct: 100, plan_tagged: 1, pnl_days: 1, net_pnl: 500, recent_days: ['2026-11-12']},
+    unprepped: {days: 1, plan_pct: 0, plan_tagged: 1, pnl_days: 1, net_pnl: -300, recent_days: ['2026-11-11']},
+    calm: {days: 1, net_pnl: 500},
+    tilted: {days: 1, net_pnl: -300},
+  }}));
+  await page.goto(`${origin}/mindset`);
+  await page.setViewportSize({width: 320, height: 700});
+  const audio = page.getByLabel('Focus audio');
+  await audio.click();
+  const audioBounds = await page.getByRole('group', {name: 'Focus soundscape'}).boundingBox();
+  expect(audioBounds.x).toBeGreaterThanOrEqual(0);
+  expect(audioBounds.x + audioBounds.width).toBeLessThanOrEqual(320);
+  await page.getByRole('button', {name: 'Audio off', exact: true}).click();
+  await expect(audio).toBeFocused();
+  await page.getByRole('button', {name: 'Start Warm-Up', exact: true}).click();
+  const dialog = page.getByRole('dialog', {name: 'Pre-Market Warm-Up'});
+  await dialog.getByRole('button', {name: 'Skip to Focus Games'}).click();
+  await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+  await page.getByRole('button', {name: 'Resume Warm-Up', exact: true}).click();
+  await expect(dialog.getByRole('heading', {name: 'Pattern Match'})).toBeVisible();
+  await dialog.getByRole('button', {name: 'Close', exact: true}).click();
+
+  const performance = page.getByRole('region', {name: 'Prep performance'});
+  await expect(performance.getByText('On-plan · 1 rated · 2 sessions')).toBeVisible();
+  const entry = performance.getByRole('link', {name: '2026-11-12'});
+  await expect(entry).toBeHidden();
+  await performance.getByText('View breakdown').click();
+  await expect(entry).toHaveAttribute('href', '/journal?day=2026-11-12');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
