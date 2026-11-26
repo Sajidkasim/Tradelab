@@ -76,9 +76,10 @@ function Strategies({ sources, setups, setup, onSetupChange }) {
   </section>;
 }
 
-function DetailedSample({ sample, comparison, busy, onTrades }) {
+function DetailedSample({ sample, busy, onTrades }) {
   const { stats, fixed_rr: fixed } = sample;
   const useFixed = fixed?.complete && sample.r_count === 0;
+  const hasDistribution = sample.distribution?.total > 0;
   const values = [
     ["Net P&L", money(stats.net_pnl)], ["Win rate", percent(stats.win_rate)],
     ["95% win-rate interval", stats.win_rate_ci.map(percent).join("–")],
@@ -87,30 +88,48 @@ function DetailedSample({ sample, comparison, busy, onTrades }) {
     ["Sharpe ratio", number(stats.sharpe)], ["Sortino ratio", number(stats.sortino)],
     ...(useFixed ? [["Fixed average R", rvalue(fixed.avg_r)]] : []),
   ];
-  return <section className="lab-detail-source" aria-label={`${sourceName(sample.sample)} breakdown`}>
+  return <section className={`lab-detail-source${hasDistribution ? " has-distribution" : ""}`} aria-label={`${sourceName(sample.sample)} breakdown`}>
     <article className="card lab-detail-metrics">
       <header className="lab-results-heading">
-        <h3>{sourceName(sample.sample)}</h3><small>{stats.trades} closed trades</small>
+        <h3>{sourceName(sample.sample)}</h3>
+        {stats.trades > 0 && <small>{stats.trades} closed {stats.trades === 1 ? "trade" : "trades"}</small>}
       </header>
-      <dl>{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{stats.trades > 0 ? value : "—"}</dd></div>)}</dl>
-      {stats.trades > 0 && <>
+      {stats.trades === 0 ? <p className="muted">No closed trades match this selection.</p> : <>
+        <dl>{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
         <p className="muted">{stats.wins} wins · {stats.losses} losses · {stats.scratches} break-even</p>
         {useFixed && <p className="muted">Fixed average R uses tagged full-target and full-stop outcomes before costs.</p>}
         {sample.r_count < stats.trades && <button type="button" className="inline-action" onClick={onTrades}>Review missing risk</button>}
       </>}
     </article>
-    {stats.trades > 0 && <ReturnDistributionChart distribution={sample.distribution} avgR={stats.avg_r} busy={busy}/>}
-    {!!sample.breakdown?.length && <article className="card lab-dimension-table">
-      <div className="table-wrap" tabIndex={0} role="region" aria-label={`${sourceName(sample.sample)} dimensional breakdown`}>
-        <table>
-          <thead><tr><th scope="col">Group</th><th scope="col">Trades</th><th scope="col">Win rate</th><th scope="col">Average R</th></tr></thead>
-          <tbody>{sample.breakdown.map((row) => <tr key={row[comparison]}>
-            <th scope="row">{row[comparison]}{row.small_sample && <small className="table-caption">Small sample</small>}</th>
-            <td>{row.trades}</td><td>{percent(row.win_rate)}</td><td>{rvalue(row.avg_r)}</td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-    </article>}
+    {hasDistribution && <ReturnDistributionChart distribution={sample.distribution} avgR={stats.avg_r} busy={busy}/>}
+  </section>;
+}
+
+function GroupedResults({ samples, comparison, dimensions, onComparisonChange, busy }) {
+  const populated = samples.filter(({stats}) => stats.trades > 0);
+  if (!populated.length) return null;
+
+  return <section className="card lab-grouped-results" aria-labelledby="lab-grouped-results-title">
+    <header className="lab-results-heading">
+      <h3 id="lab-grouped-results-title">Grouped trades</h3>
+      <Select label="Group by" values={dimensions} value={comparison}
+        onChange={(event) => onComparisonChange(event.target.value)}/>
+    </header>
+    {busy ? <p className="muted lab-grouped-loading" role="status">Updating groups…</p> : populated.map((sample) => {
+      const label = sourceName(sample.sample);
+      return <div key={sample.sample} className="lab-grouped-source">
+        {samples.length > 1 && <h4>{label}</h4>}
+        {sample.breakdown?.length > 0 ? <div className="table-wrap" tabIndex={0} role="region" aria-label={`${label} grouped trades`}>
+          <table>
+            <thead><tr><th scope="col">Group</th><th scope="col">Trades</th><th scope="col">Win rate</th><th scope="col">Average R</th></tr></thead>
+            <tbody>{sample.breakdown.map((row) => <tr key={row[comparison]}>
+              <th scope="row">{row[comparison]}{row.small_sample && <small className="table-caption">Small sample</small>}</th>
+              <td>{row.trades}</td><td>{percent(row.win_rate)}</td><td>{rvalue(row.avg_r)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div> : <p className="muted">No groups for this selection.</p>}
+      </div>;
+    })}
   </section>;
 }
 
@@ -141,10 +160,10 @@ export default function LabResultsDesk({
     {detail && <section id="lab-breakdown" className="lab-breakdown-desk" aria-labelledby="lab-breakdown-title">
       <header className="lab-results-heading">
         <h2 id="lab-breakdown-title">Performance breakdown</h2>
-        <Select label="Compare by" values={dimensions} value={comparison} onChange={(event) => onComparisonChange(event.target.value)}/>
       </header>
       {available.map((sample) => <DetailedSample key={sample.sample}
-        sample={sample} comparison={comparison} busy={busy} onTrades={onTrades}/>)}
+        sample={sample} busy={busy} onTrades={onTrades}/>)}
+      <GroupedResults samples={available} comparison={comparison} dimensions={dimensions} onComparisonChange={onComparisonChange} busy={busy}/>
     </section>}
     <Strategies sources={sources} setups={setups} setup={setup} onSetupChange={onSetupChange}/>
   </section>;
