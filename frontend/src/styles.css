@@ -161,7 +161,7 @@ svg {
   color: var(--tl-ink2);
   padding: 10px 12px;
   border: 1px solid var(--tl-border);
-  border-radius: 7px;
+  border-radius: var(--primus-radius-control, 999px);
   background: var(--tl-surface);
 }
 .action-menu > summary::-webkit-details-marker {

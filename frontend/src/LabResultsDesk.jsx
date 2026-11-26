@@ -84,7 +84,7 @@ function DetailedSample({ sample, comparison, busy, onTrades }) {
     ["95% win-rate interval", stats.win_rate_ci.map(percent).join("–")],
     ["Profit factor", number(stats.profit_factor)], ["Payoff ratio", number(stats.payoff_ratio)],
     ["Expectancy / trade", money(stats.expectancy)], ["Max drawdown ($)", drawdown(stats.max_drawdown, money)],
-    ["Sharpe", number(stats.sharpe)], ["Sortino", number(stats.sortino)],
+    ["Sharpe ratio", number(stats.sharpe)], ["Sortino ratio", number(stats.sortino)],
     ...(useFixed ? [["Fixed average R", rvalue(fixed.avg_r)]] : []),
   ];
   return <section className="lab-detail-source" aria-label={`${sourceName(sample.sample)} breakdown`}>
@@ -92,8 +92,8 @@ function DetailedSample({ sample, comparison, busy, onTrades }) {
       <header className="lab-results-heading">
         <h3>{sourceName(sample.sample)}</h3><small>{stats.trades} closed trades</small>
       </header>
+      <dl>{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{stats.trades > 0 ? value : "—"}</dd></div>)}</dl>
       {stats.trades > 0 && <>
-        <dl>{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
         <p className="muted">{stats.wins} wins · {stats.losses} losses · {stats.scratches} break-even</p>
         {useFixed && <p className="muted">Fixed average R uses tagged full-target and full-stop outcomes before costs.</p>}
         {sample.r_count < stats.trades && <button type="button" className="inline-action" onClick={onTrades}>Review missing risk</button>}
@@ -128,14 +128,14 @@ export default function LabResultsDesk({
       onReplay={() => navigateTo("/backtesting")}
     />
     <KeyMetrics sources={sources}/>
-    <Strategies sources={sources} setups={setups} setup={setup} onSetupChange={onSetupChange}/>
     <div className="lab-results-actions">
       <details className="r-explainer">
         <summary>What does R mean?</summary>
         <p>R measures a result against the original trade risk. +1R is a gain equal to the amount risked. R metrics use closed trades with recorded risk.</p>
       </details>
-      <Button onClick={onToggleDetail} aria-expanded={detail}>
-        {detail ? "Hide breakdown" : "Full breakdown"} <ArrowUpRight size={14} aria-hidden="true"/>
+      <Button className="lab-advanced-toggle" onClick={onToggleDetail} aria-expanded={detail}
+        aria-controls={detail ? "lab-breakdown" : undefined}>
+        {detail ? "Hide advanced metrics" : "Advanced metrics"} <ArrowUpRight size={14} aria-hidden="true"/>
       </Button>
     </div>
     {detail && <section id="lab-breakdown" className="lab-breakdown-desk" aria-labelledby="lab-breakdown-title">
@@ -146,5 +146,6 @@ export default function LabResultsDesk({
       {available.map((sample) => <DetailedSample key={sample.sample}
         sample={sample} comparison={comparison} busy={busy} onTrades={onTrades}/>)}
     </section>}
+    <Strategies sources={sources} setups={setups} setup={setup} onSetupChange={onSetupChange}/>
   </section>;
 }

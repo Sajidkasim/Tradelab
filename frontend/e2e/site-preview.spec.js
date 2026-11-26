@@ -43,9 +43,12 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   await expect(page.getByRole('heading',{name:'Strategies',exact:true})).toBeVisible();
   await expect(page.locator('.lab-key-metrics').getByText('Max drawdown',{exact:true})).toBeVisible();
   await expect(page.locator('.sl-dist-card')).toHaveCount(0);
-  await page.getByRole('button',{name:'Full breakdown',exact:true}).click();
+  await page.getByRole('button',{name:'Advanced metrics',exact:true}).click();
   await expect(page.locator('.sl-dist-card')).toBeVisible();
-  await page.getByRole('button',{name:'Hide breakdown',exact:true}).click();
+  await expect(page.getByText('Sharpe ratio',{exact:true})).toHaveCount(2);
+  await expect(page.getByText('Sortino ratio',{exact:true})).toHaveCount(2);
+  await expect(page.getByRole('combobox',{name:'Compare by',exact:true})).toHaveCSS('border-top-left-radius','999px');
+  await page.getByRole('button',{name:'Hide advanced metrics',exact:true}).click();
   await page.screenshot({path:info.outputPath('primus-lab-dark.png'),fullPage:true});
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();
@@ -254,7 +257,13 @@ test('Strategy Lab compares independent equity curves and filters them from the 
   await page.getByRole('button', {name: 'Switch to dark mode', exact: true}).click();
   await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
   await page.screenshot({path: info.outputPath('strategy-lab-compare.png')});
+  await expect(page.getByRole('combobox',{name:'Setup',exact:true})).toHaveCSS('border-top-left-radius','999px');
+  await expect(page.locator('.lab-result-dates > summary')).toHaveCSS('border-top-left-radius','999px');
+  const indicator = sources.locator('.segment-indicator');
+  await expect(indicator).toHaveCSS('transition-duration','0.24s');
+  const compareX = (await indicator.boundingBox()).x;
   await sources.getByRole('button', {name: 'Backtest results', exact: true}).click();
+  await expect.poll(async () => (await indicator.boundingBox()).x).toBeLessThan(compareX);
   await expect(chart.getByLabel('Show drawdown', {exact: true})).toBeVisible();
   await page.setViewportSize({width: 320, height: 750});
   await page.getByText('Date range', {exact: true}).first().click();

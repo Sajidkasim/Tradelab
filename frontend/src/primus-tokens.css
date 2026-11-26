@@ -48,6 +48,7 @@
   --primus-radius-sm: 6px;
   --primus-radius-md: 10px;
   --primus-radius-lg: 14px;
+  --primus-radius-control: 999px;
   --primus-shadow-card: 0 1px 2px rgba(16, 21, 19, 0.04);
   --primus-shadow-lift: 0 12px 28px rgba(16, 21, 19, 0.08);
   --primus-shadow-float: 0 24px 60px rgba(16, 21, 19, 0.16);
@@ -376,7 +377,7 @@
 .pt-lab .pt-header .workspace-menu > summary {
   color: var(--primus-rail-ink);
   border-color: rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
+  border-radius: var(--primus-radius-control);
   min-height: 36px;
   padding: 7px 13px;
 }
@@ -997,7 +998,7 @@
 
 /* Every dropdown, select, custom picker, and menu popover across all pages */
 :root body :is(select, .picker-trigger) {
-  border-radius: 8px;
+  border-radius: var(--primus-radius-control);
   border: 1px solid var(--primus-border-strong);
   background-color: var(--primus-surface);
   color: var(--primus-ink);
@@ -1016,14 +1017,14 @@
   outline-color: var(--primus-accent);
 }
 :root body :is(.picker-panel, .menu-panel) {
-  border-radius: 10px;
+  border-radius: var(--primus-radius-lg);
   border: 1px solid var(--primus-border-strong);
   background: var(--primus-surface);
   color: var(--primus-ink);
   box-shadow: var(--primus-shadow-lift);
 }
 :root body :is(.picker-options button, .menu-panel button, .menu-panel a) {
-  border-radius: 6px;
+  border-radius: var(--primus-radius-md);
 }
 :root body .picker-options button[aria-selected="true"] {
   background: var(--primus-accent-soft);

@@ -560,6 +560,7 @@ export default function Results({
             value={filters.scope}
             onChange={setScope}
             label="Data source"
+            sliding={isSiteLab}
           />
           {!isSiteLab && s && (
             <span

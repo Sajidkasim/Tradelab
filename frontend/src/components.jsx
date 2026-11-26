@@ -42,9 +42,12 @@ export function Field({ label, hint, children, className = "" }) {
 export function Select({ label, values, empty, ...props }) {
   return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
 }
-export function Segments({ values, value, onChange, label, disabled }) {
+export function Segments({ values, value, onChange, label, disabled, sliding = false }) {
+  const selectedIndex = sliding ? values.findIndex((item) => (typeof item === "object" ? item.value : item) === value) : -1;
   return (
-    <div className="segments" role="group" aria-label={label}>
+    <div className={`segments${sliding ? " segments-sliding" : ""}`} role="group" aria-label={label}
+      style={sliding ? { "--segment-count": values.length, "--segment-index": selectedIndex } : undefined}>
+      {selectedIndex >= 0 && <span className="segment-indicator" aria-hidden="true" />}
       {values.map((v) => {
         const item = typeof v === "object" ? v : { value: v, label: v };
         return (
@@ -56,7 +59,7 @@ export function Segments({ values, value, onChange, label, disabled }) {
             onClick={() => onChange(item.value)}
             type="button"
           >
-            {value === item.value && <Check size={13} aria-hidden="true" />}
+            {!sliding && value === item.value && <Check size={13} aria-hidden="true" />}
             {item.label}
           </button>
         );

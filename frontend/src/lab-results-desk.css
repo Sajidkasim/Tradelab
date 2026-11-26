@@ -28,7 +28,7 @@
   min-height: 40px;
   padding: 7px 12px;
   border: 1px solid var(--tl-border);
-  border-radius: 8px;
+  border-radius: var(--primus-radius-control, 999px);
   background: var(--tl-surface);
   font-size: 13px;
   cursor: pointer;
@@ -53,7 +53,7 @@
   width: min(244px, calc(100vw - 44px));
   padding: 12px;
   border: 1px solid var(--tl-border);
-  border-radius: 9px;
+  border-radius: 14px;
   background: var(--tl-surface);
   box-shadow: var(--primus-shadow-lift);
 }
@@ -187,4 +187,51 @@
   }
   .pt-lab #results .lab-results-controls > .field { flex-basis: 100%; }
   .lab-results-controls .picker-trigger { flex: 1; max-width: none; }
+}
+
+:root .pt-lab #results .lab-result-date-fields input[type="date"] { border-radius: 12px; }
+.lab-results-controls .picker-trigger { min-width: 128px; }
+:root .pt-lab #results .lab-advanced-toggle {
+  border-radius: var(--primus-radius-control, 999px);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+:root .pt-lab #results > .toolbar .segments-sliding {
+  --segment-inset: 4px;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(var(--segment-count), minmax(0, 1fr));
+  gap: 0;
+  padding: var(--segment-inset);
+  border-radius: 999px;
+}
+.pt-lab .segments-sliding .segment-indicator {
+  position: absolute;
+  z-index: -1;
+  inset: var(--segment-inset) auto var(--segment-inset) var(--segment-inset);
+  width: calc((100% - 2 * var(--segment-inset)) / var(--segment-count));
+  border-radius: 999px;
+  background: var(--tl-accent);
+  transform: translateX(calc(var(--segment-index) * 100%));
+  transition: transform 240ms cubic-bezier(.22, .75, .25, 1);
+  pointer-events: none;
+}
+:root .pt-lab #results > .toolbar .segments-sliding button.selected {
+  background: transparent;
+  color: var(--pt-paper);
+}
+:root[data-theme="dark"] .pt-lab #results > .toolbar .segments-sliding button.selected {
+  background: transparent;
+  color: var(--pt-dark);
+}
+:root .pt-lab #results > .toolbar .segments-sliding button {
+  border-radius: 999px;
+  transition: color 160ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-lab .segments-sliding .segment-indicator,
+  :root .pt-lab #results > .toolbar .segments-sliding button { transition: none; }
 }

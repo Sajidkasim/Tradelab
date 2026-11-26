@@ -8,7 +8,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-toolbar .bt-back{padding:0 6px;font-size:12px;color:var(--bt-muted)}
 .bt-toolbar .bt-brand{font-size:11px;font-weight:650;letter-spacing:1.4px;padding:0 12px 0 0;border-radius:0;border-right:1px solid var(--bt-border)}
 .bt-market{width:82px;flex-shrink:0}.bt-market .field{margin:0}.bt-market .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.bt-market .picker-trigger{min-height:36px!important;height:36px;padding:0 10px!important;border:1px solid var(--bt-border);font-size:14px;font-weight:600;background:var(--bt-bg);color:var(--bt-ink);border-radius:7px}
+.bt-market .picker-trigger{min-height:36px!important;height:36px;padding:0 10px!important;border:1px solid var(--bt-border);font-size:14px;font-weight:600;background:var(--bt-bg);color:var(--bt-ink);border-radius:var(--primus-radius-control)}
 .bt-timeframes{display:flex;gap:3px;align-items:center;flex-shrink:0}
 .bt-timeframes button{font-weight:550;min-width:34px;padding:0 9px;color:var(--bt-muted)}
 .bt-timeframes button[aria-pressed=true]{background:var(--bt-selected);color:var(--bt-accent)}
@@ -72,7 +72,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-speed-slider{display:flex;align-items:center;gap:6px;width:120px}.bt-speed-slider input{min-width:0;width:82px;accent-color:var(--bt-accent)}.bt-speed-slider output{font-size:11px;min-width:30px}.bt-jump{position:relative}.bt-jump-menu{position:absolute;bottom:45px;right:0;width:260px;background:var(--bt-surface);border:1px solid var(--bt-border);border-radius:8px;padding:5px;box-shadow:0 8px 30px #0003;z-index:8}.bt-jump-menu button{width:100%;text-align:left;justify-content:flex-start}.bt-jump-row{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:10px 0}.bt-jump-row label{display:flex;align-items:center;gap:10px}.bt-jump-row input[type=time]{width:120px;padding:10px;border:1px solid var(--bt-border);border-radius:6px;background:var(--bt-surface);color:var(--bt-ink)}.bt-statusbar>.field{width:125px;font-size:11px}.bt-statusbar>.field>label{display:none}.bt-statusbar .styled-select-trigger{min-height:25px;padding:3px 8px;font-size:11px}
 /* Keep the clock and playback tools compact on smaller screens. */
 .bt-statusbar>.field{margin:0;flex-shrink:0}.bt-statusbar>.field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-.bt-statusbar .picker-trigger{height:25px!important;min-height:25px!important;padding:2px 7px!important;font-size:11px;border-radius:5px;gap:4px}
+.bt-statusbar .picker-trigger{height:25px!important;min-height:25px!important;padding:2px 7px!important;font-size:11px;border-radius:var(--primus-radius-control);gap:4px}
 .bt-speed-slider input[type=range]{padding:0!important;min-height:24px;height:24px;border:0;background:transparent;box-shadow:none}
 .bt-jump-row input[type=time]{background:var(--tl-surface);color:var(--tl-ink);border-color:var(--tl-border)}
 @media(max-width:720px){.bt-speed-slider{width:90px;gap:3px}.bt-speed-slider input{width:58px}.bt-statusbar>.field{width:106px}.bt-statusbar{column-gap:8px}.bt-jump-menu{right:-38px;width:248px}.bt-replaybar .bt-play-controls .field{width:78px}.bt-play-controls{gap:4px}.bt-session-actions{gap:3px}.bt-replaybar button{padding:0 5px}}
@@ -186,7 +186,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 }
 :root[data-theme="dark"] .bt-session-site { --bt-elevation:0 4px 20px #0003; }
 .bt-session-site .bt-sessions-page { max-width:960px; }
-.bt-session-site :is(.bt-session-card,.bt-session-empty,.bt-data-status,.bt-bulk-actions,.modal,.button,input:not([type="checkbox"]),.picker-trigger) {
+.bt-session-site :is(.bt-session-card,.bt-session-empty,.bt-data-status,.bt-bulk-actions,.modal,.button,input:not([type="checkbox"])) {
   border-radius:var(--bt-radius);
 }
 .bt-session-site :is(.bt-session-card,.bt-session-empty,.bt-data-status,.bt-bulk-actions,.modal) {
@@ -357,7 +357,7 @@ body:has(.backtesting-workspace){overflow:hidden}
   padding: 0 8px!important;
   font-size: 12px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: var(--primus-radius-control);
 }
 .bt-timeframes { gap: 2px; }
 .bt-timeframes button {

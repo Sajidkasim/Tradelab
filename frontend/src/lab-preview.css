@@ -11,9 +11,9 @@
 }
 .pt-lab .pt-header{font-family:Inter,Arial,sans-serif;position:relative;top:0;grid-template-columns:1fr auto 1fr}
 .pt-header-tools{justify-self:end;min-width:0}
-.pt-lab .pt-header .workspace-menu>summary{color:var(--pt-paper);background:transparent;border:1px solid #78908466;border-radius:3px;font-size:12px;min-height:43px;min-width:115px;padding:11px 16px;gap:22px}
+.pt-lab .pt-header .workspace-menu>summary{color:var(--pt-paper);background:transparent;border:1px solid #78908466;border-radius:var(--primus-radius-control);font-size:12px;min-height:43px;min-width:115px;padding:11px 16px;gap:22px}
 .pt-lab .pt-header .workspace-menu>summary:hover{border-color:var(--pt-lime)}
-.pt-lab .pt-header .menu-panel{width:255px;border-radius:4px;top:calc(100% + 12px);z-index:50;color:var(--tl-ink)}
+.pt-lab .pt-header .menu-panel{width:255px;top:calc(100% + 12px);z-index:50;color:var(--tl-ink)}
 .pt-lab .content{width:min(1320px,calc(100% - 96px));max-width:none;padding:30px 0 65px}
 .pt-lab .preview-notice{border:0;border-bottom:1px solid var(--tl-border);border-radius:0;padding:0 0 15px;margin-bottom:27px;font-size:10px;letter-spacing:.4px}
 .pt-lab-page{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:24px}
@@ -42,10 +42,8 @@
 :root .pt-lab #results>.toolbar .segments button{border-radius:2px;padding:10px 19px;min-height:39px;font-size:12px}
 :root .pt-lab #results>.toolbar .segments .selected{background:var(--pt-dark);color:var(--pt-paper)}
 :root[data-theme="dark"] .pt-lab #results>.toolbar .segments .selected{background:var(--pt-lime);color:var(--pt-dark)}
-:root .pt-lab .picker-trigger,
 :root .pt-lab .field input:not([type="checkbox"]):not([type="radio"]),
 :root .pt-lab .field textarea{border-radius:3px;border-color:var(--tl-border);box-shadow:none;background:var(--tl-surface)}
-:root .pt-lab .picker-options button{border-radius:2px}
 :root .pt-lab .picker-options button[aria-selected="true"]{color:var(--tl-ink);background:var(--lab-tint)}
 :root .pt-lab .lab-grid .explorer .field>span{font-size:12px;font-weight:500;color:var(--tl-ink2)}
 :root .pt-lab .lab-grid .explorer .segments{border-radius:3px;background:var(--tl-page);border-color:var(--tl-border)}
@@ -118,7 +116,7 @@
 :root .pt-lab .lab-grid .explorer>.disclosure{margin-top:13px}
 :root .pt-lab .lab-grid .explorer .field{gap:6px}
 :root .pt-lab .lab-grid .explorer .field>span{font-size:12px;font-weight:600;letter-spacing:.01em;color:var(--tl-ink2)}
-:root .pt-lab .lab-grid .explorer .picker-trigger,
+:root .pt-lab .lab-grid .explorer .picker-trigger{font-size:13px;padding:7px 11px;line-height:1.4}
 :root .pt-lab .lab-grid .explorer .field select,
 :root .pt-lab .lab-grid .explorer .field input:not([type="checkbox"]):not([type="radio"]){font-size:13px;min-height:38px;padding:7px 34px 7px 11px;line-height:1.4}
 :root .pt-lab .lab-grid .explorer .field:has(>select)::after{bottom:15px;right:14px}
