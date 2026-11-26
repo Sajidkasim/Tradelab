@@ -17,18 +17,30 @@ test('Primus Trader sign-in continues to the Journal instead of home',async({pag
  await expect(page).toHaveURL(origin+'/journal');
  await expect(page.getByRole('region',{name:'Daily journal editor'})).toBeVisible();
 });
-test('Journal rules save across reload and account controls have room',async({page})=>{
+test('Journal rules save in popup modal across reload and Calendar account filter is removed',async({page})=>{
  await page.goto(origin+'/journal');
- await page.locator('.pj-rules summary').click();
- await page.getByLabel('Your personal trading rules').fill('Wait for confirmation before entry.');
- await page.getByRole('button',{name:'Save rules',exact:true}).click();
- await expect(page.getByRole('status').filter({hasText:'Rules saved.'})).toBeVisible();
- await page.reload();await page.locator('.pj-rules summary').click();
- await expect(page.getByLabel('Your personal trading rules')).toHaveValue('Wait for confirmation before entry.');
+ await expect(page.getByLabel('Calendar account',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:/^Rules/}).click();
+ const dialog=page.getByRole('dialog',{name:'Personal trading rules'});
+ await expect(dialog).toBeVisible();
+ await dialog.getByLabel('Your personal trading rules').fill('Wait for confirmation before entry.');
+ await dialog.getByRole('button',{name:'Save rules',exact:true}).click();
+ await expect(dialog.getByRole('status').filter({hasText:'Rules saved.'})).toBeVisible();
+ await dialog.getByRole('button',{name:'Read',exact:true}).click();
+ await expect(dialog.locator('.pj-rules-read-list')).toContainText('Wait for confirmation before entry.');
+ await page.reload();
+ await page.getByRole('button',{name:/^Rules/}).click();
+ const reopened=page.getByRole('dialog',{name:'Personal trading rules'});
+ await expect(reopened.getByLabel('Your personal trading rules')).toHaveValue('Wait for confirmation before entry.');
+ await reopened.getByRole('button',{name:/^Done/}).click();
+ await expect(reopened).toHaveCount(0);
  for(const width of [1440,390]){
   await page.setViewportSize({width,height:1000});
-  const box=await page.getByLabel('Calendar account',{exact:true}).boundingBox();
-  expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThan(165);
+  const tabsBox=await page.locator('.pt-entry-tabs').boundingBox();
+  const editorBox=await page.locator('.pt-day-editor').boundingBox();
+  expect(tabsBox.height).toBeLessThanOrEqual(56);
+  expect(tabsBox.x).toBeGreaterThan(editorBox.x + 8);
+  expect(tabsBox.x + tabsBox.width).toBeLessThan(editorBox.x + editorBox.width - 8);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });

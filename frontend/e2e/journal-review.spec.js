@@ -40,9 +40,7 @@ test('Journal accounts, plan chips and equity use saved entries', async ({page})
     else await expect(daily).not.toContainText('Plan followed:');
   }
   await expect(page.getByRole('heading', {name:'Weekly Review'})).toHaveCount(0);
-  await page.getByLabel('Calendar account').selectOption(String(account.id));
-  await expect(page.getByRole('article', {name:'Journal trade 2', exact:true})).toHaveCount(0);
-  await expect(daily).toContainText('$125');
+  await expect(page.getByLabel('Calendar account')).toHaveCount(0);
   await page.getByRole('tab', {name:'Performance', exact:true}).click();
   const equity = page.getByRole('region', {name:'Journal equity curve'});
   await expect(equity).toContainText('Total P&L +$100');

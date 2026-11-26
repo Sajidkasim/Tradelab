@@ -53,9 +53,12 @@ test('Journal sidebar and writing controls use the updated layout on desktop and
   await page.goto('http://127.0.0.1:8119/journal');
   const sidebar = page.getByRole('complementary', {name:'Journal calendar and history'});
   await expect(sidebar.getByRole('button', {name:'Today’s entry'})).toHaveCSS('border-top-width','0px');
-  await sidebar.getByText('Rules', {exact:true}).click();
-  await expect(sidebar.getByRole('textbox', {name:'Your personal trading rules'})).toBeVisible();
-  await sidebar.getByText('Rules', {exact:true}).click();
+  await sidebar.getByRole('button', {name:/^Rules/}).click();
+  const rulesDialog = page.getByRole('dialog', {name:'Personal trading rules'});
+  await expect(rulesDialog).toBeVisible();
+  await expect(rulesDialog.getByRole('textbox', {name:'Your personal trading rules'})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(rulesDialog).toHaveCount(0);
   const writing = page.getByRole('tab', {name:/During the session/});
   await writing.click();
   await expect(writing).toHaveCSS('border-bottom-width','0px');

@@ -23,7 +23,7 @@ import JournalRules from './JournalRules';
 import JournalAccounts from './JournalAccounts';
 import {createVoiceRecorder, formatVoiceDuration, voiceExtensionForMime} from './voiceCapture';
 import {
-  AccountSelector, JournalEquity, filterAccountsByScope, parseAccountFilter,
+  JournalEquity, filterAccountsByScope,
   recordedTotal, scopedAccountResults, tradeAccountIds, tradeMatchesFilter,
 } from './JournalReview';
 
@@ -215,7 +215,7 @@ export default function JournalPage({theme = 'light'}) {
   const [entry, setEntry] = useState(blank(initialDay)), [section, setSection] = useState('plan'), [month, setMonth] = useState(initialDay.slice(0, 7));
   const [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [autoSaving, setAutoSaving] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [accounts, setAccounts] = useState(null), [selection, setSelection] = useState(null);
+  const [accounts, setAccounts] = useState(null);
   const [presets, setPresets] = useState([]);
   const [searchQuery, setSearchQuery] = useState(''), [entryFilter, setEntryFilter] = useState('all');
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
@@ -252,11 +252,7 @@ export default function JournalPage({theme = 'light'}) {
     return () => controller.abort();
   }, [identity?.authenticated, journalRevision]);
 
-  const parsedFilter = parseAccountFilter(selection);
-  const account = parsedFilter.accountId != null
-    ? (accounts?.some(item => item.id === parsedFilter.accountId) ? parsedFilter.accountId : null)
-    : (typeof selection === 'string' && selection.startsWith('scope:') ? selection : null);
-  const selectedAccountId = typeof account === 'number' ? account : null;
+  const account = null;
 
   const labDismissal = useTradeDismissal(() => setLabDraft(null));
   const viewer = useRef();
@@ -289,7 +285,7 @@ export default function JournalPage({theme = 'light'}) {
     document.title = 'Your Journal — PrimusTrader';
     boot();
     const loggedOut = () => {
-      setRows([]); setAccounts(null); setSelection(null); setPresets([]);
+      setRows([]); setAccounts(null); setPresets([]);
       setEntry(blank(day)); setIdentity({authenticated: false, auth_mode: 'google'}); setDirty(false);
     };
     window.addEventListener('primus:logout', loggedOut);
@@ -454,7 +450,6 @@ export default function JournalPage({theme = 'light'}) {
   function edit(field, value) { setEntry(old => ({...old, [field]: value})); setDirty(true); setNotice(''); }
 
   function addTrade() {
-    setSelection(null);
     const trade = {id: crypto.randomUUID().replaceAll('-', ''), symbol: '', direction: '', strategy: '', time: '', source: 'manual', notes: '', outcome: 'not_recorded', confirmations: [], lab_trade_id: null};
     edit('trades', [...entry.trades, trade]);
     setExpanded(trade.id);
@@ -580,7 +575,6 @@ export default function JournalPage({theme = 'light'}) {
     setEntry(blank(day));
     setExpanded(null);
     setAccounts(null);
-    setSelection(null);
     setPresets([]);
     setResettingJournal(false);
     setUndoId(null);
@@ -696,7 +690,7 @@ export default function JournalPage({theme = 'light'}) {
   if (!identity.authenticated || entrancePreview) return <WorkspaceEntrance workspace="journal" session={entrancePreview ? {...identity, auth_mode: 'google'} : identity} ready={!entrancePreview && Boolean(identity.csrf)} onUnlocked={boot}/>;
 
   return <div className="pt-journal pj-workspace">
-    <FloatingAura day={day} account={selectedAccountId} dirty={dirty}/>
+    <FloatingAura day={day} account={null} dirty={dirty}/>
     {meta.release_notes && !meta.release_notes.seen && <ReleaseNotes notes={meta.release_notes} onClose={() => setMeta(m => ({...m, release_notes: {...m.release_notes, seen: true}}))} onSeen={async () => {await api('/release-notes/seen', {method: 'POST'}); setMeta(m => ({...m, release_notes: {...m.release_notes, seen: true}}));}}/>}
     <PrimusHeader active="journal"/>
     <div className="pj-atmosphere-wash" aria-hidden="true"><PrimusSunbeams/></div>
@@ -755,7 +749,6 @@ export default function JournalPage({theme = 'light'}) {
             <JournalRules preferences={meta.journal_preferences} onSaved={value => setMeta(old => ({...old, journal_preferences: value}))}/>
           </div>
           <label className="pt-mobile-date">Go to date<input type="date" aria-label="Journal date" value={day} disabled={busy} onChange={e => selectDay(e.target.value)}/></label>
-          <AccountSelector accounts={accounts} value={account} onChange={setSelection} label="Calendar account" disabled={!accounts}/>
           <div className="pt-calendar">
             <div className="pt-calendar-heading">
               <button aria-label="Previous month" disabled={busy} onClick={() => shiftMonth(-1)}><ChevronLeft size={18}/></button>
