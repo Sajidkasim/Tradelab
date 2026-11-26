@@ -313,6 +313,7 @@ export default function App() {
                     refresh={refresh}
                     toast={toast}
                     onTrades={() => navigate("trades")}
+                    onImport={() => navigate("import")}
                     filterEditor={filterEditor}
                     onCloseFilterEditor={() => setFilterEditor(false)}
                     tourOpen={tourOpen}

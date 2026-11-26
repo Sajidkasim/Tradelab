@@ -15,17 +15,17 @@ function blend(first, second, weight) {
   return `rgb(${a.map((v, i) => Math.round(v * weight + b[i] * (1 - weight))).join(",")})`;
 }
 
-export default function LabHistory({ figure, latest, palette, netResult, journal = false }) {
+export default function LabHistory({ figure, latest, palette, netResult, journal = false, seriesStyle }) {
   const [drawdown, setDrawdown] = useState(false);
   const display = useMemo(() => {
     const equity = figure.data[0];
-    const tone = netResult < 0 ? palette.critical : palette.series[2];
-    const line = netResult < 0 ? tone : blend(tone, palette.ink2, 0.65);
+    const tone = seriesStyle?.color ?? (netResult < 0 ? palette.critical : palette.series[2]);
+    const line = seriesStyle?.color ?? (netResult < 0 ? tone : blend(tone, palette.ink2, 0.65));
     const traces = [
       {
         ...equity,
         name: "Cumulative result",
-        line: { ...equity.line, color: line, width: 3, shape: "linear" },
+        line: { ...equity.line, ...seriesStyle, color: line, width: 3, shape: "linear" },
         fill: journal ? "tonexty" : "tozeroy",
         fillcolor: alpha(tone, 0.11),
         fillgradient: {
@@ -115,13 +115,13 @@ export default function LabHistory({ figure, latest, palette, netResult, journal
         tickfont: { color: palette.muted, size: 10 },
       };
     return { data: traces, layout };
-  }, [figure, latest, palette, netResult, drawdown, journal]);
+  }, [figure, latest, palette, netResult, drawdown, journal, seriesStyle]);
   return (
     <div className={`lab-history ${netResult < 0 ? "is-loss" : ""}`}>
       <Chart figure={display} height={drawdown ? 380 : 340} />
       {!journal && <div className="history-footer">
         <span>
-          <i className="history-point" />
+          <i className="history-point" style={seriesStyle && { backgroundColor: seriesStyle.color }} />
           Latest closed trade
         </span>
         <label className="history-drawdown">

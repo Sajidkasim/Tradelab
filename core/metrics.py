@@ -131,6 +131,20 @@ def max_drawdown(equity: Iterable[float], starting_balance: float = 0.0) -> dict
             "trough_index": trough - 1 if amount > 0 else None}
 
 
+def r_equity(closed_trades: pd.DataFrame) -> dict:
+    """Cumulative R for risk-recorded closed trades, ordered by exit and trade ID."""
+    if closed_trades.empty or "r_multiple" not in closed_trades:
+        return {"values": [], "net_r": None, "max_drawdown_r": None}
+    order = ["exit_time", "id"] if "id" in closed_trades else "exit_time"
+    returns = closed_trades.sort_values(order, kind="stable")["r_multiple"].to_numpy(dtype=float, na_value=np.nan)
+    returns = returns[np.isfinite(returns)]
+    if not len(returns):
+        return {"values": [], "net_r": None, "max_drawdown_r": None}
+    cumulative = returns.cumsum()
+    return {"values": np.r_[0.0, cumulative], "net_r": float(cumulative[-1]),
+            "max_drawdown_r": max_drawdown(cumulative)["amount"]}
+
+
 def daily_pnl(df: pd.DataFrame, time_col: str = "exit_time") -> pd.Series:
     c = closed(df)
     if c.empty:

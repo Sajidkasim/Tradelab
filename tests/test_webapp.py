@@ -451,6 +451,42 @@ def test_combined_all_uses_underlying_trades_and_keeps_missing_r_missing(local):
     assert client.post('/api/results',json={'scope':'Forward testing','combined':True}).json()['stats']['trades']==1
 
 
+def test_chart_first_results_keep_samples_and_setup_filters_separate(local):
+    client, _ = local
+    for body in (
+        trade_payload(clock="09:50", pnl=-50),
+        trade_payload(clock="09:30", pnl=100),
+        trade_payload(clock="10:00", strategy="Reversal", pnl=150),
+        trade_payload("manual", "10:30", pnl=-100),
+        {**trade_payload("manual", "11:00", strategy="Short setup"), "direction": "short"},
+    ):
+        assert client.post("/api/trades", json=body).status_code == 200
+    content = fx_file()
+    preview = upload(client, content).json()
+    assert upload(client, content, "confirm", preview["preview_token"]).status_code == 200
+
+    filters = {"chart_first": True, "strategy": "Turtle Soup", "direction": "long", "window": "All sessions"}
+    backtest = client.post("/api/results", json={**filters, "scope": "Backtesting"}).json()
+    assert backtest["r_equity"] == {"values": [0, 2, 1], "net_r": 1, "max_drawdown_r": 1}
+    assert backtest["r_count"] == 2
+    assert backtest["stats"]["trades"] == 3  # Includes the long imported trade without tagged risk.
+    assert backtest["strategy_summary"] == [
+        {"setup_name": "Reversal", "trades": 1, "avg_r": 3, "max_drawdown_r": 0},
+        {"setup_name": "Turtle Soup", "trades": 3, "avg_r": 0.5, "max_drawdown_r": 1},
+    ]
+
+    live = client.post("/api/results", json={**filters, "scope": "Forward testing"}).json()
+    assert live["r_equity"] == {"values": [0, -2], "net_r": -2, "max_drawdown_r": 2}
+    assert live["strategy_summary"] == [
+        {"setup_name": "Turtle Soup", "trades": 1, "avg_r": -2, "max_drawdown_r": 2},
+    ]
+    assert client.post("/api/results", json={**filters, "scope": "All", "combined": True}).json() == backtest
+
+    no_trades = client.post("/api/results", json={**filters, "strategy": "Reversal", "scope": "Forward testing"}).json()
+    assert no_trades["r_equity"] == {"values": [], "net_r": None, "max_drawdown_r": None}
+    assert no_trades["strategy_summary"] == live["strategy_summary"]
+
+
 def test_lab_settings_persist_in_backup_and_regroup_results(local):
     from copy import deepcopy
     from webapp import lab_settings

@@ -172,9 +172,11 @@ class Workspaces:
 
     def results(self, key, filters):
         frame = self.trades(key)
-        # The owner explicitly requested a combined laboratory history. Older
-        # clients retain their separate samples unless they opt into combined All.
-        scope = ("All" if filters.combined else filters.sample) if filters.scope == "All" else filters.scope
+        # The chart-first view always analyses one source at a time. Preserve
+        # the combined history contract for existing clients that request it.
+        scope = filters.scope
+        if scope == "All" and (filters.chart_first or not filters.combined):
+            scope = filters.sample
         base = frame[frame["source"].isin(SCOPES[scope])].copy()
         if filters.study_id:
             if filters.study_id != 'unassigned':
@@ -193,6 +195,8 @@ class Workspaces:
         if not base.empty:
             base["setup_name"] = base["setup_name"].fillna("").replace("", "Unclassified")
         query = {name: getattr(filters, name) for name in ("strategy", "direction", "level", "timeframe", "entry_timeframe", "confirmations", "news", "condition", "window", "symbol")}
+        if filters.chart_first:
+            query.pop("strategy")
         if filters.window != "New York":
             settings = lab_settings.read(self.database(key))
             base["edge_window"] = [lab_settings.session_of(stamp, settings) for stamp in base["entry_time"]]
@@ -206,6 +210,19 @@ class Workspaces:
             matched = matched[matched['tags'].map(lambda tags: fixed_rr.read(tags)['target_rr'] == target)]
         if filters.custom_fields:
             matched = custom_trade_fields.filter_frame(matched, self.database(key), filters.custom_fields)
+        if filters.chart_first:
+            strategy_summary = []
+            for name, group in metrics.closed(matched).groupby("setup_name"):
+                r = metrics.r_equity(group)
+                r_count = len(r["values"]) - 1
+                strategy_summary.append({
+                    "setup_name": name,
+                    "trades": len(group),
+                    "avg_r": r["net_r"] / r_count if r_count > 0 else None,
+                    "max_drawdown_r": r["max_drawdown_r"],
+                })
+            if filters.strategy != "All strategies":
+                matched = matched.loc[matched["setup_name"] == filters.strategy]
         stats = metrics.summary_stats(matched)
         closed = metrics.closed(matched)
         equity = metrics.equity_curve(matched)
@@ -221,4 +238,8 @@ class Workspaces:
                     "chart_latest": clean({"time": equity["time"].iloc[-1].isoformat(), "equity": equity["equity"].iloc[-1]}) if not equity.empty else None}
         if filters.detail:
             response["breakdown"] = records(metrics.breakdown(matched, filters.comparison))
+        if filters.chart_first:
+            r = metrics.r_equity(closed)
+            response.update(r_equity=clean(r), r_count=max(0, len(r["values"]) - 1),
+                            strategy_summary=clean(strategy_summary))
         return response

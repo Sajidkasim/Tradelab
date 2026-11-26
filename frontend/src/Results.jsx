@@ -13,6 +13,7 @@ import { api } from "./api";
 import { fetchResultSamples } from "./resultSamples";
 import CustomTradeFields from "./CustomTradeFields";
 import LabHistory from "./LabHistory";
+import LabResultsDesk from "./LabResultsDesk";
 import SavedSetups from "./SavedSetups";
 import { FilterChips } from "./ExploreControls";
 import VocabularySelect from "./VocabularySelect";
@@ -64,6 +65,7 @@ export default function Results({
   revision,
   mode,
   onTrades,
+  onImport,
   filterEditor,
   onCloseFilterEditor,
   scope,
@@ -155,6 +157,7 @@ export default function Results({
       );
       if (
         current.strategy !== "All strategies" &&
+        current.strategy !== "Unclassified" &&
         !meta.strategies.includes(current.strategy)
       )
         next.strategy = "All strategies";
@@ -202,6 +205,7 @@ export default function Results({
           filters,
           { mode, detail, comparison },
           controller.signal,
+          isSiteLab,
         )
           .then((result) => {
             if (!controller.signal.aborted) setData(result);
@@ -221,7 +225,7 @@ export default function Results({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [filters, mode, revision, detail, comparison]);
+  }, [filters, mode, revision, detail, comparison, isSiteLab]);
 
   const values = (base, field) => [
     ...new Set([...base, ...(meta.result_options?.[field] || [])]),
@@ -229,6 +233,11 @@ export default function Results({
   const quickStrategies = (meta.strategies || []).slice(0, 6);
   const sampleData = data?.find((result) => result.sample === scope);
   const s = sampleData?.stats;
+  const sampleScopes = scope === "All" ? ["Backtesting", "Forward testing"] : [scope];
+  const samples = sampleScopes.map((source) => data?.find((sample) => sample.sample === source));
+  const setups = [...new Set([...meta.strategies, ...(filters.strategy === "All strategies" ? [] : [filters.strategy]), ...samples.flatMap(
+    (sample) => (sample?.strategy_summary || []).map((row) => row.setup_name),
+  )])];
 
   const explorerBody = (
     <aside
@@ -285,7 +294,7 @@ export default function Results({
       <VocabularySelect
         data-tour="explore"
         label="Strategy"
-        values={["All strategies", ...meta.strategies]}
+        values={["All strategies", ...setups.map((name) => ({ value: name, label: name }))]}
         archived={meta.archived_choices?.strategies}
         value={filters.strategy}
         onChange={(e) => change("strategy", e.target.value)}
@@ -427,7 +436,7 @@ export default function Results({
           </small>
         </div>
       </details>
-      <details className="disclosure">
+      {!isSiteLab && <details className="disclosure">
         <summary>Date range</summary>
         <div>
           <Field label={`From · ${clockName}`}>
@@ -445,7 +454,7 @@ export default function Results({
             />
           </Field>
         </div>
-      </details>
+      </details>}
       {isSiteLab && (
         <div className="sl-drawer-footer">
           <button
@@ -532,16 +541,18 @@ export default function Results({
         </aside>
       )}
 
-      <div className="lab-section-heading">
-        <div>
-          <h2 className="section-heading">Results</h2>
-        </div>
-      </div>
+      {!isSiteLab && <div className="lab-section-heading">
+        <h2 className="section-heading">Results</h2>
+      </div>}
 
       <div className="toolbar lab-studio-toolbar">
         <div className="sl-toolbar-left">
           <Segments
-            values={[
+            values={isSiteLab ? [
+              { value: "Backtesting", label: "Backtest results" },
+              { value: "Forward testing", label: "Live results" },
+              { value: "All", label: "Compare" },
+            ] : [
               "All",
               "Backtesting",
               { value: "Forward testing", label: "Live" },
@@ -550,7 +561,7 @@ export default function Results({
             onChange={setScope}
             label="Data source"
           />
-          {s && (
+          {!isSiteLab && s && (
             <span
               className={`sl-status-pill ${
                 s.trades === 0
@@ -575,26 +586,52 @@ export default function Results({
         </div>
 
         {isSiteLab && (
-          <button
-            type="button"
-            className={`lab-filter-toggle${drawerOpen ? " is-open" : ""}`}
-            aria-expanded={drawerOpen}
-            aria-controls="sl-filter-studio"
-            onClick={() => setDrawerOpen((open) => !open)}
-          >
-            <SlidersHorizontal size={14} aria-hidden="true" />
-            <span>Filters</span>
-            <span
-              className="lab-filter-count"
-              aria-label={`${activeFilterCount} active filters`}
+          <div className="lab-results-controls">
+            <Select
+              label="Setup"
+              values={[{ value: "All strategies", label: "All setups" }, ...setups]}
+              value={filters.strategy}
+              onChange={(event) => change("strategy", event.target.value)}
+            />
+            <details className="lab-result-dates">
+              <summary>{filters.start || filters.end ? `${filters.start || "Any start"} – ${filters.end || "Any end"}` : "Date range"}</summary>
+              <div className="lab-result-date-fields">
+                <Field label={`From · ${clockName}`}>
+                  <input type="date" value={filters.start || ""} max={filters.end || undefined}
+                    onChange={(event) => change("start", event.target.value || null)}/>
+                </Field>
+                <Field label={`To · ${clockName}`}>
+                  <input type="date" value={filters.end || ""} min={filters.start || undefined}
+                    onChange={(event) => change("end", event.target.value || null)}/>
+                </Field>
+                <Button type="button" onClick={(event) => {
+                  const disclosure = event.currentTarget.closest("details");
+                  disclosure.open = false;
+                  disclosure.querySelector("summary").focus();
+                }}>Done</Button>
+              </div>
+            </details>
+            <button
+              type="button"
+              className={`lab-filter-toggle${drawerOpen ? " is-open" : ""}`}
+              aria-expanded={drawerOpen}
+              aria-controls="sl-filter-studio"
+              onClick={() => setDrawerOpen((open) => !open)}
             >
-              {activeFilterCount}
-            </span>
-          </button>
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              <span>Filters</span>
+              <span
+                className="lab-filter-count"
+                aria-label={`${activeFilterCount} active filters`}
+              >
+                {activeFilterCount}
+              </span>
+            </button>
+          </div>
         )}
       </div>
 
-      {quickStrategies.length > 0 && (
+      {!isSiteLab && quickStrategies.length > 0 && (
         <div
           className="lab-strategy-ribbon"
           role="group"
@@ -652,7 +689,25 @@ export default function Results({
             onClear={() => setFilters(initial)}
           />
           {error && <Notice error>{error}</Notice>}
-          <ResultSample
+          {isSiteLab ? <LabResultsDesk
+            scope={scope}
+            sampleScopes={sampleScopes}
+            samples={samples}
+            setups={setups}
+            setup={filters.strategy}
+            onSetupChange={(value) => change("strategy", value)}
+            busy={busy}
+            detail={detail}
+            onToggleDetail={() => setDetail((value) => !value)}
+            comparison={comparison}
+            dimensions={dimensions}
+            onComparisonChange={setComparison}
+            onTrades={onTrades}
+            onImport={onImport}
+            palette={meta.palette[mode]}
+            mode={mode}
+            clockName={clockName}
+          /> : <ResultSample
             sample={scope}
             data={sampleData}
             filters={filters}
@@ -663,7 +718,7 @@ export default function Results({
             onComparisonChange={setComparison}
             onTrades={onTrades}
             palette={meta.palette[mode]}
-          />
+          />}
         </section>
       </div>
     </>

@@ -60,6 +60,7 @@ class Filters(StrictModel):
     scope: Literal["Backtesting", "Forward testing", "All"] = "Backtesting"
     sample: Literal["Backtesting", "Forward testing"] = "Backtesting"
     combined: bool = False
+    chart_first: bool = False
     account_id: int | None = None
     start: date | None = None
     end: date | None = None

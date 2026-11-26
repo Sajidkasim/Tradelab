@@ -207,7 +207,7 @@ export function Modal({ title, children, onClose, className = "", closable = tru
   );
 }
 
-export function Chart({ figure, height = 380 }) {
+export function Chart({ figure, height = 380, ariaLabel = "Equity and drawdown for the selected results sample" }) {
   const ref = useRef();
   const [error, setError] = useState("");
   const [visible,setVisible]=useState(false),[attempt,setAttempt]=useState(0);
@@ -299,7 +299,7 @@ export function Chart({ figure, height = 380 }) {
         className="chart"
         style={{minHeight:height}}
         role="img"
-        aria-label="Equity and drawdown for the selected results sample"
+        aria-label={ariaLabel}
       />
     </>
   );

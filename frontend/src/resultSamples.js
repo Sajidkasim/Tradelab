@@ -1,9 +1,15 @@
-// The API computes combined results from the underlying trades, never by
-// averaging separate win rates or combining chart totals in the browser.
-export function fetchResultSamples(request, filters, options, signal) {
-  return request("/results", {
+export function fetchResultSamples(request, filters, options, signal, chartFirst = false) {
+  // Compare requests each source independently so each gets its own sample and statistics.
+  const scopes = chartFirst && filters.scope === "All"
+    ? ["Backtesting", "Forward testing"]
+    : [filters.scope];
+  return Promise.all(scopes.map(scope => request("/results", {
     method: "POST",
-    body: { ...filters, ...options, combined: filters.scope === "All" },
+    body: {
+      ...filters, ...options, scope,
+      combined: !chartFirst && scope === "All",
+      ...(chartFirst && { chart_first: true }),
+    },
     signal,
-  }).then((result) => [result]);
+  })));
 }

@@ -6,8 +6,8 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   const brand=await page.getByRole('link',{name:'PrimusTrader home',exact:true}).boundingBox();
   const nav=await page.getByRole('navigation',{name:'Primus navigation'}).boundingBox();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Strategy Lab',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
-  await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Equity curve',exact:true})).toBeVisible();
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
   const labBrand=await page.getByRole('link',{name:'PrimusTrader home',exact:true}).boundingBox();
   const labNav=await page.getByRole('navigation',{name:'Primus navigation'}).boundingBox();
   expect(labBrand.x).toBe(brand.x);expect(labBrand.y).toBe(brand.y);
@@ -17,12 +17,14 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   await page.getByRole('combobox',{name:'Strategy',exact:true}).click();
   await page.getByRole('option',{name:'Reversal at key level',exact:true}).click();
   await page.getByRole('button',{name:'Apply & View Desk',exact:true}).click();
-  await expect(page.locator('.results-caption')).toContainText('Reversal at key level');
-  await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
-  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).borderRadius)).toBe('14px');
+  await expect(page.getByRole('combobox',{name:'Setup',exact:true})).toHaveText('Reversal at key level');
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
+  await expect(page.getByRole('region',{name:'Equity curve',exact:true})).toBeVisible();
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), {
+      message: `Strategy Lab fits a ${width}px viewport`,
+    }).toBeLessThanOrEqual(width);
     await page.screenshot({path:info.outputPath(`primus-lab-${width}.png`),fullPage:true});
     if(width<521)await page.getByRole('button',{name:'Open navigation',exact:true}).click();
     await page.getByRole('button',{name:'My lab',exact:true}).click();
@@ -36,13 +38,14 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Dark mode',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(19, 24, 22)');
+  expect(await page.locator('.sl-equity-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(19, 24, 22)');
   await expect(page.locator('.sl-page-dock')).toBeVisible();
-  await expect(page.locator('.sl-hero-card')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Strategies',exact:true})).toBeVisible();
+  await expect(page.locator('.lab-key-metrics').getByText('Max drawdown',{exact:true})).toBeVisible();
+  await expect(page.locator('.sl-dist-card')).toHaveCount(0);
+  await page.getByRole('button',{name:'Full breakdown',exact:true}).click();
   await expect(page.locator('.sl-dist-card')).toBeVisible();
-  const kpiLedger=page.locator('.lab-kpi-ledger');
-  await expect(kpiLedger).toBeVisible();
-  await expect(kpiLedger.locator('.lab-ledger-row').filter({hasText:'Max Drawdown'}).locator('.lab-val-chip')).toContainText('-$');
+  await page.getByRole('button',{name:'Hide breakdown',exact:true}).click();
   await page.screenshot({path:info.outputPath('primus-lab-dark.png'),fullPage:true});
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();
@@ -79,7 +82,7 @@ test('Primus home shows the actual five traders and responsive private-tool link
   await page.screenshot({path:info.outputPath('matrix-briefing-light.png'),fullPage:true});
   await page.goto(origin);
   await page.getByRole('link',{name:'Open Strategy Lab',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'Results',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Equity curve',exact:true})).toBeVisible();
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Journal',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Pause. Put it on paper.',exact:true})).toBeVisible();
 });
@@ -157,7 +160,7 @@ test('dark mode persists across Home, Journal and Lab with readable surfaces and
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('navigation',{name:'Primus navigation'}).getByRole('link',{name:'Strategy Lab',exact:true}).click();
-  await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();
@@ -174,7 +177,7 @@ test('Lab uses the Primus loading logo and exposes its theme button on desktop a
   await expect(page.getByAltText('Primus compass',{exact:true})).toBeVisible();
   await page.screenshot({path:info.outputPath('lab-loading.png')});
   release();
-  await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:950});
     await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
@@ -210,4 +213,51 @@ test('navigation order and Journal account management', async ({page}) => {
   await row.getByRole('button', {name: 'Delete Browser evaluation'}).click();
   await page.getByRole('dialog', {name: 'Delete account?'}).getByRole('button', {name: 'Delete account', exact: true}).click();
   await expect(row).toHaveCount(0);
+});
+
+test('Strategy Lab compares independent equity curves and filters them from the setup table', async ({page}, info) => {
+  const requests = [];
+  await page.route('**/api/results', async route => {
+    const query = route.request().postDataJSON();
+    requests.push(query);
+    if (query.scope !== 'Forward testing') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const data = await response.json();
+    await route.fulfill({response, json: {
+      ...data,
+      stats: {...data.stats, trades: 2, avg_r: .5},
+      r_count: 2,
+      r_equity: {values: [0, -.5, 1], net_r: 1, max_drawdown_r: .5},
+      strategy_summary: [{setup_name: 'Reversal at key level', trades: 2, avg_r: .5, max_drawdown_r: .5}],
+    }});
+  });
+  await page.goto(origin + '/lab');
+  const sources = page.getByRole('group', {name: 'Data source', exact: true});
+  await expect(sources.getByRole('button', {name: 'Compare', exact: true})).toHaveAttribute('aria-pressed', 'true');
+  const chart = page.getByRole('region', {name: 'Equity curve', exact: true});
+  const plot = chart.locator('.js-plotly-plot');
+  await expect(plot).toBeVisible();
+  expect(requests.map(({scope}) => scope)).toEqual(['Backtesting', 'Forward testing']);
+  expect(requests.every(({combined}) => combined === false)).toBe(true);
+  expect(await plot.evaluate(el => el.data.map(({name, y, line}) => ({name, origin: y[0], dash: line.dash})))).toEqual([
+    {name: 'Backtest', origin: 0, dash: 'dash'},
+    {name: 'Live', origin: 0, dash: 'solid'},
+  ]);
+  const strategies = page.getByRole('region', {name: 'Strategies', exact: true});
+  await strategies.getByRole('button', {name: 'Reversal at key level', exact: true}).click();
+  await expect(page.getByRole('combobox', {name: 'Setup', exact: true})).toHaveText('Reversal at key level');
+  await expect.poll(() => requests.filter(({strategy}) => strategy === 'Reversal at key level').length).toBe(2);
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
+  await page.getByRole('button', {name: 'Switch to dark mode', exact: true}).click();
+  await expect(page.locator('.results-content')).toHaveAttribute('aria-busy','false');
+  await page.screenshot({path: info.outputPath('strategy-lab-compare.png')});
+  await sources.getByRole('button', {name: 'Backtest results', exact: true}).click();
+  await expect(chart.getByLabel('Show drawdown', {exact: true})).toBeVisible();
+  await page.setViewportSize({width: 320, height: 750});
+  await page.getByText('Date range', {exact: true}).first().click();
+  await expect(page.getByLabel(/From ·/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -1,0 +1,190 @@
+/* Results uses Primus's workspace surfaces, type and spacing. */
+.pt-lab #results .lab-studio-toolbar {
+  gap: 12px 20px;
+  margin: 0 0 12px;
+}
+.lab-results-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  min-width: 0;
+}
+.lab-results-controls .field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.lab-results-controls .field > span { color: var(--tl-ink2); }
+.lab-results-controls .picker-trigger { min-width: 142px; max-width: 240px; min-height: 40px; }
+.lab-result-dates { position: relative; max-width: 100%; }
+.lab-result-dates > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid var(--tl-border);
+  border-radius: 8px;
+  background: var(--tl-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+.lab-result-dates > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border: solid currentColor;
+  border-width: 0 1px 1px 0;
+  rotate: 45deg;
+  margin: -3px 0 0 3px;
+}
+.lab-result-dates > summary::-webkit-details-marker { display: none; }
+.lab-result-date-fields {
+  position: absolute;
+  z-index: 12;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  display: grid;
+  gap: 8px;
+  width: min(244px, calc(100vw - 44px));
+  padding: 12px;
+  border: 1px solid var(--tl-border);
+  border-radius: 9px;
+  background: var(--tl-surface);
+  box-shadow: var(--primus-shadow-lift);
+}
+.lab-result-date-fields .field { display: grid; }
+.lab-result-date-fields .field input { width: 100%; min-width: 0; }
+
+.lab-results-desk {
+  --lab-backtest: #285e9a;
+  --lab-live: var(--tl-positive);
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+:root[data-theme="dark"] .lab-results-desk {
+  --lab-backtest: #99c5f7;
+  --lab-live: var(--pt-lime);
+}
+.lab-tone-backtest { color: var(--lab-backtest); }
+.lab-tone-live { color: var(--lab-live); }
+
+.lab-key-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+.lab-key-metrics > div { padding: 13px clamp(10px, 1.7vw, 20px); }
+.lab-key-metrics > div + div { border-inline-start: 1px solid var(--tl-border); }
+.lab-key-metrics dt { margin-bottom: 6px; font-size: 13px; font-weight: 600; }
+.lab-key-metrics dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.lab-metric-source { display: grid; gap: 2px; }
+.lab-metric-source > span { color: var(--tl-ink2); font-size: 11px; }
+.lab-metric-source strong { font-size: clamp(16px, 1.9vw, 21px); white-space: nowrap; }
+.lab-strategies, .lab-dimension-table { min-width: 0; overflow: hidden; }
+.lab-strategies > p { margin: 0; padding: 0 16px 16px; }
+.lab-results-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+.lab-results-heading h2, .lab-results-heading h3 { margin: 0; }
+.lab-strategies > header { padding: 15px 16px; }
+.lab-strategies th, .lab-strategies td { text-align: start; font-variant-numeric: tabular-nums; }
+.lab-strategies thead { background: var(--tl-page); }
+.lab-strategies tbody button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.lab-strategies tbody button:hover { text-decoration: underline; }
+.lab-strategies tbody button svg { flex: none; }
+.lab-strategies tr[data-selected] { background: var(--lab-tint); }
+.lab-source-separator { color: var(--tl-ink2); }
+.lab-results-actions { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; }
+.lab-results-actions .r-explainer { flex: 1 1 190px; }
+.lab-breakdown-desk { display: grid; gap: 12px; }
+.lab-breakdown-desk > header .field { margin: 0; }
+.lab-detail-source { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.lab-detail-metrics { min-width: 0; padding: 16px; }
+.lab-detail-metrics dl { margin: 10px 0; font-size: 13px; }
+.lab-detail-metrics dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-block: 6px;
+  border-bottom: 1px solid var(--tl-border);
+}
+.lab-detail-metrics dd { margin: 0; font-variant-numeric: tabular-nums; }
+.lab-dimension-table { grid-column: 1 / -1; }
+
+@media (min-width: 1360px) {
+  body:has(.lab-results-desk) .pt-lab .content { width: min(1360px, calc(100% - 168px)); }
+  .pt-lab #results .sl-page-dock { left: max(10px, calc((100vw - 1360px) / 2 - 70px)); }
+}
+@media (max-width: 740px) {
+  .lab-results-controls { justify-content: start; }
+  .lab-result-date-fields { inset-inline: 0 auto; }
+  .lab-key-metrics, .lab-detail-source { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lab-key-metrics > div:nth-child(3) { border-inline-start: 0; }
+  .lab-key-metrics > div:nth-child(n + 3) { border-top: 1px solid var(--tl-border); }
+  .lab-detail-source { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .lab-result-date-fields { position: static; width: 100%; margin-top: 5px; }
+  .lab-results-controls:has(.lab-result-dates[open]) .lab-result-dates { flex: 1 0 100%; order: 1; }
+  .lab-strategies table { min-width: 505px; }
+}
+
+.pt-lab #results .lab-results-controls > .field {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.pt-lab #results .lab-results-controls > .field > span { text-align: start; }
+.sl-equity-update { margin-inline-start: auto; color: var(--tl-ink2); font-size: 12px; }
+
+@media (max-width: 520px) {
+  .pt-lab #results .sl-toolbar-left,
+  .pt-lab #results .lab-results-controls { width: 100%; }
+  :root .pt-lab #results > .toolbar .sl-toolbar-left .segments {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+  }
+  :root .pt-lab #results > .toolbar .sl-toolbar-left .segments button {
+    min-width: 0;
+    padding: 6px 4px;
+    font-size: 11px;
+    white-space: normal;
+  }
+  .pt-lab #results .lab-results-controls > .field { flex-basis: 100%; }
+  .lab-results-controls .picker-trigger { flex: 1; max-width: none; }
+}
