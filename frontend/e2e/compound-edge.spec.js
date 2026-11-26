@@ -20,9 +20,16 @@ test("Aura shows private routine progress in the Mindset", async ({ page }) => {
   await expect(card.getByRole("img", { name: "Execute: 50% complete" })).toBeVisible();
   const aura = page.getByRole("region", { name: "Aura" });
   const execute = aura.getByRole("button", { name: /Execute/ });
+  const pillarGroup = aura.getByRole("group", { name: "Aura pillars" });
+  const highlight = pillarGroup.locator(".sliding-selection-highlight");
+  await expect(highlight).toBeVisible();
+  await expect(highlight).toHaveCSS("transition-duration", "0s");
+  const relativeY = async () => (await highlight.boundingBox()).y - (await pillarGroup.boundingBox()).y;
+  const prepareY = await relativeY();
   await expect(aura.getByRole("link", { name: "Open checklist" })).toBeVisible();
   await execute.click();
   await expect(execute).toHaveAttribute("aria-expanded", "true");
+  expect(await relativeY()).toBeGreaterThan(prepareY);
   await expect(aura.getByRole("link", { name: "Open plan check" })).toHaveAttribute("href", "/journal#journal-plan-followed");
   await expect(aura.getByRole("link", { name: "Open checklist" })).toHaveCount(0);
   const history = aura.getByRole("button", { name: "Open 365-day routine history" });

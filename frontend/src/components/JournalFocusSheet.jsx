@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, Check, PenLine, Save, X } from 'lucide-react';
+import SlidingSelection from '../SlidingSelection';
 
 function countWords(text) {
   const trimmed = (text || '').trim();
@@ -153,9 +154,10 @@ export default function JournalFocusSheet({
             </div>
 
             <div className="pj-focus-controls">
-              <div className="pj-focus-mode" role="group" aria-label="View mode">
+              <SlidingSelection className="pj-focus-mode" value={mode} role="group" aria-label="View mode">
                 <button
                   type="button"
+                  data-slide-value="read"
                   aria-pressed={mode === 'read'}
                   onClick={() => setMode('read')}
                 >
@@ -163,12 +165,13 @@ export default function JournalFocusSheet({
                 </button>
                 <button
                   type="button"
+                  data-slide-value="write"
                   aria-pressed={mode === 'write'}
                   onClick={() => setMode('write')}
                 >
                   <PenLine size={14} aria-hidden="true" /> Write
                 </button>
-              </div>
+              </SlidingSelection>
               <button
                 type="button"
                 className="pj-focus-close"
@@ -180,10 +183,11 @@ export default function JournalFocusSheet({
             </div>
           </div>
 
-          <div className="pj-focus-tabs" role="tablist" aria-label="Journal focus sections">
+          <SlidingSelection className="pj-focus-tabs" value={scope} role="tablist" aria-label="Journal focus sections">
             <button
               type="button"
               role="tab"
+              data-slide-value="all"
               aria-selected={scope === 'all'}
               onClick={() => switchScope('all')}
             >
@@ -194,6 +198,7 @@ export default function JournalFocusSheet({
                 key={item.id}
                 type="button"
                 role="tab"
+                data-slide-value={item.id}
                 aria-selected={scope === item.id}
                 onClick={() => switchScope(item.id)}
               >
@@ -202,7 +207,7 @@ export default function JournalFocusSheet({
                 {entry[item.id]?.trim() && <Check size={13} aria-hidden="true" />}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
         </header>
 
         <div className="pj-focus-body">

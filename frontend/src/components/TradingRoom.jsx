@@ -4,6 +4,7 @@ import {
   MicOff, MonitorOff, Ban, UserCheck, CheckCircle2, ChevronDown, Maximize2, Tv2, X,
 } from 'lucide-react';
 import { Button, Notice } from '../components';
+import SlidingSelection from '../SlidingSelection';
 import { REACTIONS, useBullpen } from '../hooks/usePresence';
 import { api } from '../api';
 import CloudflareStage from './CloudflareStage';
@@ -615,11 +616,11 @@ export default function TradingRoom({ meeting, onLeave, minimised = false, onMin
           }} />
 
         <aside className="bullpen-side" aria-label="Trading Floor desk sidebar">
-          <div className="bullpen-tabs" role="group" aria-label="Sidebar view">
-            <button type="button" aria-pressed={tab === 'chat'} onClick={() => setTab('chat')}><MessageSquare size={14} /> Chat</button>
-            <button type="button" aria-pressed={tab === 'levels'} onClick={() => setTab('levels')}><Layers size={14} /> Levels</button>
-            <button type="button" aria-pressed={tab === 'news'} onClick={() => setTab('news')}><CalendarClock size={14} /> News</button>
-          </div>
+          <SlidingSelection className="bullpen-tabs" value={tab} role="group" aria-label="Sidebar view">
+            <button type="button" data-slide-value="chat" aria-pressed={tab === 'chat'} onClick={() => setTab('chat')}><MessageSquare size={14} aria-hidden="true" /> Chat</button>
+            <button type="button" data-slide-value="levels" aria-pressed={tab === 'levels'} onClick={() => setTab('levels')}><Layers size={14} aria-hidden="true" /> Levels</button>
+            <button type="button" data-slide-value="news" aria-pressed={tab === 'news'} onClick={() => setTab('news')}><CalendarClock size={14} aria-hidden="true" /> News</button>
+          </SlidingSelection>
           {tab === 'chat' ? (
             <>
               <div className="bullpen-messages" role="log" aria-label="Team chat">

@@ -197,7 +197,7 @@ export default function JournalReplayImports({onDelete}){
   finally{setBusy(false)}
  }
 
- return <details className="pj-session-images jr-imports" onToggle={event=>{
+ return <details className="pj-session-images jr-imports reveal-disclosure" onToggle={event=>{
   if(event.currentTarget.open&&!opened){setOpened(true);refresh()}
  }}>
   <summary>Trade replay</summary>
@@ -213,7 +213,7 @@ export default function JournalReplayImports({onDelete}){
       onChange={event=>{setFile(event.target.files[0]||null);setMessage(null)}}/></label>
      <button type="submit" className="pt-btn" disabled={!file}>{busy?'Importing…':'Import trades'}</button>
     </div>
-    <details className="jr-import-advanced">
+    <details className="jr-import-advanced reveal-disclosure">
      <summary>Custom CSV or timezone</summary>
      <label>Export timezone<input aria-label="Replay export timezone" placeholder="e.g. America/New_York"
       value={zone} onChange={event=>setZone(event.target.value)}/></label>

@@ -4,6 +4,7 @@ import { STARTER_GUIDES, GLOSSARY, searchGlossary } from "./learningContent";
 import "./learn-foundations.css";
 import StarterGuideDiagram from "./StarterGuideDiagram";
 import { api } from "./api";
+import SlidingSelection from "./SlidingSelection";
 export default function LearnFoundations({ identity }) {
   const requested = new URLSearchParams(location.search).get("lesson");
   const initial = STARTER_GUIDES.some((g) => g.id === requested)
@@ -94,10 +95,12 @@ export default function LearnFoundations({ identity }) {
             : "Sign in to remember your place across visits."}
         </p>
         {saveError && <p role="alert">Could not save progress: {saveError}</p>}
-        <div className="learn-path" role="group" aria-label="Trading basics">
+        <SlidingSelection className="learn-path" value={guideId} axis="auto" role="group" aria-label="Trading basics">
           {STARTER_GUIDES.map((g) => (
             <button
               key={g.id}
+              type="button"
+              data-slide-value={g.id}
               onClick={() => remember(g.id, false)}
               aria-pressed={guideId === g.id}
               aria-controls="learn-guide"
@@ -110,7 +113,7 @@ export default function LearnFoundations({ identity }) {
               <ArrowUpRight size={16} />
             </button>
           ))}
-        </div>
+        </SlidingSelection>
         <article
           className="learn-guide"
           id="learn-guide"
@@ -210,7 +213,7 @@ export default function LearnFoundations({ identity }) {
             <h3>{category}</h3>
             <div className="glossary-grid">
               {entries.map(([term, meaning]) => (
-                <details key={term}>
+                <details key={term} className="reveal-disclosure">
                   <summary>{term}<span aria-hidden="true">+</span></summary>
                   <p>{meaning}</p>
                 </details>

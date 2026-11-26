@@ -1451,3 +1451,41 @@ button.pj-vision-box { cursor: pointer; }
   .pj-vision-review { grid-template-columns:minmax(0,1fr) minmax(280px,31%); }
 }
 .pj-vision { container-type:inline-size; }
+
+/* Compact Journal choices share the moving fill, even on wrapped rows. */
+.pj-workspace :is(.pj-filter-pills, .pj-plan-field > .sliding-selection) {
+  --slide-radius: 999px;
+}
+.pj-filter-pills > button {
+  min-height: 34px;
+  padding-inline: 9px;
+  font-size: 12px;
+}
+.pj-focus-tabs.sliding-selection {
+  --slide-radius: var(--primus-radius-md);
+}
+.pj-focus-tabs.sliding-selection > [role="tab"] {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+.pj-focus-tabs[data-slide-ready] > [data-slide-selected] {
+  border-bottom-color: transparent;
+}
+.pj-focus-sheet .pj-focus-mode.sliding-selection {
+  --slide-fill: var(--primus-rail);
+  --slide-ink: var(--primus-rail-ink);
+  --slide-radius: var(--primus-radius-sm);
+}
+:root[data-theme="dark"] .pj-focus-sheet .pj-focus-mode.sliding-selection {
+  --slide-fill: var(--primus-accent);
+  --slide-ink: var(--primus-accent-ink);
+}
+:root .pj-focus-sheet .pj-focus-mode[data-slide-ready] > [data-slide-selected] {
+  background: transparent;
+  color: var(--slide-ink);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pj-month-grid { animation: primus-control-reveal 155ms ease-out; }
+}

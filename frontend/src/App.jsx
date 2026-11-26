@@ -313,6 +313,8 @@ export default function App() {
                     refresh={refresh}
                     toast={toast}
                     onTrades={() => navigate("trades")}
+                    onResults={() => navigate("results")}
+                    activeView={page}
                     onImport={() => navigate("import")}
                     filterEditor={filterEditor}
                     onCloseFilterEditor={() => setFilterEditor(false)}

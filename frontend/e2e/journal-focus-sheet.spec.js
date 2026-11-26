@@ -26,6 +26,7 @@ test('Journal Focus Sheet reads all three sections clearly, edits live, and pers
   await expect(sheet).toContainText('NY open swept London low cleanly at 09:34');
   await expect(sheet).toContainText('Patience at the open paid off completely');
   await expect(sheet).toContainText(/\d+ words/);
+  await expect(sheet.getByRole('tab',{name:'All sections',exact:true})).toHaveAttribute('data-slide-selected','');
   await page.screenshot({ path: info.outputPath('journal-focus-read-light.png') });
 
   // Jump straight into writing mode for During the session, edit and save inside sheet
@@ -70,6 +71,14 @@ test('Journal views and writing sections share the sliding highlight', async ({p
   await views.getByRole('tab', {name: 'Performance'}).click();
   await expect.poll(async () => (await viewHighlight.boundingBox()).x).toBeGreaterThan(logX);
   await log.click();
+
+  const history = page.getByRole('group', {name: 'Filter journal entries'});
+  const all = history.getByRole('button', {name: 'All', exact: true});
+  await expect(all).toHaveAttribute('data-slide-selected', '');
+  const wins = history.getByRole('button', {name: 'Wins', exact: true});
+  await wins.click();
+  await expect(wins).toHaveAttribute('data-slide-selected', '');
+  await expect(all).not.toHaveAttribute('data-slide-selected', '');
 
   const sections = page.getByRole('tablist', {name: 'Session writing sections'});
   const highlight = sections.locator('.segment-indicator');

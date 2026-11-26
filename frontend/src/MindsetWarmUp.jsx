@@ -268,7 +268,7 @@ function FocusGames({day, highScore, onContinue, onSkip}) {
   }
 
   return <section className="mw-step">
-    {!attempt && <Segments label="Focus game" value={mode} disabled={busy} onChange={setMode}
+    {!attempt && <Segments className="mw-focus-mode" label="Focus game" value={mode} disabled={busy} onChange={setMode} sliding="adaptive"
       values={[{value:'memory', label:'Pattern Match'}, {value:'search', label:'Visual Search'}]}/>}
     <h3>{gameName}</h3>
     {!attempt && highScore?.leader && <p className="mw-drill-leader">
@@ -345,7 +345,7 @@ export default function MindsetWarmUp({
   }
 
   return <Modal title={tiltReset ? '60s Tilt Reset' : 'Pre-Market Warm-Up'} className="mw-modal mw-exercise" onClose={close}>
-    {!tiltReset && <ol className="mw-steps" aria-label="Warm-up steps">
+    {!tiltReset && <ol className="mw-steps" aria-label="Warm-up steps" style={{'--mw-step': step}}>
       {STEPS.map((label, index) => <li key={label} data-past={index < step} aria-current={index === step ? 'step' : undefined}>
         {label}
       </li>)}

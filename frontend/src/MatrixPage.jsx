@@ -12,6 +12,7 @@ import { api } from './api';
 import { matrixFreshness } from './matrixFreshness';
 import { useBullpen } from './hooks/usePresence';
 import MatrixLoading from './MatrixLoading';
+import SlidingSelection from './SlidingSelection';
 import SpotlightTour from './SpotlightTour';
 import './matrix.css';
 
@@ -673,7 +674,7 @@ export default function MatrixPage({ theme }) {
           )}
 
           {/* 3. Section Tabs */}
-          <div className="mx-tabs" role="tablist" aria-label="Matrix desk sections">
+          <SlidingSelection className="mx-tabs" value={activeTab} role="tablist" aria-label="Matrix desk sections">
             {[
               { id: 'overview', label: 'Overview & Bias' },
               { id: 'positioning', label: 'Positioning & Liquidity' },
@@ -684,6 +685,7 @@ export default function MatrixPage({ theme }) {
                 key={tab.id}
                 type="button"
                 role="tab"
+                data-slide-value={tab.id}
                 aria-selected={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
               >
@@ -691,7 +693,7 @@ export default function MatrixPage({ theme }) {
                 {tab.count > 0 && <span className={`mx-tab-count ${number}`}>{tab.count}</span>}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
 
           {/* TAB 1: Overview & Bias */}
           {activeTab === 'overview' && (
@@ -709,7 +711,8 @@ export default function MatrixPage({ theme }) {
                     </div>
                     <span className="tw:text-[11px] mx-muted">Score 0–100 · Raw −12 to +12</span>
                   </header>
-                  <div className="tw:overflow-x-auto">
+                  <SlidingSelection className="mx-scoreboard-selection tw:overflow-x-auto"
+                    value={selectedAsset?.id} axis="vertical" itemSelector="tr[data-slide-value]">
                     {assets.length ? (
                       <table className="tw:w-full tw:border-collapse tw:text-left tw:text-xs">
                         <thead>
@@ -728,11 +731,14 @@ export default function MatrixPage({ theme }) {
                             return (
                               <tr
                                 key={asset.id}
+                                data-slide-value={asset.id}
                                 className={`mx-table-row tw:border-b mx-divider ${active ? 'mx-row-active' : ''}`}
                                 onClick={() => setSelectedAssetId(asset.id)}
                               >
                                 <td className="tw:px-4 tw:py-2.5">
-                                  <div className="tw:font-semibold mx-ink">{asset.symbol}</div>
+                                  <button type="button" className="mx-asset-select" aria-pressed={active}>
+                                    {asset.symbol}
+                                  </button>
                                   <div className="tw:text-[11px] mx-muted">{asset.category}</div>
                                 </td>
                                 <td className="tw:px-2 tw:py-2.5">
@@ -763,7 +769,7 @@ export default function MatrixPage({ theme }) {
                     ) : (
                       <p className="tw:p-4 tw:text-xs mx-muted">No multi-asset scores yet. Click Refresh Now to compute all 6 markets.</p>
                     )}
-                  </div>
+                  </SlidingSelection>
                 </div>
 
                 {/* Transparent Pillar Breakdown Panel */}
@@ -1143,7 +1149,7 @@ export default function MatrixPage({ theme }) {
                     <p className="tw:text-xs mx-muted">Scheduled catalysts with Beat/Miss surprise &amp; NQ directional impact</p>
                   </div>
                 </div>
-                <div className="tw:flex tw:items-center tw:gap-1" role="group" aria-label="Calendar range">
+                <SlidingSelection className="mx-range-controls" value={calFilter} role="group" aria-label="Calendar range">
                   {[
                     { id: 'today', label: 'Today' },
                     { id: 'week', label: 'This Week' },
@@ -1152,13 +1158,14 @@ export default function MatrixPage({ theme }) {
                     <button
                       key={tab.id}
                       type="button"
-                      className={`mx-btn ${calFilter === tab.id ? 'is-primary' : ''}`}
+                      data-slide-value={tab.id}
+                      aria-pressed={calFilter === tab.id}
                       onClick={() => setCalFilter(tab.id)}
                     >
                       {tab.label}
                     </button>
                   ))}
-                </div>
+                </SlidingSelection>
               </div>
 
               {calendarRows.length > 0 ? (
@@ -1220,7 +1227,7 @@ export default function MatrixPage({ theme }) {
                     <p className="tw:text-xs mx-muted">Live market headlines and scheduled US, UK &amp; EU economic releases via TradingView</p>
                   </div>
                 </div>
-                <div className="mx-briefing-controls" role="group" aria-label="Market briefing">
+                <SlidingSelection className="mx-briefing-controls" value={briefingKind} role="group" aria-label="Market briefing">
                   {[
                     ['news', 'Market news'],
                     ['calendar', 'Economic calendar'],
@@ -1228,14 +1235,14 @@ export default function MatrixPage({ theme }) {
                     <button
                       key={id}
                       type="button"
-                      className={`mx-btn ${briefingKind === id ? 'is-primary' : ''}`}
+                      data-slide-value={id}
                       aria-pressed={briefingKind === id}
                       onClick={() => setBriefingKind(id)}
                     >
                       {label}
                     </button>
                   ))}
-                </div>
+                </SlidingSelection>
               </header>
               <div className="mx-briefing-frame">
                 <TradingViewWidget

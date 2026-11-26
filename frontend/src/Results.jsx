@@ -19,6 +19,7 @@ import { FilterChips } from "./ExploreControls";
 import VocabularySelect from "./VocabularySelect";
 import ReturnDistributionChart from "./components/ReturnDistributionChart";
 import { sitePreview } from "./SiteExperience";
+import SlidingSelection from "./SlidingSelection";
 import {
   Button,
   Select,
@@ -65,6 +66,8 @@ export default function Results({
   revision,
   mode,
   onTrades,
+  onResults,
+  activeView,
   onImport,
   filterEditor,
   onCloseFilterEditor,
@@ -80,6 +83,7 @@ export default function Results({
     [detail, setDetail] = useState(false),
     [comparison, setComparison] = useState("setup_name"),
     [drawerOpen, setDrawerOpen] = useState(false);
+  const [breakdownActive, setBreakdownActive] = useState(false);
   const [data, setData] = useState(null),
     [busy, setBusy] = useState(true),
     [error, setError] = useState("");
@@ -302,6 +306,8 @@ export default function Results({
       <div className="field">
         <span>Buy or sell?</span>
         <Segments
+          label="Buy or sell?"
+          sliding="adaptive"
           values={[
             { value: "Both", label: "Both" },
             { value: "long", label: "Buy" },
@@ -479,16 +485,18 @@ export default function Results({
   return (
     <>
       {isSiteLab && (
-        <aside className="sl-page-dock" aria-label="Strategy Lab quick views">
+        <SlidingSelection as="aside" className="sl-page-dock" aria-label="Strategy Lab quick views" axis="vertical"
+          value={drawerOpen ? "filters" : activeView === "trades" ? "trades" : detail && breakdownActive ? "breakdown" : "results"}>
           <button
             type="button"
-            className="sl-dock-btn is-active"
+            className="sl-dock-btn"
+            data-slide-value="results"
             aria-label="Edge Audit"
-            onClick={() =>
-              document
-                .getElementById("results")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
+            aria-current={activeView !== "trades" && !(detail && breakdownActive) ? "location" : undefined}
+            onClick={() => {
+              setBreakdownActive(false);
+              onResults();
+            }}
           >
             <Home size={18} strokeWidth={1.75} aria-hidden="true" />
             <span className="sl-dock-tip" aria-hidden="true">
@@ -498,7 +506,9 @@ export default function Results({
           <button
             type="button"
             className="sl-dock-btn"
+            data-slide-value="trades"
             aria-label="Jump to Trades Ledger"
+            aria-current={activeView === "trades" ? "location" : undefined}
             onClick={onTrades}
           >
             <FileText size={18} strokeWidth={1.75} aria-hidden="true" />
@@ -508,15 +518,17 @@ export default function Results({
           </button>
           <button
             type="button"
-            className={`sl-dock-btn${detail ? " is-active" : ""}`}
+            className="sl-dock-btn"
+            data-slide-value="breakdown"
             aria-label="Toggle Edge Breakdown"
+            aria-expanded={detail}
             onClick={() => {
-              setDetail((prev) => !prev);
-              requestAnimationFrame(() => {
-                document
-                  .getElementById("lab-breakdown")
-                  ?.scrollIntoView({ behavior: "smooth" });
-              });
+              setDetail(!detail);
+              setBreakdownActive(!detail);
+              if (!detail) {
+                if (activeView === "trades") onResults();
+                requestAnimationFrame(() => document.getElementById("lab-breakdown")?.scrollIntoView());
+              }
             }}
           >
             <BarChart3 size={18} strokeWidth={1.75} aria-hidden="true" />
@@ -526,8 +538,10 @@ export default function Results({
           </button>
           <button
             type="button"
-            className={`sl-dock-btn${drawerOpen ? " is-active" : ""}`}
+            className="sl-dock-btn"
+            data-slide-value="filters"
             aria-label="Open Filter Studio"
+            aria-expanded={drawerOpen}
             onClick={() => setDrawerOpen((prev) => !prev)}
           >
             <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
@@ -538,7 +552,7 @@ export default function Results({
               Filter Studio ({activeFilterCount})
             </span>
           </button>
-        </aside>
+        </SlidingSelection>
       )}
 
       {!isSiteLab && <div className="lab-section-heading">
@@ -594,7 +608,7 @@ export default function Results({
               value={filters.strategy}
               onChange={(event) => change("strategy", event.target.value)}
             />
-            <details className="lab-result-dates">
+            <details className="lab-result-dates reveal-disclosure">
               <summary>{filters.start || filters.end ? `${filters.start || "Any start"} – ${filters.end || "Any end"}` : "Date range"}</summary>
               <div className="lab-result-date-fields">
                 <Field label={`From · ${clockName}`}>
@@ -699,7 +713,10 @@ export default function Results({
             onSetupChange={(value) => change("strategy", value)}
             busy={busy}
             detail={detail}
-            onToggleDetail={() => setDetail((value) => !value)}
+            onToggleDetail={() => {
+              setDetail(!detail);
+              setBreakdownActive(!detail);
+            }}
             comparison={comparison}
             dimensions={dimensions}
             onComparisonChange={setComparison}
@@ -1086,7 +1103,7 @@ function ResultSample({
       </div>
 
       <div className="sl-detail-bar">
-        <details className="r-explainer">
+        <details className="r-explainer reveal-disclosure">
           <summary>What does Average R mean?</summary>
           <p>
             R measures a trade against its original risk. +1R means you earned

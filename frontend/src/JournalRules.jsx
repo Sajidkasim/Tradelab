@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { BookOpen, Check, ClipboardList, Maximize2, PenLine, Save, X } from 'lucide-react';
 import { api } from './api';
+import SlidingSelection from './SlidingSelection';
 
 function countWords(text) {
   const trimmed = (text || '').trim();
@@ -172,9 +173,10 @@ export default function JournalRules({ preferences, onSaved }) {
                 </div>
 
                 <div className="pj-focus-controls">
-                  <div className="pj-focus-mode" role="group" aria-label="Rules view mode">
+                  <SlidingSelection className="pj-focus-mode" role="group" aria-label="Rules view mode" value={mode}>
                     <button
                       type="button"
+                      data-slide-value="read"
                       aria-pressed={mode === 'read'}
                       onClick={() => setMode('read')}
                     >
@@ -182,6 +184,7 @@ export default function JournalRules({ preferences, onSaved }) {
                     </button>
                     <button
                       type="button"
+                      data-slide-value="write"
                       aria-pressed={mode === 'write'}
                       onClick={() => {
                         setMode('write');
@@ -190,7 +193,7 @@ export default function JournalRules({ preferences, onSaved }) {
                     >
                       <PenLine size={14} aria-hidden="true" /> Write
                     </button>
-                  </div>
+                  </SlidingSelection>
                   <button
                     type="button"
                     className="pj-focus-close"

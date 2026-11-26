@@ -7,6 +7,7 @@ import {WorkspacePage, useIdentity, SignInPanel} from './WorkspacePages';
 import ResourceLibrary from './ResourceLibrary';
 import VisionBoard from './VisionBoard';
 import {Notice, Button} from './components';
+import SlidingSelection from './SlidingSelection';
 import {api} from './api';
 import {money} from './format';
 import PrepProgress from './PrepProgress';
@@ -45,7 +46,7 @@ function WarmUpHero({state, checkpoint, onStart, onTiltReset, soundMode, onSound
           <button type="button" onClick={onTiltReset} aria-haspopup="dialog">
             <Wind size={16} aria-hidden="true"/> 60s Reset
           </button>
-          <details className="mw-sound">
+          <details className="mw-sound reveal-disclosure">
             <summary aria-label="Focus audio" title="Focus audio">
               <Headphones size={17} aria-hidden="true"/>
               {soundMode !== 'off' && <span className="mw-sound-active" aria-hidden="true"/>}
@@ -95,32 +96,33 @@ function ReadinessStrip({state, onChange, status}) {
   const selected = [ENERGY_OPTIONS.find(option => option.value === energy)?.label,
     HEADSPACE_OPTIONS.find(option => option.value === headspace)?.label].filter(Boolean);
 
-  return <details className="mw-check-in">
+  return <details className="mw-check-in reveal-disclosure">
     <summary>Check in <span>{selected.join(' · ')}</span><ChevronDown size={16} aria-hidden="true"/></summary>
     <div className="mw-readiness-strip">
       <div className="mw-readiness-groups">
         <div className="mw-readiness-group">
           <span className="mw-readiness-label">Energy</span>
-          <div role="group" aria-label="Energy level">
+          <SlidingSelection className="mw-readiness-options" value={energy} role="group" aria-label="Energy level">
             {ENERGY_OPTIONS.map(opt => (
-              <button key={opt.value} type="button" aria-pressed={energy === opt.value}
+              <button key={opt.value} type="button" data-slide-value={opt.value} aria-pressed={energy === opt.value}
                 onClick={() => onChange({...state, energy: energy === opt.value ? '' : opt.value})}>
                 {opt.label}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
         </div>
         <div className="mw-readiness-group">
           <span className="mw-readiness-label">Headspace</span>
-          <div role="group" aria-label="Current headspace">
+          <SlidingSelection className={`mw-readiness-options${headspace === 'emotional' ? ' is-caution' : ''}`} value={headspace}
+            role="group" aria-label="Current headspace">
             {HEADSPACE_OPTIONS.map(opt => (
-              <button key={opt.value} type="button" aria-pressed={headspace === opt.value}
+              <button key={opt.value} type="button" data-slide-value={opt.value} aria-pressed={headspace === opt.value}
                 className={opt.value === 'emotional' ? 'tone-warn' : ''}
                 onClick={() => onChange({...state, headspace: headspace === opt.value ? '' : opt.value})}>
                 {opt.label}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
         </div>
       </div>
       {tilted && (

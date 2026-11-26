@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, ChevronDown, Flame, Plus, RotateCcw, Wallet } from 'lucide-react';
 import { api } from './api';
-import { Button, Field, Modal, Notice } from './components';
+import { Button, Field, Modal, Notice, Segments } from './components';
 
 const blank = {
   name: '',
@@ -162,7 +162,7 @@ export default function JournalAccounts({ accounts, setAccounts, standalone = fa
 
   const Wrapper = standalone ? 'section' : 'details';
 
-  return <Wrapper className={`pj-accounts ${standalone ? 'is-standalone' : ''}`.trim()} aria-label={standalone ? 'Trading accounts' : undefined}>
+  return <Wrapper className={`pj-accounts ${standalone ? 'is-standalone' : 'reveal-disclosure'}`.trim()} aria-label={standalone ? 'Trading accounts' : undefined}>
     {standalone ? <header className="pj-accounts-header">{headerContent}</header> : <summary>{headerContent}</summary>}
     <div className="pj-accounts-body">
       {accounts === null && (error
@@ -170,18 +170,17 @@ export default function JournalAccounts({ accounts, setAccounts, standalone = fa
         : <p role="status">Loading accounts…</p>)}
       {accounts && <>
         <div className="pj-accounts-toolbar">
-          <div className="segments" role="group" aria-label="Account status">
-            {[
-              ['active', `Active (${activeAccounts.length})`],
-              ['passed', `Passed (${passedAccounts.length})`],
-              ['blown', `Blown (${blownAccounts.length})`],
-            ].map(([value, label]) => (
-              <button key={value} type="button" className={statusFilter === value ? 'selected' : ''}
-                aria-pressed={statusFilter === value} onClick={() => setStatusFilter(value)}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <Segments
+            label="Account status"
+            values={[
+              {value: 'active', label: `Active (${activeAccounts.length})`},
+              {value: 'passed', label: `Passed (${passedAccounts.length})`},
+              {value: 'blown', label: `Blown (${blownAccounts.length})`},
+            ]}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            sliding="adaptive"
+          />
           <Button variant="primary" onClick={() => setDraft({ ...blank })}><Plus size={15}/> Add account</Button>
         </div>
 

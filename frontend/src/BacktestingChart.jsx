@@ -16,6 +16,7 @@ import {ReplayHistoryFeed} from './ReplayHistoryFeed';
 import {streamReplayBars} from './replayChartStream';
 import {startReplayClock,nextReplayCursor, REPLAY_ZONES, clockParts, replayZone, replayClockLabel} from './replayClock';
 import {Modal, Button, Select, Field} from './components';
+import SlidingSelection from './SlidingSelection';
 import {CHART_TIMEFRAMES, timeframeLabel, savedTimeframes, validTimeframe} from './backtestingBars';
 import './backtesting.css';
 import {installDrawingGeometry} from './replayDrawingGeometry';
@@ -410,10 +411,11 @@ export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,ne
 
       <div className="bt-tb-group">
         {Object.keys(sample.markets).length>1 && <div className="bt-market"><Select label="Market" values={Object.keys(sample.markets)} value={symbol} disabled={!ready || busy} onChange={e => setSymbol(e.target.value)}/></div>}
-        <div className="bt-timeframes" role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
-          {shortcuts.map(value=>({value,label:timeframeLabel(value)})).map(item => <button key={item.value} disabled={!ready} aria-pressed={timeframe === item.value} onClick={() => setTimeframe(item.value)}>{item.label}</button>)}
+        <SlidingSelection className="bt-timeframes" value={timeframe} role="group" aria-label="Chart timeframe" title="Built from one-minute data. Second-based candles are not available.">
+          {shortcuts.map(value => <button type="button" key={value} data-slide-value={value} disabled={!ready}
+            aria-pressed={timeframe === value} onClick={() => setTimeframe(value)}>{timeframeLabel(value)}</button>)}
           <button className="bt-tf-add" aria-label="Manage timeframes" title="Save your timeframe shortcuts" onClick={()=>{setPlaying(false);setTimeframeEditor([...shortcuts]);setTimeframeError('')}}><Plus size={14}/></button>
-        </div>
+        </SlidingSelection>
       </div>
 
       <div className="bt-tb-group">
@@ -423,11 +425,11 @@ export default function BacktestingChart({tradingPane,closeTicket,onOpenClose,ne
       </div>
 
       <div className="bt-tools">
-        <div className="bt-seg" role="group" aria-label="Chart layout">
-          <button aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button>
-          <button aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button>
-          <button aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>
-        </div>
+        <SlidingSelection className="bt-seg" value={paneCount} role="group" aria-label="Chart layout">
+          <button type="button" data-slide-value={1} aria-label="Single chart" title="Single chart" aria-pressed={paneCount===1} onClick={()=>onLayoutCount(1)}>Ⅰ</button>
+          <button type="button" data-slide-value={2} aria-label="Toggle two charts" title="Two charts" aria-pressed={paneCount===2} onClick={()=>onLayoutCount(paneCount===2?1:2)}>Ⅱ</button>
+          <button type="button" data-slide-value={3} aria-label="Toggle three charts" title="Three charts" aria-pressed={paneCount===3} onClick={()=>onLayoutCount(paneCount===3?1:3)}>Ⅲ</button>
+        </SlidingSelection>
         {twoCharts&&<button className="bt-icon" aria-label="Sync intervals" title={`Sync intervals (${chartGroup.syncIntervals?'On':'Off'})`} aria-pressed={chartGroup.syncIntervals} onClick={onToggleIntervals}><Link2 size={15}/></button>}
         {twoCharts&&<button className="bt-icon" aria-label="Sync crosshair" title={`Sync crosshair (${chartGroup.syncCrosshair?'On':'Off'})`} aria-pressed={chartGroup.syncCrosshair} onClick={onToggleCrosshair}><Crosshair size={15}/></button>}
         <span className="bt-toolbar-sep" aria-hidden="true"/>

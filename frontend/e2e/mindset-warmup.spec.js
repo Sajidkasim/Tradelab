@@ -96,6 +96,9 @@ test('Pattern Match works at 390px in dark mode with reduced motion',async({page
   expect(await dialog.locator('.mw-breath-ring').evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
   await page.clock.fastForward(120100);
   await dialog.getByRole('button',{name:'Next: Focus Games'}).click();
+  const focusGame = dialog.getByRole('group',{name:'Focus game'});
+  await expect(focusGame.locator('.sliding-selection-highlight')).toHaveCSS('transition-duration','0s');
+  expect(await dialog.getByRole('list',{name:'Warm-up steps'}).evaluate(el=>getComputedStyle(el,'::before').transitionDuration)).toBe('0s');
   await dialog.getByRole('button',{name:'Start 60-second drill'}).click();
   const first = dialog.getByRole('button',{name:'Tile 1',exact:true});
   await expect(first).toBeDisabled();
@@ -229,7 +232,16 @@ test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits wor
   await page.getByText(/^Check in/).click();
 
   // Selecting Emotional triggers the Tilt Guard banner and launches 60s Tilt Reset
-  await page.getByRole('group', {name: 'Current headspace'}).getByRole('button', {name: 'Emotional', exact: true}).click();
+  const headspace = page.getByRole('group', {name: 'Current headspace'});
+  const calm = headspace.getByRole('button', {name: 'Calm', exact: true});
+  if (await calm.getAttribute('aria-pressed') !== 'true') await calm.click();
+  const highlight = headspace.locator('.sliding-selection-highlight');
+  await expect(highlight).toBeVisible();
+  const startX = (await highlight.boundingBox()).x;
+  const emotional = headspace.getByRole('button', {name: 'Emotional', exact: true});
+  await emotional.click();
+  await expect(emotional).toHaveAttribute('aria-pressed','true');
+  await expect.poll(async () => (await highlight.boundingBox()).x).toBeGreaterThan(startX);
   await expect(page.getByText(/Elevated tilt risk/)).toBeVisible();
   await page.getByRole('button', {name: '60s Reset', exact: true}).click();
   const resetDialog = page.getByRole('dialog', {name: '60s Tilt Reset'});
@@ -242,9 +254,8 @@ test('Readiness tilt guard, 60s Tilt Reset, Morning Brief and starter habits wor
   await page.getByRole('button', {name: 'Generate brief', exact: true}).click();
   await expect(page.locator('.mw-brief-result li')).toHaveCount(3);
 
-  // Mobile overflow check
   await page.setViewportSize({width: 390, height: 844});
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test('Pre-market resumes an exercise and keeps prep performance details tucked away', async ({page}) => {

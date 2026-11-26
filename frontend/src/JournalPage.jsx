@@ -9,6 +9,7 @@ import {PrimusHeader, localSitePreview} from './SiteExperience';
 import {PrimusSunbeams} from './components/PrimusAtmosphere';
 import JournalFocusSheet from './components/JournalFocusSheet';
 import {Modal, Select} from './components';
+import SlidingSelection from './SlidingSelection';
 import {JournalClock} from './JournalClock';
 import TradeForm from './TradeForm';
 import ReleaseNotes from './ReleaseNotes';
@@ -73,7 +74,7 @@ function JournalPrep({day}) {
   return <aside className="pj-prep-summary" aria-label="Pre-session checklist">
     <ListChecks size={19} aria-hidden="true"/>
     <div>
-      {items.length ? <details>
+      {items.length ? <details className="reveal-disclosure">
         <summary className="pj-prep-heading">
           <ChevronRight size={15} aria-hidden="true"/> {heading}
           {(!complete || !result.warmup_completed) &&
@@ -755,7 +756,7 @@ export default function JournalPage({theme = 'light'}) {
               <label className="pj-month"><span>{monthDate.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'})}</span><input type="month" aria-label="Browse month" value={month} disabled={busy} onChange={e => {if (e.target.value) setMonth(e.target.value);}}/></label>
               <button aria-label="Next month" disabled={busy} onClick={() => shiftMonth(1)}><ChevronRight size={18}/></button>
             </div>
-            <div className="pt-calendar-grid">
+            <div key={month} className="pt-calendar-grid pj-month-grid">
               {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((value, index) => <span key={'head' + index}>{value}</span>)}
               {Array.from({length: startOffset}, (_, index) => <span key={'blank' + index}/>)}
               {Array.from({length: monthDays}, (_, index) => {
@@ -779,7 +780,7 @@ export default function JournalPage({theme = 'light'}) {
             <p className="pj-calendar-legend"><span><i className="pj-day-dot win"/>Profit</span><span><i className="pj-day-dot loss"/>Loss</span><span><i className="pj-day-dot breakeven"/>Break-even</span></p>
           </div>
 
-          <details className="pj-history" open>
+          <details className="pj-history reveal-disclosure" open>
             <summary>{isFilteringEntries ? 'Matching entries' : 'Entries this month'} <span>{displayedEntries.length}</span></summary>
             <div className="pj-search-box">
               <Search size={14} aria-hidden="true"/>
@@ -797,7 +798,7 @@ export default function JournalPage({theme = 'light'}) {
                 </button>
               )}
             </div>
-            <div className="pj-filter-pills" role="group" aria-label="Filter journal entries">
+            <SlidingSelection className="pj-filter-pills" value={entryFilter} role="group" aria-label="Filter journal entries">
               {[
                 ['all', 'All'],
                 ['win', 'Wins'],
@@ -805,10 +806,10 @@ export default function JournalPage({theme = 'light'}) {
                 ['plan_no', 'Off-plan'],
                 ['trades', 'Trades'],
               ].map(([value, label]) => (
-                <button key={value} type="button" aria-pressed={entryFilter === value}
+                <button key={value} type="button" data-slide-value={value} aria-pressed={entryFilter === value}
                   onClick={() => setEntryFilter(value)}>{label}</button>
               ))}
-            </div>
+            </SlidingSelection>
             <div className="pt-recent-entries">
               {displayedEntries.map(row => {
                 const r = dailyResult(row);
@@ -947,21 +948,21 @@ export default function JournalPage({theme = 'light'}) {
           <div className="pj-session-checks pj-session-checks-3">
             <div className="pt-mindset pj-plan-field">
               <h3 id="journal-plan-followed">Plan followed?</h3>
-              <div role="group" aria-label="Plan followed?">
+              <SlidingSelection value={entry.plan_followed} role="group" aria-label="Plan followed?">
                 {['Yes', 'Partly', 'No'].map(option => <button key={option} type="button" disabled={busy}
-                  aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
+                  data-slide-value={option} aria-pressed={entry.plan_followed === option} onClick={() => edit('plan_followed', entry.plan_followed === option ? null : option)}>
                   {option}
                 </button>)}
-              </div>
+              </SlidingSelection>
             </div>
             <div className="pt-mindset pj-plan-field">
               <h3>Did you trade today?</h3>
-              <div role="group" aria-label="Did you trade today?">
+              <SlidingSelection value={entry.traded_today} role="group" aria-label="Did you trade today?">
                 {['Yes', 'No'].map(option => <button key={option} type="button" disabled={busy}
-                  aria-pressed={entry.traded_today === option} onClick={() => edit('traded_today', entry.traded_today === option ? null : option)}>
+                  data-slide-value={option} aria-pressed={entry.traded_today === option} onClick={() => edit('traded_today', entry.traded_today === option ? null : option)}>
                   {option}
                 </button>)}
-              </div>
+              </SlidingSelection>
               {entry.traded_today === 'No' && !entry.trades.length && <label className="pj-no-trade-check">
                 <input type="checkbox" checked={Boolean(entry.no_trade_plan)} disabled={busy}
                   onChange={event => edit('no_trade_plan', event.target.checked)}/>
@@ -970,12 +971,12 @@ export default function JournalPage({theme = 'light'}) {
             </div>
             <div className="pt-mindset pj-plan-field">
               <h3>How did you show up?</h3>
-              <div role="group" aria-label="Session mindset">
+              <SlidingSelection value={entry.mindset} role="group" aria-label="Session mindset">
                 {['Focused', 'Patient', 'Distracted', 'Frustrated'].map(value => (
-                  <button type="button" disabled={busy} key={value} aria-pressed={entry.mindset === value}
+                  <button type="button" disabled={busy} key={value} data-slide-value={value} aria-pressed={entry.mindset === value}
                     onClick={() => edit('mindset', entry.mindset === value ? 'Not set' : value)}>{value}</button>
                 ))}
-              </div>
+              </SlidingSelection>
             </div>
           </div>
 
@@ -1019,7 +1020,7 @@ export default function JournalPage({theme = 'light'}) {
           />
 
           {(identity.images_enabled ?? localSitePreview()) && (
-            <details className="pj-session-images" open={entry.images.some(image => !image.trade_id) || undefined}>
+            <details className="pj-session-images reveal-disclosure" open={entry.images.some(image => !image.trade_id) || undefined}>
               <summary>Session screenshots <span>Optional · charts for the whole day</span></summary>
               <JournalScreenshots images={entry.images.filter(image => !image.trade_id)} allImages={entry.images} day={day} busy={busy} onUpload={file => upload(file)} onRemove={removeImage} onView={setViewing}/>
             </details>

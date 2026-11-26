@@ -105,7 +105,12 @@ button.ce-square { cursor: pointer; }
 .ce-trigger:hover { color: inherit; }
 .ce-trigger:hover .ce-widget-status { text-decoration: underline; text-underline-offset: 3px; }
 .ce-widget-status { text-align: center; line-height: 1.25; }
-.ce-mini-pillars { display: grid; gap: 4px; min-width: 0; }
+.ce-mini-pillars {
+  display: grid; gap: 4px; min-width: 0;
+  --slide-fill: var(--pt-paper, #f4f5ef);
+  --slide-ink: var(--pt-ink, #202922);
+  --slide-radius: 7px;
+}
 .ce-mini-pillar {
   display: grid; align-content: center; gap: 4px; min-height: 40px; padding: 6px 8px;
   border: 1px solid transparent; border-radius: 7px; background: transparent; color: inherit;

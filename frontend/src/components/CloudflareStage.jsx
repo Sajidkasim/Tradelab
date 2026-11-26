@@ -9,6 +9,7 @@ import {
 import { api } from '../api';
 import { useBullpen } from '../hooks/usePresence';
 import { playDeskChime } from '../utils/deskChimes';
+import SlidingSelection from '../SlidingSelection';
 import {
   canInstantUnmute,
   drawBullpenPiPCard,
@@ -2042,12 +2043,13 @@ export default function CloudflareStage({
       {/* Slim top screen-switcher strip (outside the chart — never overlaps candles!) */}
       {!minimised && currentScreen && (
         <div className="bullpen-stage-topbar">
-          <div className="bullpen-screen-strip" role="tablist" aria-label="Shared screens">
+          <SlidingSelection className="bullpen-screen-strip" value={isDual ? 'dual' : `screen-${currentScreen.key}`} role="tablist" aria-label="Shared screens">
             {allScreens.map((s) => (
               <button
                 key={s.key}
                 type="button"
                 role="tab"
+                data-slide-value={`screen-${s.key}`}
                 aria-selected={!isDual && s.key === currentScreen.key}
                 onClick={() => { setDualMode(false); setActiveKey(s.key); }}
               >
@@ -2058,13 +2060,15 @@ export default function CloudflareStage({
               <button
                 type="button"
                 className={isDual ? 'is-dual-active' : ''}
+                data-slide-value="dual"
+                aria-pressed={isDual}
                 onClick={() => setDualMode((v) => !v)}
                 title="Show two screens side-by-side (50/50)"
               >
                 <Columns2 size={13} /> 50/50 Dual
               </button>
             )}
-          </div>
+          </SlidingSelection>
           <div className="bullpen-stage-hints">
             {pttActive && <span className="bullpen-hint-pill is-live">PTT LIVE</span>}
             {cropBox && <span className="bullpen-hint-pill">Cropped</span>}
@@ -2247,17 +2251,18 @@ export default function CloudflareStage({
                       <X size={14} />
                     </button>
                   </div>
-                  <div className="bullpen-settings-sections" role="group" aria-label="Settings sections">
+                  <SlidingSelection className="bullpen-settings-sections" value={activeSettingsSection} role="group" aria-label="Settings sections">
                     {[
                       ['audio', 'Audio'],
                       ...(currentScreen ? [['chart', 'Chart tools']] : []),
                       ['shortcuts', 'Shortcuts'],
                     ].map(([id, label]) => (
                       <button type="button" key={id} className="bullpen-bar-btn"
+                        data-slide-value={id}
                         aria-pressed={activeSettingsSection === id}
                         onClick={() => setSettingsSection(id)}>{label}</button>
                     ))}
-                  </div>
+                  </SlidingSelection>
                   {activeSettingsSection === 'audio' && <>
                     <div className="bullpen-settings-tools">
                       <button type="button" className={`bullpen-bar-btn${deafened ? ' is-warn' : ''}`}

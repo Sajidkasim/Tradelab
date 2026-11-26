@@ -8,6 +8,8 @@ test('full-page chart changes real timeframes, keeps studies through market/them
  await page.goto('http://127.0.0.1:8119/backtesting');
  await page.getByRole('button',{name:'New session',exact:true}).click();
  const setup=page.getByRole('dialog',{name:'New backtesting session',exact:true});
+ const setupLayout=setup.getByRole('group',{name:'Chart layout',exact:true});
+ await expect(setupLayout.locator('.sliding-selection-highlight')).toBeVisible();
  await setup.getByLabel('Trading date',{exact:true}).fill('2010-06-07');
  await setup.getByRole('button',{name:'Open session',exact:true}).click();
  const status=page.getByRole('status',{name:'Chart status',exact:true});
@@ -33,10 +35,16 @@ test('full-page chart changes real timeframes, keeps studies through market/them
  await expect(lines).toHaveAttribute('data-active','1');
  await page.getByRole('button',{name:'Cursor',exact:true}).click();
  await expect(lines).not.toHaveAttribute('data-active','1');
- await page.getByRole('group',{name:'Chart timeframe',exact:true}).getByRole('button',{name:'5m',exact:true}).click();
+ const timeframe=page.getByRole('group',{name:'Chart timeframe',exact:true});
+ const highlight=timeframe.locator('.sliding-selection-highlight');
+ const startX=(await highlight.boundingBox()).x;
+ await timeframe.getByRole('button',{name:'5m',exact:true}).click();
  await expect(status).toHaveText('Chart ready');
- await expect(page.getByRole('button',{name:'5m',exact:true})).toHaveAttribute('aria-pressed','true');
- await expect(page.locator('.bt-statusbar')).not.toContainText('1,341 bars');
+ const selectedTimeframe=timeframe.getByRole('button',{name:'5m',exact:true});
+ await expect(selectedTimeframe).toHaveAttribute('aria-pressed','true');
+ await expect.poll(async()=>Math.abs((await highlight.boundingBox()).x-(await selectedTimeframe.boundingBox()).x)).toBeLessThan(1);
+ expect((await highlight.boundingBox()).x).toBeGreaterThan(startX);
+ await expect(page.locator('.bt-ohlc-sym')).toHaveText('NQ · 5m');
  await page.getByRole('button',{name:'Indicators',exact:true}).click();
  let dialog=page.getByRole('dialog',{name:'Indicators',exact:true});
  await dialog.getByRole('searchbox',{name:'Find an indicator',exact:true}).fill('sma');
@@ -45,7 +53,7 @@ test('full-page chart changes real timeframes, keeps studies through market/them
  await dialog.getByRole('searchbox',{name:'Find an indicator',exact:true}).fill('');
  const studies=dialog.getByRole('region',{name:'Indicators on chart',exact:true});
  await expect(studies).toBeVisible();
- const title=await studies.locator('.bt-study-row').last().locator('span').innerText();
+ const title=await studies.locator('.bt-study-row').last().locator(':scope > span').innerText();
  await expect(studies.getByRole('button',{name:`Remove ${title}`,exact:true})).toBeVisible();
  await dialog.getByRole('button',{name:'Done',exact:true}).click();
  await page.screenshot({path:testInfo.outputPath('chart-desktop-light.png')});
@@ -54,7 +62,7 @@ test('full-page chart changes real timeframes, keeps studies through market/them
  await page.getByRole('combobox',{name:'Market',exact:true}).click();
  await page.getByRole('option',{name:'ES',exact:true}).click();
  await expect(status).toHaveText('Chart ready');
- await expect(page.locator('.bt-statusbar')).toContainText('ESM0');
+ await expect(page.locator('.bt-ohlc-sym')).toHaveText('ES · 15m');
  await page.getByRole('button',{name:'Switch to dark mode',exact:true}).click();
  await page.getByRole('button',{name:'Indicators',exact:true}).click();
  dialog=page.getByRole('dialog',{name:'Indicators',exact:true});

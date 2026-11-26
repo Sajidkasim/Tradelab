@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useId } from "react";
 import StyledSelect from "./StyledSelect";
+import SlidingSelection from "./SlidingSelection";
 import { X, ArrowRight, ChevronDown, Check } from "lucide-react";
 
 export function Button({
@@ -42,28 +43,27 @@ export function Field({ label, hint, children, className = "" }) {
 export function Select({ label, values, empty, ...props }) {
   return <StyledSelect label={label} values={empty ? [{ value: "", label: empty }, ...values] : values} {...props} />;
 }
-export function Segments({ values, value, onChange, label, disabled, sliding = false }) {
-  const selectedIndex = sliding ? values.findIndex((item) => (typeof item === "object" ? item.value : item) === value) : -1;
+export function Segments({ values, value, onChange, label, disabled, sliding = false, className = "" }) {
+  const options = values.map((item) => typeof item === "object" ? item : { value: item, label: item });
+  const buttons = options.map((item) => (
+    <button key={item.value} type="button" className={value === item.value ? "selected" : ""}
+      aria-pressed={value === item.value} data-slide-value={sliding === "adaptive" ? item.value : undefined}
+      disabled={disabled} onClick={() => onChange(item.value)}>
+      {!sliding && value === item.value && <Check size={13} aria-hidden="true" />}
+      {item.label}
+    </button>
+  ));
+  if (sliding === "adaptive") {
+    return <SlidingSelection className={`segments ${className}`} role="group" aria-label={label} value={value}>
+      {buttons}
+    </SlidingSelection>;
+  }
+  const selectedIndex = sliding ? options.findIndex((item) => item.value === value) : -1;
   return (
-    <div className={`segments${sliding ? " segments-sliding" : ""}`} role="group" aria-label={label}
+    <div className={`segments${sliding ? " segments-sliding" : ""} ${className}`} role="group" aria-label={label}
       style={sliding ? { "--segment-count": values.length, "--segment-index": selectedIndex } : undefined}>
       {selectedIndex >= 0 && <span className="segment-indicator" aria-hidden="true" />}
-      {values.map((v) => {
-        const item = typeof v === "object" ? v : { value: v, label: v };
-        return (
-          <button
-            key={item.value}
-            className={value === item.value ? "selected" : ""}
-            aria-pressed={value === item.value}
-            disabled={disabled}
-            onClick={() => onChange(item.value)}
-            type="button"
-          >
-            {!sliding && value === item.value && <Check size={13} aria-hidden="true" />}
-            {item.label}
-          </button>
-        );
-      })}
+      {buttons}
     </div>
   );
 }

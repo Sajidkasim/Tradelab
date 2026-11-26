@@ -11,6 +11,9 @@
   max-width: 540px;
 }
 .learn-path {
+  --slide-fill: color-mix(in srgb, var(--pt-focus) 15%, var(--pt-white));
+  --slide-ink: var(--pt-ink);
+  --slide-radius: var(--primus-radius-md);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 30px 0 18px;
@@ -22,12 +25,12 @@
   gap: 14px;
   text-align: left;
   border: 1px solid var(--pt-line);
-  background: var(--pt-white);
+  background: transparent;
   color: var(--pt-ink);
   padding: 19px 16px;
   border-radius: 8px;
   cursor: pointer;
-  min-height: 78px;
+  min-height: 52px;
   transition:
     background 0.15s,
     border-color 0.15s;
@@ -48,6 +51,10 @@
   background: var(--pt-ink);
   color: var(--pt-paper);
   border-color: var(--pt-ink);
+}
+:root .learn-path[data-slide-ready] button[data-slide-selected] { border-color: transparent; }
+.learn-path > .sliding-selection-highlight {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pt-focus) 45%, transparent);
 }
 .learn-path button[aria-pressed="true"] > span {
   color: inherit;
@@ -232,10 +239,11 @@
   .learn-glossary .wp-section-heading {
     align-items: stretch;
   }
+  .learn-path { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .learn-path button {
-    padding: 14px 12px;
+    padding: 9px 12px;
     gap: 9px;
-    min-height: 75px;
+    min-height: 42px;
   }
   .learn-path button strong {
     font-size: 12px;

@@ -66,7 +66,11 @@ test('Journal delays Plotly until its results chart is approached',async({page})
  await expect.poll(()=>plotly.length).toBe(1);
 });
 test('Matrix explains snapshot age, retains data after failed refresh and switches tabs cleanly',async({page})=>{
- await page.route('**/api/matrix/snapshot',r=>r.fulfill({json:{snapshot:{asOf:'2020-01-01T00:00:00Z',tickers:[{id:'dgs10',value:'4.31%',detail:'FRED · DGS10 · 2019-12-31'}]}}}));
+ const assets=['nq','es'].map((id,index)=>({
+  id,symbol:id.toUpperCase(),name:id.toUpperCase()+' Futures',category:'Index',
+  price:'100.25',score:75-index,rawScore:6,bias:'Bullish',
+ }));
+ await page.route('**/api/matrix/snapshot',r=>r.fulfill({json:{snapshot:{asOf:'2020-01-01T00:00:00Z',tickers:[{id:'dgs10',value:'4.31%',detail:'FRED · DGS10 · 2019-12-31'}],assets}}}));
  await page.route('**/api/matrix/refresh',r=>r.fulfill({status:503,json:{detail:'Unavailable'}}));
  await page.goto(origin+'/matrix');
  await expect(page.getByText('Snapshot older than 48 hours',{exact:true})).toBeVisible();
@@ -80,7 +84,15 @@ test('Matrix explains snapshot age, retains data after failed refresh and switch
  await expect(page.getByRole('dialog',{name:'The 6 market drivers'})).toContainText('2 of 8');
  await page.getByRole('button',{name:'Skip guide',exact:true}).click();
  await expect(page.locator('dialog.mx-tour')).toHaveCount(0);
- await page.getByRole('tab',{name:/Positioning & Liquidity/}).click();
+ const scoreboard=page.locator('.mx-scoreboard-selection');
+ const highlight=scoreboard.locator('.sliding-selection-highlight');
+ const beforeY=(await highlight.boundingBox()).y;
+ await scoreboard.getByRole('button',{name:'ES',exact:true}).press('Enter');
+ await expect(page.getByRole('heading',{name:'ES · Pillar Breakdown',exact:true})).toBeVisible();
+ await expect.poll(async()=>(await highlight.boundingBox()).y).toBeGreaterThan(beforeY);
+ const tabs=page.getByRole('tablist',{name:'Matrix desk sections'});
+ await tabs.getByRole('tab',{name:/Positioning & Liquidity/}).click();
+ await expect(tabs.locator('[data-slide-selected]')).toHaveText('Positioning & Liquidity');
  await expect(page.getByRole('heading',{name:'COT Institutional Positioning'})).toBeVisible();
  await page.getByRole('tab',{name:/Catalyst Calendar/}).click();
  await expect(page.getByRole('heading',{name:'High-Impact US Economic Calendar'})).toBeVisible();

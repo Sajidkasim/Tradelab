@@ -4,6 +4,7 @@ import {WorkspaceEntrance} from './PrimusSignIn';
 import {api,setCsrf} from './api';
 import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
+import SlidingSelection from './SlidingSelection';
 import ReplayEconomicCalendar from './ReplayEconomicCalendar';
 import {clockParts} from './replayClock';
 import ReplayClosePosition from './ReplayClosePosition';
@@ -276,8 +277,8 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
   </section>
   <section className="bt-session-section" aria-labelledby="bt-layout-heading">
     <h3 id="bt-layout-heading">Chart layout</h3>
-    <div className="bt-layout-choices" role="group" aria-labelledby="bt-layout-heading">
-      {layoutChoices.map(({count,label})=><button className="bt-layout-choice" key={count} type="button"
+    <SlidingSelection className="bt-layout-choices" value={form.paneCount} role="group" aria-labelledby="bt-layout-heading">
+      {layoutChoices.map(({count,label})=><button className="bt-layout-choice" key={count} type="button" data-slide-value={count}
         aria-pressed={form.paneCount===count} onClick={()=>setForm(current=>({...current,paneCount:count,
           comparison_charts:[0,1].map(index=>comparisonMarkets.includes(current.comparison_charts[index])&&
             (index<current.paneCount-1 || current.paneCount===count)
@@ -288,7 +289,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
         </span>
         {label}
       </button>)}
-    </div>
+    </SlidingSelection>
     {form.paneCount>1&&<>
       <div className="form-grid two">
         {form.comparison_charts.slice(0,form.paneCount-1).map((symbol,index)=><Select key={index}

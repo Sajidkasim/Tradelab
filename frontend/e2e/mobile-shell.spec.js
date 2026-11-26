@@ -43,3 +43,26 @@ test("home actions and mobile navigation keep readable contrast in both themes",
     await page.getByRole("button", { name: "Close navigation" }).click();
   }
 });
+
+test("workspace navigation uses the same moving indicator on desktop and mobile", async ({ page }) => {
+  await page.goto("http://127.0.0.1:8119/journal");
+  const navigation = page.getByRole("navigation", { name: "Primus navigation" });
+  const selection = navigation.locator(".sliding-selection-highlight");
+  await expect(navigation.getByRole("link", { name: "Journal", exact: true })).toHaveAttribute("data-slide-selected", "");
+  const journalX = (await selection.boundingBox()).x;
+  await navigation.getByRole("link", { name: "Strategy Lab", exact: true }).click();
+  await expect(navigation.getByRole("link", { name: "Strategy Lab", exact: true })).toHaveAttribute("data-slide-selected", "");
+  await expect.poll(async () => (await selection.boundingBox()).x).toBeGreaterThan(journalX);
+
+  await page.setViewportSize({ width: 320, height: 760 });
+  const dock = page.getByRole("navigation", { name: "Mobile workspace bar" });
+  await expect(dock.getByRole("link", { name: "Lab", exact: true })).toHaveAttribute("data-slide-selected", "");
+  const marker = dock.locator(".sliding-selection-highlight");
+  const labX = (await marker.boundingBox()).x;
+  await dock.getByRole("link", { name: "Journal", exact: true }).click();
+  await expect(dock.getByRole("link", { name: "Journal", exact: true })).toHaveAttribute("data-slide-selected", "");
+  await expect.poll(async () => (await marker.boundingBox()).x).toBeLessThan(labX);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(marker).toHaveCSS("transition-duration", "0s");
+});

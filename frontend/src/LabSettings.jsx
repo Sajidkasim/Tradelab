@@ -138,6 +138,7 @@ export default function LabSettings({ meta, refresh, toast, onClose, onCreateFil
       >
         <Segments
           label="Lab settings sections"
+          sliding="adaptive"
           values={[
             { value: "context", label: "Time & Context" },
             { value: "setup", label: "Setup Labels" },

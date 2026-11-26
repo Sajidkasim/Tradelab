@@ -148,7 +148,7 @@ export default function LabResultsDesk({
     />
     <KeyMetrics sources={sources}/>
     <div className="lab-results-actions">
-      <details className="r-explainer">
+      <details className="r-explainer reveal-disclosure">
         <summary>What does R mean?</summary>
         <p>R measures a result against the original trade risk. +1R is a gain equal to the amount risked. R metrics use closed trades with recorded risk.</p>
       </details>

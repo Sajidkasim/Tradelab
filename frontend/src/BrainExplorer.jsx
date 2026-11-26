@@ -10,6 +10,7 @@ import {
 } from "./brainModel";
 import "./brain-explorer.css";
 import AnatomyExplorer from "./AnatomyExplorer";
+import SlidingSelection from "./SlidingSelection";
 
 function BrainScene({ selected, inside, onSelect }) {
   const canvas = useRef(null),
@@ -244,10 +245,13 @@ export default function BrainExplorer() {
           }
         />
         <div className="brain-reading">
-          <div className="brain-tabs" role="group" aria-label="Brain regions">
+          <SlidingSelection className="brain-tabs" value={selected} role="group" aria-label="Brain regions"
+            style={{ "--brain-selection": region.color }}>
             {BRAIN_REGIONS.map((r) => (
               <button
                 key={r.id}
+                type="button"
+                data-slide-value={r.id}
                 style={{ "--region-color": r.color }}
                 aria-pressed={selected === r.id}
                 onClick={() => select(r.id)}
@@ -255,7 +259,7 @@ export default function BrainExplorer() {
                 {r.short}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
           <div
             className="brain-region-copy"
             aria-live="polite"

@@ -12,7 +12,12 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   const labNav=await page.getByRole('navigation',{name:'Primus navigation'}).boundingBox();
   expect(labBrand.x).toBe(brand.x);expect(labBrand.y).toBe(brand.y);
   expect(Math.abs(labNav.x-nav.x)).toBeLessThan(2);
+  const labRail = page.getByRole('complementary',{name:'Strategy Lab quick views',exact:true});
+  const railHighlight = labRail.locator('.sliding-selection-highlight');
+  await expect(railHighlight).toBeVisible();
+  const firstRailY = (await railHighlight.boundingBox()).y;
   await page.getByRole('button',{name:/^Filters/}).click();
+  await expect.poll(async () => (await railHighlight.boundingBox()).y).toBeGreaterThan(firstRailY);
   await expect(page.locator('.sl-filter-drawer')).toHaveClass(/is-open/);
   await page.getByRole('combobox',{name:'Strategy',exact:true}).click();
   await page.getByRole('option',{name:'Reversal at key level',exact:true}).click();
@@ -29,7 +34,9 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
     if(width<521)await page.getByRole('button',{name:'Open navigation',exact:true}).click();
     await page.getByRole('button',{name:'My lab',exact:true}).click();
     await page.getByRole('button',{name:'Lab settings',exact:true}).click();
-    await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toBeVisible();
+    const settings = page.getByRole('dialog',{name:'Lab settings',exact:true});
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole('group',{name:'Lab settings sections',exact:true}).locator('.sliding-selection-highlight')).toBeVisible();
     await page.getByRole('button',{name:'Close',exact:true}).click();
     await expect(page.getByRole('dialog',{name:'Lab settings',exact:true})).toHaveCount(0);
     if(width<521)await page.getByRole('button',{name:'Close navigation',exact:true}).click();

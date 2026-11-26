@@ -9,6 +9,7 @@ import WorkspaceResume from './WorkspaceResume';
 import PrimusSignIn from './PrimusSignIn';
 import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
+import SlidingSelection from './SlidingSelection';
 import { api, setCsrf } from './api';
 import PrimusCompass from './components/PrimusCompass';
 import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
@@ -86,18 +87,21 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     <header className={`pt-header ${actions ? 'has-tools' : ''}`}>
       <a className="pt-wordmark" href="/" aria-label="PrimusTrader home"><PrimusCompass size={26} /><span>PRIMUS<span>TRADER</span></span></a>
       <button className="pt-mobile-toggle" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? <X /> : <MenuIcon />}</button>
-      <nav onClick={(event) => { if (event.target.closest('a')) setOpen(false); }} onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.currentTarget.previousElementSibling?.focus(); } }} className={open ? 'is-open' : ''} aria-label="Primus navigation">
-        <a className="pt-nav-primary" href="/journal" aria-current={active === 'journal' ? 'page' : undefined}>Journal</a>
-        <a className="pt-nav-primary" href="/lab" aria-current={active === 'lab' ? 'page' : undefined}>Strategy Lab</a>
+      <SlidingSelection as="nav" value={active} transitionKey="site-navigation" axis={open ? 'vertical' : 'horizontal'}
+        onClick={(event) => { if (event.target.closest('a')) setOpen(false); }}
+        onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.currentTarget.previousElementSibling?.focus(); } }}
+        className={open ? 'is-open' : ''} aria-label="Primus navigation">
+        <a className="pt-nav-primary" href="/journal" data-slide-value="journal" aria-current={active === 'journal' ? 'page' : undefined}>Journal</a>
+        <a className="pt-nav-primary" href="/lab" data-slide-value="lab" aria-current={active === 'lab' ? 'page' : undefined}>Strategy Lab</a>
         <hr className="pt-mobile-nav-divider" />
-        <a href="/mindset" aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
-        {replayEnabled && <a href="/backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
-        <a href="/learn" aria-current={active === 'learn' ? 'page' : undefined}>
+        <a href="/mindset" data-slide-value="mindset" aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
+        {replayEnabled && <a href="/backtesting" data-slide-value="backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
+        <a href="/learn" data-slide-value="learn" aria-current={active === 'learn' ? 'page' : undefined}>
           Learn {Boolean(bullpen?.people.length) && <span className="bullpen-live"><span className="primus-live-dot" aria-hidden="true" /> LIVE · {bullpen.people.length}</span>}
         </a>
-        <a href="/matrix" aria-current={active === 'matrix' ? 'page' : undefined}>The Matrix</a>
+        <a href="/matrix" data-slide-value="matrix" aria-current={active === 'matrix' ? 'page' : undefined}>The Matrix</a>
         {member?.can_lock && <button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
-      </nav>
+      </SlidingSelection>
       {actions ? (
         <div className="pt-header-tools">{cmdButton}{themeControl}{actions}</div>
       ) : (
@@ -111,14 +115,15 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     </header>
     <LearningTrail />
     {showMobileDock && (
-      <nav className="primus-mobile-dock" aria-label="Mobile workspace bar">
+      <SlidingSelection as="nav" className="primus-mobile-dock" aria-label="Mobile workspace bar"
+        value={active} transitionKey="mobile-dock">
         {MOBILE_DOCK_ITEMS.map(({ id, label, href, icon: Icon }) => (
-          <a key={id} href={href} aria-current={active === id ? 'page' : undefined}>
+          <a key={id} href={href} data-slide-value={id} aria-current={active === id ? 'page' : undefined}>
             <Icon size={17} strokeWidth={1.75} aria-hidden="true" />
             <span>{label}</span>
           </a>
         ))}
-      </nav>
+      </SlidingSelection>
     )}
     <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} theme={currentTheme} onToggleTheme={toggleTheme} />
   </>;
@@ -190,17 +195,17 @@ function HeroStudy({ windowRef }){
     <div className="pt-hero-3d-stage">
       <div ref={windowRef} className="pt-portal-window" aria-label="Interactive preview of the PrimusTrader desk">
         <div className="pt-portal-bar">
-          <div className="pt-portal-tabs" role="tablist" aria-label="Desk preview views">
+          <SlidingSelection className="pt-portal-tabs" role="tablist" aria-label="Desk preview views" value={deskTab}>
             {[
               ['study', 'Setup Study'],
               ['matrix', 'The Matrix'],
               ['journal', 'Daily Journal'],
             ].map(([id, label]) => (
-              <button key={id} type="button" role="tab" aria-selected={deskTab === id} onClick={() => setDeskTab(id)}>
+              <button key={id} type="button" role="tab" data-slide-value={id} aria-selected={deskTab === id} onClick={() => setDeskTab(id)}>
                 {label}
               </button>
             ))}
-          </div>
+          </SlidingSelection>
           <span className="pt-portal-pill"><span className="primus-live-dot" aria-hidden="true" /> PRIMUS DESK</span>
         </div>
 

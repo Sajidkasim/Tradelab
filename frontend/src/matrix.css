@@ -180,6 +180,9 @@
 
 /* Section Tabs */
 .mx-tabs {
+  --slide-fill: var(--mx-accent-soft);
+  --slide-ink: var(--mx-ink);
+  --slide-radius: var(--primus-radius-control);
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -195,6 +198,7 @@
   align-items: center;
   gap: 7px;
   padding: 8px 14px;
+  min-height: 36px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -276,6 +280,27 @@
   background: var(--mx-accent-soft);
   box-shadow: inset 3px 0 0 var(--mx-accent);
 }
+.mx-scoreboard-selection {
+  --slide-fill: var(--mx-accent-soft);
+  --slide-radius: 0;
+}
+.mx-scoreboard-selection > .sliding-selection-highlight {
+  box-shadow: inset 3px 0 0 var(--mx-accent);
+}
+.mx-scoreboard-selection[data-slide-ready] .mx-row-active {
+  background: transparent;
+  box-shadow: none;
+}
+.mx-asset-select {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mx-ink);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.mx-asset-select:hover { text-decoration: underline; text-underline-offset: 3px; }
 .mx-table-row {
   cursor: pointer;
   transition: background .12s;
@@ -307,8 +332,8 @@
 }
 @media (max-width: 600px) {
   .mx-decision-strip { grid-template-columns: 1fr; }
-  .mx-tabs { width: 100%; }
-  .mx-tabs button { flex: 1; justify-content: center; padding: 8px 8px; font-size: 12px; }
+  .mx-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; border-radius: 14px; }
+  .mx-tabs button { min-height: 40px; justify-content: center; padding: 7px 6px; font-size: 12px; text-align: center; }
 }
 
 /* Interactive Spotlight Guided Tour (matches Strategy Lab GuidedTour) */
@@ -449,23 +474,48 @@
   border-bottom: 1px solid var(--mx-border);
   background: var(--mx-surface);
 }
-.mx-briefing-controls {
+.mx-briefing-controls,
+.mx-range-controls {
+  --slide-fill: var(--mx-accent-soft);
+  --slide-ink: var(--mx-ink);
+  --slide-radius: var(--primus-radius-control);
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 10px;
+  max-width: 100%;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--primus-radius-control);
   border: 1px solid var(--mx-border);
   background: var(--mx-surface-2);
 }
-.mx-briefing-controls .mx-btn {
+:is(.mx-briefing-controls, .mx-range-controls) > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--primus-radius-control);
+  background: transparent;
+  color: var(--mx-ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  cursor: pointer;
+}
+:is(.mx-briefing-controls, .mx-range-controls) > button[aria-pressed="true"] {
+  background: var(--mx-accent-soft);
+  color: var(--mx-ink);
+}
+:root .matrix-terminal :is(.mx-tabs, .mx-briefing-controls, .mx-range-controls)[data-slide-ready] > [data-slide-selected] {
   border-color: transparent;
   background: transparent;
-  padding: 6px 12px;
+  color: var(--slide-ink);
+  filter: none;
 }
-.mx-briefing-controls .mx-btn.is-primary {
-  border-color: var(--mx-accent);
-  background: var(--mx-accent);
+.matrix-terminal :is(.mx-tabs, .mx-briefing-controls, .mx-range-controls) > .sliding-selection-highlight {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mx-accent) 40%, transparent);
 }
 .mx-briefing-frame {
   padding: 12px 16px 0;
@@ -532,7 +582,7 @@
   .mx-briefing-controls {
     width: 100%;
   }
-  .mx-briefing-controls .mx-btn {
+  .mx-briefing-controls > button {
     flex: 1;
     justify-content: center;
   }

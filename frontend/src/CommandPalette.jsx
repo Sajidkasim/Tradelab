@@ -3,6 +3,7 @@ import {
   BookOpen, Brain, Compass, FlaskConical, Home, Moon, NotebookPen, PlayCircle, Search, Sun,
 } from 'lucide-react';
 import { navigateTo } from './paths';
+import SlidingSelection from './SlidingSelection';
 
 const COMMANDS = [
   { id: 'journal', label: 'Daily Journal', sub: 'Log trades, prop accounts & session notes', href: '/journal', icon: NotebookPen, key: 'G J' },
@@ -100,7 +101,8 @@ export default function CommandPalette({ open, onClose, theme, onToggleTheme }) 
           />
           <button type="button" className="primus-cmd-esc" onClick={onClose}>Esc</button>
         </div>
-        <div className="primus-cmd-list" role="listbox" aria-label="Workspace shortcuts">
+        <SlidingSelection className="primus-cmd-list" role="listbox" aria-label="Workspace shortcuts"
+          axis="vertical" value={items[selected]?.id}>
           {items.length ? items.map((item, idx) => {
             const Icon = item.icon;
             return (
@@ -108,6 +110,7 @@ export default function CommandPalette({ open, onClose, theme, onToggleTheme }) 
                 key={item.id}
                 type="button"
                 role="option"
+                data-slide-value={item.id}
                 aria-selected={idx === selected}
                 className="primus-cmd-item"
                 onMouseEnter={() => setSelected(idx)}
@@ -126,7 +129,7 @@ export default function CommandPalette({ open, onClose, theme, onToggleTheme }) 
           }) : (
             <div className="primus-cmd-empty">No matching page or command.</div>
           )}
-        </div>
+        </SlidingSelection>
       </div>
     </div>
   );

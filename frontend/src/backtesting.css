@@ -12,6 +12,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-timeframes{display:flex;gap:3px;align-items:center;flex-shrink:0}
 .bt-timeframes button{font-weight:550;min-width:34px;padding:0 9px;color:var(--bt-muted)}
 .bt-timeframes button[aria-pressed=true]{background:var(--bt-selected);color:var(--bt-accent)}
+.bt-timeframes, .bt-seg { --slide-fill: var(--bt-selected); --slide-ink: var(--bt-accent); --slide-radius: 6px; }
 .bt-tools{display:flex;align-items:center;gap:4px;margin-left:auto;border-left:1px solid var(--bt-border);padding-left:10px}
 .bt-toolbar .bt-icon{width:36px;padding:0}
 .bt-canvas-area{position:relative;flex:1;min-height:0;min-width:0;overflow:hidden;background:var(--bt-bg)}
@@ -270,7 +271,7 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-session-section { display: grid; gap: .75rem; min-width: 0; }
 .bt-session-section + .bt-session-section { border-top: 1px solid var(--desk-border, #8884); padding-top: 1rem; }
 .bt-session-section h3 { margin: 0; font-size: .95rem; font-weight: 650; }
-.bt-layout-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.bt-layout-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; --slide-fill: var(--desk-selected); --slide-ink: var(--desk-ink); --slide-radius: 12px; }
 .bt-layout-choice { display: grid; place-items: center; gap: .45rem; padding: .6rem .25rem; min-height: 64px; border: 1px solid var(--desk-border, #8884); border-radius: 12px; background: transparent; color: inherit; font: inherit; font-size: .8rem; cursor: pointer; }
 .bt-layout-choice[aria-pressed="true"] { border-color: currentColor; background: color-mix(in srgb, currentColor 7%, transparent); font-weight: 650; }
 .bt-layout-choice:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -402,6 +403,12 @@ body:has(.backtesting-workspace){overflow:hidden}
 .bt-seg button[aria-pressed="true"] {
   background: var(--bt-selected);
   color: var(--bt-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(.bt-toolbar, .bt-replaybar, .bt-position-strip, .bt-price-ticket) button:active:not(:disabled) {
+    filter: brightness(.89);
+  }
+  .bt-jump-menu { animation: primus-control-reveal 155ms ease-out both; }
 }
 .bt-snap-btn.is-done {
   background: rgba(38, 166, 154, .18);
@@ -649,3 +656,17 @@ body:has(.backtesting-workspace){overflow:hidden}
   .bt-mini-stats { display: none; }
 }
 
+
+/* The shared toolbar owns the scroll on phones, including the timeframe row. */
+@media (max-width: 720px) {
+  .bt-shared-toolbar .bt-toolbar .bt-timeframes {
+    width: auto;
+    max-width: none;
+    order: 0;
+    justify-content: flex-start;
+    padding-top: 0;
+    border-top: 0;
+    overflow: visible;
+  }
+  .bt-shared-toolbar .bt-toolbar .bt-timeframes button { flex: none; }
+}

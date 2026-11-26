@@ -84,7 +84,9 @@ test(`private Bullpen works with ${desktopMode?'desktop-site tablet':'Android'} 
   await page.getByRole('textbox',{name:'Team message'}).fill('Watching the open.');
   await page.getByRole('button',{name:'Send message',exact:true}).click();
   await expect(page.getByRole('log')).toContainText('Watching the open.');
-  await page.getByRole('button',{name:'News'}).click();
+  const sideTabs = page.getByRole('group',{name:'Sidebar view'});
+  await sideTabs.getByRole('button',{name:'News'}).click();
+  await expect(sideTabs.locator('[data-slide-selected]')).toHaveText('News');
   await expect(page.getByLabel('Desk macro, calendar, and live squawk',{exact:true})).toBeVisible();
   await page.getByTitle('Test video room').evaluate(frame=>{window.originalBullpenFrame=frame});
   await page.getByRole('button',{name:'Minimise',exact:true}).click();
@@ -179,13 +181,17 @@ test('Trading Floor groups settings and replaces the desk overview while sharing
   await expect(page.getByText('Previous day high', {exact: true})).toBeVisible();
   await expect(page.getByText('Upcoming test release', {exact: true})).toBeVisible();
   const controls = page.getByRole('group', {name: 'Trading Floor stage controls'});
-  await expect(controls.getByRole('button')).toHaveCount(2);
+  await expect(controls.getByRole('button', {name: 'Unmute', exact: true})).toBeVisible();
+  await expect(controls.getByRole('button', {name: 'Keep alive', exact: true})).toBeVisible();
   const settingsBtn = controls.getByRole('button', {name: 'Settings', exact: true});
   await expect(settingsBtn).toBeVisible();
   await settingsBtn.click();
 
   const dialog = page.getByRole('dialog', {name: 'Trading Floor settings', exact: true});
   await expect(dialog).toBeVisible();
+  const settingsSections = dialog.getByRole('group', {name: 'Settings sections'});
+  const settingsHighlight = settingsSections.locator('.sliding-selection-highlight');
+  await expect(settingsSections.locator('[data-slide-selected]')).toHaveText('Audio');
   await dialog.getByLabel('Input microphone', {exact: true}).selectOption('mic-usb');
   const gain = dialog.getByLabel('Microphone input volume', {exact: true});
   await gain.fill('140');
@@ -203,7 +209,10 @@ test('Trading Floor groups settings and replaces the desk overview while sharing
   await expect(dialog.getByRole('button', {name: 'Desk chimes'})).toBeVisible();
   await expect(dialog.getByLabel('Screen share quality')).toHaveCount(0);
   await expect(dialog.getByRole('button', {name: 'Theater mode'})).toHaveCount(0);
-  await dialog.getByRole('button', {name: 'Shortcuts', exact: true}).click();
+  const settingsX = (await settingsHighlight.boundingBox()).x;
+  await settingsSections.getByRole('button', {name: 'Shortcuts', exact: true}).click();
+  await expect.poll(async () => (await settingsHighlight.boundingBox()).x).toBeGreaterThan(settingsX);
+  await expect(settingsSections.locator('[data-slide-selected]')).toHaveText('Shortcuts');
   await expect(dialog.getByText('Push to talk', {exact: true})).toBeVisible();
   await page.setViewportSize({width:390,height:844});
   await page.keyboard.press('Escape');

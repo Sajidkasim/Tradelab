@@ -333,3 +333,31 @@
 
 /* Keep the old Plotly canvas contained until its resize handler catches up. */
 .sl-equity-card .chart { overflow: clip; }
+
+.pt-lab #results .sl-page-dock.sliding-selection {
+  --slide-radius: 11px;
+}
+.pt-lab #results .sl-page-dock .sliding-selection-highlight {
+  box-shadow: inset 0 0 0 1px var(--primus-border-strong);
+}
+.pt-lab #results .sl-page-dock[data-slide-ready] > [data-slide-selected]:hover {
+  background: transparent;
+}
+:root .pt-lab .lab-grid .explorer .segments.sliding-selection {
+  --slide-radius: var(--primus-radius-sm);
+  border-radius: var(--primus-radius-md);
+}
+:root .pt-lab .lab-grid .explorer .segments.sliding-selection > button {
+  border-radius: var(--primus-radius-sm);
+}
+.lab-settings-modal .lab-settings-form > .sliding-selection {
+  --slide-radius: var(--primus-radius-sm);
+}
+@media (max-width: 480px) {
+  .lab-settings-modal .lab-settings-form > .sliding-selection {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lab-breakdown-desk { animation: primus-control-reveal 155ms ease-out both; }
+}

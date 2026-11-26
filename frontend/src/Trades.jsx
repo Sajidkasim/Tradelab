@@ -181,6 +181,7 @@ export default function Trades({
       <div className="trade-review-toolbar">
         <Segments
           label="Trade list"
+          sliding="adaptive"
           values={[
             { value: "all", label: "All trades" },
             { value: "unfinished", label: `To finish · ${pendingCount}` },

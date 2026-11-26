@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import LabHistory from './LabHistory';
+import SlidingSelection from './SlidingSelection';
 import { money } from './format';
 
 export const ACCOUNT_SCOPES = [
@@ -167,11 +168,12 @@ const periods = { '1W': 7, '1M': 30, '3M': 90, All: null };
 const MAX_ACCOUNT_CHIPS = 6;
 
 function Chips({ label, choices, value, onChange }) {
-  return <div className="segments" role="group" aria-label={label}>
-    {choices.map(choice => <button key={String(choice.value ?? 'all')} type="button"
+  const choiceKey = (id) => id === null ? 'all-accounts' : String(id);
+  return <SlidingSelection className="segments" value={choiceKey(value)} role="group" aria-label={label}>
+    {choices.map(choice => <button key={choiceKey(choice.value)} type="button" data-slide-value={choiceKey(choice.value)}
       className={value === choice.value ? 'selected' : ''} aria-pressed={value === choice.value}
       onClick={() => onChange(choice.value)}>{choice.label}</button>)}
-  </div>;
+  </SlidingSelection>;
 }
 
 export function computeDisciplineInsights(rows, filter, accounts) {

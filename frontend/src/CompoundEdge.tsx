@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { ArrowUpRight, Check, Circle, X } from "lucide-react";
 import TradingRings, { ringPillars, type PillarScores } from "./TradingRings";
 import { api } from "./api";
+import SlidingSelection from "./SlidingSelection";
 import "./compound-edge.css";
 
 type TaskKey = "checklist" | "mindset" | "journal" | "plan" | "replay" | "lab";
@@ -183,7 +184,7 @@ function RestDaySettings({ days, onSaved }: { days: number[]; onSaved: (data: Ha
       setSaving(false);
     }
   }
-  return <details>
+  return <details className="reveal-disclosure">
     <summary>Rest days</summary>
     <fieldset className="ce-rest-settings" disabled={saving}>
       <legend>Skip these weekdays when counting streaks</legend>
@@ -321,10 +322,10 @@ export default function CompoundEdge() {
         <TradingRings scores={pillars} />
         <span className="ce-widget-status">{message || "View details"}</span>
       </button>
-      <div className="ce-mini-pillars">
+      <SlidingSelection className="ce-mini-pillars" value={data ? pillar : null} axis="vertical" role="group" aria-label="Aura pillars">
         {ringPillars.map(({ name, cap, color }, i) => {
           const value = pillars[i];
-          return <button key={name} type="button" className="ce-mini-pillar" disabled={!data}
+          return <button key={name} type="button" className="ce-mini-pillar" data-slide-value={i} disabled={!data}
             aria-expanded={data ? pillar === i : undefined} aria-controls={pillarDetailsId}
             onClick={() => setPillar(current => current === i ? null : i)}>
             <span className="ce-mini-pillar-row">
@@ -335,7 +336,7 @@ export default function CompoundEdge() {
             </span>
           </button>;
         })}
-      </div>
+      </SlidingSelection>
     </div>
     <div className="ce-pillar-details ce-action" id={pillarDetailsId} hidden={pillar === null || !data}>
       {data && pillar !== null && <PillarTasks index={pillar} data={data} onJump={close} />}

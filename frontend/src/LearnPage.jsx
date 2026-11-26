@@ -81,7 +81,7 @@ export default function LearnPage() {
             {access.configured && !bullpen.connected && <p role="status">Connecting private chat…</p>}
           </div>
           {access.configured && access.provider !== 'cloudflare' && !isRoomActive && (
-            <details className="bullpen-android" open={isAndroid}>
+            <details className="bullpen-android reveal-disclosure" open={isAndroid}>
               <summary>Android screen sharing</summary>
               <div className="bullpen-android-actions">
                 <p>If you already have Jitsi Meet, prepare the link and open the app to join the Bullpen. Then choose Screen sharing in the call menu.</p>
