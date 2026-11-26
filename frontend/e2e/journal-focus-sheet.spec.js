@@ -56,3 +56,29 @@ test('Journal Focus Sheet reads all three sections clearly, edits live, and pers
   await sheet.getByRole('button', { name: 'Close expanded journal', exact: true }).click();
   await expect(sheet).toHaveCount(0);
 });
+
+test('Journal views and writing sections share the sliding highlight', async ({page}) => {
+  await page.setViewportSize({width: 320, height: 760});
+  await page.goto(`${origin}/journal`);
+  const views = page.getByRole('tablist', {name: 'Journal views'});
+  const viewHighlight = views.locator('.segment-indicator');
+  const log = views.getByRole('tab', {name: 'Daily Log'});
+  await log.click();
+  await expect(log).toHaveAttribute('aria-selected', 'true');
+  const logX = (await viewHighlight.boundingBox()).x;
+  await expect(viewHighlight).toHaveCSS('transition-duration', '0.24s');
+  await views.getByRole('tab', {name: 'Performance'}).click();
+  await expect.poll(async () => (await viewHighlight.boundingBox()).x).toBeGreaterThan(logX);
+  await log.click();
+
+  const sections = page.getByRole('tablist', {name: 'Session writing sections'});
+  const highlight = sections.locator('.segment-indicator');
+  const beforeX = (await highlight.boundingBox()).x;
+  await sections.getByRole('tab', {name: /After the session/}).click();
+  await expect.poll(async () => (await highlight.boundingBox()).x).toBeGreaterThan(beforeX);
+  await expect(page.getByRole('textbox', {name: 'After the session'})).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.emulateMedia({reducedMotion: 'reduce'});
+  await expect(viewHighlight).toHaveCSS('transition-duration', '0s');
+  await expect(highlight).toHaveCSS('transition-duration', '0s');
+});

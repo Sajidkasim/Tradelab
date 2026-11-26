@@ -707,7 +707,9 @@ export default function JournalPage({theme = 'light'}) {
           <p>Your session, your trades and the story behind them. All in one place.</p>
         </div>
         <div className="pj-heading-actions">
-          <div className="pj-view-switch" role="tablist" aria-label="Journal views">
+          <div className="pj-view-switch segments-sliding" role="tablist" aria-label="Journal views"
+            style={{'--segment-count': 3, '--segment-index': ['log', 'performance', 'accounts'].indexOf(journalView)}}>
+            <span className="segment-indicator" aria-hidden="true"/>
             <button
               type="button"
               role="tab"
@@ -871,9 +873,11 @@ export default function JournalPage({theme = 'light'}) {
             {notice && <div className="pt-journal-success" role="status">{notice}{undoId && <button className="pj-undo" onClick={() => restoreDay(undoId)} disabled={busy}><Undo2 size={15}/> Undo</button>}</div>}
           </div>}
 
-          <div className="pt-entry-tabs" role="tablist" aria-label="Session writing sections">
+          <div className="pt-entry-tabs segments-sliding" role="tablist" aria-label="Session writing sections"
+            style={{'--segment-count': sections.length, '--segment-index': sections.findIndex(item => item.id === section)}}>
+            <span className="segment-indicator" aria-hidden="true"/>
             {sections.map((item, index) => (
-              <button key={item.id} role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section === item.id} onClick={() => setSection(item.id)}>
+              <button key={item.id} type="button" role="tab" id={`tab-${item.id}`} aria-controls={`panel-${item.id}`} aria-selected={section === item.id} onClick={() => setSection(item.id)}>
                 <span>0{index + 1}</span>{item.label}{entry[item.id]?.trim() && <Check size={14}/>}
               </button>
             ))}

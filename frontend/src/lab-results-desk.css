@@ -234,17 +234,6 @@
   padding: var(--segment-inset);
   border-radius: 999px;
 }
-.pt-lab .segments-sliding .segment-indicator {
-  position: absolute;
-  z-index: -1;
-  inset: var(--segment-inset) auto var(--segment-inset) var(--segment-inset);
-  width: calc((100% - 2 * var(--segment-inset)) / var(--segment-count));
-  border-radius: 999px;
-  background: var(--tl-accent);
-  transform: translateX(calc(var(--segment-index) * 100%));
-  transition: transform 240ms cubic-bezier(.22, .75, .25, 1);
-  pointer-events: none;
-}
 :root .pt-lab #results > .toolbar .segments-sliding button.selected {
   background: transparent;
   color: var(--pt-paper);
@@ -258,6 +247,5 @@
   transition: color 160ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pt-lab .segments-sliding .segment-indicator,
   :root .pt-lab #results > .toolbar .segments-sliding button { transition: none; }
 }
