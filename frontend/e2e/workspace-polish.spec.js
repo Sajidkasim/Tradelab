@@ -181,3 +181,17 @@ test('Journal Session Risk Guard tracks live loss buffer, triggers lockout, and 
  await expect(cleanGuard).toContainText('Set a daily loss cap');
 });
 
+
+test('Journal mobile Go-to-date input fits the viewport and aligns with the calendar',async({page})=>{
+ await page.goto(origin+'/journal');
+ for(const width of [390,320]){
+  await page.setViewportSize({width,height:844});
+  const input=page.locator('.pt-mobile-date input');
+  await expect(input).toBeVisible();
+  const box=await input.boundingBox(), cal=await page.locator('.pt-journal-sidebar > .pt-calendar').boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x+box.width).toBeLessThanOrEqual(width);
+  expect(Math.abs((box.x+box.width)-(cal.x+cal.width))).toBeLessThanOrEqual(2);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+});

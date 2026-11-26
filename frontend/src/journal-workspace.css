@@ -1764,3 +1764,11 @@ button.pj-vision-box { cursor: pointer; }
     transition: none !important;
   }
 }
+
+/* iOS Safari: native date inputs ignore width:100% inside 1fr grid tracks — clamp them to the sidebar. */
+@media (max-width:650px) {
+  .pj-workspace .pt-journal-sidebar { grid-template-columns:minmax(0,1fr) minmax(0,1fr); width:100%; max-width:100%; min-width:0; }
+  .pj-workspace .pt-journal-sidebar > .pt-mobile-date { width:100%; max-width:100%; min-width:0; box-sizing:border-box; overflow:hidden; flex-direction:column; }
+  .pj-workspace .pt-mobile-date > input { display:block; width:100%; max-width:100%; min-width:0; box-sizing:border-box; -webkit-appearance:none; appearance:none; padding:10px 14px; font-size:16px; text-align:left; }
+  .pj-workspace .pt-mobile-date > input::-webkit-date-and-time-value { text-align:left; }
+}
