@@ -9,6 +9,7 @@ import VisionBoard from './VisionBoard';
 import {Notice, Button} from './components';
 import SlidingSelection from './SlidingSelection';
 import {api} from './api';
+import {getCached, setCached} from './routeCache';
 import {money} from './format';
 import PrepProgress from './PrepProgress';
 import CompoundEdge from './CompoundEdge';
@@ -459,7 +460,7 @@ function HabitTracker() {
 }
 
 function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
-  const [state, setState] = useState(null);
+  const [state, setState] = useState(() => getCached('/mindset/warmup'));
   const [highScore, setHighScore] = useState(null);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
@@ -501,17 +502,22 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     }
   }
 
-  async function load() {
+  async function load({reset = false} = {}) {
     reader.current?.abort();
     writer.current?.abort();
     writer.current = null;
     queuedPrep.current = null;
-    setState(null); setLaunch(null); setCheckpoint(null); setError(''); setSaveStatus('');
+    if (reset) setState(null);
+    setLaunch(null); setCheckpoint(null); setError(''); setSaveStatus('');
     const abort = new AbortController();
     reader.current = abort;
     try {
       const value = await api('/mindset/warmup', {signal: abort.signal});
-      if (!abort.signal.aborted) {setState(value); loadScore(value);}
+      if (!abort.signal.aborted) {
+        setCached('/mindset/warmup', value);
+        setState(value);
+        loadScore(value);
+      }
     } catch (e) {
       if (!abort.signal.aborted) setError(e.message);
     }

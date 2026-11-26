@@ -9,6 +9,7 @@ import PrimusCompass from './components/PrimusCompass';
 import { PrimusLightSeam } from './components/PrimusAtmosphere';
 import TradingViewWidget from './TradingViewWidget';
 import { api } from './api';
+import { getCached, getCachedSession, setCached } from './routeCache';
 import { matrixFreshness } from './matrixFreshness';
 import { useBullpen } from './hooks/usePresence';
 import MatrixLoading from './MatrixLoading';
@@ -326,11 +327,13 @@ const VALID_MATRIX_TABS = new Set(['overview', 'positioning', 'calendar', 'brief
 
 export default function MatrixPage({ theme }) {
   const bullpen = useBullpen();
-  const [snapshot, setSnapshot] = useState(null);
-  const [status, setStatus] = useState('loading');
+  const cachedSnap = getCached('/matrix/snapshot')?.snapshot ?? null;
+  const cachedSess = getCachedSession();
+  const [snapshot, setSnapshot] = useState(cachedSnap);
+  const [status, setStatus] = useState(() => (cachedSnap ? 'cached' : 'loading'));
   const [attempt, setAttempt] = useState(0);
-  const [isOwner, setIsOwner] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [isOwner, setIsOwner] = useState(() => Boolean(cachedSess?.owner));
+  const [authenticated, setAuthenticated] = useState(() => Boolean(cachedSess?.authenticated));
   const [refreshingLive, setRefreshingLive] = useState(false);
   const [refreshNote, setRefreshNote] = useState('');
   const [selectedAssetId, setSelectedAssetId] = useState('nq');
@@ -359,12 +362,14 @@ export default function MatrixPage({ theme }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    api('/matrix/snapshot', { signal: controller.signal }).then(({ snapshot: next }) => {
+    api('/matrix/snapshot', { signal: controller.signal }).then((res) => {
       if (controller.signal.aborted) return;
+      setCached('/matrix/snapshot', res);
+      const next = res?.snapshot;
       setSnapshot(next);
       setStatus(next ? 'cached' : localSitePreview() ? 'demo' : 'unavailable');
     }).catch(() => {
-      if (!controller.signal.aborted) setStatus('unavailable');
+      if (!controller.signal.aborted) setStatus((prev) => (prev === 'cached' ? prev : 'unavailable'));
     });
     return () => controller.abort();
   }, [attempt]);
@@ -382,6 +387,7 @@ export default function MatrixPage({ theme }) {
     try {
       const res = await api('/matrix/refresh', { method: 'POST' });
       if (res?.snapshot) {
+        setCached('/matrix/snapshot', res);
         setSnapshot(res.snapshot);
         setStatus('cached');
         setRefreshNote('Snapshot refreshed live.');

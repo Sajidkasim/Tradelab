@@ -1,10 +1,11 @@
 import React,{useEffect,useState} from 'react';
 import {PrimusHeader} from './SiteExperience';
 import {api,setCsrf} from './api';
+import {getCachedSession} from './routeCache';
 import {Button,Notice} from './components';
 import './workspace-pages.css';
 export function useIdentity(){
- const [identity,setIdentity]=useState(null),[error,setError]=useState('');
+ const [identity,setIdentity]=useState(()=>getCachedSession()),[error,setError]=useState('');
  async function load(){setError('');try{const value=await api('/session');setCsrf(value.csrf);setIdentity(value)}catch(e){setError(e.message)}}
  useEffect(()=>{load();const out=()=>setIdentity({authenticated:false,auth_mode:'google'});window.addEventListener('primus:logout',out);return()=>window.removeEventListener('primus:logout',out)},[]);
  return {identity,error,reload:load};

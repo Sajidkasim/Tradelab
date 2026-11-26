@@ -4,6 +4,7 @@ import {
   Download, ListChecks, Maximize2, Mic, MicOff, NotebookPen, Save, Search, Trash2, Undo2, Wallet, X, Link2,
 } from 'lucide-react';
 import {api, setCsrf} from './api';
+import {getCached, getCachedSession, setCached} from './routeCache';
 import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader, localSitePreview} from './SiteExperience';
 import {PrimusSunbeams} from './components/PrimusAtmosphere';
@@ -212,12 +213,19 @@ export default function JournalPage({theme = 'light'}) {
   const today = ymd(new Date());
   const requested = new URLSearchParams(location.search).get('day');
   const initialDay = requested && /^\d{4}-\d{2}-\d{2}$/.test(requested) && !Number.isNaN(dayDate(requested).getTime()) && ymd(dayDate(requested)) === requested ? requested : today;
-  const [identity, setIdentity] = useState(null), [meta, setMeta] = useState(null), [rows, setRows] = useState([]), [day, setDay] = useState(initialDay);
-  const [entry, setEntry] = useState(blank(initialDay)), [section, setSection] = useState('plan'), [month, setMonth] = useState(initialDay.slice(0, 7));
+  const cachedRows = useMemo(() => {
+    const raw = getCached('/journal');
+    return Array.isArray(raw) ? raw.map(normalize) : null;
+  }, []);
+  const [identity, setIdentity] = useState(() => getCachedSession()), [meta, setMeta] = useState(() => getCached('/metadata')), [rows, setRows] = useState(() => cachedRows || []), [day, setDay] = useState(initialDay);
+  const [entry, setEntry] = useState(() => (cachedRows ? cachedRows.find(row => row.day === initialDay) || blank(initialDay) : blank(initialDay))), [section, setSection] = useState('plan'), [month, setMonth] = useState(initialDay.slice(0, 7));
   const [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [autoSaving, setAutoSaving] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [accounts, setAccounts] = useState(null);
-  const [presets, setPresets] = useState([]);
+  const [accounts, setAccounts] = useState(() => getCached('/journal-accounts'));
+  const [presets, setPresets] = useState(() => {
+    const raw = getCached('/journal-accounts/presets');
+    return Array.isArray(raw?.presets) ? raw.presets : [];
+  });
   const [searchQuery, setSearchQuery] = useState(''), [entryFilter, setEntryFilter] = useState('all');
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
     try { return localStorage.getItem('primus_journal_autosave') !== 'false'; } catch { return true; }
@@ -245,10 +253,10 @@ export default function JournalPage({theme = 'light'}) {
   }
 
   useEffect(() => {
-    if (!identity?.authenticated) return;
+    if (!identity?.authenticated || journalRevision === 0) return;
     const controller = new AbortController();
     api('/journal-accounts', {signal: controller.signal})
-      .then(setAccounts)
+      .then((list) => { setCached('/journal-accounts', list); setAccounts(list); })
       .catch(() => {});
     return () => controller.abort();
   }, [identity?.authenticated, journalRevision]);
@@ -264,18 +272,37 @@ export default function JournalPage({theme = 'light'}) {
 
   async function boot() {
     try {
-      const session = await api('/session');
+      // Fire session, journal entries, metadata, accounts, and presets in parallel
+      // so cold loads complete in 1 round-trip instead of 3 sequential waterfalls.
+      const sessionReq = api('/session');
+      const journalReq = api('/journal', {silent401: true}).catch(() => null);
+      const metaReq = api('/metadata', {silent401: true}).catch(() => null);
+      const accountsReq = api('/journal-accounts', {silent401: true}).catch(() => null);
+      const presetsReq = api('/journal-accounts/presets', {silent401: true}).catch(() => null);
+      const session = await sessionReq;
       setCsrf(session.csrf);
       setIdentity(session);
       if (session.authenticated) {
-        const [list, metadata] = await Promise.all([api('/journal'), api('/metadata')]);
+        let [list, metadata] = await Promise.all([journalReq, metaReq]);
+        if (!list || !metadata) {
+          [list, metadata] = await Promise.all([api('/journal'), api('/metadata')]);
+        }
+        setCached('/journal', list);
+        setCached('/metadata', metadata);
         const normalized = list.map(normalize);
         setRows(normalized);
         setMeta(metadata);
-        setEntry(normalized.find(row => row.day === day) || blank(day));
-        api('/journal-accounts/presets')
-          .then(res => setPresets(Array.isArray(res?.presets) ? res.presets : []))
-          .catch(() => {});
+        setEntry(prev => (prev.updated_at || prev.plan || prev.notes || prev.lesson || prev.trades.length ? (normalized.find(row => row.day === day) || prev) : (normalized.find(row => row.day === day) || blank(day))));
+        accountsReq.then(res => {
+          if (res) { setCached('/journal-accounts', res); setAccounts(res); }
+          else api('/journal-accounts').then(fresh => { setCached('/journal-accounts', fresh); setAccounts(fresh); }).catch(() => {});
+        });
+        presetsReq.then(res => {
+          if (res) {
+            setCached('/journal-accounts/presets', res);
+            setPresets(Array.isArray(res?.presets) ? res.presets : []);
+          }
+        });
       }
     } catch (e) {
       setError(e.message);

@@ -10,6 +10,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { api } from "./api";
+import { getCached, setCached } from "./routeCache";
 import { fetchResultSamples } from "./resultSamples";
 import CustomTradeFields from "./CustomTradeFields";
 import LabHistory from "./LabHistory";
@@ -84,9 +85,11 @@ export default function Results({
     [comparison, setComparison] = useState("setup_name"),
     [drawerOpen, setDrawerOpen] = useState(false);
   const [breakdownActive, setBreakdownActive] = useState(false);
-  const [data, setData] = useState(null),
-    [busy, setBusy] = useState(true),
+  const initialCacheKey = `/results:${scope}:${mode}:${detail ? 1 : 0}:${comparison}:${isSiteLab ? 1 : 0}`;
+  const [data, setData] = useState(() => getCached(initialCacheKey)),
+    [busy, setBusy] = useState(() => !getCached(initialCacheKey)),
     [error, setError] = useState("");
+  const firstFetch = React.useRef(true);
   const filters = React.useMemo(
     () => ({
       ...setupFilters,
@@ -200,33 +203,47 @@ export default function Results({
 
   useEffect(() => {
     const controller = new AbortController();
-    setBusy(true);
+    const isDefault = activeFilterCount === 0;
+    const cacheKey = isDefault
+      ? `/results:${filters.scope}:${mode}:${detail ? 1 : 0}:${comparison}:${isSiteLab ? 1 : 0}`
+      : null;
+    const cached = cacheKey ? getCached(cacheKey) : null;
+    if (cached && firstFetch.current) {
+      setData(cached);
+      setBusy(false);
+    } else {
+      setBusy(true);
+    }
     setError("");
-    const timer = setTimeout(
-      () =>
-        fetchResultSamples(
-          api,
-          filters,
-          { mode, detail, comparison },
-          controller.signal,
-          isSiteLab,
-        )
-          .then((result) => {
-            if (!controller.signal.aborted) setData(result);
-          })
-          .catch((e) => {
-            if (e.name !== "AbortError" && !controller.signal.aborted) {
-              setError(e.message);
-              setData(null);
-            }
-          })
-          .finally(() => {
-            if (!controller.signal.aborted) setBusy(false);
-          }),
-      120,
-    );
+    const delay = firstFetch.current ? 0 : 120;
+    firstFetch.current = false;
+    const run = () =>
+      fetchResultSamples(
+        api,
+        filters,
+        { mode, detail, comparison },
+        controller.signal,
+        isSiteLab,
+      )
+        .then((result) => {
+          if (!controller.signal.aborted) {
+            if (cacheKey) setCached(cacheKey, result);
+            setData(result);
+          }
+        })
+        .catch((e) => {
+          if (e.name !== "AbortError" && !controller.signal.aborted) {
+            setError(e.message);
+            setData(null);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setBusy(false);
+        });
+    const timer = delay > 0 ? setTimeout(run, delay) : null;
+    if (delay === 0) run();
     return () => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       controller.abort();
     };
   }, [filters, mode, revision, detail, comparison, isSiteLab]);

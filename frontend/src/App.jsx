@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import {
   Sun,
   Moon,
@@ -10,30 +10,32 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { api, setCsrf } from "./api";
+import { getCached, getCachedSession, setCached } from "./routeCache";
 import { Button, Notice, Menu } from "./components";
 import { JournalClock } from "./JournalClock";
-import GuidedTour from "./GuidedTour";
-import Welcome from "./Welcome";
-import ReleaseNotes from "./ReleaseNotes";
 import Results from "./Results";
 import Trades from "./Trades";
-import Import from "./Import";
-import Tools from "./Tools";
 import {WorkspaceEntrance} from "./PrimusSignIn";
-import Backup from "./Backup";
-import LabSettings from "./LabSettings";
-import Access from "./Access";
 import icon from "../../assets/primuslab-icon.svg";
 import compassLogo from "../../assets/primus-compass.png";
 import { labHref, journalPage } from "./paths";
 import { sitePreview, localSitePreview, PrimusHeader } from './SiteExperience';
 
+const GuidedTour = lazy(() => import("./GuidedTour"));
+const Welcome = lazy(() => import("./Welcome"));
+const ReleaseNotes = lazy(() => import("./ReleaseNotes"));
+const Import = lazy(() => import("./Import"));
+const Tools = lazy(() => import("./Tools"));
+const Backup = lazy(() => import("./Backup"));
+const LabSettings = lazy(() => import("./LabSettings"));
+const Access = lazy(() => import("./Access"));
+
 const journalPages = ["results", "", "overview", "trades", "journal"];
 const pageFromLocation = () => journalPage(location.pathname, location.hash);
 
 export default function App() {
-  const [session, setSession] = useState(null),
-    [meta, setMeta] = useState(null),
+  const [session, setSession] = useState(() => getCachedSession()),
+    [meta, setMeta] = useState(() => getCached("/metadata")),
     [revision, setRevision] = useState(0),
     [error, setError] = useState("");
   const [page, setPage] = useState(pageFromLocation),
@@ -62,16 +64,28 @@ export default function App() {
   const toast = useCallback((text) => setMessage(text), []);
   const refresh = useCallback(async () => {
     const metadata = await api("/metadata");
+    setCached("/metadata", metadata);
     setMeta(metadata);
     setRevision((v) => v + 1);
   }, []);
   async function boot() {
     setError("");
     try {
-      const identity = await api("/session");
+      // Fire session and metadata in parallel to eliminate the 2-step cold-load waterfall.
+      const sessionReq = api("/session");
+      const metaReq = api("/metadata", { silent401: true }).catch(() => null);
+      const identity = await sessionReq;
       setCsrf(identity.csrf);
       setSession(identity);
-      if (identity.authenticated) await refresh();
+      if (identity.authenticated) {
+        const prefetchedMeta = await metaReq;
+        if (prefetchedMeta) {
+          setCached("/metadata", prefetchedMeta);
+          setMeta(prefetchedMeta);
+        } else {
+          await refresh();
+        }
+      }
     } catch (e) {
       setError(e.message);
     }
@@ -332,19 +346,21 @@ export default function App() {
                   />
                 </section>
               </div>
-              {page === "import" && (
-                <Import
-                  settingsRequested={importSettingsRequested}
-                  onSettingsOpened={() => setImportSettingsRequested(false)}
-                  meta={meta}
-                  refresh={refresh}
-                  onBack={() => navigate("trades")}
-                  toast={toast}
-                />
-              )}
-              {page === "tools" && (
-                <Tools meta={meta} onResults={() => navigate("results")} />
-              )}
+              <Suspense fallback={<div className="card empty">Loading…</div>}>
+                {page === "import" && (
+                  <Import
+                    settingsRequested={importSettingsRequested}
+                    onSettingsOpened={() => setImportSettingsRequested(false)}
+                    meta={meta}
+                    refresh={refresh}
+                    onBack={() => navigate("trades")}
+                    toast={toast}
+                  />
+                )}
+                {page === "tools" && (
+                  <Tools meta={meta} onResults={() => navigate("results")} />
+                )}
+              </Suspense>
               {![...journalPages, "import", "tools"].includes(page) && (
                 <div className="card empty">
                   <h1>Page not found</h1>
@@ -360,35 +376,37 @@ export default function App() {
               {message}
             </div>
           )}
-          {meta.journal_preferences?.welcome_pending && (
-            <Welcome refresh={refresh} />
-          )}
-          {releaseOpen && !tourOpen && !meta.journal_preferences?.welcome_pending && <ReleaseNotes notes={meta.release_notes} onClose={() => { setReleaseOpen(false); setDismissedRelease(meta.release_notes.version); }} onSeen={async () => { await api("/release-notes/seen", {method:"POST"}); setDismissedRelease(meta.release_notes.version); setReleaseOpen(false); await refresh(); }} />}
-          {tourOpen && !meta.journal_preferences?.welcome_pending && <GuidedTour refresh={refresh} onClose={() => setTourOpen(false)} />}
-          {labSettings && (
-            <LabSettings
-              meta={meta}
-              refresh={refresh}
-              toast={toast}
-              onClose={() => setLabSettings(false)}
-              onCreateFilter={() => {
-                setLabSettings(false);
-                navigate("results");
-                setFilterEditor(true);
-              }}
-            />
-          )}
-          {backup && (
-            <Backup
-              onClose={() => setBackup(false)}
-              refresh={refresh}
-              toast={toast}
-              count={meta.trade_count}
-            />
-          )}
-          {access && session.owner && session.auth_mode === "google" && (
-            <Access onClose={() => setAccess(false)} />
-          )}
+          <Suspense fallback={null}>
+            {meta.journal_preferences?.welcome_pending && (
+              <Welcome refresh={refresh} />
+            )}
+            {releaseOpen && !tourOpen && !meta.journal_preferences?.welcome_pending && <ReleaseNotes notes={meta.release_notes} onClose={() => { setReleaseOpen(false); setDismissedRelease(meta.release_notes.version); }} onSeen={async () => { await api("/release-notes/seen", {method:"POST"}); setDismissedRelease(meta.release_notes.version); setReleaseOpen(false); await refresh(); }} />}
+            {tourOpen && !meta.journal_preferences?.welcome_pending && <GuidedTour refresh={refresh} onClose={() => setTourOpen(false)} />}
+            {labSettings && (
+              <LabSettings
+                meta={meta}
+                refresh={refresh}
+                toast={toast}
+                onClose={() => setLabSettings(false)}
+                onCreateFilter={() => {
+                  setLabSettings(false);
+                  navigate("results");
+                  setFilterEditor(true);
+                }}
+              />
+            )}
+            {backup && (
+              <Backup
+                onClose={() => setBackup(false)}
+                refresh={refresh}
+                toast={toast}
+                count={meta.trade_count}
+              />
+            )}
+            {access && session.owner && session.auth_mode === "google" && (
+              <Access onClose={() => setAccess(false)} />
+            )}
+          </Suspense>
         </div>
       </JournalClock.Provider>
   );

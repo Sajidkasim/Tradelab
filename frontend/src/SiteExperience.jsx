@@ -11,6 +11,7 @@ import MatrixLoading from './MatrixLoading';
 import CommandPalette from './CommandPalette';
 import SlidingSelection from './SlidingSelection';
 import { api, setCsrf } from './api';
+import { getCachedSession, prefetchRoute } from './routeCache';
 import PrimusCompass from './components/PrimusCompass';
 import { PrimusTopoField, PrimusLightSeam, PrimusSunbeams, PrimusMonolith } from './components/PrimusAtmosphere';
 import './site-preview.css';
@@ -56,7 +57,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <kbd>⌘K</kbd>
     </button>
   );
-  const [member, setMember] = useState(null);
+  const [member, setMember] = useState(() => getCachedSession());
   useEffect(() => {
     if (actions) return;
     let mounted = true;
@@ -80,6 +81,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
     catch { location.assign('/lab'); }
   }
 
+  const warm = (href) => () => prefetchRoute(href, api);
   const replayEnabled = Boolean(localSitePreview() || document.querySelector('meta[name="primus-replay-enabled"]'));
   const showMobileDock = active !== 'home' && active !== 'backtesting';
 
@@ -91,15 +93,15 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
         onClick={(event) => { if (event.target.closest('a')) setOpen(false); }}
         onKeyDown={(event) => { if (event.key === 'Escape') { setOpen(false); event.currentTarget.previousElementSibling?.focus(); } }}
         className={open ? 'is-open' : ''} aria-label="Primus navigation">
-        <a className="pt-nav-primary" href="/journal" data-slide-value="journal" aria-current={active === 'journal' ? 'page' : undefined}>Journal</a>
-        <a className="pt-nav-primary" href="/lab" data-slide-value="lab" aria-current={active === 'lab' ? 'page' : undefined}>Strategy Lab</a>
+        <a className="pt-nav-primary" href="/journal" data-slide-value="journal" onMouseEnter={warm('/journal')} onFocus={warm('/journal')} aria-current={active === 'journal' ? 'page' : undefined}>Journal</a>
+        <a className="pt-nav-primary" href="/lab" data-slide-value="lab" onMouseEnter={warm('/lab')} onFocus={warm('/lab')} aria-current={active === 'lab' ? 'page' : undefined}>Strategy Lab</a>
         <hr className="pt-mobile-nav-divider" />
-        <a href="/mindset" data-slide-value="mindset" aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
-        {replayEnabled && <a href="/backtesting" data-slide-value="backtesting" aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
-        <a href="/learn" data-slide-value="learn" aria-current={active === 'learn' ? 'page' : undefined}>
+        <a href="/mindset" data-slide-value="mindset" onMouseEnter={warm('/mindset')} onFocus={warm('/mindset')} aria-current={active === 'mindset' ? 'page' : undefined}>Mindset</a>
+        {replayEnabled && <a href="/backtesting" data-slide-value="backtesting" onMouseEnter={warm('/backtesting')} onFocus={warm('/backtesting')} aria-current={active === 'backtesting' ? 'page' : undefined}>Backtesting</a>}
+        <a href="/learn" data-slide-value="learn" onMouseEnter={warm('/learn')} onFocus={warm('/learn')} aria-current={active === 'learn' ? 'page' : undefined}>
           Learn {Boolean(bullpen?.people.length) && <span className="bullpen-live"><span className="primus-live-dot" aria-hidden="true" /> LIVE · {bullpen.people.length}</span>}
         </a>
-        <a href="/matrix" data-slide-value="matrix" aria-current={active === 'matrix' ? 'page' : undefined}>The Matrix</a>
+        <a href="/matrix" data-slide-value="matrix" onMouseEnter={warm('/matrix')} onFocus={warm('/matrix')} aria-current={active === 'matrix' ? 'page' : undefined}>The Matrix</a>
         {member?.can_lock && <button className="pt-mobile-workspace" onClick={signOut}>Sign out</button>}
       </SlidingSelection>
       {actions ? (
@@ -118,7 +120,7 @@ export function PrimusHeader({ active = 'home', actions, theme, onThemeToggle })
       <SlidingSelection as="nav" className="primus-mobile-dock" aria-label="Mobile workspace bar"
         value={active} transitionKey="mobile-dock">
         {MOBILE_DOCK_ITEMS.map(({ id, label, href, icon: Icon }) => (
-          <a key={id} href={href} data-slide-value={id} aria-current={active === id ? 'page' : undefined}>
+          <a key={id} href={href} data-slide-value={id} onMouseEnter={warm(href)} onFocus={warm(href)} aria-current={active === id ? 'page' : undefined}>
             <Icon size={17} strokeWidth={1.75} aria-hidden="true" />
             <span>{label}</span>
           </a>

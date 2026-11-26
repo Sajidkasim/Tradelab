@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {Play,Plus,ArrowUpRight,FlaskConical,CalendarDays,Trash2} from 'lucide-react';
 import {WorkspaceEntrance} from './PrimusSignIn';
 import {api,setCsrf} from './api';
+import {getCached,getCachedSession,setCached} from './routeCache';
 import {PrimusHeader,localSitePreview} from './SiteExperience';
 import {Modal,Button,Notice,Select,Field} from './components';
 import SlidingSelection from './SlidingSelection';
@@ -50,7 +51,7 @@ function ChartDivider({host, label, orientation, value, reset, onResize}) {
 }
 
 export default function BacktestingSessions({theme,onThemeToggle}) {
- const [identity,setIdentity]=useState(null);
+ const [identity,setIdentity]=useState(()=>getCachedSession());
  const [opening,setOpening]=useState(false);
  const openingTicket=useRef(0);
  const [openingStage,setOpeningStage]=useState('Fetching saved session…');
@@ -75,7 +76,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
    if(chart&&chart.drawings.getTool()!==type)chart.drawings.setTool(type);
   }
  },[]);
- const [listing,setListing]=useState(null),[active,setActive]=useState(null),[cursor,setCursor]=useState(0);
+ const [listing,setListing]=useState(()=>getCached('/backtesting/sessions')),[active,setActive]=useState(null),[cursor,setCursor]=useState(0);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[form,setForm]=useState(null);
  const [selectedSessions,setSelectedSessions]=useState([]);
  const [purging,setPurging]=useState(null),[purgeName,setPurgeName]=useState('');
@@ -115,7 +116,7 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  const latest=useRef({data:null,cursor:0}),queue=useRef(Promise.resolve()),locked=useRef(false);
  latest.current={data:active,cursor};
  const accept=useCallback(reply=>{const next={...latest.current.data,...reply};latest.current.data=next;setActive(next)},[]);
- const list=useCallback(async()=>{setListing(await api('/backtesting/sessions'))},[]);
+ const list=useCallback(async()=>{const next=await api('/backtesting/sessions');setCached('/backtesting/sessions',next);setListing(next)},[]);
  async function opened(data,ticket=openingTicket.current){
   if(ticket!==openingTicket.current)return;
   setOpeningStage('Preparing replay history…');
@@ -148,7 +149,17 @@ export default function BacktestingSessions({theme,onThemeToggle}) {
  }
  useEffect(()=>{
   let alive=true;const ticket=++openingTicket.current;
-  (async()=>{const identity=await api('/session');setCsrf(identity.csrf);setIdentity(identity);if(!identity.authenticated)return;await list();const sid=new URLSearchParams(location.search).get('session');if(sid){setOpening(true);setOpeningStage('Fetching saved session…');const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)await opened(data,ticket)}})().catch(e=>{if(alive){setError(e.message);setOpening(false)}});
+  (async()=>{
+   const sid=new URLSearchParams(location.search).get('session');
+   const sessionReq=api('/session');
+   const listReq=api('/backtesting/sessions',{silent401:true}).catch(()=>null);
+   const sessionData=await sessionReq;
+   setCsrf(sessionData.csrf);setIdentity(sessionData);
+   if(!sessionData.authenticated)return;
+   const prefetched=await listReq;
+   if(prefetched){setCached('/backtesting/sessions',prefetched);if(alive)setListing(prefetched)}else{await list()}
+   if(sid){setOpening(true);setOpeningStage('Fetching saved session…');const data=await api(`/backtesting/sessions/${encodeURIComponent(sid)}`);if(alive)await opened(data,ticket)}
+  })().catch(e=>{if(alive){setError(e.message);setOpening(false)}});
   return()=>{alive=false};
  },[list,retryOpening]);
  function enqueue(job){const task=queue.current.catch(()=>{}).then(job);queue.current=task;return task}
