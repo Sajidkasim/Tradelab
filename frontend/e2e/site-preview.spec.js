@@ -48,6 +48,7 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   expect(await page.locator('.sl-equity-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(19, 24, 22)');
   await expect(page.locator('.sl-page-dock')).toBeVisible();
   await expect(page.getByRole('heading',{name:'Strategies',exact:true})).toBeVisible();
+  await expect(page.locator('.lab-key-metrics').getByText('Win rate',{exact:true})).toBeVisible();
   await expect(page.locator('.lab-key-metrics').getByText('Max drawdown',{exact:true})).toBeVisible();
   await expect(page.locator('.sl-dist-card')).toHaveCount(0);
   await page.getByRole('button',{name:'Advanced metrics',exact:true}).click();

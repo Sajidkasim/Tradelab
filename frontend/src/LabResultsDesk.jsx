@@ -13,7 +13,7 @@ const sourceTone = (source) => source === "Backtesting" ? "backtest" : "live";
 const drawdown = (value, format = rvalue) => format(value == null ? null : -Math.abs(value));
 
 const headlineMetrics = [
-  ["Net R", (sample) => rvalue(sample.r_equity?.net_r)],
+  ["Win rate", (sample) => percent(sample.stats.win_rate)],
   ["Average R", (sample) => rvalue(sample.stats.avg_r)],
   ["Max drawdown", (sample) => drawdown(sample.r_equity?.max_drawdown_r)],
   ["Trades analysed", (sample) => number(sample.stats.trades)],
@@ -82,7 +82,8 @@ function DetailedSample({ sample, busy, onTrades }) {
   const useFixed = fixed?.complete && sample.r_count === 0;
   const hasDistribution = sample.distribution?.total > 0;
   const values = [
-    ["Net P&L", money(stats.net_pnl)], ["Win rate", percent(stats.win_rate)],
+    ["Net P&L", money(stats.net_pnl)], ["Net R", rvalue(sample.r_equity?.net_r)],
+    ["Win rate", percent(stats.win_rate)],
     ["95% win-rate interval", stats.win_rate_ci.map(percent).join("–")],
     ["Profit factor", number(stats.profit_factor)], ["Payoff ratio", number(stats.payoff_ratio)],
     ["Expectancy / trade", money(stats.expectancy)], ["Max drawdown ($)", drawdown(stats.max_drawdown, money)],
