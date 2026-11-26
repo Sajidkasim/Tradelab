@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import Body, Depends, Request
 
-from .schemas import PositionSize
+from .schemas import MonteCarloRequest, PositionSize
 
 
 def mount(app, workspace, db):
@@ -29,6 +29,25 @@ def mount(app, workspace, db):
                 risk_pct=risk_percent,
             )
         return results
+
+    @app.post("/api/lab/monte-carlo")
+    def lab_monte_carlo(payload: MonteCarloRequest, member=Depends(workspace)):
+        """Bootstrap stress test of the filtered sample's R-multiples (read-only)."""
+        import numpy as np
+        from core import metrics, montecarlo
+
+        # chart_first resolves "All" to the requested sample so sources never pool.
+        filters = payload.filters.model_copy(update={"combined": False, "chart_first": True, "detail": False})
+        _, matched, scope, _ = app.state.workspaces.select(member["key"], filters)
+        closed = metrics.closed(matched)
+        curve = metrics.r_equity(closed)["values"]
+        returns = np.diff(np.asarray(curve, dtype=float)) if len(curve) > 1 else []
+        result = montecarlo.stress_test(returns, horizon=payload.horizon,
+                                        drawdown_r=payload.drawdown_r, method=payload.method)
+        result["scope"] = scope
+        result["closed_trades"] = int(len(closed))
+        result["missing_risk"] = int(len(closed) - len(returns))
+        return result
 
     @app.post("/api/tools/position-size")
     def position_size(payload: PositionSize, request: Request, member=Depends(workspace)):

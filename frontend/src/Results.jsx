@@ -742,6 +742,8 @@ export default function Results({
             palette={meta.palette[mode]}
             mode={mode}
             clockName={clockName}
+            filters={filters}
+            revision={revision}
           /> : <ResultSample
             sample={scope}
             data={sampleData}

@@ -175,8 +175,13 @@ class Workspaces:
                       "tag_suggestions": ([] if journal_preferences.read(db)['personal_setup'] else tag_cleanup.mapping_values(trade_labels.fx_tag_guide(), aliases)),
                       **research.catalogue(db, frame)})
 
-    def results(self, key, filters):
+    def select(self, key, filters):
+        """Apply Lab filters. Returns (base, matched, scope, strategy_summary).
+
+        `scope` is always one source unless the legacy combined view is requested,
+        so Backtesting and Forward testing are never pooled by accident."""
         frame = self.trades(key)
+        strategy_summary = None
         # The chart-first view always analyses one source at a time. Preserve
         # the combined history contract for existing clients that request it.
         scope = filters.scope
@@ -228,6 +233,10 @@ class Workspaces:
                 })
             if filters.strategy != "All strategies":
                 matched = matched.loc[matched["setup_name"] == filters.strategy]
+        return base, matched, scope, strategy_summary
+
+    def results(self, key, filters):
+        base, matched, scope, strategy_summary = self.select(key, filters)
         stats = metrics.summary_stats(matched)
         closed = metrics.closed(matched)
         equity = metrics.equity_curve(matched)

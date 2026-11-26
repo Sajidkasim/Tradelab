@@ -195,3 +195,91 @@ test('Journal mobile Go-to-date input fits the viewport and aligns with the cale
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
 });
+
+test('Strategy Lab Monte Carlo stress test renders live state, interactive fan chart, and fits mobile viewports',async({page},info)=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(origin+'/lab');
+ const card=page.locator('section.mc-card');
+ await card.scrollIntoViewIfNeeded();
+ await expect(card.getByRole('heading',{name:'Edge stress test',exact:true})).toBeVisible();
+ // Seeded preview has 16 risk-recorded backtest trades + 2 missing risk -> shows progress & action
+ await expect(card).toContainText('Need more trades');
+ await expect(card).toContainText('16 of 20 trades with recorded risk');
+ await expect(card).not.toContainText('\\$');
+
+ // Now test the full populated stress-test view & interactive controls without mutating shared DB
+ const seen=[];
+ await page.route('**/api/lab/monte-carlo',async route=>{
+  const body=route.request().postDataJSON();
+  seen.push(body);
+  const h=body.horizon||100, dd=body.drawdown_r||10;
+  const steps=[0,Math.round(h*0.25),Math.round(h*0.5),Math.round(h*0.75),h];
+  const scale=h/100;
+  await route.fulfill({json:{
+   scope:body.filters?.sample||'Backtesting',method:body.method||'block',n_sims:5000,horizon:h,drawdown_r:dd,min_trades:20,
+   closed_trades:84,missing_risk:4,
+   sample:{trades:80,mean_r:0.34,std_r:1.38,win_rate:0.46,net_r:27.2,sqn:2.2,block_length:4,constant_r:false},
+   edge:{verdict:'strong',p_value:0.004,prob_positive:0.992,ci95:[0.07,0.61],resamples:4000,trades_needed:45,more_trades_needed:0},
+   projection:{
+    steps,
+    bands:{
+     '5':[0,-4*scale,-2*scale,3*scale,8*scale],
+     '25':[0,2*scale,9*scale,16*scale,23*scale],
+     '50':[0,8.5*scale,17*scale,25.5*scale,34*scale],
+     '75':[0,14*scale,26*scale,37*scale,47*scale],
+     '95':[0,22*scale,40*scale,56*scale,71*scale],
+    },
+    paths:[
+     [0,-3*scale,-1*scale,5*scale,11*scale],
+     [0,6*scale,15*scale,24*scale,32*scale],
+     [0,15*scale,30*scale,44*scale,58*scale],
+     [0,-5*scale,-8*scale,-4*scale,-1*scale],
+    ],
+    final:{'5':8*scale,'25':23*scale,'50':34*scale,'75':47*scale,'95':71*scale},
+    prob_profit:0.978,expected_r:34*scale,
+   },
+   drawdown:{
+    ladder:[3,5,10,15,20,30].concat(dd).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>a-b)
+     .map(r=>({r,prob:Math.max(0.01,Math.min(0.99,Math.exp(-r/9.5)))})),
+    target:{r:dd,prob:Math.max(0.01,Math.min(0.99,Math.exp(-dd/9.5))),standard_error:0.0068},
+    max_dd:{'5':3.1,'25':5.2,'50':7.4,'75':10.1,'95':14.8},
+    losing_streak:{median:5,p95:9},
+   },
+   history:{actual_max_dd:6.2,worse_share:0.68,typical_max_dd:7.4,permutations:2000},
+  }});
+ });
+
+ // Switch horizon -> triggers full populated render
+ await card.getByRole('button',{name:'250',exact:true}).click();
+ await expect(card.getByRole('heading',{name:'Strong edge',exact:true})).toBeVisible();
+ await expect(card).toContainText('Next 250 trades');
+ await expect(card).toContainText('In 4,000 resamples');
+ await card.getByRole('button',{name:'20R',exact:true}).click();
+ await expect(card).toContainText('Chance of hitting −20R');
+ await card.getByRole('button',{name:'Independent',exact:true}).click();
+ await expect.poll(()=>seen.at(-1)?.method).toBe('iid');
+
+ // Hover over fan chart -> tooltip appears inside chart bounds
+ const svg=card.locator('.mc-fan svg');
+ await svg.scrollIntoViewIfNeeded();
+ const svgBox=await svg.boundingBox();
+ await svg.hover({position:{x:Math.round(svgBox.width*0.5),y:Math.round(svgBox.height*0.5)}});
+ await expect(card.locator('.mc-tip')).toBeVisible();
+ await expect(card.locator('.mc-tip')).toContainText('Median:');
+
+ // Check layout fit & capture visual checks across desktop + mobile
+ for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:900});
+  await card.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  const box=await card.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x+box.width).toBeLessThanOrEqual(width+1);
+  if(width!==320) await card.screenshot({path:info.outputPath(`monte-carlo-${width}.png`)});
+ }
+ // Also capture dark mode desktop screenshot
+ await page.setViewportSize({width:1440,height:900});
+ await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
+ await card.screenshot({path:info.outputPath('monte-carlo-1440-dark.png')});
+ expect(errors).toEqual([]);
+});

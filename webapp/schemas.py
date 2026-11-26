@@ -139,6 +139,14 @@ class PositionSize(StrictModel):
     risk_dollars: float = Field(gt=0)
 
 
+class MonteCarloRequest(StrictModel):
+    """Edge stress test on the current Lab selection (one source, never pooled)."""
+    filters: Filters
+    horizon: Literal[50, 100, 250, 500] = 100
+    drawdown_r: float = Field(10.0, gt=0, le=200)
+    method: Literal["block", "iid"] = "block"
+
+
 class SessionWindow(StrictModel):
     name: str = Field(min_length=1, max_length=80)
     start: str = Field(pattern=r"^\d{2}:\d{2}$")
@@ -252,3 +260,4 @@ class DailyEntry(StrictModel):
 
 class FeedbackInput(StrictModel):
     message: str = Field(min_length=1, max_length=2000)
+

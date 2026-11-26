@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import LabEquityChart from "./LabEquityChart";
+import LabMonteCarlo from "./LabMonteCarlo";
 import ReturnDistributionChart from "./components/ReturnDistributionChart";
 import { Button, Select } from "./components";
 import { money, number, percent, rvalue } from "./format";
@@ -136,7 +137,7 @@ function GroupedResults({ samples, comparison, dimensions, onComparisonChange, b
 export default function LabResultsDesk({
   scope, sampleScopes, samples, setups, setup, onSetupChange, busy, detail,
   onToggleDetail, comparison, dimensions, onComparisonChange, onTrades, onImport,
-  palette, mode, clockName,
+  palette, mode, clockName, filters, revision,
 }) {
   const sources = sampleScopes.map((scope, index) => ({ scope, sample: samples[index] }));
   const available = samples.filter(Boolean);
@@ -165,6 +166,8 @@ export default function LabResultsDesk({
         sample={sample} busy={busy} onTrades={onTrades}/>)}
       <GroupedResults samples={available} comparison={comparison} dimensions={dimensions} onComparisonChange={onComparisonChange} busy={busy}/>
     </section>}
+    {filters && available.some((sample) => sample.stats?.trades > 0) &&
+      <LabMonteCarlo scope={scope} samples={available} filters={filters} revision={revision} onTrades={onTrades}/>}
     <Strategies sources={sources} setups={setups} setup={setup} onSetupChange={onSetupChange}/>
   </section>;
 }
