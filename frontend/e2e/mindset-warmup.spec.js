@@ -296,3 +296,81 @@ test('Pre-market resumes an exercise and keeps prep performance details tucked a
   await expect(entry).toHaveAttribute('href', '/journal?day=2026-11-12');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('Neural Radar hard drill locks, tracks with surge/decoys, acquires targets, and scores cleanly', async ({page}, info) => {
+  await page.clock.install();
+  const radarOrbs = [
+    {x: 18, y: 24, vx: 45, vy: 22}, {x: 38, y: 24, vx: -36, vy: 30},
+    {x: 60, y: 24, vx: 32, vy: 40}, {x: 80, y: 24, vx: -44, vy: 26},
+    {x: 18, y: 50, vx: 40, vy: -30}, {x: 38, y: 50, vx: -35, vy: -35},
+    {x: 60, y: 50, vx: 38, vy: 34}, {x: 80, y: 50, vx: -42, vy: -28},
+    {x: 18, y: 76, vx: 46, vy: -24}, {x: 38, y: 76, vx: -32, vy: -42},
+    {x: 60, y: 76, vx: 36, vy: -32}, {x: 80, y: 76, vx: -40, vy: -36},
+  ];
+  const radarRound = {
+    orb_count: 12,
+    targets: [0, 3, 7, 10],
+    decoys: [{orb: 1, at_ms: 1400}, {orb: 5, at_ms: 2800}],
+    lock_ms: 1600,
+    track_ms: 4800,
+    speed_surge: true,
+    orbs: radarOrbs,
+  };
+  const attemptId = 'c'.repeat(32);
+  await page.route('**/api/mindset/drill', (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({mode: 'radar', difficulty: 'hard'});
+    return route.fulfill({json: {attempt_id: attemptId, duration: 60, rounds: Array(6).fill(radarRound)}});
+  });
+  await page.route('**/api/mindset/score', (route) => {
+    expect(route.request().postDataJSON()).toEqual({attempt_id: attemptId, responses: [{round: 0, cells: [0, 3, 7, 10]}]});
+    return route.fulfill({json: {score: 10, max_score: 60}});
+  });
+
+  await page.goto(`${origin}/mindset`);
+  await page.getByRole('group', {name: 'Open a warm-up step'}).getByRole('button', {name: 'Neural Radar'}).click();
+  const dialog = page.getByRole('dialog', {name: 'Pre-Market Warm-Up'});
+  await expect(dialog.getByRole('heading', {name: 'Neural Radar'})).toBeVisible();
+
+  const hardSwitch = dialog.getByRole('switch', {name: 'Hard difficulty for Neural Radar'});
+  await expect(hardSwitch).not.toBeChecked();
+  await hardSwitch.press('Space');
+  await expect(hardSwitch).toBeChecked();
+  await expect(dialog).toContainText('12 orbs · 4 targets');
+
+  await dialog.getByRole('button', {name: 'Start 60-second drill'}).click();
+  const arena = dialog.getByRole('group', {name: 'Neural Radar arena'});
+  await expect(arena.getByRole('button')).toHaveCount(12);
+  await expect(dialog).toContainText('PHASE 1 · LOCK TARGETS');
+  await expect(arena.getByRole('button', {name: 'Orb 1', exact: true})).toBeDisabled();
+  await expect(arena.getByRole('button', {name: 'Orb 1', exact: true})).toHaveAttribute('aria-pressed', 'true');
+
+  // Advance into mid-flight Track phase (speed surge active)
+  await page.clock.fastForward(3900);
+  await expect(dialog).toContainText('PHASE 2 · TRACK IN MOTION');
+  await expect(dialog).toContainText('SURGE');
+
+  // Advance into Acquire phase (1600 + 4800 = 6400ms)
+  await page.clock.fastForward(2800);
+  await expect(dialog).toContainText('PHASE 3 · ACQUIRE TARGETS');
+  const orb1 = arena.getByRole('button', {name: 'Orb 1', exact: true});
+  await expect(orb1).toBeEnabled();
+
+  for (const idx of radarRound.targets) {
+    await arena.getByRole('button', {name: `Orb ${idx + 1}`, exact: true}).click();
+  }
+  await expect(dialog.getByRole('status')).toHaveText('All targets acquired (+10).');
+  await expect(dialog).toContainText('10 pts');
+
+  // Mobile 390px bounds check
+  await page.setViewportSize({width: 390, height: 844});
+  const bounds = await dialog.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.screenshot({path: info.outputPath('mindset-neural-radar-mobile.png')});
+
+  await page.clock.fastForward(54000);
+  await expect(dialog.getByText('Your score: 10 / 60')).toBeVisible();
+  await dialog.getByRole('button', {name: 'Submit Score & Continue'}).click();
+  await expect(dialog.getByRole('heading', {name: 'Affirmation & Lock-In'})).toBeVisible();
+});
+

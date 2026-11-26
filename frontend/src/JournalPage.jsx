@@ -9,6 +9,7 @@ import {WorkspaceEntrance} from './PrimusSignIn';
 import {PrimusHeader, localSitePreview} from './SiteExperience';
 import {PrimusSunbeams} from './components/PrimusAtmosphere';
 import JournalFocusSheet from './components/JournalFocusSheet';
+import SessionRiskGuard from './components/SessionRiskGuard';
 import {Modal, Select} from './components';
 import SlidingSelection from './SlidingSelection';
 import {JournalClock} from './JournalClock';
@@ -644,6 +645,17 @@ export default function JournalPage({theme = 'light'}) {
 
   const dayResult = dailyResult(liveEntryRow);
   const hasDayTrades = entry.trades.some(trade => tradeMatchesFilter(trade, account, accounts));
+  const riskTradeCount = useMemo(
+    () => entry.trades.filter(trade => tradeMatchesFilter(trade, account, accounts)).length,
+    [entry.trades, account, accounts],
+  );
+  const riskDayPnl = useMemo(() => {
+    if (dayResult?.net_pnl != null) return dayResult.net_pnl;
+    const recorded = entry.trades
+      .filter(trade => tradeMatchesFilter(trade, account, accounts) && trade.net_pnl != null && Number.isFinite(Number(trade.net_pnl)))
+      .map(trade => Number(trade.net_pnl));
+    return recorded.length ? Math.round(recorded.reduce((sum, val) => sum + val, 0) * 100) / 100 : null;
+  }, [dayResult?.net_pnl, entry.trades, account, accounts]);
   const monthRows = rows.filter(row => row.day.startsWith(month));
   const knownDays = new Set(rows.map(row => row.day));
 
@@ -888,6 +900,13 @@ export default function JournalPage({theme = 'light'}) {
           </div>
 
           <JournalPrep day={day} key={day}/>
+
+          <SessionRiskGuard
+            preferences={meta.journal_preferences}
+            dayPnl={riskDayPnl}
+            tradeCount={riskTradeCount}
+            onSaved={value => setMeta(old => ({...old, journal_preferences: value}))}
+          />
 
           {(error || notice) && <div className="pj-day-feedback">
             {error && <div className="pt-journal-error" role="alert">{error}</div>}

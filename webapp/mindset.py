@@ -32,7 +32,7 @@ DEFAULT_ITEMS = [
 ]
 MAX_ITEMS = 200
 ChecklistId = Annotated[str, Field(pattern=r'^(levels|news|charity|loss_limit|[a-f0-9]{32})$')]
-Mode = Literal['sweep', 'memory', 'search']
+Mode = Literal['sweep', 'memory', 'search', 'radar']
 Difficulty = Literal['easy', 'hard']
 EASY_SEARCH_SYMBOLS = ('circle', 'square', 'diamond', 'triangle', 'star')
 HARD_SEARCH_SYMBOLS = ('north-east', 'south-east', 'south-west', 'north-west')
@@ -200,10 +200,65 @@ def sweep_target(round_data):
             and confirm['close'] > round_data['delivery'])
 
 
+def _make_radar_round(rng, *, difficulty='easy'):
+    import math
+
+    is_hard = difficulty == 'hard'
+    orb_count = 12 if is_hard else 8
+    target_count = 4 if is_hard else 3
+    base_speed = 50.0 if is_hard else 34.0
+    lock_ms = 1600 if is_hard else 2100
+    track_ms = 4800 if is_hard else 4200
+
+    # Place orbs on jittered non-overlapping grid slots inside [14..86] x [16..84].
+    cols, rows = (4, 3) if is_hard else (4, 2)
+    slots = []
+    for r in range(rows):
+        for c in range(cols):
+            cx = 16.0 + (c + 0.5) * (68.0 / cols) + rng.uniform(-4.5, 4.5)
+            cy = 18.0 + (r + 0.5) * (64.0 / rows) + rng.uniform(-5.0, 5.0)
+            slots.append((round(cx, 2), round(cy, 2)))
+    rng.shuffle(slots)
+
+    orbs = []
+    for idx in range(orb_count):
+        x, y = slots[idx]
+        angle = rng.uniform(0.0, math.tau)
+        speed = base_speed * rng.uniform(0.88, 1.16)
+        orbs.append({
+            'x': x,
+            'y': y,
+            'vx': round(math.cos(angle) * speed, 2),
+            'vy': round(math.sin(angle) * speed, 2),
+        })
+
+    targets = sorted(rng.sample(range(orb_count), target_count))
+    non_targets = [i for i in range(orb_count) if i not in targets]
+    decoys = []
+    if is_hard and len(non_targets) >= 2:
+        chosen = rng.sample(non_targets, 2)
+        decoys = [
+            {'orb': chosen[0], 'at_ms': rng.randint(1000, 2200)},
+            {'orb': chosen[1], 'at_ms': rng.randint(2500, 3900)},
+        ]
+
+    return {
+        'orb_count': orb_count,
+        'targets': targets,
+        'decoys': decoys,
+        'lock_ms': lock_ms,
+        'track_ms': track_ms,
+        'speed_surge': is_hard,
+        'orbs': orbs,
+    }
+
+
 def make_rounds(mode, rng=None, *, difficulty='easy'):
     rng = rng or SystemRandom()
     grid_size = 5 if difficulty == 'hard' else 4
     cell_count = grid_size ** 2
+    if mode == 'radar':
+        return [_make_radar_round(rng, difficulty=difficulty) for _ in range(6)]
     if mode == 'memory':
         pattern_size = 5 if difficulty == 'hard' else 4
         return [{'cells': sorted(rng.sample(range(cell_count), pattern_size)), 'grid_size': grid_size}
@@ -258,6 +313,15 @@ def score_drill(mode, rounds, responses):
             if len(cells) != 1 or not 0 <= cells[0] < len(row['symbols']):
                 raise ValueError('Choose one tile on the Visual Search grid.')
             points += 10 if row['symbols'][cells[0]] == row['target'] else 0
+        elif mode == 'radar':
+            row = rounds[index]
+            target_count = len(row['targets'])
+            orb_count = row['orb_count']
+            if len(cells) != target_count or len(set(cells)) != target_count:
+                raise ValueError(f'Choose {target_count} different orbs for a Neural Radar answer.')
+            if any(not 0 <= cell < orb_count for cell in cells):
+                raise ValueError('Choose orbs inside the Neural Radar arena.')
+            points += 10 if sorted(cells) == row['targets'] else 0
         else:
             row = rounds[index]
             pattern_size = len(row['cells'])

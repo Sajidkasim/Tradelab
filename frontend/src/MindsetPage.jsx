@@ -1,7 +1,7 @@
 import React, {lazy, Suspense, useEffect, useRef, useState} from 'react';
 import {
   ArrowUpRight, Check, ChevronDown, Headphones, Mic, MicOff,
-  Play, Plus, Wind,
+  Play, Plus, Radar, Wind,
 } from 'lucide-react';
 import {WorkspacePage, useIdentity, SignInPanel} from './WorkspacePages';
 import ResourceLibrary from './ResourceLibrary';
@@ -81,6 +81,9 @@ function WarmUpHero({state, checkpoint, onStart, onTiltReset, soundMode, onSound
             <button key={name} type="button" aria-haspopup="dialog" onClick={() => onStart(index)}>
               {name}<ArrowUpRight size={13} aria-hidden="true"/>
             </button>)}
+          <button type="button" className="is-radar-link" aria-haspopup="dialog" onClick={() => onStart(1, 'radar')}>
+            <Radar size={13} aria-hidden="true"/> Neural Radar<ArrowUpRight size={13} aria-hidden="true"/>
+          </button>
         </div>
       </>}
       {checkIn}
@@ -502,13 +505,17 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     }
   }
 
-  async function load({reset = false} = {}) {
+  async function load({reset = false, initial = false} = {}) {
     reader.current?.abort();
     writer.current?.abort();
     writer.current = null;
     queuedPrep.current = null;
     if (reset) setState(null);
-    setLaunch(null); setCheckpoint(null); setError(''); setSaveStatus('');
+    if (!initial) {
+      setLaunch(null);
+      setCheckpoint(null);
+    }
+    setError(''); setSaveStatus('');
     const abort = new AbortController();
     reader.current = abort;
     try {
@@ -524,9 +531,22 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   }
 
   useEffect(() => {
-    load();
+    load({initial: true});
     return () => {reader.current?.abort(); writer.current?.abort(); leaderboard.current?.abort();};
   }, []);
+
+  const autoResetHandled = useRef(false);
+  useEffect(() => {
+    if (!state || autoResetHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === '1') {
+      autoResetHandled.current = true;
+      setLaunch({tiltReset: true, step: 0});
+      params.delete('reset');
+      const nextQuery = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`);
+    }
+  }, [state]);
 
   useEffect(() => {
     if (!state?.resets_at) return;
@@ -568,7 +588,7 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     <WarmUpHero
       state={state}
       checkpoint={checkpoint}
-      onStart={step => setLaunch({step: step ?? checkpoint?.step ?? 0, checkpoint: step == null ? checkpoint : null})}
+      onStart={(step, game) => setLaunch({step: step ?? checkpoint?.step ?? 0, game: game ?? 'memory', checkpoint: step == null ? checkpoint : null})}
       onTiltReset={() => setLaunch({tiltReset: true, step: 0})}
       soundMode={soundMode}
       onSoundMode={changeSoundMode}
@@ -588,8 +608,9 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     {error && <Notice error>{error}{!state && <Button onClick={load}>Retry morning prep</Button>}</Notice>}
     {launch && state && <Suspense fallback={<p role="status">Opening warm-up…</p>}>
       <MindsetWarmUp
-        key={launch.tiltReset ? 'tilt-reset' : `step-${launch.step}`}
+        key={launch.tiltReset ? 'tilt-reset' : `step-${launch.step}-${launch.game || 'memory'}`}
         initialStep={launch.step}
+        initialGame={launch.game || 'memory'}
         checkpoint={launch.checkpoint}
         onCheckpoint={setCheckpoint}
         highScore={state.team_eligible ? highScore : null}

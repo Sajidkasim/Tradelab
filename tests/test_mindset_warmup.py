@@ -264,6 +264,56 @@ def test_hard_search_attempt_scores_after_a_minute(draft, monkeypatch):
     assert client.post('/api/mindset/score', json=answer).json() == {'score': 10, 'max_score': 60}
 
 
+@pytest.mark.parametrize('difficulty, orb_count, target_count, decoy_count, surge', [
+    ('easy', 8, 3, 0, False),
+    ('hard', 12, 4, 2, True),
+])
+def test_neural_radar_rounds_and_scoring(difficulty, orb_count, target_count, decoy_count, surge):
+    rounds = mindset.make_rounds('radar', Random(19), difficulty=difficulty)
+    assert len(rounds) == 6
+    for row in rounds:
+        assert row['orb_count'] == orb_count
+        assert len(row['orbs']) == orb_count
+        assert len(row['targets']) == target_count
+        assert row['targets'] == sorted(set(row['targets']))
+        assert all(0 <= t < orb_count for t in row['targets'])
+        assert len(row['decoys']) == decoy_count
+        assert all(d['orb'] not in row['targets'] and 0 <= d['orb'] < orb_count for d in row['decoys'])
+        assert row['speed_surge'] is surge
+
+    perfect = [mindset.DrillResponse(round=i, cells=list(reversed(row['targets']))) for i, row in enumerate(rounds)]
+    assert mindset.score_drill('radar', rounds, perfect) == 60
+
+    wrong_orb = next(i for i in range(orb_count) if i not in rounds[0]['targets'])
+    missed = [mindset.DrillResponse(round=0, cells=[*rounds[0]['targets'][:-1], wrong_orb])]
+    assert mindset.score_drill('radar', rounds, missed) == 0
+
+    with pytest.raises(ValueError, match='different orbs'):
+        mindset.score_drill('radar', rounds, [mindset.DrillResponse(round=0, cells=[0] * target_count)])
+    with pytest.raises(ValueError, match='inside the Neural Radar arena'):
+        mindset.score_drill('radar', rounds, [mindset.DrillResponse(round=0, cells=[*rounds[0]['targets'][:-1], orb_count])])
+
+
+def test_neural_radar_hard_attempt_scores_via_api(draft, monkeypatch):
+    client, _, identity = draft
+    clock = [datetime(2026, 11, 12, 15, tzinfo=timezone.utc)]
+    monkeypatch.setattr(mindset, 'now_utc', lambda: clock[0])
+    login(client, identity)
+    attempt = client.post('/api/mindset/drill', json={'day': '2026-11-12', 'mode': 'radar', 'difficulty': 'hard'}).json()
+    assert attempt['duration'] == 60
+    assert len(attempt['rounds']) == 6
+    assert all(row['orb_count'] == 12 and len(row['targets']) == 4 and len(row['decoys']) == 2 for row in attempt['rounds'])
+    answer = {
+        'attempt_id': attempt['attempt_id'],
+        'responses': [
+            {'round': 0, 'cells': attempt['rounds'][0]['targets']},
+            {'round': 1, 'cells': list(reversed(attempt['rounds'][1]['targets']))},
+        ],
+    }
+    clock[0] += timedelta(seconds=60)
+    assert client.post('/api/mindset/score', json=answer).json() == {'score': 20, 'max_score': 60}
+
+
 def test_journal_checklist_uses_the_saved_date_and_template(draft, monkeypatch):
     client, _, identity = draft
     now = [datetime(2026, 11, 12, 15, tzinfo=timezone.utc)]

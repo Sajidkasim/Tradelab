@@ -14,8 +14,14 @@ def read(database):
     zone = stored.get('timezone', 'America/New_York')
     status = stored.get('tour_status')
     tour_status = status if stored.get('tour_version') == TOUR_VERSION and status in ('pending', 'completed', 'skipped') else 'pending'
+    raw_loss = stored.get('daily_loss_limit')
+    daily_loss_limit = round(float(raw_loss), 2) if isinstance(raw_loss, (int, float)) and not isinstance(raw_loss, bool) and 0 < float(raw_loss) <= 1_000_000 else None
+    raw_trades = stored.get('max_daily_trades')
+    max_daily_trades = int(raw_trades) if isinstance(raw_trades, int) and not isinstance(raw_trades, bool) and 0 < raw_trades <= 50 else None
     return {'trading_rules': stored.get('trading_rules', '') if isinstance(stored.get('trading_rules', ''), str) else '',
             'timezone': zone if zone in ZONES else 'America/New_York',
+            'daily_loss_limit': daily_loss_limit,
+            'max_daily_trades': max_daily_trades,
             'welcome_pending': stored.get('welcome_pending') is True,
             'personal_setup': stored.get('personal_setup') is True,
             'tour_status': tour_status, 'tour_version': TOUR_VERSION}

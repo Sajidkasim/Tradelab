@@ -143,3 +143,41 @@ test('Primus Trader entrance has its own responsive design and recovers from Goo
  await expect(page.getByRole('button',{name:'Continue with Google',exact:true})).toBeEnabled();
  expect(errors).toEqual([]);
 });
+
+test('Journal Session Risk Guard tracks live loss buffer, triggers lockout, and launches 60s Tilt Reset',async({page})=>{
+ await page.goto(origin+'/journal');
+ const guard=page.getByRole('region',{name:'Session risk guard',exact:true});
+ await expect(guard).toBeVisible();
+ await guard.getByRole('button',{name:/^(Set|Edit) limits$/}).click();
+ await guard.getByLabel('Daily max loss ($)',{exact:true}).fill('500');
+ await guard.getByLabel('Max trades / day',{exact:true}).fill('3');
+ await guard.getByRole('button',{name:'Save limits',exact:true}).click();
+ await expect(guard).toContainText('Risk Guard · Clear');
+ await expect(guard).toContainText('$500 buffer intact');
+ await expect(guard).toContainText('0 / 3 trades');
+
+ // Log a trade exceeding the daily loss limit and confirm live lockout appears immediately
+ await page.getByRole('button',{name:'Add trade',exact:true}).first().click();
+ await page.locator('.pj-setup-result > summary').first().click();
+ await page.getByLabel('Profit / loss ($)',{exact:true}).first().fill('-520');
+ await expect(guard).toContainText('Daily loss limit reached — lock the desk');
+ await expect(guard.getByRole('progressbar',{name:'Daily loss limit used'})).toHaveAttribute('aria-valuetext','100% of daily loss limit used');
+ await expect(guard).toContainText('1 / 3 trades');
+
+ // Clicking 60s Tilt Reset navigates to Mindset and auto-opens the 60s Tilt Reset dialog
+ const resetLink=guard.getByRole('link',{name:/60s Tilt Reset/});
+ await expect(resetLink).toHaveAttribute('href','/mindset?reset=1');
+ await resetLink.click();
+ const resetDialog=page.getByRole('dialog',{name:'60s Tilt Reset'});
+ await expect(resetDialog).toBeVisible();
+ await resetDialog.getByRole('button',{name:'Done early',exact:true}).click();
+ await expect(resetDialog).toHaveCount(0);
+
+ // Clean up risk guard limits so other tests start cleanly
+ await page.goto(origin+'/journal');
+ const cleanGuard=page.getByRole('region',{name:'Session risk guard',exact:true});
+ await cleanGuard.getByRole('button',{name:'Edit limits',exact:true}).click();
+ await cleanGuard.getByRole('button',{name:'Clear limits',exact:true}).click();
+ await expect(cleanGuard).toContainText('Set a daily loss cap');
+});
+

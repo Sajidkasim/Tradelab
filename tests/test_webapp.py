@@ -854,6 +854,45 @@ def test_personal_trading_rules_persist_without_timezone_updates_erasing_them(lo
     assert client.put('/api/journal-preferences',json={'timezone':'Europe/London','trading_rules':''}).json()['trading_rules']==''
 
 
+def test_session_risk_guard_preferences_persist_and_clear(local):
+    client, _ = local
+    defaults = client.get('/api/metadata').json()['journal_preferences']
+    assert defaults['daily_loss_limit'] is None
+    assert defaults['max_daily_trades'] is None
+
+    saved = client.put('/api/journal-preferences', json={
+        'timezone': 'America/New_York',
+        'daily_loss_limit': 500.5,
+        'max_daily_trades': 3,
+    })
+    assert saved.status_code == 200
+    assert saved.json()['daily_loss_limit'] == 500.5
+    assert saved.json()['max_daily_trades'] == 3
+
+    # Timezone or trading_rules updates must preserve risk guard limits when omitted.
+    preserved = client.put('/api/journal-preferences', json={
+        'timezone': 'Europe/London',
+        'trading_rules': 'Respect the daily stop.',
+    })
+    assert preserved.status_code == 200
+    assert preserved.json()['daily_loss_limit'] == 500.5
+    assert preserved.json()['max_daily_trades'] == 3
+
+    # Validation rejects negative limits or > 50 trades/day.
+    assert client.put('/api/journal-preferences', json={'timezone': 'Europe/London', 'daily_loss_limit': -50}).status_code == 422
+    assert client.put('/api/journal-preferences', json={'timezone': 'Europe/London', 'max_daily_trades': 51}).status_code == 422
+
+    # Passing 0 clears limits cleanly back to None.
+    cleared = client.put('/api/journal-preferences', json={
+        'timezone': 'Europe/London',
+        'daily_loss_limit': 0,
+        'max_daily_trades': 0,
+    })
+    assert cleared.status_code == 200
+    assert cleared.json()['daily_loss_limit'] is None
+    assert cleared.json()['max_daily_trades'] is None
+
+
 def test_only_hashed_build_assets_receive_immutable_cache(local):
     client, app = local
     import re

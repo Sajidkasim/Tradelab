@@ -198,6 +198,8 @@ class LabelMerge(StrictModel):
 class JournalPreferences(StrictModel):
     trading_rules: str | None = Field(default=None, max_length=12000)
     timezone: Literal['America/New_York', 'Europe/London']
+    daily_loss_limit: float | None = Field(default=None, ge=0, le=1_000_000)
+    max_daily_trades: int | None = Field(default=None, ge=0, le=50)
 
 
 class WelcomeSetup(JournalPreferences):

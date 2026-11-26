@@ -55,6 +55,50 @@ export function playBreathCue(phase) {
   }
 }
 
+function playFastTone(ctx, freq, startOffset, duration, peakGain = 0.04, type = 'sine', endFreq = null) {
+  const now = ctx.currentTime + startOffset;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, now);
+  if (endFreq != null) {
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+  }
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(peakGain, now + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + duration + 0.03);
+}
+
+export function playDrillCue(kind) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (kind === 'lock') {
+      playFastTone(ctx, 520, 0, 0.14, 0.035, 'sine', 780);
+      playFastTone(ctx, 780, 0.09, 0.18, 0.028, 'triangle');
+    } else if (kind === 'phase') {
+      playFastTone(ctx, 390, 0, 0.12, 0.025, 'sine', 440);
+    } else if (kind === 'select') {
+      playFastTone(ctx, 680, 0, 0.07, 0.032, 'triangle', 760);
+    } else if (kind === 'decoy') {
+      playFastTone(ctx, 250, 0, 0.13, 0.028, 'sawtooth', 185);
+    } else if (kind === 'hit') {
+      playFastTone(ctx, 523.25, 0, 0.14, 0.04, 'sine');
+      playFastTone(ctx, 659.25, 0.07, 0.16, 0.04, 'sine');
+      playFastTone(ctx, 783.99, 0.14, 0.24, 0.038, 'triangle');
+    } else if (kind === 'miss') {
+      playFastTone(ctx, 270, 0, 0.15, 0.036, 'triangle', 210);
+      playFastTone(ctx, 200, 0.1, 0.22, 0.034, 'triangle', 155);
+    }
+  } catch {
+    // Drill SFX is best-effort only.
+  }
+}
+
 export class FocusSoundscape {
   constructor() {
     this.ctx = null;

@@ -624,7 +624,12 @@ def create_app(config: Settings | None = None):
         with app.state.workspaces.workspace_lock(member['key']):
             database = db(request, member)
             values = {**journal_preferences.read(database), 'timezone': payload.timezone}
-            if payload.trading_rules is not None:values['trading_rules'] = payload.trading_rules
+            if payload.trading_rules is not None:
+                values['trading_rules'] = payload.trading_rules
+            if 'daily_loss_limit' in payload.model_fields_set:
+                values['daily_loss_limit'] = round(float(payload.daily_loss_limit), 2) if payload.daily_loss_limit and payload.daily_loss_limit > 0 else None
+            if 'max_daily_trades' in payload.model_fields_set:
+                values['max_daily_trades'] = int(payload.max_daily_trades) if payload.max_daily_trades and payload.max_daily_trades > 0 else None
             database.set_setting(journal_preferences.KEY, values)
             app.state.workspaces.bump(member['key'])
         return values
