@@ -1,8 +1,0 @@
-.matrix-loading{display:grid;place-items:center;min-height:65vh;background:#09090b;color:#d4d4d8;padding:24px}
-.matrix-loading-inner{display:grid;gap:14px;width:min(100%,320px);font:12px ui-monospace,monospace}
-.matrix-loading-inner strong{font-size:32px;color:#fafafa}
-.matrix-loading-kicker{letter-spacing:.13em;color:#a1a1aa}
-.matrix-loading-bars{height:64px;display:grid;grid-template-columns:repeat(9,1fr);gap:5px;align-items:end;border-bottom:1px solid #27272a}
-.matrix-loading-bars i{background:#34d399;transform-origin:bottom;animation:matrix-scan 1.3s ease-in-out infinite alternate}
-@keyframes matrix-scan{from{opacity:.2;transform:scaleY(.35)}to{opacity:.85;transform:scaleY(1)}}
-@media(prefers-reduced-motion:reduce){.matrix-loading-bars i{animation:none}}

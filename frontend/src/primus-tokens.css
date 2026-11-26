@@ -1,4 +1,215 @@
 /* ============================================================================
+   CONSOLIDATED GLOBAL FOUNDATION: Workspace Theme + Mobile Shell + Primus Tokens
+   ============================================================================ */
+
+/* --- Layer A: Workspace Theme Tokens & Primax Orb Base --- */
+:root {
+  --desk-page:#f4f3eb;
+  --desk-surface:#fffef9;
+  --desk-ink:#17271f;
+  --desk-muted:#627168;
+  --desk-border:#dedfd3;
+  --desk-action:#10231c;
+  --desk-action-ink:#fffef9;
+  --desk-selected:#e8ede5;
+  --desk-focus:#587244;
+  --desk-check:#16845f;
+  --desk-font:Inter,system-ui,sans-serif;
+  --desk-title:clamp(34px, 4.1vw, 54px);
+}
+:root[data-theme="dark"] {
+  --desk-page:#202225;
+  --desk-surface:#282b2e;
+  --desk-ink:#f3f1eb;
+  --desk-muted:#c1c0b9;
+  --desk-border:#45484b;
+  --desk-action:#d3e6af;
+  --desk-action-ink:#10231c;
+  --desk-selected:#363e38;
+  --desk-focus:#c7d7af;
+  --desk-check:#43bd91;
+}
+:root :is(.mw-page,.pj-workspace,.mw-modal,.bt-session-site),
+:root[data-theme="dark"] :is(.pt-site.mw-page,.pt-journal.pj-workspace,.mw-modal,.pt-site.bt-session-site) {
+  --pt-paper:var(--desk-page);
+  --pt-white:var(--desk-surface);
+  --pt-ink:var(--desk-ink);
+  --pt-muted:var(--desk-muted);
+  --pt-line:var(--desk-border);
+  --pt-focus:var(--desk-focus);
+  font-family:var(--desk-font);
+}
+.pj-workspace .pt-journal-heading h1,
+.bt-session-site .bt-sessions-heading h1 {
+  font-family:var(--desk-font);
+  font-size:var(--desk-title);
+  font-weight:600;
+  line-height:1.08;
+  letter-spacing:-.047em;
+}
+.bt-session-site .button.primary,
+.bt-session-modal .button.primary {
+  background:var(--desk-action);
+  border-color:var(--desk-action);
+  color:var(--desk-action-ink);
+}
+.bt-session-modal {
+  background:var(--desk-surface);
+  color:var(--desk-ink);
+  border-color:var(--desk-border);
+}
+.pj-workspace :is(.pt-journal-heading h1 em,.pt-writing-area h3) {
+  font-family:var(--desk-font);
+  font-weight:600;
+  letter-spacing:inherit;
+}
+.pj-workspace .pt-journal-heading h1 em { font-style:normal; }
+.pj-workspace .pt-btn-dark,
+:root[data-theme="dark"] .pt-journal.pj-workspace .pt-btn-dark {
+  background:var(--desk-action);
+  border-color:var(--desk-action);
+  color:var(--desk-action-ink);
+}
+.pj-workspace .pt-btn-dark:hover { filter:brightness(.92); }
+.prep-progress { margin-block:12px; }
+.prep-progress-label {
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:4px 10px;
+  margin-bottom:7px;
+  color:var(--desk-muted);
+  font-size:13px;
+}
+.prep-progress-label strong { color:var(--desk-ink); }
+.prep-progress-track {
+  height:8px;
+  overflow:hidden;
+  border:1px solid var(--desk-border);
+  border-radius:99px;
+  background:var(--desk-page);
+}
+.prep-progress-track > span {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:var(--desk-check);
+  transform:scaleX(var(--checklist-progress));
+  transform-origin:left;
+  transition:transform .3s ease-out;
+}
+@media(prefers-reduced-motion:reduce) {
+  .prep-progress-track > span { transition:none; }
+}
+
+.aura-orb {
+  position:relative;
+  display:grid;
+  place-content:center;
+  justify-items:center;
+  gap:1px;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  border:1px solid #547566;
+  border-radius:50%;
+  color:#f4f6ef;
+  background:radial-gradient(ellipse at 32% 17%, #92ada0 0%, #527769 25%, #203e34 58%, #0e221c 86%);
+  box-shadow:inset 0 1px 2px #fff7, inset 0 -4px 8px #0b1b17a8, 0 5px 12px #10251d52;
+  font:inherit;
+  font-size:11px;
+  font-weight:650;
+  cursor:pointer;
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.aura-orb::before {
+  content:"";
+  position:absolute;
+  inset:4px 9px auto;
+  height:22px;
+  border-radius:50%;
+  background:linear-gradient(180deg, #fff4, transparent);
+  pointer-events:none;
+}
+.aura-orb > * { position:relative; }
+.aura-orb:hover { transform:translateY(-2px); box-shadow:inset 0 1px 2px #fff7, inset 0 -4px 8px #0b1b17a8, 0 8px 16px #10251d62; }
+.aura-orb[aria-expanded="true"] { border-color:#9dbcab; }
+@media (prefers-reduced-motion:reduce) {
+  .aura-orb { transition:none; }
+  .aura-orb:hover { transform:none; }
+}
+.aura-orb:focus-visible{outline:2px solid var(--pt-ink);outline-offset:3px}
+
+/* --- Layer B: Mobile Shell, Safe-Area Insets & Drawer Nav --- */
+:root {
+  --primax-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  --primax-right: calc(20px + env(safe-area-inset-right, 0px));
+}
+html:has([data-primax-fab]) {
+  scroll-padding-bottom: calc(var(--primax-bottom) + 76px);
+}
+#root:has([data-primax-fab]) {
+  padding-bottom: calc(var(--primax-bottom) + 76px);
+}
+#root:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) {
+  padding-bottom: 0;
+}
+[data-primax-fab].pj-aura {
+  bottom: var(--primax-bottom);
+  right: var(--primax-right);
+}
+body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .primax-global {
+  display: none;
+}
+.pj-aura-panel {
+  max-height: calc(100dvh - var(--primax-bottom) - env(safe-area-inset-top, 0px) - 16px);
+}
+.pt-mobile-nav-divider { display: none; }
+
+@media (display-mode: standalone) {
+  #root {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+  }
+  #root:not(:has([data-primax-fab], .bt-layout)) {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .bt-layout { height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 520px) {
+  .pt-header .pt-mobile-toggle { min-width: 44px; min-height: 44px; }
+  .pt-header nav.is-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 10px 18px 16px;
+    max-height: calc(100dvh - 70px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+  }
+  .pt-header nav.is-open :is(a, .pt-mobile-workspace) {
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: #c0c9bf;
+  }
+  .pt-header nav .pt-nav-primary { order: -2; }
+  .pt-header nav.is-open .pt-nav-primary { font-weight: 650; color: var(--pt-header-ink); }
+  .pt-header nav.is-open a[aria-current=page] { color: var(--pt-lime); background: #ffffff10; }
+  .pt-header nav.is-open a[aria-current=page]::after { display: none; }
+  .pt-header nav.is-open a::before { display: none; }
+  .pt-mobile-nav-divider {
+    display: block;
+    order: -1;
+    border: 0;
+    border-top: 1px solid #ffffff22;
+    margin: 6px 12px;
+  }
+}
+
+/* ============================================================================
    PRIMUS SIGNATURE — Unified Design Token Sheet & One-UI Shell System
    Single source of truth for Light & Dark modes across Home, Journal,
    Strategy Lab, Mindset, The Matrix, Backtesting, and Learn.
@@ -1034,4 +1245,3 @@
 :root[data-theme="dark"] body .picker-options button[aria-selected="true"] {
   color: var(--primus-accent);
 }
-

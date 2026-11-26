@@ -162,9 +162,6 @@ def mount(app, config, workspace, check_write):
             raise HTTPException(403, "The Bullpen is reserved for the Primus team.")
         return await macro_feed.read()
 
-    alert_lock = Lock()
-    last_alert = {}
-
     @app.post("/api/alert-team", status_code=202)
     def alert_team(request: Request, background_tasks: BackgroundTasks):
         if not config.google_required or os.getenv("BULLPEN_ENABLED") != "1":
@@ -184,11 +181,10 @@ def mount(app, config, workspace, check_write):
         push_ready = bool(webpush.vapid_credentials())
         if not (mail_ready or webhook_ready or push_ready):
             return {"queued": False}
-        with alert_lock:
-            now = time.monotonic()
-            if now - last_alert.get(name, float("-inf")) < 900:
-                return {"queued": False}
-            last_alert[name] = now
+        if not app.state.workspaces.shared_state.claim_cooldown(
+            "bullpen_alert", name, cooldown_seconds=900
+        ):
+            return {"queued": False}
         if mail_ready:
             background_tasks.add_task(_send_live_alert, *credentials, recipients, name)
         join_url = f"{config.public_url.rstrip('/')}/learn"

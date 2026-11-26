@@ -1,7 +1,6 @@
 import React from 'react';
 import PrimusCompass from './components/PrimusCompass';
 import { PrimusTopoField } from './components/PrimusAtmosphere';
-import './matrix-loading.css';
 
 export default function MatrixLoading(){
   return <div className="matrix-loading" role="status">

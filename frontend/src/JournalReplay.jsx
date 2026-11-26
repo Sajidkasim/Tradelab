@@ -5,7 +5,6 @@ import {startReplayClock} from './replayClock';
 import {streamReplayBars} from './replayChartStream';
 import {replayProjector} from './replayViewport';
 import {advanceWindow,reachedExecutions} from './journalReplayWindow';
-import './journal-replay.css';
 
 const REPLAY_PAGE_SIZE = 10;
 

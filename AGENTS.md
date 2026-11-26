@@ -16,21 +16,21 @@ Architecture overview, deployment setup, non-negotiable invariants, and coding r
 - **The Matrix (`/matrix`)** — Macro desk dashboard backed by `public.macro_scorecard` (refreshed via GitHub Action `tools/refresh_matrix.py` from FRED, CFTC COT, and FMP).
 - **The Bullpen** — Private 5-person live room (Jitsi JaaS video, Supabase Realtime presence/chat/reactions, Fed/BLS macro RSS feed, TradingView webhook `/api/tv-webhook`, Gmail team alerts).
 
-*(Legacy Streamlit code in `app.py`, `views/`, `ui/`, and `nightly.py` still exists in the repo for reference/legacy cron, but is NOT included in the Docker web image.)*
+*(Legacy Streamlit files `app.py`, `views/`, and `ui/` have been retired. `nightly.py` remains for the scheduled `.github/workflows/nightly.yml` broker-fill auto-journal cron.)*
 
 ---
 
 ## 2. Tech Stack & Directory Layout
 
-- **Backend (`webapp/`):** FastAPI (`webapp/app.py`, `create_app` factory) running on `uvicorn --workers 1` with OpenAPI/Swagger disabled. Serves `/api/*`, `/auth/callback`, and the built React SPA from `frontend/dist`.
-- **Frontend (`frontend/`):** React 19 + Vite 8 + Tailwind CSS v4 (scoped with `tw:` prefix alongside custom CSS). Client-side SPA routing (`frontend/src/main.jsx` + `frontend/src/paths.js` via `history.pushState` and `primus:navigate`) keeps `<BullpenProvider>` and active Jitsi/Supabase Bullpen calls alive across tab switches between `<SiteExperience/>` and `<App/>` (`/lab*`, including `/lab/tools`). Key packages: `@luxalgo/vela@0.9.3`, `@supabase/supabase-js`, `@jitsi/react-sdk`, `plotly.js-basic-dist-min`, `tesseract.js`, `three` (with bundled `MeshoptDecoder` for the compressed ~2.1 MB `assets/hra-brain-female-v1.3.glb`).
+- **Backend (`webapp/`):** FastAPI (`webapp/app.py`, `create_app` factory) running on `uvicorn --workers 1` with OpenAPI/Swagger disabled. Serves `/api/*`, `/auth/callback`, and the built React SPA from `frontend/dist`. Cross-worker coordination (`primus_shared_state` table via `webapp/shared_state.py`) backs Google PKCE verifiers, `Workspaces` cache-invalidation revisions, and Bullpen alert cooldown leases across both SQLite and PostgreSQL.
+- **Frontend (`frontend/`):** React 19 + Vite 8 + Tailwind CSS v4 (scoped with `tw:` prefix alongside consolidated domain CSS layers guarded by `frontend/src/cssArchitecture.test.js`). Client-side SPA routing (`frontend/src/main.jsx` + `frontend/src/paths.js` via `history.pushState` and `primus:navigate`) keeps `<BullpenProvider>` and active Trading Floor calls alive across tab switches between `<SiteExperience/>` and `<App/>` (`/lab*`, including `/lab/tools`). Key packages: `@luxalgo/vela@0.9.3`, `@supabase/supabase-js`, `@jitsi/react-sdk`, `plotly.js-basic-dist-min`, `tesseract.js`, `three` (with bundled `MeshoptDecoder` for the compressed ~2.1 MB `assets/hra-brain-female-v1.3.glb`).
 - **Shared Core & Services (`core/`, `services/`, `extensions/`):**
   - `core/db.py` — SQLAlchemy Core schema (`accounts`, `instruments`, `setups`, `trades`, `settings`, `import_mappings`, `backtest_runs`, `bars_cache`, `rule_breaches`), CRUD, `migrate()`, JSON backup/restore.
   - `core/metrics.py`, `core/risk.py`, `core/edge.py`, `core/importers.py`, `core/fills_to_trades.py`, `core/backtest.py`, `core/projectx_api.py` (strictly read-only).
   - `services/replay_engine.py`, `services/replay_frames.py`, `services/replay_candles.py`, `services/team.py` (`MemberDatabase`), `services/import_flow.py`, `services/trade_labels.py`.
   - `extensions/ai_coach.py` — Primax AI assistant (Cloudflare Workers AI or Gemini REST API).
-- **Offline Tools (`tools/`):** `refresh_matrix.py`, `workspace_backup.py`, replay archive indexers/packagers, password hashing, benchmarks.
-- **Tests (`tests/` + `frontend/src/*.test.js`):** Pytest (475+ tests), Vitest unit tests, and Playwright browser tests.
+- **Offline Tools (`tools/`):** `refresh_matrix.py`, `workspace_backup.py`, `check_commit_msg.py`, replay archive indexers/packagers, password hashing, benchmarks.
+- **Tests (`tests/` + `frontend/src/*.test.js`):** Pytest (495+ tests), Vitest unit tests, and Playwright browser tests.
 
 ---
 
@@ -51,8 +51,8 @@ Architecture overview, deployment setup, non-negotiable invariants, and coding r
 
 1. **Pin `@luxalgo/vela` at exact `0.9.3` (`frontend/package.json`):**
    - `replayDrawingPerformance.js`, `replayDrawingInteractions.js`, `replayDrawingGeometry.js`, `replayViewport.js`, and `BacktestingChart.jsx` monkey-patch private Vela internals (see `DRAWING_PERFORMANCE.md`). Never bump `@luxalgo/vela` without rewriting and profiling all drawing adapters.
-2. **Single-worker / single-instance assumption (`--workers 1`, `numInstances: 1`, 1 CPU / 2 GB RAM):**
-   - In-memory Google PKCE verifiers, `Workspaces.frames` cache invalidation, `replay_gate` (`Semaphore(4)`), `ByteCache` budgets, and Bullpen alert cooldowns all assume one worker process. Do not increase workers/instances without moving shared state to Postgres/Redis.
+2. **2 GB Render resource ceiling (`--workers 1`, `numInstances: 1`, 1 CPU / 2 GB RAM):**
+   - Google PKCE verifiers, `Workspaces` frame-invalidation revisions, and Bullpen alert cooldowns are stored in the database via `webapp/shared_state.py` (`primus_shared_state`, RLS-hardened) for multi-worker readiness. However, `replay_gate` (`Semaphore(4)`) and in-memory `ByteCache` budgets remain tuned for 1 worker on 2 GB RAM — do not raise `--workers` or `numInstances` in `Dockerfile.web` / `deploy/render.yaml` without also scaling RAM and reviewing cache budgets.
 3. **Fail-closed auth, CSRF, Origin & tenant isolation:**
    - Every private endpoint must use `Depends(workspace)` (or `Depends(replay_slot)` for heavy replay routes) and derive the workspace key strictly from the verified server-side session token.
    - Never weaken `Settings.validate()`, `Origin == config.public_url`, `X-Primus-CSRF`, `RequestLimits`, `harden_tables()`, or `MemberDatabase`'s `schema_translate_map`.

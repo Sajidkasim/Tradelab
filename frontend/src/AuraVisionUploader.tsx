@@ -5,7 +5,6 @@ import InteractiveChartPreview, {type Finding} from './InteractiveChartPreview';
 import JournalChartProjection, {projectionFields, type Projection, type ProjectionField} from './JournalChartProjection';
 import {readProjection} from './journalProjection';
 import type {ChartOcrSession, ChartRead, Point, Vocabulary} from './chartVisionLocal';
-import './chart-vision.css';
 
 const mediaTypes = ['image/png', 'image/jpeg', 'image/webp'];
 const caption = {

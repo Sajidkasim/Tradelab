@@ -2,7 +2,6 @@ import React, { useMemo } from "react";
 import { ArrowDown, ArrowUpRight } from "lucide-react";
 import { Button, Chart } from "./components";
 import LabHistory from "./LabHistory";
-import "./lab-equity-chart.css";
 
 const BACKTEST = "Backtesting";
 const LIVE = "Forward testing";

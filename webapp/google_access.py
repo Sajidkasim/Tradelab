@@ -110,9 +110,11 @@ def google_identity(user):
 
 
 class GoogleAccess:
-    def __init__(self, database, config):
+    def __init__(self, database, config, shared_state=None):
         self.database, self.config = database, config
         self.lock, self.attempts = RLock(), {}
+        from .shared_state import SharedState
+        self.shared_state = shared_state if shared_state is not None else SharedState(database)
         self.version = hmac.new(config.secret.encode(), f'google:{config.supabase_url}'.encode(), hashlib.sha256).hexdigest()
         self.client = httpx.Client(timeout=15, follow_redirects=False)
         metadata.create_all(database.engine)
@@ -136,13 +138,23 @@ class GoogleAccess:
                 raise ValueError('The configured owner does not match this journal. Restore the original owner email.')
 
     def start(self, previous=None):
+        from .shared_state import CapacityExceeded
+        attempt, verifier = token_urlsafe(32), token_urlsafe(48)
         with self.lock:
             now = monotonic()
             self.attempts = {key: value for key, value in self.attempts.items() if value[1] > now}
             self.attempts.pop(previous, None)
-            if len(self.attempts) >= 200:
-                raise LoginError()
-            attempt, verifier = token_urlsafe(32), token_urlsafe(48)
+            try:
+                self.shared_state.put_ephemeral(
+                    'google_pkce',
+                    attempt,
+                    {'verifier': verifier},
+                    ttl_seconds=600,
+                    max_items=200,
+                    replace_key=previous if isinstance(previous, str) else None,
+                )
+            except CapacityExceeded:
+                raise LoginError() from None
             self.attempts[attempt] = (verifier, now + 600)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
         # Fixed callback; an attacker cannot supply an external return URL.
@@ -152,13 +164,21 @@ class GoogleAccess:
         return attempt, self.config.supabase_url + '/auth/v1/authorize?' + query
 
     def exchange(self, attempt, code):
+        if not isinstance(attempt, str) or not isinstance(code, str) or not 1 <= len(code) <= 2048:
+            raise LoginError()
         with self.lock:
-            pending = self.attempts.pop(attempt, None) if isinstance(attempt, str) else None
-        if not pending or pending[1] <= monotonic() or not isinstance(code, str) or not 1 <= len(code) <= 2048:
+            local = self.attempts.pop(attempt, None)
+        shared = self.shared_state.pop_ephemeral('google_pkce', attempt)
+        # Respect explicit local expiry overrides (e.g. tests forcing expiry) while
+        # allowing a different worker process without local cache to complete PKCE.
+        if local is not None and local[1] <= monotonic():
+            raise LoginError()
+        verifier = (shared or {}).get('verifier') or (local[0] if local else None)
+        if not verifier:
             raise LoginError()
         try:
             result = self.client.post(self.config.supabase_url + '/auth/v1/token?grant_type=pkce',
-                headers={'apikey': self.config.supabase_key}, json={'auth_code': code, 'code_verifier': pending[0]})
+                headers={'apikey': self.config.supabase_key}, json={'auth_code': code, 'code_verifier': verifier})
             result.raise_for_status()
             token = result.json()['access_token']
             user = self.client.get(self.config.supabase_url + '/auth/v1/user',

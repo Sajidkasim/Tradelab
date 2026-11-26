@@ -103,3 +103,26 @@ def test_storage_key_cannot_escape_and_owner_cannot_be_silently_reassigned(team)
         MemberDatabase(team.root, "../../owner")
     with pytest.raises(ValueError):
         Team(team.root, "someoneelse@example.com")
+
+
+def test_repeat_google_login_does_not_write_unchanged_profile(tmp_path):
+    import sqlalchemy as sa
+    root = Database(tmp_path / "team.db")
+    root.init()
+    team = Team(root, "owner@example.com")
+    value = claims("owner@example.com", "owner-sub")
+    team.join(value)
+    writes = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith("UPDATE"):
+            writes.append(statement)
+
+    sa.event.listen(root.engine, "before_cursor_execute", record)
+    try:
+        assert team.join(value).owner
+        assert writes == []
+        team.join({**value, "name": "Updated name"})
+        assert len(writes) == 1
+    finally:
+        sa.event.remove(root.engine, "before_cursor_execute", record)

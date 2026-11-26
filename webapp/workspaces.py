@@ -72,10 +72,12 @@ class Workspaces:
         self._registry_lock = RLock()
         self._workspace_locks = {}
         from .google_access import GoogleAccess, harden_tables
+        from .shared_state import SharedState
         from core.db import metadata as trading_metadata
         harden_tables(self.root, trading_metadata.sorted_tables)
+        self.shared_state = SharedState(self.root)
         if config.google_required:
-            self.google = GoogleAccess(self.root, config)
+            self.google = GoogleAccess(self.root, config, shared_state=self.shared_state)
 
     def workspace_lock(self, key):
         with self._registry_lock:
@@ -104,21 +106,24 @@ class Workspaces:
 
     def trades(self, key):
         with self.workspace_lock(key):
+            rev = self.shared_state.get_revision("workspace_rev", key)
             with self._registry_lock:
                 cached = self.frames.get(key)
-            if cached is None or monotonic() - cached[0] > 5:
+            if cached is None or cached[0] != rev or monotonic() - cached[1] > 5:
                 frame = self.database(key).trades_df(sources=SCOPES["All"])
-                cached = (monotonic(), frame)
+                cached = (rev, monotonic(), frame)
                 with self._registry_lock:
                     if key not in self.frames and len(self.frames) >= 32:
                         self.frames.pop(next(iter(self.frames)))
                     self.frames[key] = cached
-            return cached[1].copy(deep=True)
+            return cached[2].copy(deep=True)
 
     def bump(self, key):
-        """Invalidate cached results after writes."""
-        with self.workspace_lock(key), self._registry_lock:
-            self.frames.pop(key, None)
+        """Invalidate cached results after writes across all worker processes."""
+        with self.workspace_lock(key):
+            self.shared_state.bump_revision("workspace_rev", key)
+            with self._registry_lock:
+                self.frames.pop(key, None)
 
     def close(self):
         if self.google:

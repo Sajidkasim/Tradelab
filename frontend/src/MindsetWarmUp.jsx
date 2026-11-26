@@ -4,7 +4,6 @@ import {Button, Modal, Notice, Segments} from './components';
 import {api} from './api';
 import AffirmationPicker, {affirmations} from './MindsetAffirmations';
 import {playBreathCue} from './mindsetAudio';
-import './mindset-exercise.css';
 
 const BREATH_MS = 120000;
 const TILT_RESET_MS = 60000;

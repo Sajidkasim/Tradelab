@@ -1,0 +1,12 @@
+# <area>: <short imperative summary (50-72 chars)>
+#
+# Examples:
+#   journal: upgrade Rules panel to Focus-Sheet modal
+#   lab: add R-distribution histogram to Strategy Lab
+#   backend: move PKCE verifiers and cooldowns to SharedState
+#
+# Why this change is needed (optional body):
+#
+# Verification:
+#   - npm test && npm run build
+#   - pytest -q

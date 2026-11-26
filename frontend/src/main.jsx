@@ -4,12 +4,16 @@ const App=lazy(()=>import("./App"));
 import BullpenProvider from "./components/BullpenProvider";
 import SiteExperience, { sitePreview } from './SiteExperience';
 import { isSitePath, isSpaPath, navigateTo } from "./paths";
+// Global CSS Architecture (strict cascade order):
+// 1. Palette tokens generated from core/charts.py
+// 2. Strategy Lab base + responsive layout
+// 3. Primus Design System (tokens + workspace theme + mobile shell)
+// 4. Primus Living Optical effects
+// 5. Primus Studio 2x2 workspace layouts
 import "./theme.css";
 import "./styles.css";
 import "./responsive.css";
 import "./lab-preview.css";
-import "./workspace-theme.css";
-import "./mobile-shell.css";
 import "./primus-tokens.css";
 import "./primus-living.css";
 import "./primus-studio.css";
