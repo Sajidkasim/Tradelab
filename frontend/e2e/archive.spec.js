@@ -23,7 +23,7 @@ test('removed labels stay archived, can filter old trades, and restore from sett
     await page.getByRole('listbox',{name:'Strategy',exact:true}).press('Escape');
     await explorer.getByRole('button',{name:/Show archived strategy/}).click();
     await pick(strategy,'Archived setup');
-    await expect(page.locator('.stat').filter({hasText:'Trades analysed'})).toContainText('1');
+    await expect(page.locator('.lab-ledger-row').filter({hasText:/Trades analysed/i})).toContainText('1');
     await expect(explorer.getByRole('button',{name:/Show archived key level ·/i})).toBeVisible();
     await expect(explorer.getByRole('button',{name:/Show archived key level timeframe/})).toBeVisible();
     await expect(explorer.getByRole('button',{name:/Show archived entry timeframe/})).toBeVisible();

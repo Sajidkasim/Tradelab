@@ -1273,7 +1273,7 @@ body:has(.bt-layout, .bullpen-workspace:not([hidden]):not(.is-minimised)) .prima
   box-shadow: none;
   color: var(--slide-ink, var(--primus-ink));
 }
-.segments.sliding-selection { flex-wrap: wrap; border-radius: var(--primus-radius-md); }
+.segments.sliding-selection { flex-wrap: wrap; border-radius: var(--primus-radius-md); overflow: clip; }
 .segments.sliding-selection > button { min-height: 36px; }
 
 @keyframes primus-control-reveal {

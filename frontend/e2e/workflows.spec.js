@@ -90,7 +90,7 @@ test("manual entry, setup exploration and combined or separate source results", 
   await dialog.getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("link", { name: "PrimusLab", exact: true }).click();
   await expect(
-    page.locator(".stat").filter({ hasText: "Win rate" }).first(),
+    page.locator(".lab-ledger-row").filter({ hasText: /Win rate/i }).first(),
   ).toContainText("50.0%");
   await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await expect(
@@ -110,10 +110,10 @@ test("manual entry, setup exploration and combined or separate source results", 
     exact: true,
   });
   await expect(
-    combined.locator(".stat").filter({ hasText: "Win rate" }),
+    combined.locator(".lab-ledger-row").filter({ hasText: /Win rate/i }),
   ).toContainText("50.0%");
   await expect(
-    combined.locator(".stat").filter({ hasText: "Trades analysed" }),
+    combined.locator(".lab-ledger-row").filter({ hasText: /Trades analysed/i }),
   ).toContainText("2");
   await expect(page.locator(".js-plotly-plot")).toHaveCount(1);
   const sources = page.getByRole("group", { name: "Data source", exact: true });
@@ -123,8 +123,8 @@ test("manual entry, setup exploration and combined or separate source results", 
   await expect(
     page
       .getByRole("region", { name: "Backtesting results", exact: true })
-      .locator(".stat")
-      .filter({ hasText: "Win rate" }),
+      .locator(".lab-ledger-row")
+      .filter({ hasText: /Win rate/i }),
   ).toContainText("100.0%");
   await sources
     .getByRole("button", { name: "Live", exact: true })
@@ -132,8 +132,8 @@ test("manual entry, setup exploration and combined or separate source results", 
   await expect(
     page
       .getByRole("region", { name: "Live results", exact: true })
-      .locator(".stat")
-      .filter({ hasText: "Win rate" }),
+      .locator(".lab-ledger-row")
+      .filter({ hasText: /Win rate/i }),
   ).toContainText("0.0%");
   await sources.getByRole("button", { name: "All", exact: true }).click();
   await page.getByLabel("Show drawdown", { exact: true }).check();
@@ -481,8 +481,8 @@ test("delete manual and imported trades with cancellation, errors and refreshed 
   await expect(
     page
       .getByRole("region", { name: "Live results", exact: true })
-      .locator(".stat")
-      .filter({ hasText: "Trades analysed" }),
+      .locator(".lab-ledger-row")
+      .filter({ hasText: /Trades analysed/i }),
   ).toContainText("0");
   await page.reload();
   await expect(page.locator(".trade-table tbody tr")).toHaveCount(2);
@@ -1000,13 +1000,13 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   await importCsv(modelCsv, 2);
   await expect(page.locator(".lab-rr-model")).toHaveCount(0);
   await expect(
-    page.locator(".stat").filter({ hasText: "Average R · fixed test" }).first(),
+    page.locator(".lab-ledger-row").filter({ hasText: /Average R · fixed/i }).first(),
   ).toContainText("1.00R");
   await expect(
-    page.locator(".stat").filter({ hasText: "Average R · fixed test" }).first(),
+    page.locator(".sl-metrics-foot").first(),
   ).toContainText("before costs");
   await expect(
-    page.locator(".stat").filter({ hasText: "Trades analysed" }).first(),
+    page.locator(".lab-ledger-row").filter({ hasText: /Trades analysed/i }).first(),
   ).toContainText("2");
   await page.screenshot({
     path: "test-results/primuslab-fixed-rr-results.png",
@@ -1017,10 +1017,10 @@ test("fixed RR results use confirmed backtest outcomes and preserve recorded ris
   const actual = `id,symbol,direction,entry_time,exit_time,pnl,risk_amount,tags\nrr-actual,NQ,buy,2026-07-06 13:30,2026-07-06 13:40,125,50,1:3\n`;
   await importCsv(actual, 1);
   await expect(
-    page.locator(".stat").filter({ hasText: "Average R" }).first(),
+    page.locator(".lab-ledger-row").filter({ hasText: /^Average R/i }).first(),
   ).toContainText("2.50R");
   await expect(
-    page.locator(".stat").filter({ hasText: "Average R · fixed test" }),
+    page.locator(".lab-ledger-row").filter({ hasText: /Average R · fixed/i }),
   ).toHaveCount(0);
   await expect(page.locator(".lab-rr-model")).toHaveCount(0);
   await pick(
@@ -1071,7 +1071,7 @@ test("weekday exploration updates results and CSV day meanings flag mismatches",
     "false",
   );
   await expect(
-    page.locator(".stat").filter({ hasText: "Trades analysed" }).first(),
+    page.locator(".lab-ledger-row").filter({ hasText: /Trades analysed/i }).first(),
   ).toContainText("1");
   await expect(page.locator(".js-plotly-plot").first()).toBeVisible();
   await page.screenshot({

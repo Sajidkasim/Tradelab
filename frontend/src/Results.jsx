@@ -128,8 +128,16 @@ export default function Results({
     return base + filters.confirmations.length + custom;
   }, [filters]);
 
+  const tourOpenedDrawer = React.useRef(false);
   useEffect(() => {
-    if (tourOpen && isSiteLab) setDrawerOpen(true);
+    if (!isSiteLab) return;
+    if (tourOpen) {
+      tourOpenedDrawer.current = true;
+      setDrawerOpen(true);
+    } else if (tourOpenedDrawer.current) {
+      tourOpenedDrawer.current = false;
+      setDrawerOpen(false);
+    }
   }, [tourOpen, isSiteLab]);
 
   useEffect(() => {

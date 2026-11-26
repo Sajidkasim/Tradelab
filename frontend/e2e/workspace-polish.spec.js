@@ -145,7 +145,7 @@ test('Primus Trader entrance has its own responsive design and recovers from Goo
 });
 
 test('Journal Session Risk Guard tracks live loss buffer, triggers lockout, and launches 60s Tilt Reset',async({page})=>{
- await page.goto(origin+'/journal');
+ await page.goto(origin+'/journal?day=2026-06-15');
  const guard=page.getByRole('region',{name:'Session risk guard',exact:true});
  await expect(guard).toBeVisible();
  await guard.getByRole('button',{name:/^(Set|Edit) limits$/}).click();
@@ -174,7 +174,7 @@ test('Journal Session Risk Guard tracks live loss buffer, triggers lockout, and 
  await expect(resetDialog).toHaveCount(0);
 
  // Clean up risk guard limits so other tests start cleanly
- await page.goto(origin+'/journal');
+ await page.goto(origin+'/journal?day=2026-06-15');
  const cleanGuard=page.getByRole('region',{name:'Session risk guard',exact:true});
  await cleanGuard.getByRole('button',{name:'Edit limits',exact:true}).click();
  await cleanGuard.getByRole('button',{name:'Clear limits',exact:true}).click();

@@ -158,6 +158,8 @@ export default function LabResultsDesk({
         {detail ? "Hide advanced metrics" : "Advanced metrics"} <ArrowUpRight size={14} aria-hidden="true"/>
       </Button>
     </div>
+    {filters && available.some((sample) => sample.stats?.trades > 0) &&
+      <LabMonteCarlo scope={scope} samples={available} filters={filters} revision={revision} onTrades={onTrades}/>}
     {detail && <section id="lab-breakdown" className="lab-breakdown-desk" aria-labelledby="lab-breakdown-title">
       <header className="lab-results-heading">
         <h2 id="lab-breakdown-title">Performance breakdown</h2>
@@ -166,8 +168,6 @@ export default function LabResultsDesk({
         sample={sample} busy={busy} onTrades={onTrades}/>)}
       <GroupedResults samples={available} comparison={comparison} dimensions={dimensions} onComparisonChange={onComparisonChange} busy={busy}/>
     </section>}
-    {filters && available.some((sample) => sample.stats?.trades > 0) &&
-      <LabMonteCarlo scope={scope} samples={available} filters={filters} revision={revision} onTrades={onTrades}/>}
     <Strategies sources={sources} setups={setups} setup={setup} onSetupChange={onSetupChange}/>
   </section>;
 }
