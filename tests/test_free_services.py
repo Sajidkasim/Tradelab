@@ -248,3 +248,30 @@ def test_groq_whisper_fast_path_and_cloudflare_fallback(monkeypatch):
 
     monkeypatch.setattr(requests, "post", fake_post_fallback)
     assert daily_journal.transcribe_audio(b"fake-webm-bytes") == "Cloudflare fallback transcript"
+
+
+def test_metrics_return_distribution_buckets_r_multiples_and_empty_frames():
+    import pandas as pd
+    from core import metrics
+
+    empty = metrics.return_distribution(pd.DataFrame())
+    assert empty["unit"] == "R"
+    assert empty["total"] == 0
+    assert len(empty["buckets"]) == 9
+    assert all(b["count"] == 0 for b in empty["buckets"])
+
+    df = pd.DataFrame([
+        {"exit_price": 100.0, "net_pnl": -200.0, "r_multiple": -1.0},
+        {"exit_price": 105.0, "net_pnl": 200.0, "r_multiple": 1.0},
+        {"exit_price": 110.0, "net_pnl": 400.0, "r_multiple": 2.0},
+        {"exit_price": 115.0, "net_pnl": 700.0, "r_multiple": 3.5},
+    ])
+    dist = metrics.return_distribution(df)
+    assert dist["unit"] == "R"
+    assert dist["total"] == 4
+    assert dist["mean"] == pytest.approx(1.375)
+    by_label = {b["label"]: b["count"] for b in dist["buckets"]}
+    assert by_label["−1R"] == 1
+    assert by_label["+1R"] == 1
+    assert by_label["+2R"] == 1
+    assert by_label["+3R+"] == 1

@@ -266,6 +266,58 @@ def summary_stats(df: pd.DataFrame, starting_balance: float = 0.0) -> dict:
     return out
 
 
+_R_BUCKETS = [
+    ("≤−2R", -math.inf, -1.75),
+    ("−1.5R", -1.75, -1.25),
+    ("−1R", -1.25, -0.75),
+    ("−0.5R", -0.75, -0.15),
+    ("0R", -0.15, 0.25),
+    ("+0.5R", 0.25, 0.75),
+    ("+1R", 0.75, 1.5),
+    ("+2R", 1.5, 2.5),
+    ("+3R+", 2.5, math.inf),
+]
+
+
+def return_distribution(df: pd.DataFrame) -> dict:
+    """Bucket closed trade returns (R-multiple preferred, else P&L) for distribution chart."""
+    c = closed(df)
+    labels = [label for label, _, _ in _R_BUCKETS]
+    if c.empty:
+        return {"unit": "R", "buckets": [{"label": lb, "count": 0} for lb in labels], "mean": None, "total": 0}
+
+    r_vals = c["r_multiple"].dropna().astype(float) if "r_multiple" in c else pd.Series(dtype=float)
+    if len(r_vals) > 0:
+        counts = [0] * len(_R_BUCKETS)
+        for val in r_vals:
+            for idx, (_, low, high) in enumerate(_R_BUCKETS):
+                if low <= val < high or (idx == len(_R_BUCKETS) - 1 and val >= low):
+                    counts[idx] += 1
+                    break
+        return {
+            "unit": "R",
+            "buckets": [{"label": lb, "count": cnt} for lb, cnt in zip(labels, counts)],
+            "mean": float(r_vals.mean()),
+            "total": int(len(r_vals)),
+        }
+
+    pnl = c["net_pnl"].astype(float)
+    scale = float(pnl.abs().median()) or 100.0
+    norm = pnl / scale
+    counts = [0] * len(_R_BUCKETS)
+    for val in norm:
+        for idx, (_, low, high) in enumerate(_R_BUCKETS):
+            if low <= val < high or (idx == len(_R_BUCKETS) - 1 and val >= low):
+                counts[idx] += 1
+                break
+    return {
+        "unit": "relative",
+        "buckets": [{"label": lb.replace("R", "×"), "count": cnt} for lb, cnt in zip(labels, counts)],
+        "mean": float(norm.mean()),
+        "total": int(len(pnl)),
+    }
+
+
 # --------------------------------------------------------------------------
 # Breakdowns
 # --------------------------------------------------------------------------

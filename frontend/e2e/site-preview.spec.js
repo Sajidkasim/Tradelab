@@ -12,11 +12,14 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   const labNav=await page.getByRole('navigation',{name:'Primus navigation'}).boundingBox();
   expect(labBrand.x).toBe(brand.x);expect(labBrand.y).toBe(brand.y);
   expect(Math.abs(labNav.x-nav.x)).toBeLessThan(2);
+  await page.getByRole('button',{name:/^Filters/}).click();
+  await expect(page.locator('.sl-filter-drawer')).toHaveClass(/is-open/);
   await page.getByRole('combobox',{name:'Strategy',exact:true}).click();
   await page.getByRole('option',{name:'Reversal at key level',exact:true}).click();
+  await page.getByRole('button',{name:'Apply & View Desk',exact:true}).click();
   await expect(page.locator('.results-caption')).toContainText('Reversal at key level');
   await expect(page.getByText('Up to date',{exact:true})).toBeVisible();
-  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).borderRadius)).toBe('5px');
+  expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).borderRadius)).toBe('14px');
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -34,6 +37,12 @@ test('Lab matches the Primus shell and keeps filters, settings and its phone gui
   await page.getByRole('button',{name:'Dark mode',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   expect(await page.locator('.history-card').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(19, 24, 22)');
+  await expect(page.locator('.sl-page-dock')).toBeVisible();
+  await expect(page.locator('.sl-hero-card')).toBeVisible();
+  await expect(page.locator('.sl-dist-card')).toBeVisible();
+  const kpiLedger=page.locator('.lab-kpi-ledger');
+  await expect(kpiLedger).toBeVisible();
+  await expect(kpiLedger.locator('.lab-ledger-row').filter({hasText:'Max Drawdown'}).locator('.lab-val-chip')).toContainText('-$');
   await page.screenshot({path:info.outputPath('primus-lab-dark.png'),fullPage:true});
   await page.getByRole('button',{name:'My lab',exact:true}).click();
   await page.getByRole('button',{name:'Light mode',exact:true}).click();

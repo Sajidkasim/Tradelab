@@ -92,9 +92,6 @@ function ReadinessStrip({state, onChange, status}) {
   const headspace = state.headspace || '';
   const tilted = headspace === 'emotional' || headspace === 'distracted' || energy === 'fumes';
 
-  const selected = [ENERGY_OPTIONS.find(option => option.value === energy)?.label,
-    HEADSPACE_OPTIONS.find(option => option.value === headspace)?.label].filter(Boolean);
-
   return <details className="mw-check-in">
     <summary>Check in <span>{selected.join(' · ')}</span><ChevronDown size={16} aria-hidden="true"/></summary>
     <div className="mw-readiness-strip">
@@ -286,59 +283,6 @@ function MorningBrief({voiceCloudEnabled}) {
   </section>;
 }
 
-function PrepPerformance() {
-  const [mirror, setMirror] = useState(null);
-  const [error, setError] = useState('');
-  const [retry, setRetry] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let pending;
-    function load() {
-      pending?.abort();
-      pending = new AbortController();
-      const signal = pending.signal;
-      api('/mindset/mirror', {signal}).then(data => {
-        if (!signal.aborted) {setMirror(data); setError('');}
-      }).catch(failure => {
-        if (!signal.aborted) setError(failure.message);
-      });
-    }
-    load();
-    window.addEventListener('primus:prep-saved', load, {signal: controller.signal});
-    return () => {controller.abort(); pending?.abort();};
-  }, [retry]);
-
-  const cohorts = mirror && [['Prep recorded', mirror.prepped], ['No prep recorded', mirror.unprepped]];
-  return <section className="wp-panel mw-card mw-performance" aria-labelledby="mw-mirror-title">
-    <h2 id="mw-mirror-title">Prep performance</h2>
-    {error && <Notice error>{error} <Button onClick={() => {setError(''); setRetry(value => value + 1);}}>Retry</Button></Notice>}
-    {!mirror && !error && <p role="status">Loading Journal data…</p>}
-    {mirror?.total_journal_days === 0 && <p className="mw-muted-copy">Log sessions in your <a href="/journal">Journal</a> to compare your prep days.</p>}
-    {mirror?.total_journal_days > 0 && <>
-      <div className="mw-comparison">
-        {cohorts.map(([name, stats]) => <div key={name}>
-          <span>{name}</span>
-          <strong>{stats.plan_pct == null ? '—' : `${stats.plan_pct}%`}</strong>
-          <small>{stats.plan_pct == null ? 'No plan ratings' : `On-plan · ${stats.plan_tagged} rated`} · {stats.days} {stats.days === 1 ? 'session' : 'sessions'}</small>
-        </div>)}
-      </div>
-      <details className="mw-breakdown">
-        <summary>View breakdown <ChevronDown size={16} aria-hidden="true"/></summary>
-        <dl aria-label="Net P&L">
-          {[...cohorts, ['Focused / Patient', mirror.calm], ['Distracted / Frustrated', mirror.tilted]].map(([name, stats]) =>
-            <div key={name}><dt>{name}</dt><dd>{(stats.pnl_days ?? stats.days) > 0 ? money(stats.net_pnl) : '—'}
-              {stats.win_pct != null && <small> · {stats.win_pct}% green</small>}</dd></div>)}
-        </dl>
-        {cohorts.map(([name, stats]) => stats.recent_days?.length > 0 && <div className="mw-mirror-entries" key={name}>
-          <strong>Recent sessions · {name.toLowerCase()}</strong>
-          <div>{stats.recent_days.map(day => <a key={day} href={`/journal?day=${encodeURIComponent(day)}`}>{day}</a>)}</div>
-        </div>)}
-      </details>
-    </>}
-  </section>;
-}
-
 function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabled = false}) {
   const heading = habits ? 'daily-habits' : 'prep-checklist';
   const name = habits ? 'habit' : 'checklist item';
@@ -362,7 +306,10 @@ function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabl
     onEdit({items: items.filter(item => item.id !== id), checklist: state.checklist.filter(value => value !== id)});
   }
   return <section className={`wp-panel mw-card mw-checklist-card${ready ? ' is-ready' : ''}`} aria-labelledby={heading}>
-    <h2 id={heading}>{habits ? 'Daily Habit Tracker' : 'Pre-Session Checklist'}</h2>
+    <div className="mw-card-title">
+      <h2 id={heading}>{habits ? 'Daily Habit Tracker' : 'Pre-Session Checklist'}</h2>
+      <span className={`lab-val-chip ${ready ? 'is-pos' : ''}`}>{checked} / {items.length}</span>
+    </div>
     <PrepProgress checked={checked} total={items.length} label={habits ? 'Habit progress' : undefined}
       accessibleLabel={habits ? 'Daily habit progress' : undefined}/>
     <div className="mw-checklist">
@@ -370,7 +317,7 @@ function RoutineChecklist({state, onEdit, onSave, status, habits = false, disabl
         <input aria-label={`${habits ? 'Habit' : 'Checklist item'} ${index + 1}`} maxLength={120} required value={label}
           onChange={e => onEdit({items: items.map(item => item.id === id ? {...item, label: e.target.value} : item)})}/>
         <Button type="button" aria-label={`Remove ${name} ${index + 1}`} onClick={() => remove(id)}>Remove</Button>
-      </div> : <label key={id}>
+      </div> : <label key={id} className={state.checklist.includes(id) ? 'is-checked' : ''}>
         <input type="checkbox" disabled={disabled} checked={state.checklist.includes(id)} onChange={e => toggleCheck(id, e.target.checked)}/>
         <strong>{label}</strong>
       </label>)}
@@ -459,6 +406,7 @@ function HabitTracker() {
 function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   const [state, setState] = useState(null);
   const [highScore, setHighScore] = useState(null);
+  const [mirror, setMirror] = useState(null);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [launch, setLaunch] = useState(null);
@@ -473,6 +421,14 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   useEffect(() => {
     soundscape.current = new FocusSoundscape();
     return () => { soundscape.current?.stop(); };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api('/mindset/mirror', {signal: controller.signal})
+      .then(data => { if (!controller.signal.aborted) setMirror(data); })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   function changeSoundMode(next) {
@@ -537,7 +493,6 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
     writer.current = request;
     setSaveStatus('saving');
     try {
-      // Send writes in order so a quick series of toggles cannot save a stale snapshot last.
       while (queuedPrep.current && !request.signal.aborted) {
         const {day, energy, headspace, checklist, items} = queuedPrep.current;
         queuedPrep.current = null;
@@ -557,7 +512,35 @@ function PrivateWarmUp({pinnedGoal, voiceCloudEnabled}) {
   }
 
   return <>
-    <WarmUpHero
+    <aside className="sl-page-dock" aria-label="Mindset quick views">
+      <button type="button" className="sl-dock-btn is-active" aria-label="Morning Desk"
+        onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+        <Home size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Morning Desk</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Open Warm-Up Drills" disabled={!state}
+        onClick={() => {setTiltResetOpen(false); setOpenStep(0);}}>
+        <Play size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Warm-Up &amp; Drills</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Jump to Brief and Habits"
+        onClick={() => document.getElementById('mw-brief-title')?.scrollIntoView({behavior: 'smooth'})}>
+        <CheckSquare size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Brief &amp; Habits</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Jump to Vision and Brain"
+        onClick={() => document.getElementById('mw-anchor-section')?.scrollIntoView({behavior: 'smooth'})}>
+        <Brain size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">Anchor &amp; Brain</span>
+      </button>
+      <button type="button" className="sl-dock-btn" aria-label="Quick 60s Tilt Reset" disabled={!state}
+        onClick={() => {setOpenStep(null); setTiltResetOpen(true);}}>
+        <Wind size={18} strokeWidth={1.75} aria-hidden="true"/>
+        <span className="sl-dock-tip" aria-hidden="true">60s Tilt Reset</span>
+      </button>
+    </aside>
+
+    <StudioHeader
       state={state}
       checkpoint={checkpoint}
       onStart={step => setLaunch({step: step ?? checkpoint?.step ?? 0, checkpoint: step == null ? checkpoint : null})}
@@ -609,15 +592,17 @@ export default function MindsetPage() {
   return <WorkspacePage active="mindset" title="Mindset" hideHeading className="mw-page">
     {identity?.authenticated
       ? <PrivateWarmUp pinnedGoal={pinnedGoal} voiceCloudEnabled={Boolean(identity.voice_journal_enabled)}/>
-      : <WarmUpHero/>}
+      : <WarmUpHero/>
     {error && <Notice error>{error}<Button onClick={reload}>Retry sign-in check</Button></Notice>}
     {!identity && !error && <p role="status">Checking your private workspace…</p>}
-    <div className="mw-board-grid">
+    <div id="mw-anchor-section" className="mw-board-grid">
       {identity?.authenticated
         ? <VisionBoard imagesEnabled={identity.images_enabled} onPinnedChange={goal => setGoalSelection({identity, goal})}/>
         : identity && <SignInPanel identity={identity} path="/mindset" reload={reload} title="Sign in for your morning prep and vision board"/>}
       <ResourceLibrary section="mindset" identity={identity}/>
     </div>
-    <Suspense fallback={<p role="status">Opening Brain Explorer…</p>}><BrainExplorer/></Suspense>
+    <div id="mw-brain-section">
+      <Suspense fallback={<p role="status">Opening Brain Explorer…</p>}><BrainExplorer/></Suspense>
+    </div>
   </WorkspacePage>;
 }
