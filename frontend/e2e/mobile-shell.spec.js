@@ -49,6 +49,7 @@ test("workspace navigation uses the same moving indicator on desktop and mobile"
   const navigation = page.getByRole("navigation", { name: "Primus navigation" });
   const selection = navigation.locator(".sliding-selection-highlight");
   await expect(navigation.getByRole("link", { name: "Journal", exact: true })).toHaveAttribute("data-slide-selected", "");
+  await expect(selection).toBeVisible();
   const journalX = (await selection.boundingBox()).x;
   await navigation.getByRole("link", { name: "Strategy Lab", exact: true }).click();
   await expect(navigation.getByRole("link", { name: "Strategy Lab", exact: true })).toHaveAttribute("data-slide-selected", "");
